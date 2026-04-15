@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   AlertCircle,
+  AlertTriangle,
   BarChart2,
   BanknoteIcon,
   CheckCircle2,
@@ -36,6 +37,7 @@ import {
   DollarSign,
   Download,
   FileText,
+  Receipt,
   RefreshCw,
   TrendingUp,
   Users,
@@ -45,6 +47,9 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
+import { Skeleton } from "@/components/ui/skeleton";
+
+type ClientInvoiceSummary = RouterOutputs["hr"]["getClientInvoiceSummary"];
 
 function FinancialIntelligencePanel() {
   const agedQuery = trpc.billing.getAgedReceivables.useQuery();
@@ -151,6 +156,173 @@ function FinancialIntelligencePanel() {
   );
 }
 
+function ClientInvoiceTab({
+  query,
+  month,
+  onMonthChange,
+}: {
+  query: { data: ClientInvoiceSummary | undefined; isLoading: boolean };
+  month: string;
+  onMonthChange: (m: string) => void;
+}) {
+  const fmt = (n: number) =>
+    `OMR ${n.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
+
+  const handleExportCsv = () => {
+    if (!query.data?.groups?.length) return;
+    const rows: string[][] = [
+      ["Client / Brand", "Site", "Employee", "Billable Days", "Billable Hours", "Daily Rate (OMR)", "Amount (OMR)"],
+    ];
+    for (const g of query.data.groups) {
+      for (const p of g.promoters) {
+        rows.push([
+          g.clientName ?? g.siteName,
+          g.siteName,
+          p.employeeName,
+          String(p.billableDays),
+          String(p.billableHours),
+          g.dailyRateOmr.toFixed(3),
+          p.amountOmr.toFixed(3),
+        ]);
+      }
+      rows.push([
+        g.clientName ?? g.siteName,
+        g.siteName,
+        "SUBTOTAL",
+        String(g.totalBillableDays),
+        String(g.totalBillableHours),
+        g.dailyRateOmr.toFixed(3),
+        g.totalAmountOmr.toFixed(3),
+      ]);
+    }
+    rows.push(["GRAND TOTAL", "", "", "", "", "", (query.data.grandTotalOmr ?? 0).toFixed(3)]);
+
+    const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `client-invoices-${month}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <Input
+            type="month"
+            value={month}
+            onChange={(e) => onMonthChange(e.target.value)}
+            className="w-40 h-8 text-sm"
+          />
+          <span className="text-sm text-muted-foreground">
+            {query.data?.groups?.length ?? 0} client site{(query.data?.groups?.length ?? 0) !== 1 ? "s" : ""}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {query.data?.grandTotalOmr != null && query.data.grandTotalOmr > 0 && (
+            <span className="text-sm font-semibold">Total: {fmt(query.data.grandTotalOmr)}</span>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleExportCsv}
+            disabled={!query.data?.groups?.length}
+            className="gap-1.5"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </Button>
+        </div>
+      </div>
+
+      {query.isLoading && (
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <Skeleton key={i} className="h-32 w-full" />
+          ))}
+        </div>
+      )}
+
+      {!query.isLoading && !query.data?.groups?.length && (
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          No billable attendance found for {month}.
+          <br />
+          <span className="text-xs">
+            Tip: set a Daily Rate on each Attendance Site to enable invoice calculations.
+          </span>
+          <br />
+          <a
+            href="/hr/attendance-sites"
+            className="text-xs text-[var(--smartpro-orange)] hover:underline mt-1 inline-block"
+          >
+            Go to Attendance Sites →
+          </a>
+        </div>
+      )}
+
+      {query.data?.groups?.map((g) => (
+        <Card key={g.siteId} className="border shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-sm font-semibold">{g.clientName ?? g.siteName}</CardTitle>
+                {g.clientName && g.siteName !== g.clientName && (
+                  <p className="text-xs text-muted-foreground mt-0.5">{g.siteName}</p>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold">{fmt(g.totalAmountOmr)}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {g.totalBillableDays} days × {fmt(g.dailyRateOmr)}/day
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {g.dailyRateOmr === 0 && (
+              <p className="text-xs text-amber-600 mb-2 flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                Daily rate not set for this site — amounts shown as OMR 0.000. Set it in Attendance Sites.
+              </p>
+            )}
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] text-muted-foreground border-b">
+                  <th className="text-left py-1.5 font-medium">Promoter</th>
+                  <th className="text-right py-1.5 font-medium">Days</th>
+                  <th className="text-right py-1.5 font-medium">Hours</th>
+                  <th className="text-right py-1.5 font-medium">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.promoters.map((p) => (
+                  <tr key={p.employeeId} className="border-b border-muted/40">
+                    <td className="py-1.5">{p.employeeName}</td>
+                    <td className="text-right py-1.5 tabular-nums">{p.billableDays}</td>
+                    <td className="text-right py-1.5 tabular-nums text-muted-foreground">{p.billableHours}h</td>
+                    <td className="text-right py-1.5 tabular-nums font-medium">{fmt(p.amountOmr)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="font-semibold text-sm">
+                  <td className="pt-2">Subtotal</td>
+                  <td className="text-right pt-2 tabular-nums">{g.totalBillableDays}</td>
+                  <td className="text-right pt-2 tabular-nums text-muted-foreground">{g.totalBillableHours}h</td>
+                  <td className="text-right pt-2 tabular-nums">{fmt(g.totalAmountOmr)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -221,7 +393,15 @@ export default function BillingEnginePage() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ amount: "", date: new Date().toISOString().split("T")[0], method: "bank_transfer", reference: "", notes: "" });
 
+  const currentInvoiceMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  const [invoiceMonth, setInvoiceMonth] = useState(currentInvoiceMonth);
+
   const utils = trpc.useUtils();
+
+  const clientInvoiceQuery = trpc.hr.getClientInvoiceSummary.useQuery(
+    { companyId: activeCompanyId ?? undefined, month: invoiceMonth },
+    { enabled: activeCompanyId != null },
+  );
 
   const dashboardQuery = trpc.billing.getBillingDashboard.useQuery({
     month: filterMonth !== "all" ? parseInt(filterMonth) : undefined,
@@ -459,6 +639,10 @@ export default function BillingEnginePage() {
             <BarChart2 size={14} />
             Financial Intelligence
           </TabsTrigger>
+          <TabsTrigger value="client-invoices" className="gap-1.5">
+            <Receipt className="h-3.5 w-3.5" />
+            Client Invoices
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Invoices Tab ── */}
@@ -610,6 +794,10 @@ export default function BillingEnginePage() {
         {/* ── Financial Intelligence Tab ── */}
         <TabsContent value="intelligence">
           <FinancialIntelligencePanel />
+        </TabsContent>
+
+        <TabsContent value="client-invoices">
+          <ClientInvoiceTab query={clientInvoiceQuery} month={invoiceMonth} onMonthChange={setInvoiceMonth} />
         </TabsContent>
       </Tabs>
 

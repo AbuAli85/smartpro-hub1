@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { mergeLeavePolicyCaps } from "../../shared/leavePolicyCaps";
-import { eq, and, desc, gte, lte, count, sum, or, isNull, inArray } from "drizzle-orm";
+import { eq, and, desc, gte, lte, count, sum, or, isNull, isNotNull, inArray } from "drizzle-orm";
 import {
   companies,
   workPermits,
@@ -1095,6 +1095,203 @@ export const hrRouter = router({
       }
 
       return { month: input.month, rows };
+    }),
+
+  /**
+   * Per-client / per-site invoice summary: billable days (distinct Muscat dates with closed punch)
+   * × contracted daily_rate_omr, with per-promoter breakdown.
+   */
+  getClientInvoiceSummary: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        month: z.string().regex(/^\d{4}-\d{2}$/), // YYYY-MM
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const cid = await requireHrAdminOrDelegatedReports(ctx.user as User, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const [yStr, mStr] = input.month.split("-");
+      const year = Number(yStr);
+      const month = Number(mStr);
+      const mm = String(month).padStart(2, "0");
+      const startDate = `${year}-${mm}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+
+      const monthStart = new Date(`${startDate}T00:00:00.000Z`);
+      const monthEnd = new Date(`${endDate}T23:59:59.999Z`);
+
+      const records = await db
+        .select({
+          id: attendanceRecords.id,
+          employeeId: attendanceRecords.employeeId,
+          checkIn: attendanceRecords.checkIn,
+          checkOut: attendanceRecords.checkOut,
+          siteId: attendanceRecords.siteId,
+        })
+        .from(attendanceRecords)
+        .where(
+          and(
+            eq(attendanceRecords.companyId, cid),
+            gte(attendanceRecords.checkIn, monthStart),
+            lte(attendanceRecords.checkIn, monthEnd),
+            isNotNull(attendanceRecords.checkOut),
+            isNotNull(attendanceRecords.siteId),
+          ),
+        );
+
+      if (records.length === 0) {
+        return { month: input.month, groups: [], grandTotalOmr: 0 };
+      }
+
+      const siteIds = [...new Set(records.map((r) => r.siteId).filter((id): id is number => id != null))];
+      const sites = siteIds.length
+        ? await db
+            .select({
+              id: attendanceSites.id,
+              name: attendanceSites.name,
+              clientName: attendanceSites.clientName,
+              dailyRateOmr: attendanceSites.dailyRateOmr,
+            })
+            .from(attendanceSites)
+            .where(inArray(attendanceSites.id, siteIds))
+        : [];
+      const siteById = new Map(sites.map((s) => [s.id, s]));
+
+      const empIds = [...new Set(records.map((r) => r.employeeId))];
+      const empRows = empIds.length
+        ? await db
+            .select({ id: employees.id, firstName: employees.firstName, lastName: employees.lastName })
+            .from(employees)
+            .where(and(eq(employees.companyId, cid), inArray(employees.id, empIds)))
+        : [];
+      const empById = new Map(empRows.map((e) => [e.id, e]));
+
+      type EmpDayEntry = {
+        employeeId: number;
+        employeeName: string;
+        dates: Set<string>;
+        totalWorkedMinutes: number;
+      };
+      type SiteGroup = {
+        siteId: number;
+        siteName: string;
+        clientName: string | null;
+        dailyRateOmr: number;
+        employees: Map<number, EmpDayEntry>;
+      };
+
+      const groupBySite = new Map<number, SiteGroup>();
+
+      for (const rec of records) {
+        if (rec.siteId == null) continue;
+        const site = siteById.get(rec.siteId);
+        if (!site) continue;
+
+        const dateYmd = muscatCalendarYmdFromUtcInstant(new Date(rec.checkIn));
+
+        if (!groupBySite.has(rec.siteId)) {
+          groupBySite.set(rec.siteId, {
+            siteId: rec.siteId,
+            siteName: site.name,
+            clientName: site.clientName ?? null,
+            dailyRateOmr: Number(site.dailyRateOmr ?? 0),
+            employees: new Map(),
+          });
+        }
+        const siteGroup = groupBySite.get(rec.siteId)!;
+
+        if (!siteGroup.employees.has(rec.employeeId)) {
+          const emp = empById.get(rec.employeeId);
+          siteGroup.employees.set(rec.employeeId, {
+            employeeId: rec.employeeId,
+            employeeName: emp
+              ? `${emp.firstName} ${emp.lastName}`.trim()
+              : `Employee #${rec.employeeId}`,
+            dates: new Set(),
+            totalWorkedMinutes: 0,
+          });
+        }
+        const empEntry = siteGroup.employees.get(rec.employeeId)!;
+        empEntry.dates.add(dateYmd);
+
+        if (rec.checkOut) {
+          const mins = Math.max(
+            0,
+            Math.round((new Date(rec.checkOut).getTime() - new Date(rec.checkIn).getTime()) / 60000),
+          );
+          empEntry.totalWorkedMinutes += mins;
+        }
+      }
+
+      type InvoiceRow = {
+        siteId: number;
+        siteName: string;
+        clientName: string | null;
+        dailyRateOmr: number;
+        totalBillableDays: number;
+        totalBillableHours: number;
+        totalAmountOmr: number;
+        promoters: Array<{
+          employeeId: number;
+          employeeName: string;
+          billableDays: number;
+          billableHours: number;
+          amountOmr: number;
+        }>;
+      };
+
+      const groups: InvoiceRow[] = [];
+
+      for (const [, sg] of Array.from(groupBySite)) {
+        const promoters = Array.from(sg.employees.values())
+          .map((e) => {
+            const billableDays = e.dates.size;
+            const billableHours = Math.round((e.totalWorkedMinutes / 60) * 10) / 10;
+            const amountOmr = Math.round(billableDays * sg.dailyRateOmr * 1000) / 1000;
+            return {
+              employeeId: e.employeeId,
+              employeeName: e.employeeName,
+              billableDays,
+              billableHours,
+              amountOmr,
+            };
+          })
+          .filter((p) => p.billableDays > 0)
+          .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+
+        if (promoters.length === 0) continue;
+
+        const totalBillableDays = promoters.reduce((s, p) => s + p.billableDays, 0);
+        const totalBillableHours = Math.round(promoters.reduce((s, p) => s + p.billableHours, 0) * 10) / 10;
+        const totalAmountOmr = Math.round(totalBillableDays * sg.dailyRateOmr * 1000) / 1000;
+
+        groups.push({
+          siteId: sg.siteId,
+          siteName: sg.siteName,
+          clientName: sg.clientName,
+          dailyRateOmr: sg.dailyRateOmr,
+          totalBillableDays,
+          totalBillableHours,
+          totalAmountOmr,
+          promoters,
+        });
+      }
+
+      groups.sort((a, b) => {
+        const ka = a.clientName ?? a.siteName;
+        const kb = b.clientName ?? b.siteName;
+        const c = ka.localeCompare(kb);
+        return c !== 0 ? c : a.siteName.localeCompare(b.siteName);
+      });
+
+      const grandTotalOmr =
+        Math.round(groups.reduce((s, g) => s + g.totalAmountOmr, 0) * 1000) / 1000;
+
+      return { month: input.month, groups, grandTotalOmr };
     }),
 
   // ── Leave Balance ─────────────────────────────────────────────────────────

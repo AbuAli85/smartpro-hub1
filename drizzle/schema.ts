@@ -2299,6 +2299,8 @@ export const attendanceSites = mysqlTable("attendance_sites", {
   // Site classification
   siteType: varchar("site_type", { length: 50 }).notNull().default("office"),
   clientName: varchar("client_name", { length: 255 }),
+  /** Contracted daily billing rate for this site (OMR). Used for client invoice summaries. */
+  dailyRateOmr: decimal("daily_rate_omr", { precision: 10, scale: 3 }).default("0.000"),
   // Operating hours
   operatingHoursStart: varchar("operating_hours_start", { length: 5 }),
   operatingHoursEnd: varchar("operating_hours_end", { length: 5 }),

@@ -13,6 +13,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) co
 - Apply `drizzle/0049_shift_template_break_minutes.sql` before enabling the **auto-absent marking** background job (`server/jobs/markMissedShiftsAbsent.ts`). The job is gated with `DISABLE_ABSENT_MARK_JOB=1` for local opt-out.
 - **Payroll:** KPI commissions now auto-populate `commission_pay` on payroll line items. Apply `drizzle/0050_payroll_commission_pay.sql` before deploying. Existing payroll runs are not backfilled — only new runs pick up commissions.
 - **Dashboard:** Control Tower now shows today's workforce attendance signal — scheduled count, active check-ins, absences, late arrivals, and overdue checkouts — alongside the existing financial and risk panels. Absence and overdue-checkout counts feed into the executive insight narrative.
+- **Billing:** New "Client Invoices" tab in Billing Engine — groups monthly attendance by client site, applies contracted `daily_rate_omr`, and produces a per-promoter breakdown with CSV export (columns: Client, Site, Promoter, Billable Days, Billable Hours, Daily Rate, Amount OMR).
+- **Attendance Sites:** Added `daily_rate_omr` field (contracted daily billing rate per site). Apply `drizzle/0051_attendance_site_daily_rate.sql` before deploy.
 
 ---
 

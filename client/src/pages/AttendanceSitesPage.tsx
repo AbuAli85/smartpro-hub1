@@ -83,6 +83,7 @@ interface SiteFormData {
   enforceGeofence: boolean;
   siteType: SiteType;
   clientName: string;
+  dailyRateOmr: number;
   operatingHoursStart: string;
   operatingHoursEnd: string;
   timezone: string;
@@ -92,7 +93,7 @@ interface SiteFormData {
 const DEFAULT_FORM: SiteFormData = {
   name: "", location: "", lat: null, lng: null,
   radiusMeters: 200, enforceGeofence: false,
-  siteType: "office", clientName: "",
+  siteType: "office", clientName: "", dailyRateOmr: 0,
   operatingHoursStart: "08:00", operatingHoursEnd: "18:00",
   timezone: "Asia/Muscat", enforceHours: false,
 };
@@ -227,6 +228,7 @@ function SiteFormDialog({
           enforceGeofence: editSite.enforceGeofence ?? false,
           siteType: (editSite.siteType as SiteType) ?? "office",
           clientName: editSite.clientName ?? "",
+          dailyRateOmr: Number(editSite.dailyRateOmr ?? 0),
           operatingHoursStart: editSite.operatingHoursStart ?? "08:00",
           operatingHoursEnd: editSite.operatingHoursEnd ?? "18:00",
           timezone: editSite.timezone ?? "Asia/Muscat",
@@ -261,6 +263,7 @@ function SiteFormDialog({
       enforceGeofence: form.enforceGeofence,
       siteType: form.siteType,
       clientName: form.clientName || undefined,
+      dailyRateOmr: form.dailyRateOmr,
       operatingHoursStart: form.operatingHoursStart || undefined,
       operatingHoursEnd: form.operatingHoursEnd || undefined,
       timezone: form.timezone,
@@ -320,6 +323,25 @@ function SiteFormDialog({
                 placeholder="e.g. Samsung, LG, Panasonic"
               />
               <p className="text-xs text-muted-foreground">For outsourced promoters — the brand they represent at this site.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Daily Rate (OMR)</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">OMR</span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={9999}
+                  step={0.001}
+                  value={form.dailyRateOmr}
+                  onChange={(e) => setForm((f) => ({ ...f, dailyRateOmr: Number(e.target.value) }))}
+                  className="pl-12"
+                  placeholder="0.000"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Contracted daily billing rate for this client site — used for monthly invoice summaries.
+              </p>
             </div>
           </TabsContent>
 
@@ -430,6 +452,9 @@ function QrCodeDialog({ site, onClose }: { site: any; onClose: () => void }) {
           <div className="text-center">
             <p className="font-semibold">{site.name}</p>
             {site.clientName && <p className="text-sm text-muted-foreground">{site.clientName}</p>}
+            {Number(site.dailyRateOmr ?? 0) > 0 && (
+              <p className="text-xs text-muted-foreground">OMR {Number(site.dailyRateOmr).toFixed(3)}/day</p>
+            )}
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-1 inline-block ${meta.color}`}>
               {meta.icon} {meta.label}
             </span>
@@ -643,6 +668,11 @@ export default function AttendanceSitesPage() {
                         <h3 className="font-semibold truncate">{site.name}</h3>
                         {site.clientName && (
                           <p className="text-xs text-muted-foreground">{site.clientName}</p>
+                        )}
+                        {Number(site.dailyRateOmr ?? 0) > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            OMR {Number(site.dailyRateOmr).toFixed(3)}/day
+                          </span>
                         )}
                       </div>
                     </div>

@@ -662,9 +662,12 @@ export default function DepartmentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ type: "dept" | "pos"; id: number; name: string } | null>(null);
   const [seedConfirmOpen, setSeedConfirmOpen] = useState(false);
 
-  const seedSuggested = trpc.hr.seedSuggestedDepartments.useMutation({
+  const seedSuggested = trpc.orgStructure.seedSuggestedDepartments.useMutation({
     onSuccess: async (res) => {
-      await utils.hr.listDepartments.invalidate();
+      await Promise.all([
+        utils.hr.listDepartments.invalidate(),
+        utils.orgStructure.listDepartments.invalidate(),
+      ]);
       if (res.created === 0) {
         toast.info(t("departmentsPage.seedToastAllPresent"));
       } else {

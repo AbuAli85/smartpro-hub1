@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, asc } from "drizzle-orm";
 import { departments, positions, employees } from "../../drizzle/schema";
+import { seedSuggestedDepartmentRows } from "../departments/seedSuggestedDepartmentRows";
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireWorkspaceMembership } from "../_core/membership";
@@ -64,6 +65,16 @@ export const orgStructureRouter = router({
         headEmployeeId: rest.headEmployeeId,
       });
       return { id: (result as any).insertId };
+    }),
+
+  /** Same behaviour as hr.seedSuggestedDepartments — exposed here for clients that use orgStructure for department CRUD. */
+  seedSuggestedDepartments: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const membership = await getMembership(ctx.user, input.companyId);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+      const db = await requireDb();
+      return seedSuggestedDepartmentRows(db, membership.company.id);
     }),
 
   updateDepartment: protectedProcedure

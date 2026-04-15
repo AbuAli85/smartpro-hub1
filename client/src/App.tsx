@@ -127,12 +127,15 @@ import ConvertPage from "./pages/ConvertPage";
 import RetainPage from "./pages/RetainPage";
 import NavigationProgress from "./components/NavigationProgress";
 import BuyerPortalRoutes from "./pages/BuyerPortalRoutes";
+import BuyerPortalLegacyPathPage from "./pages/BuyerPortalLegacyPathPage";
 import { isBuyerPortalUiEnabled } from "./lib/buyerPortalEnv";
 
 function PublicRoutes() {
   const buyerPortalUi = isBuyerPortalUiEnabled();
   return (
     <Switch>
+      <Route path="/buyer-portal/invoices" component={BuyerPortalLegacyPathPage} />
+      <Route path="/buyer-portal" component={BuyerPortalLegacyPathPage} />
       {buyerPortalUi ? <Route path="/buyer/invoices" component={BuyerPortalRoutes} /> : null}
       {buyerPortalUi ? <Route path="/buyer" component={BuyerPortalRoutes} /> : null}
       <Route path="/jobs" component={PublicJobBoardPage} />

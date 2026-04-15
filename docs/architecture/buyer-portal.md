@@ -231,3 +231,5 @@ A minimal first PR should be **mergeable** without enabling buyer UX in producti
 Subsequent PRs add link tables, real queries, and **progressive** tab pages.
 
 **Detailed foundation spec (schema sketches, guards, RBAC matrix, PR checklist):** [`buyer-portal-foundation-spec.md`](./buyer-portal-foundation-spec.md).
+
+**Provider-side invoice linking (next PR):** [`buyer-portal-provider-invoice-linking.md`](./buyer-portal-provider-invoice-linking.md).

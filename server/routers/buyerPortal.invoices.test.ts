@@ -117,3 +117,35 @@ describe("buyerPortal.listInvoices", () => {
     expect(out.total).toBe(0);
   });
 });
+
+describe("buyerPortal.listMyAccounts", () => {
+  afterEach(() => {
+    process.env.BUYER_PORTAL_ENABLED = undefined;
+    vi.restoreAllMocks();
+  });
+
+  it("returns NOT_FOUND when buyer portal is disabled", async () => {
+    process.env.BUYER_PORTAL_ENABLED = "false";
+    const caller = buyerPortalRouter.createCaller(createCtx(1) as never);
+    await expect(caller.listMyAccounts()).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
+  it("returns rows from listBuyerAccountsForUser", async () => {
+    process.env.BUYER_PORTAL_ENABLED = "true";
+    vi.spyOn(buyerContext, "listBuyerAccountsForUser").mockResolvedValue([
+      {
+        customerAccountId: 7,
+        displayName: "Acme Trading",
+        role: "buyer_admin",
+        providerCompanyId: 99,
+      },
+    ]);
+    const caller = buyerPortalRouter.createCaller(createCtx(1) as never);
+    const out = await caller.listMyAccounts();
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ customerAccountId: 7, displayName: "Acme Trading" });
+    expect(buyerContext.listBuyerAccountsForUser).toHaveBeenCalledWith(1);
+  });
+});

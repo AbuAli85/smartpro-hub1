@@ -6,8 +6,14 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
-import { buyerRoleMayAccessOverview, resolveBuyerContext } from "../buyer/buyerContext";
+import {
+  buyerRoleMayAccessOverview,
+  listBuyerAccountsForUser,
+  resolveBuyerContext,
+} from "../buyer/buyerContext";
 import { queryBuyerInvoicesForAccount } from "../buyer/buyerInvoices";
+import type { MySql2Database } from "drizzle-orm/mysql2";
+import * as drizzleSchema from "../../drizzle/schema";
 
 const customerAccountInput = z.object({
   customerAccountId: z.number().int().positive(),
@@ -32,6 +38,11 @@ const listInvoicesInput = customerAccountInput.extend({
 });
 
 export const buyerPortalRouter = router({
+  listMyAccounts: buyerPortalProcedure.query(async ({ ctx }) => {
+    const user = ctx.user;
+    return listBuyerAccountsForUser(user.id);
+  }),
+
   getOverview: buyerPortalProcedure
     .input(customerAccountInput)
     .query(async ({ ctx, input }) => {
@@ -60,7 +71,7 @@ export const buyerPortalRouter = router({
       if (!db) {
         return { items: [], total: 0 };
       }
-      return queryBuyerInvoicesForAccount(db, buyer, {
+      return queryBuyerInvoicesForAccount(db as MySql2Database<typeof drizzleSchema>, buyer, {
         page: input.page,
         pageSize: input.pageSize,
         status: input.status,

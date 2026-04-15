@@ -2,7 +2,7 @@
  * Buyer Portal context — scoped by customer_account_id + membership, not by operating companyId alone.
  */
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { UNAUTHED_ERR_MSG } from "@shared/const";
 import { customerAccounts, customerAccountMembers } from "../../drizzle/schema";
 import type { User } from "../../drizzle/schema";
@@ -67,6 +67,44 @@ export async function getUserCustomerMembership(
     status: row.status,
     providerCompanyId: row.providerCompanyId,
   };
+}
+
+export type BuyerAccountListItem = {
+  customerAccountId: number;
+  displayName: string;
+  role: BuyerMemberRole;
+  providerCompanyId: number;
+};
+
+/** Active buyer memberships for portal account pickers / auto-select (single account). */
+export async function listBuyerAccountsForUser(userId: number): Promise<BuyerAccountListItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db
+    .select({
+      customerAccountId: customerAccounts.id,
+      displayName: customerAccounts.displayName,
+      role: customerAccountMembers.role,
+      providerCompanyId: customerAccounts.providerCompanyId,
+    })
+    .from(customerAccountMembers)
+    .innerJoin(customerAccounts, eq(customerAccounts.id, customerAccountMembers.customerAccountId))
+    .where(
+      and(
+        eq(customerAccountMembers.userId, userId),
+        eq(customerAccountMembers.status, "active"),
+        eq(customerAccounts.status, "active"),
+      ),
+    )
+    .orderBy(asc(customerAccounts.displayName), asc(customerAccounts.id));
+
+  return rows.map((r) => ({
+    customerAccountId: r.customerAccountId,
+    displayName: r.displayName,
+    role: r.role,
+    providerCompanyId: r.providerCompanyId,
+  }));
 }
 
 /**

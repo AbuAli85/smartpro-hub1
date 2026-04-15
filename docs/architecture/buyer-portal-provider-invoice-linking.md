@@ -114,6 +114,8 @@ unlinkInvoiceFromCustomerAccount: protectedProcedure
 
 ## 8. UX notes
 
+**Detailed UI wireframe, copy, and empty/error strings:** [`buyer-portal-provider-linking-ui-spec.md`](./buyer-portal-provider-linking-ui-spec.md).
+
 - Show **invoice reference** (`invoice_number` or label), **amount**, **status**, **billing period** in the link table.
 - **Confirm** before unlink: “Buyer will no longer see this invoice.”
 - **Empty state:** “No invoices linked — buyers will not see billing lines for this account until you link PRO invoices.”

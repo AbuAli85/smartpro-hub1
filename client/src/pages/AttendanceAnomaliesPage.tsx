@@ -281,7 +281,7 @@ function DedupDialog({
 }
 
 export default function AttendanceAnomaliesPage() {
-  const { activeCompanyId } = useActiveCompany();
+  const { activeCompanyId, loading: companiesLoading } = useActiveCompany();
 
   const today = new Date().toISOString().split("T")[0]!;
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400_000).toISOString().split("T")[0]!;
@@ -297,7 +297,7 @@ export default function AttendanceAnomaliesPage() {
       dateTo,
       limit: 200,
     },
-    { enabled: activeCompanyId != null },
+    { enabled: !companiesLoading && activeCompanyId != null },
   );
 
   const dedupMutation = trpc.attendance.deduplicateAttendanceRecords.useMutation({

@@ -125,6 +125,7 @@ const SurveyCompletePage = lazy(() => import("./pages/SurveyCompletePage"));
 const SurveyAdminResponsesPage = lazy(() => import("./pages/SurveyAdminResponsesPage"));
 const SurveyAdminResponseDetailPage = lazy(() => import("./pages/SurveyAdminResponseDetailPage"));
 const SurveyAdminAnalyticsPage = lazy(() => import("./pages/SurveyAdminAnalyticsPage"));
+const ProductionReadinessPage = lazy(() => import("./pages/ProductionReadinessPage"));
 const AttractPage = lazy(() => import("./pages/AttractPage"));
 const ConvertPage = lazy(() => import("./pages/ConvertPage"));
 const RetainPage = lazy(() => import("./pages/RetainPage"));
@@ -288,6 +289,7 @@ function AppRoutes() {
         <Route path="/survey/admin/responses/:id" component={SurveyAdminResponseDetailPage} />
         <Route path="/survey/admin/responses" component={SurveyAdminResponsesPage} />
         <Route path="/survey/admin/analytics" component={SurveyAdminAnalyticsPage} />
+        <Route path="/platform-readiness" component={ProductionReadinessPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

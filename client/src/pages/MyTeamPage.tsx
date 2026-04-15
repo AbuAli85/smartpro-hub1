@@ -990,12 +990,12 @@ export default function MyTeamPage() {
         {/* Filters + view toggle */}
         <div className="px-6 py-3 border-b border-border bg-card flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-48">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={t("myTeam.filter.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 text-sm"
+              className="ps-8 h-8 text-sm"
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>

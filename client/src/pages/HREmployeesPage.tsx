@@ -894,9 +894,9 @@ export default function HREmployeesPage() {
             {/* Filters */}
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-48">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder={t("filters.searchEmployees")} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-                {search && <button className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setSearch("")}><X size={14} /></button>}
+                <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder={t("filters.searchEmployees")} className="ps-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+                {search && <button className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setSearch("")}><X size={14} /></button>}
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-36"><SelectValue placeholder={t("filters.allStatus")} /></SelectTrigger>

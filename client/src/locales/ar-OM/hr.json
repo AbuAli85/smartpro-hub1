@@ -560,16 +560,204 @@
     "noTargets": "لا توجد أهداف بعد",
     "noTrainings": "لا توجد سجلات تدريب",
     "noReviews": "لا توجد تقييمات مسجلة",
+
+    "pageTitle": "الأداء والنمو",
+    "pageSubtitle": "طبقة التحكم في التدريب والتقييمات والأهداف وذكاء القوى العاملة — فوق بيانات الموارد البشرية الحالية.",
+
+    "tabs": {
+      "overview": "نظرة عامة",
+      "training": "التدريب",
+      "reviews": "التقييمات",
+      "targets": "الأهداف",
+      "insights": "الرؤى"
+    },
+
+    "filters": {
+      "department": "القسم",
+      "allDepartments": "جميع الأقسام",
+      "periodHelp": "الفترة للقطة مؤشرات الأداء ولوحة المتصدرين"
+    },
+
+    "periodLabel": "الفترة ({{month}}/{{year}}):",
+    "periodDesc": "متوسط إنجاز مؤشرات الأداء (الخادم) ولوحة المتصدرين أدناه تستخدم هذا الشهر.",
+    "allTimeLabel": "الإجمالي (الشركة):",
+    "allTimeDesc": "عدد التدريبات وبقايا التقييمات الذاتية ومعدل استجابة المدير ونقاط التميز في التدريب وصحة الأقسام — غير مُصفَّى بضابط الشهر.",
+
+    "dashboard": {
+      "unavailable": "بيانات النظرة العامة غير متاحة.",
+      "loadError": "تعذّر تحميل لوحة أداء الموارد البشرية",
+      "loadErrorDesc": "قد لا تملك الصلاحية، أو تعذّر على الخادم تحميل البيانات.",
+      "avgKpiAchievement": "متوسط إنجاز مؤشرات الأداء (هذه الفترة)",
+      "activeOfTotal": "{{active}} نشط / {{total}} موظف",
+      "trainingCompleted": "التدريب المكتمل (الإجمالي)",
+      "completionRate": "{{rate}}% معدل الإتمام",
+      "selfReviewsAwaiting": "التقييمات الذاتية في انتظار الموارد البشرية (الإجمالي)",
+      "managerResponse": "{{rate}}% استجابة المدير",
+      "formalReviewsOnFile": "التقييمات الرسمية في السجل (الإجمالي)",
+      "trainingSpotlight": "أبرز التدريبات",
+      "trainingSpotlightDesc": "التدريبات المكتملة وآخر الإتمامات (ملخص الخادم).",
+      "noCompletedTrainings": "لا توجد سجلات تدريب مكتملة بعد.",
+      "trainingsCount": "{{count}} منجز",
+      "avgScore": "· متوسط {{score}}",
+      "recentCompletions": "آخر الإتمامات",
+      "deptTrainingHealth": "صحة تدريب الأقسام",
+      "deptTrainingHealthDesc": "نسبة المهام المكتملة حسب القسم.",
+      "noDeptData": "لا توجد بيانات أقسام بعد.",
+      "topPerformersKpi": "أفضل الأداءات (مؤشرات الأداء)",
+      "topPerformersDesc": "من لوحة المتصدرين الشهرية — نشاط مُرجَّح بالعمولة.",
+      "noAchievementData": "لا توجد بيانات إنجاز لهذه الفترة.",
+      "employeeFallback": "موظف",
+      "openKpiConsole": "فتح وحدة تحكم مؤشرات الأداء الكاملة"
+    },
+
+    "trainingTab": {
+      "subtitle": "تعيين التدريبات وتتبعها — الحالة والدرجات وروابط الشهادات مخزَّنة في كل سجل.",
+      "assignBtn": "تعيين تدريب",
+      "loading": "جارٍ التحميل…",
+      "tableEmployee": "الموظف",
+      "tableTitle": "العنوان",
+      "tableDept": "القسم",
+      "tableStatus": "الحالة",
+      "tableScore": "الدرجة",
+      "tableActions": "الإجراءات",
+      "noRecords": "لا توجد سجلات تدريب.",
+      "noRecordsFiltered": "لا توجد سجلات تدريب لهذا الفلتر.",
+      "updateBtn": "تحديث"
+    },
+
     "trainingStatus": {
       "assigned": "مُعيَّن",
       "in_progress": "جارٍ التنفيذ",
       "completed": "مكتمل",
       "overdue": "متأخر"
     },
+
+    "trainingCategories": {
+      "technical": "تقني",
+      "compliance": "امتثال",
+      "leadership": "قيادة",
+      "safety": "سلامة",
+      "soft_skills": "مهارات ناعمة",
+      "other": "أخرى"
+    },
+
+    "reviewsTab": {
+      "selfSubTab": "التقييمات الذاتية",
+      "formalSubTab": "التقييمات الرسمية",
+      "selfSubtitle": "التقييمات الذاتية التي يقدمها الموظفون. يضيف الموارد البشرية / المدراء التقييمات والملاحظات لإتمام الحلقة.",
+      "formalSubtitle": "تقييمات الأداء المنظمة (الدرجات والنقاط القوة والأهداف) المخزَّنة في سجلات الموارد البشرية.",
+      "loading": "جارٍ التحميل…",
+      "selfTableEmployee": "الموظف",
+      "selfTablePeriod": "الفترة",
+      "selfTableSelfRating": "التقييم الذاتي",
+      "selfTableStatus": "الحالة",
+      "selfTableActions": "الإجراءات",
+      "noSelfReviews": "لا توجد تقييمات ذاتية بعد.",
+      "viewEdit": "عرض / تعديل",
+      "addFeedback": "إضافة ملاحظات",
+      "formalTableEmployee": "الموظف",
+      "formalTablePeriod": "الفترة",
+      "formalTableScore": "الدرجة",
+      "formalTableStatus": "الحالة",
+      "newReviewBtn": "تقييم جديد",
+      "noFormalReviews": "لا توجد تقييمات رسمية بعد.",
+      "employeeFallback": "موظف #{{id}}"
+    },
+
     "reviewStatus": {
       "draft": "مسودة",
       "submitted": "مُقدَّم",
+      "reviewed": "تمت المراجعة",
       "acknowledged": "تم الاعتراف"
+    },
+
+    "targetsTab": {
+      "quickAssignBtn": "تعيين هدف سريع",
+      "fullKpiBtn": "مؤشرات الأداء والعمولة الكاملة",
+      "teamProgressTitle": "لقطة تقدم الفريق",
+      "teamProgressDesc": "الأهداف مقابل الإنجاز للشهر المحدد.",
+      "loading": "جارٍ التحميل…",
+      "noTargets": "لا توجد أهداف لهذه الفترة.",
+      "userFallback": "مستخدم {{id}}"
+    },
+
+    "insightsTab": {
+      "subtitle": "ربط البيانات التشغيلية بالقرارات: استخدم لوحات الذكاء لرصد المخاطر وفجوات المهارات والعائد على الاستثمار.",
+      "workforceTitle": "ذكاء القوى العاملة",
+      "workforceDesc": "الأتمتة وعلامات المخاطر وإشارات صحة القوى العاملة.",
+      "hrOpsTitle": "صحة عمليات الموارد البشرية",
+      "hrOpsDesc": "مؤشرات الأداء الرئيسية للموارد البشرية والعمليات على مستوى الشركة وصحة الأتمتة.",
+      "openDashboard": "فتح لوحة التحكم"
+    },
+
+    "assignTrainingDialog": {
+      "title": "تعيين تدريب",
+      "description": "ينشئ سجل تدريب للموظف المحدد (معرّف ملف الموظف).",
+      "employeeLabel": "الموظف",
+      "selectEmployee": "اختر موظفاً",
+      "titleLabel": "العنوان",
+      "titlePlaceholder": "اسم الدورة أو البرنامج",
+      "providerLabel": "المزود (اختياري)",
+      "categoryLabel": "الفئة",
+      "dueDateLabel": "تاريخ الاستحقاق (اختياري)",
+      "assignBtn": "تعيين",
+      "validationError": "اختر موظفاً وأدخل عنواناً.",
+      "successToast": "تم تعيين التدريب"
+    },
+
+    "editTrainingDialog": {
+      "title": "تحديث التدريب",
+      "description": "تعديل الحالة أو الدرجة أو الشهادة.",
+      "statusLabel": "الحالة",
+      "scoreLabel": "الدرجة (0–100)",
+      "scorePlaceholder": "اختياري",
+      "saveBtn": "حفظ",
+      "successToast": "تم تحديث التدريب"
+    },
+
+    "feedbackDialog": {
+      "title": "ملاحظات المدير / الموارد البشرية",
+      "descriptionFor": "التقييم الذاتي لـ {{name}}",
+      "periodLabel": "الفترة",
+      "selfRatingLabel": "التقييم الذاتي",
+      "achievementsLabel": "الإنجازات",
+      "goalsLabel": "الأهداف",
+      "mgrRatingLabel": "تقييم المدير (1–5)",
+      "feedbackLabel": "الملاحظات",
+      "goalsNextLabel": "أهداف الفترة القادمة",
+      "markReviewedBtn": "وضع علامة تمت المراجعة",
+      "saveDraftBtn": "حفظ مسودة الملاحظات",
+      "successToast": "تم تحديث التقييم"
+    },
+
+    "formalReviewDialog": {
+      "title": "تقييم أداء رسمي جديد",
+      "employeeLabel": "الموظف",
+      "selectEmployee": "اختر موظفاً",
+      "periodLabel": "الفترة (مثال: الربع الأول 2026)",
+      "scoreLabel": "الدرجة الإجمالية (0–10)",
+      "strengthsLabel": "نقاط القوة",
+      "improvementsLabel": "مجالات التحسين",
+      "goalsLabel": "الأهداف",
+      "commentsLabel": "التعليقات",
+      "saveBtn": "حفظ التقييم",
+      "validationError": "الموظف والفترة مطلوبان.",
+      "successToast": "تم تسجيل تقييم الأداء"
+    },
+
+    "targetDialog": {
+      "title": "تعيين هدف مؤشر الأداء",
+      "description": "يستخدم نفس محرك مؤشرات الأداء والأداء — يُشعر الموظف.",
+      "employeeLabel": "الموظف (مستخدم تسجيل الدخول)",
+      "selectEmployee": "اختر",
+      "metricNameLabel": "اسم المقياس",
+      "metricNamePlaceholder": "مثال: المبيعات الشهرية",
+      "metricTypeLabel": "نوع المقياس",
+      "targetValueLabel": "قيمة الهدف",
+      "commissionRateLabel": "معدل العمولة (%)",
+      "setBtn": "تعيين الهدف",
+      "validationError": "أكمل الحقول المطلوبة.",
+      "successToast": "تم تعيين الهدف — تم إشعار الموظف."
     }
   },
 

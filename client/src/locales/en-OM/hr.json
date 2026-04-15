@@ -560,16 +560,204 @@
     "noTargets": "No targets yet",
     "noTrainings": "No training records",
     "noReviews": "No reviews logged",
+
+    "pageTitle": "Performance & growth",
+    "pageSubtitle": "Control layer for training, reviews, targets, and workforce intelligence — on top of existing HR data.",
+
+    "tabs": {
+      "overview": "Overview",
+      "training": "Training",
+      "reviews": "Reviews",
+      "targets": "Targets",
+      "insights": "Insights"
+    },
+
+    "filters": {
+      "department": "Department",
+      "allDepartments": "All departments",
+      "periodHelp": "Period for KPI snapshot and KPI leaderboard"
+    },
+
+    "periodLabel": "Period ({{month}}/{{year}}):",
+    "periodDesc": "average KPI achievement (server) and the KPI leaderboard below use this month.",
+    "allTimeLabel": "All-time (company):",
+    "allTimeDesc": "training counts, self-review backlog and response rate, training spotlight, and department health — not filtered by the month control.",
+
+    "dashboard": {
+      "unavailable": "Overview data is unavailable.",
+      "loadError": "Could not load HR performance dashboard",
+      "loadErrorDesc": "You may not have permission, or the server could not load data.",
+      "avgKpiAchievement": "Avg KPI achievement (this period)",
+      "activeOfTotal": "{{active}} active / {{total}} employees",
+      "trainingCompleted": "Training completed (all-time)",
+      "completionRate": "{{rate}}% completion rate",
+      "selfReviewsAwaiting": "Self-reviews awaiting HR (all-time)",
+      "managerResponse": "{{rate}}% manager response",
+      "formalReviewsOnFile": "Formal reviews on file (all-time)",
+      "trainingSpotlight": "Training spotlight",
+      "trainingSpotlightDesc": "Completed trainings and recent completions (server summary).",
+      "noCompletedTrainings": "No completed training records yet.",
+      "trainingsCount": "{{count}} done",
+      "avgScore": "· avg {{score}}",
+      "recentCompletions": "Recent completions",
+      "deptTrainingHealth": "Department training health",
+      "deptTrainingHealthDesc": "Share of completed assignments by department.",
+      "noDeptData": "No department data yet.",
+      "topPerformersKpi": "Top performers (KPI)",
+      "topPerformersDesc": "From monthly leaderboard — commission-weighted activity.",
+      "noAchievementData": "No achievement data for this period.",
+      "employeeFallback": "Employee",
+      "openKpiConsole": "Open full KPI console"
+    },
+
+    "trainingTab": {
+      "subtitle": "Assign and track training — status, scores, and certification links are stored on each record.",
+      "assignBtn": "Assign training",
+      "loading": "Loading…",
+      "tableEmployee": "Employee",
+      "tableTitle": "Title",
+      "tableDept": "Dept",
+      "tableStatus": "Status",
+      "tableScore": "Score",
+      "tableActions": "Actions",
+      "noRecords": "No training records.",
+      "noRecordsFiltered": "No training records for this filter.",
+      "updateBtn": "Update"
+    },
+
     "trainingStatus": {
       "assigned": "Assigned",
       "in_progress": "In Progress",
       "completed": "Completed",
       "overdue": "Overdue"
     },
+
+    "trainingCategories": {
+      "technical": "Technical",
+      "compliance": "Compliance",
+      "leadership": "Leadership",
+      "safety": "Safety",
+      "soft_skills": "Soft Skills",
+      "other": "Other"
+    },
+
+    "reviewsTab": {
+      "selfSubTab": "Self reviews",
+      "formalSubTab": "Formal reviews",
+      "selfSubtitle": "Employee-submitted self reviews. HR / managers add ratings and feedback to close the loop.",
+      "formalSubtitle": "Structured performance reviews (scores, strengths, goals) stored in HR records.",
+      "loading": "Loading…",
+      "selfTableEmployee": "Employee",
+      "selfTablePeriod": "Period",
+      "selfTableSelfRating": "Self rating",
+      "selfTableStatus": "Status",
+      "selfTableActions": "Actions",
+      "noSelfReviews": "No self reviews yet.",
+      "viewEdit": "View / edit",
+      "addFeedback": "Add feedback",
+      "formalTableEmployee": "Employee",
+      "formalTablePeriod": "Period",
+      "formalTableScore": "Score",
+      "formalTableStatus": "Status",
+      "newReviewBtn": "New review",
+      "noFormalReviews": "No formal reviews yet.",
+      "employeeFallback": "Employee #{{id}}"
+    },
+
     "reviewStatus": {
       "draft": "Draft",
       "submitted": "Submitted",
+      "reviewed": "Reviewed",
       "acknowledged": "Acknowledged"
+    },
+
+    "targetsTab": {
+      "quickAssignBtn": "Quick assign target",
+      "fullKpiBtn": "Full KPI & commission",
+      "teamProgressTitle": "Team progress snapshot",
+      "teamProgressDesc": "Targets vs achievement for the selected month.",
+      "loading": "Loading…",
+      "noTargets": "No targets for this period.",
+      "userFallback": "User {{id}}"
+    },
+
+    "insightsTab": {
+      "subtitle": "Connect operational data to decisions: use intelligence dashboards to spot risk, skill gaps, and ROI.",
+      "workforceTitle": "Workforce Intelligence",
+      "workforceDesc": "Automations, risk flags, and workforce health signals.",
+      "hrOpsTitle": "HR operations health",
+      "hrOpsDesc": "Company-wide HR and operations KPIs and automation health.",
+      "openDashboard": "Open dashboard"
+    },
+
+    "assignTrainingDialog": {
+      "title": "Assign training",
+      "description": "Creates a training record for the selected employee (employee profile id).",
+      "employeeLabel": "Employee",
+      "selectEmployee": "Select employee",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Course or programme name",
+      "providerLabel": "Provider (optional)",
+      "categoryLabel": "Category",
+      "dueDateLabel": "Due date (optional)",
+      "assignBtn": "Assign",
+      "validationError": "Choose an employee and enter a title.",
+      "successToast": "Training assigned"
+    },
+
+    "editTrainingDialog": {
+      "title": "Update training",
+      "description": "Adjust status, score, or certification.",
+      "statusLabel": "Status",
+      "scoreLabel": "Score (0–100)",
+      "scorePlaceholder": "Optional",
+      "saveBtn": "Save",
+      "successToast": "Training updated"
+    },
+
+    "feedbackDialog": {
+      "title": "Manager / HR feedback",
+      "descriptionFor": "Self-review for {{name}}",
+      "periodLabel": "Period",
+      "selfRatingLabel": "Self rating",
+      "achievementsLabel": "Achievements",
+      "goalsLabel": "Goals",
+      "mgrRatingLabel": "Manager rating (1–5)",
+      "feedbackLabel": "Feedback",
+      "goalsNextLabel": "Goals next period",
+      "markReviewedBtn": "Mark reviewed",
+      "saveDraftBtn": "Save draft feedback",
+      "successToast": "Review updated"
+    },
+
+    "formalReviewDialog": {
+      "title": "New formal performance review",
+      "employeeLabel": "Employee",
+      "selectEmployee": "Select employee",
+      "periodLabel": "Period (e.g. Q1 2026)",
+      "scoreLabel": "Overall score (0–10)",
+      "strengthsLabel": "Strengths",
+      "improvementsLabel": "Improvements",
+      "goalsLabel": "Goals",
+      "commentsLabel": "Comments",
+      "saveBtn": "Save review",
+      "validationError": "Employee and period are required.",
+      "successToast": "Performance review recorded"
+    },
+
+    "targetDialog": {
+      "title": "Assign KPI target",
+      "description": "Uses the same engine as KPI & Performance — notifies the employee.",
+      "employeeLabel": "Employee (login user)",
+      "selectEmployee": "Select",
+      "metricNameLabel": "Metric name",
+      "metricNamePlaceholder": "e.g. Monthly sales",
+      "metricTypeLabel": "Metric type",
+      "targetValueLabel": "Target value",
+      "commissionRateLabel": "Commission rate (%)",
+      "setBtn": "Set target",
+      "validationError": "Fill required fields.",
+      "successToast": "Target set — employee notified."
     }
   },
 

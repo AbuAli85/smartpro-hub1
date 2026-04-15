@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -52,40 +53,43 @@ import { hrInsightsTrail } from "@/components/hub/hubCrumbs";
 const TAB_IDS = ["overview", "training", "reviews", "targets", "insights"] as const;
 type TabId = (typeof TAB_IDS)[number];
 
-const METRIC_TYPES = [
-  { value: "sales_amount", label: "Sales Amount" },
-  { value: "client_count", label: "Client Count" },
-  { value: "revenue", label: "Revenue" },
-  { value: "custom", label: "Custom" },
-] as const;
+const METRIC_TYPE_VALUES = ["sales_amount", "client_count", "revenue", "custom"] as const;
+const MONTH_KEYS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"] as const;
+const TRAINING_STATUS_VALUES = ["assigned", "in_progress", "completed", "overdue"] as const;
+const TRAINING_CATEGORY_VALUES = ["technical", "compliance", "leadership", "safety", "soft_skills", "other"] as const;
 
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+type TFn = (key: string, opts?: Record<string, unknown>) => string;
 
-function trainingStatusBadge(status: string) {
-  const map: Record<string, string> = {
+function TrainingStatusBadge({ status, t }: { status: string; t: TFn }) {
+  const colorMap: Record<string, string> = {
     assigned: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
     in_progress: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
     completed: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
     overdue: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
   };
   return (
-    <Badge variant="secondary" className={map[status] ?? ""}>
-      {status.replace("_", " ")}
+    <Badge variant="secondary" className={colorMap[status] ?? ""}>
+      {t(`performance.trainingStatus.${status}`, { defaultValue: status })}
     </Badge>
   );
 }
 
-function selfReviewStatusBadge(status: string) {
-  const map: Record<string, string> = {
+function SelfReviewStatusBadge({ status, t }: { status: string; t: TFn }) {
+  const variantMap: Record<string, string> = {
     draft: "secondary",
     submitted: "default",
     reviewed: "default",
     acknowledged: "outline",
-  } as const;
-  return <Badge variant={map[status] as "default" | "secondary" | "outline"}>{status}</Badge>;
+  };
+  return (
+    <Badge variant={variantMap[status] as "default" | "secondary" | "outline"}>
+      {t(`performance.reviewStatus.${status}`, { defaultValue: status })}
+    </Badge>
+  );
 }
 
 export default function HRPerformancePage() {
+  const { t } = useTranslation("hr");
   const [tab, setTab] = useState<TabId>("overview");
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -207,7 +211,7 @@ export default function HRPerformancePage() {
 
   const assignTrainingMut = trpc.financeHR.adminAssignTraining.useMutation({
     onSuccess: async () => {
-      toast.success("Training assigned");
+      toast.success(t("performance.assignTrainingDialog.successToast"));
       setAssignOpen(false);
       setTrainTitle("");
       setTrainProvider("");
@@ -224,7 +228,7 @@ export default function HRPerformancePage() {
 
   const updateTrainingMut = trpc.financeHR.adminUpdateTraining.useMutation({
     onSuccess: async () => {
-      toast.success("Training updated");
+      toast.success(t("performance.editTrainingDialog.successToast"));
       setEditTrain(null);
       await invalidateAfterTrainingMutation(utils);
     },
@@ -246,7 +250,7 @@ export default function HRPerformancePage() {
 
   const updateSelfMut = trpc.financeHR.adminUpdateSelfReview.useMutation({
     onSuccess: async () => {
-      toast.success("Review updated");
+      toast.success(t("performance.feedbackDialog.successToast"));
       setEditSelf(null);
       await invalidateAfterSelfReviewMutation(utils);
     },
@@ -273,9 +277,9 @@ export default function HRPerformancePage() {
 
   const createReviewMut = trpc.hr.createReview.useMutation({
     onSuccess: () => {
-      toast.success("Performance review recorded");
+      toast.success(t("performance.formalReviewDialog.successToast"));
       setFormalOpen(false);
-      utils.hr.listReviews.invalidate();
+      void utils.hr.listReviews.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -290,7 +294,7 @@ export default function HRPerformancePage() {
 
   const setTargetMut = trpc.kpi.setTarget.useMutation({
     onSuccess: async () => {
-      toast.success("Target set — employee notified.");
+      toast.success(t("performance.targetDialog.successToast"));
       setTargetOpen(false);
       await invalidateAfterKpiTargetMutation(utils);
     },
@@ -299,25 +303,25 @@ export default function HRPerformancePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      <HubBreadcrumb items={hrInsightsTrail("Performance & growth")} />
+      <HubBreadcrumb items={hrInsightsTrail(t("performance.pageTitle"))} />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            Performance &amp; growth
+            {t("performance.pageTitle")}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Control layer for training, reviews, targets, and workforce intelligence — on top of existing HR data.
+            {t("performance.pageSubtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={deptFilter} onValueChange={setDeptFilter}>
             <SelectTrigger className="h-9 w-[180px] text-sm">
               <Filter className="w-3.5 h-3.5 mr-1 opacity-60" />
-              <SelectValue placeholder="Department" />
+              <SelectValue placeholder={t("performance.filters.department")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All departments</SelectItem>
+              <SelectItem value="all">{t("performance.filters.allDepartments")}</SelectItem>
               {departments.map((d) => (
                 <SelectItem key={d} value={d}>
                   {d}
@@ -331,28 +335,28 @@ export default function HRPerformancePage() {
       <Tabs value={tab} onValueChange={(v) => goTab(v as TabId)}>
         <TabsList className="h-auto flex-wrap justify-start gap-1 bg-muted/50 p-1">
           <TabsTrigger value="overview" className="text-xs gap-1">
-            <BarChart2 className="w-3.5 h-3.5" /> Overview
+            <BarChart2 className="w-3.5 h-3.5" /> {t("performance.tabs.overview")}
           </TabsTrigger>
           <TabsTrigger value="training" className="text-xs gap-1">
-            <GraduationCap className="w-3.5 h-3.5" /> Training
+            <GraduationCap className="w-3.5 h-3.5" /> {t("performance.tabs.training")}
           </TabsTrigger>
           <TabsTrigger value="reviews" className="text-xs gap-1">
-            <ClipboardCheck className="w-3.5 h-3.5" /> Reviews
+            <ClipboardCheck className="w-3.5 h-3.5" /> {t("performance.tabs.reviews")}
           </TabsTrigger>
           <TabsTrigger value="targets" className="text-xs gap-1">
-            <Target className="w-3.5 h-3.5" /> Targets
+            <Target className="w-3.5 h-3.5" /> {t("performance.tabs.targets")}
           </TabsTrigger>
           <TabsTrigger value="insights" className="text-xs gap-1">
-            <Sparkles className="w-3.5 h-3.5" /> Insights
+            <Sparkles className="w-3.5 h-3.5" /> {t("performance.tabs.insights")}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
           {hrDashboardError && (
             <Alert variant="destructive" data-testid="hr-dashboard-error">
-              <AlertTitle>Could not load HR performance dashboard</AlertTitle>
+              <AlertTitle>{t("performance.dashboard.loadError")}</AlertTitle>
               <AlertDescription>
-                {hrDashboardErr?.message ?? "You may not have permission, or the server could not load data."}
+                {hrDashboardErr?.message ?? t("performance.dashboard.loadErrorDesc")}
               </AlertDescription>
             </Alert>
           )}
@@ -363,9 +367,9 @@ export default function HRPerformancePage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MONTH_NAMES.map((m, i) => (
+                {MONTH_KEYS.map((key, i) => (
                   <SelectItem key={i + 1} value={String(i + 1)}>
-                    {m}
+                    {t(`kpi.months.${key}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -382,14 +386,14 @@ export default function HRPerformancePage() {
                 ))}
               </SelectContent>
             </Select>
-            <span className="text-xs text-muted-foreground">Period for KPI snapshot and KPI leaderboard</span>
+            <span className="text-xs text-muted-foreground">{t("performance.filters.periodHelp")}</span>
           </div>
 
           <p className="text-xs text-muted-foreground max-w-3xl leading-relaxed" data-testid="hr-dashboard-period-help">
-            <span className="font-medium text-foreground">Period ({month}/{year}):</span> average KPI achievement (server) and the KPI
-            leaderboard below use this month.{" "}
-            <span className="font-medium text-foreground">All-time (company):</span> training counts, self-review backlog and response
-            rate, training spotlight, and department health — not filtered by the month control.
+            <span className="font-medium text-foreground">{t("performance.periodLabel", { month, year })}</span>{" "}
+            {t("performance.periodDesc")}{" "}
+            <span className="font-medium text-foreground">{t("performance.allTimeLabel")}</span>{" "}
+            {t("performance.allTimeDesc")}
           </p>
 
           {hrDashboardLoading ? (
@@ -405,20 +409,20 @@ export default function HRPerformancePage() {
             </div>
           ) : hrDashboard === null && !hrDashboardError ? (
             <p className="text-sm text-muted-foreground" data-testid="hr-dashboard-unavailable">
-              Overview data is unavailable.
+              {t("performance.dashboard.unavailable")}
             </p>
           ) : (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="hr-dashboard-metrics">
                 <Card>
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Avg KPI achievement (this period)</p>
+                    <p className="text-xs text-muted-foreground">{t("performance.dashboard.avgKpiAchievement")}</p>
                     <p className="text-2xl font-bold">{overviewStats.avgPct.toFixed(1)}%</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {month}/{year}
                       {overviewStats.employeesActive != null && overviewStats.employeesTotal != null && (
                         <span className="block mt-0.5">
-                          {overviewStats.employeesActive} active / {overviewStats.employeesTotal} employees
+                          {t("performance.dashboard.activeOfTotal", { active: overviewStats.employeesActive, total: overviewStats.employeesTotal })}
                         </span>
                       )}
                     </p>
@@ -426,29 +430,29 @@ export default function HRPerformancePage() {
                 </Card>
                 <Card>
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Training completed (all-time)</p>
+                    <p className="text-xs text-muted-foreground">{t("performance.dashboard.trainingCompleted")}</p>
                     <p className="text-2xl font-bold">{overviewStats.completedTrain}</p>
                     {overviewStats.trainingCompletionRate != null && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        {overviewStats.trainingCompletionRate}% completion rate
+                        {t("performance.dashboard.completionRate", { rate: overviewStats.trainingCompletionRate })}
                       </p>
                     )}
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Self-reviews awaiting HR (all-time)</p>
+                    <p className="text-xs text-muted-foreground">{t("performance.dashboard.selfReviewsAwaiting")}</p>
                     <p className="text-2xl font-bold text-amber-600">{overviewStats.pendingSelf}</p>
                     {overviewStats.managerResponseRate != null && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        {overviewStats.managerResponseRate}% manager response
+                        {t("performance.dashboard.managerResponse", { rate: overviewStats.managerResponseRate })}
                       </p>
                     )}
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Formal reviews on file (all-time)</p>
+                    <p className="text-xs text-muted-foreground">{t("performance.dashboard.formalReviewsOnFile")}</p>
                     <p className="text-2xl font-bold">{overviewStats.formalCount}</p>
                   </CardContent>
                 </Card>
@@ -458,12 +462,12 @@ export default function HRPerformancePage() {
                 <div className="grid md:grid-cols-2 gap-3">
                   <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Training spotlight</CardTitle>
-                      <CardDescription>Completed trainings and recent completions (server summary).</CardDescription>
+                      <CardTitle className="text-base">{t("performance.dashboard.trainingSpotlight")}</CardTitle>
+                      <CardDescription>{t("performance.dashboard.trainingSpotlightDesc")}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {hrDashboard.leaderboard.topPerformers.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No completed training records yet.</p>
+                        <p className="text-sm text-muted-foreground">{t("performance.dashboard.noCompletedTrainings")}</p>
                       ) : (
                         <ul className="space-y-2">
                           {hrDashboard.leaderboard.topPerformers.map((row) => (
@@ -479,8 +483,8 @@ export default function HRPerformancePage() {
                                 ) : null}
                               </span>
                               <span className="font-medium">
-                                {row.completedTrainings} done
-                                {row.averageTrainingScore != null ? ` · avg ${row.averageTrainingScore}` : ""}
+                                {t("performance.dashboard.trainingsCount", { count: row.completedTrainings })}
+                                {row.averageTrainingScore != null ? t("performance.dashboard.avgScore", { score: row.averageTrainingScore }) : ""}
                               </span>
                             </li>
                           ))}
@@ -488,7 +492,7 @@ export default function HRPerformancePage() {
                       )}
                       {hrDashboard.leaderboard.recentTrainingCompletions.length > 0 && (
                         <div className="text-xs text-muted-foreground space-y-1 pt-1 border-t border-border/60">
-                          <p className="font-medium text-foreground text-sm">Recent completions</p>
+                          <p className="font-medium text-foreground text-sm">{t("performance.dashboard.recentCompletions")}</p>
                           {hrDashboard.leaderboard.recentTrainingCompletions.map((r) => (
                             <div key={r.trainingId} className="flex justify-between gap-2">
                               <span className="truncate">{r.title}</span>
@@ -501,12 +505,12 @@ export default function HRPerformancePage() {
                   </Card>
                   <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Department training health</CardTitle>
-                      <CardDescription>Share of completed assignments by department.</CardDescription>
+                      <CardTitle className="text-base">{t("performance.dashboard.deptTrainingHealth")}</CardTitle>
+                      <CardDescription>{t("performance.dashboard.deptTrainingHealthDesc")}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       {hrDashboard.leaderboard.topDepartmentsByTrainingHealth.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No department data yet.</p>
+                        <p className="text-sm text-muted-foreground">{t("performance.dashboard.noDeptData")}</p>
                       ) : (
                         <ul className="space-y-2">
                           {hrDashboard.leaderboard.topDepartmentsByTrainingHealth.map((d) => (
@@ -529,12 +533,12 @@ export default function HRPerformancePage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Top performers (KPI)</CardTitle>
-                  <CardDescription>From monthly leaderboard — commission-weighted activity.</CardDescription>
+                  <CardTitle className="text-base">{t("performance.dashboard.topPerformersKpi")}</CardTitle>
+                  <CardDescription>{t("performance.dashboard.topPerformersDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {!leaderboard?.length ? (
-                    <p className="text-sm text-muted-foreground">No achievement data for this period.</p>
+                    <p className="text-sm text-muted-foreground">{t("performance.dashboard.noAchievementData")}</p>
                   ) : (
                     <ul className="space-y-2">
                       {leaderboard.slice(0, 5).map((row: { rank: number; employee: { firstName?: string; lastName?: string } | null; avgPct: number }) => (
@@ -543,7 +547,7 @@ export default function HRPerformancePage() {
                             <Trophy className="w-4 h-4 text-amber-500" />#{row.rank}{" "}
                             {row.employee
                               ? `${row.employee.firstName ?? ""} ${row.employee.lastName ?? ""}`.trim()
-                              : "Employee"}
+                              : t("performance.dashboard.employeeFallback")}
                           </span>
                           <span className="font-medium">{row.avgPct.toFixed(1)}%</span>
                         </li>
@@ -552,7 +556,7 @@ export default function HRPerformancePage() {
                   )}
                   <Button variant="outline" size="sm" className="mt-4 gap-1" asChild>
                     <Link href="/hr/kpi">
-                      Open full KPI console <ExternalLink className="w-3.5 h-3.5" />
+                      {t("performance.dashboard.openKpiConsole")} <ExternalLink className="w-3.5 h-3.5" />
                     </Link>
                   </Button>
                 </CardContent>
@@ -564,34 +568,34 @@ export default function HRPerformancePage() {
         <TabsContent value="training" className="mt-4 space-y-4">
           <div className="flex justify-between items-center flex-wrap gap-2">
             <p className="text-sm text-muted-foreground">
-              Assign and track training — status, scores, and certification links are stored on each record.
+              {t("performance.trainingTab.subtitle")}
             </p>
             <Button size="sm" className="gap-1" onClick={() => setAssignOpen(true)}>
-              <Plus className="w-4 h-4" /> Assign training
+              <Plus className="w-4 h-4" /> {t("performance.trainingTab.assignBtn")}
             </Button>
           </div>
 
           <Card>
             <CardContent className="p-0">
               {trainingLoading ? (
-                <div className="p-8 text-sm text-muted-foreground">Loading…</div>
+                <div className="p-8 text-sm text-muted-foreground">{t("performance.trainingTab.loading")}</div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Dept</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Score</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>{t("performance.trainingTab.tableEmployee")}</TableHead>
+                      <TableHead>{t("performance.trainingTab.tableTitle")}</TableHead>
+                      <TableHead>{t("performance.trainingTab.tableDept")}</TableHead>
+                      <TableHead>{t("performance.trainingTab.tableStatus")}</TableHead>
+                      <TableHead>{t("performance.trainingTab.tableScore")}</TableHead>
+                      <TableHead className="text-right">{t("performance.trainingTab.tableActions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredTraining.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                          No training records {deptFilter !== "all" ? "for this filter" : ""}.
+                          {deptFilter !== "all" ? t("performance.trainingTab.noRecordsFiltered") : t("performance.trainingTab.noRecords")}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -600,11 +604,13 @@ export default function HRPerformancePage() {
                           <TableCell className="font-medium">{row.employeeName}</TableCell>
                           <TableCell>{row.title}</TableCell>
                           <TableCell className="text-muted-foreground text-sm">{row.department || "—"}</TableCell>
-                          <TableCell>{trainingStatusBadge(row.trainingStatus)}</TableCell>
+                          <TableCell>
+                            <TrainingStatusBadge status={row.trainingStatus} t={t} />
+                          </TableCell>
                           <TableCell>{row.score != null ? `${row.score}` : "—"}</TableCell>
                           <TableCell className="text-right">
                             <Button variant="ghost" size="sm" onClick={() => setEditTrain(row as Record<string, unknown>)}>
-                              Update
+                              {t("performance.trainingTab.updateBtn")}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -620,33 +626,33 @@ export default function HRPerformancePage() {
         <TabsContent value="reviews" className="mt-4 space-y-4">
           <Tabs value={reviewSubTab} onValueChange={(v) => setReviewSubTab(v as "self" | "formal")}>
             <TabsList className="h-9">
-              <TabsTrigger value="self">Self reviews</TabsTrigger>
-              <TabsTrigger value="formal">Formal reviews</TabsTrigger>
+              <TabsTrigger value="self">{t("performance.reviewsTab.selfSubTab")}</TabsTrigger>
+              <TabsTrigger value="formal">{t("performance.reviewsTab.formalSubTab")}</TabsTrigger>
             </TabsList>
             <TabsContent value="self" className="mt-4 space-y-3">
               <p className="text-sm text-muted-foreground">
-                Employee-submitted self reviews. HR / managers add ratings and feedback to close the loop.
+                {t("performance.reviewsTab.selfSubtitle")}
               </p>
               {selfLoading ? (
-                <div className="text-sm text-muted-foreground">Loading…</div>
+                <div className="text-sm text-muted-foreground">{t("performance.reviewsTab.loading")}</div>
               ) : (
                 <Card>
                   <CardContent className="p-0">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Employee</TableHead>
-                          <TableHead>Period</TableHead>
-                          <TableHead>Self rating</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
+                          <TableHead>{t("performance.reviewsTab.selfTableEmployee")}</TableHead>
+                          <TableHead>{t("performance.reviewsTab.selfTablePeriod")}</TableHead>
+                          <TableHead>{t("performance.reviewsTab.selfTableSelfRating")}</TableHead>
+                          <TableHead>{t("performance.reviewsTab.selfTableStatus")}</TableHead>
+                          <TableHead className="text-right">{t("performance.reviewsTab.selfTableActions")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredSelfReviews.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                              No self reviews yet.
+                              {t("performance.reviewsTab.noSelfReviews")}
                             </TableCell>
                           </TableRow>
                         ) : (
@@ -655,10 +661,12 @@ export default function HRPerformancePage() {
                               <TableCell className="font-medium">{r.employeeName}</TableCell>
                               <TableCell>{r.reviewPeriod}</TableCell>
                               <TableCell>{r.selfRating ?? "—"}</TableCell>
-                              <TableCell>{selfReviewStatusBadge(r.reviewStatus)}</TableCell>
+                              <TableCell>
+                                <SelfReviewStatusBadge status={r.reviewStatus} t={t} />
+                              </TableCell>
                               <TableCell className="text-right">
                                 <Button variant="ghost" size="sm" onClick={() => setEditSelf(r as Record<string, unknown>)}>
-                                  {r.reviewStatus === "reviewed" ? "View / edit" : "Add feedback"}
+                                  {r.reviewStatus === "reviewed" ? t("performance.reviewsTab.viewEdit") : t("performance.reviewsTab.addFeedback")}
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -673,43 +681,43 @@ export default function HRPerformancePage() {
             <TabsContent value="formal" className="mt-4 space-y-3">
               <div className="flex justify-between items-center flex-wrap gap-2">
                 <p className="text-sm text-muted-foreground">
-                  Structured performance reviews (scores, strengths, goals) stored in HR records.
+                  {t("performance.reviewsTab.formalSubtitle")}
                 </p>
                 <Button size="sm" className="gap-1" onClick={() => setFormalOpen(true)}>
-                  <Plus className="w-4 h-4" /> New review
+                  <Plus className="w-4 h-4" /> {t("performance.reviewsTab.newReviewBtn")}
                 </Button>
               </div>
               {formalLoading ? (
-                <div className="text-sm text-muted-foreground">Loading…</div>
+                <div className="text-sm text-muted-foreground">{t("performance.reviewsTab.loading")}</div>
               ) : (
                 <Card>
                   <CardContent className="p-0">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Employee</TableHead>
-                          <TableHead>Period</TableHead>
-                          <TableHead>Score</TableHead>
-                          <TableHead>Status</TableHead>
+                          <TableHead>{t("performance.reviewsTab.formalTableEmployee")}</TableHead>
+                          <TableHead>{t("performance.reviewsTab.formalTablePeriod")}</TableHead>
+                          <TableHead>{t("performance.reviewsTab.formalTableScore")}</TableHead>
+                          <TableHead>{t("performance.reviewsTab.formalTableStatus")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {!(formalReviews ?? []).length ? (
                           <TableRow>
                             <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                              No formal reviews yet.
+                              {t("performance.reviewsTab.noFormalReviews")}
                             </TableCell>
                           </TableRow>
                         ) : (
                           (formalReviews ?? []).map((rv: { id: number; employeeId: number; period: string; overallScore: string | null; status: string }) => (
                             <TableRow key={rv.id}>
                               <TableCell className="font-medium">
-                                {empNameById.get(rv.employeeId) ?? `Employee #${rv.employeeId}`}
+                                {empNameById.get(rv.employeeId) ?? t("performance.reviewsTab.employeeFallback", { id: rv.employeeId })}
                               </TableCell>
                               <TableCell>{rv.period}</TableCell>
                               <TableCell>{rv.overallScore ?? "—"}</TableCell>
                               <TableCell>
-                                <Badge variant="outline">{rv.status}</Badge>
+                                <Badge variant="outline">{t(`performance.reviewStatus.${rv.status}`, { defaultValue: rv.status })}</Badge>
                               </TableCell>
                             </TableRow>
                           ))
@@ -731,9 +739,9 @@ export default function HRPerformancePage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MONTH_NAMES.map((m, i) => (
+                  {MONTH_KEYS.map((key, i) => (
                     <SelectItem key={i + 1} value={String(i + 1)}>
-                      {m}
+                      {t(`kpi.months.${key}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -753,31 +761,31 @@ export default function HRPerformancePage() {
             </div>
             <div className="flex gap-2">
               <Button size="sm" className="gap-1" onClick={() => setTargetOpen(true)}>
-                <Plus className="w-4 h-4" /> Quick assign target
+                <Plus className="w-4 h-4" /> {t("performance.targetsTab.quickAssignBtn")}
               </Button>
               <Button variant="outline" size="sm" asChild>
-                <Link href="/hr/kpi">Full KPI &amp; commission</Link>
+                <Link href="/hr/kpi">{t("performance.targetsTab.fullKpiBtn")}</Link>
               </Button>
             </div>
           </div>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Team progress snapshot</CardTitle>
-              <CardDescription>Targets vs achievement for the selected month.</CardDescription>
+              <CardTitle className="text-base">{t("performance.targetsTab.teamProgressTitle")}</CardTitle>
+              <CardDescription>{t("performance.targetsTab.teamProgressDesc")}</CardDescription>
             </CardHeader>
             <CardContent>
               {progressLoading ? (
-                <div className="text-sm text-muted-foreground">Loading…</div>
+                <div className="text-sm text-muted-foreground">{t("performance.targetsTab.loading")}</div>
               ) : !(teamProgress as any[])?.length ? (
-                <p className="text-sm text-muted-foreground">No targets for this period.</p>
+                <p className="text-sm text-muted-foreground">{t("performance.targetsTab.noTargets")}</p>
               ) : (
                 <div className="space-y-3">
                   {(teamProgress as any[]).map((item: any) => {
                     const emp = item.employee;
                     const label = emp
                       ? `${emp.firstName ?? ""} ${emp.lastName ?? ""}`.trim()
-                      : `User ${item.target.employeeUserId}`;
+                      : t("performance.targetsTab.userFallback", { id: item.target.employeeUserId });
                     return (
                       <div key={`${item.target.id}-${item.target.metricName}`} className="border rounded-lg p-3 space-y-2">
                         <div className="flex justify-between text-sm">
@@ -802,20 +810,20 @@ export default function HRPerformancePage() {
 
         <TabsContent value="insights" className="mt-4 space-y-4">
           <p className="text-sm text-muted-foreground">
-            Connect operational data to decisions: use intelligence dashboards to spot risk, skill gaps, and ROI.
+            {t("performance.insightsTab.subtitle")}
           </p>
           <div className="grid md:grid-cols-2 gap-3">
             <Card className="hover:border-primary/40 transition-colors">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="w-4 h-4" /> Workforce Intelligence
+                  <Users className="w-4 h-4" /> {t("performance.insightsTab.workforceTitle")}
                 </CardTitle>
-                <CardDescription>Automations, risk flags, and workforce health signals.</CardDescription>
+                <CardDescription>{t("performance.insightsTab.workforceDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button asChild variant="secondary" className="gap-1">
                   <Link href="/hr/workforce-intelligence">
-                    Open dashboard <ExternalLink className="w-3.5 h-3.5" />
+                    {t("performance.insightsTab.openDashboard")} <ExternalLink className="w-3.5 h-3.5" />
                   </Link>
                 </Button>
               </CardContent>
@@ -823,14 +831,14 @@ export default function HRPerformancePage() {
             <Card className="hover:border-primary/40 transition-colors">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4" /> HR operations health
+                  <BarChart2 className="w-4 h-4" /> {t("performance.insightsTab.hrOpsTitle")}
                 </CardTitle>
-                <CardDescription>Company-wide HR and operations KPIs and automation health.</CardDescription>
+                <CardDescription>{t("performance.insightsTab.hrOpsDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button asChild variant="secondary" className="gap-1">
                   <Link href="/hr/executive-dashboard">
-                    Open dashboard <ExternalLink className="w-3.5 h-3.5" />
+                    {t("performance.insightsTab.openDashboard")} <ExternalLink className="w-3.5 h-3.5" />
                   </Link>
                 </Button>
               </CardContent>
@@ -843,15 +851,15 @@ export default function HRPerformancePage() {
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Assign training</DialogTitle>
-            <DialogDescription>Creates a training record for the selected employee (employee profile id).</DialogDescription>
+            <DialogTitle>{t("performance.assignTrainingDialog.title")}</DialogTitle>
+            <DialogDescription>{t("performance.assignTrainingDialog.description")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Employee</Label>
+              <Label>{t("performance.assignTrainingDialog.employeeLabel")}</Label>
               <Select value={trainEmpId} onValueChange={setTrainEmpId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select employee" />
+                  <SelectValue placeholder={t("performance.assignTrainingDialog.selectEmployee")} />
                 </SelectTrigger>
                 <SelectContent>
                   {(employees ?? []).map((e: { id: number; firstName?: string; lastName?: string }) => (
@@ -863,30 +871,30 @@ export default function HRPerformancePage() {
               </Select>
             </div>
             <div>
-              <Label>Title</Label>
-              <Input value={trainTitle} onChange={(ev) => setTrainTitle(ev.target.value)} placeholder="Course or programme name" />
+              <Label>{t("performance.assignTrainingDialog.titleLabel")}</Label>
+              <Input value={trainTitle} onChange={(ev) => setTrainTitle(ev.target.value)} placeholder={t("performance.assignTrainingDialog.titlePlaceholder")} />
             </div>
             <div>
-              <Label>Provider (optional)</Label>
+              <Label>{t("performance.assignTrainingDialog.providerLabel")}</Label>
               <Input value={trainProvider} onChange={(ev) => setTrainProvider(ev.target.value)} />
             </div>
             <div>
-              <Label>Category</Label>
+              <Label>{t("performance.assignTrainingDialog.categoryLabel")}</Label>
               <Select value={trainCategory} onValueChange={setTrainCategory}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["technical", "compliance", "leadership", "safety", "soft_skills", "other"].map((c) => (
+                  {TRAINING_CATEGORY_VALUES.map((c) => (
                     <SelectItem key={c} value={c}>
-                      {c}
+                      {t(`performance.trainingCategories.${c}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Due date (optional)</Label>
+              <Label>{t("performance.assignTrainingDialog.dueDateLabel")}</Label>
               <Input type="date" value={trainDue} onChange={(ev) => setTrainDue(ev.target.value)} />
             </div>
           </div>
@@ -894,7 +902,7 @@ export default function HRPerformancePage() {
             <Button
               onClick={() => {
                 if (!trainEmpId || trainTitle.trim().length < 2) {
-                  toast.error("Choose an employee and enter a title.");
+                  toast.error(t("performance.assignTrainingDialog.validationError"));
                   return;
                 }
                 assignTrainingMut.mutate({
@@ -907,7 +915,7 @@ export default function HRPerformancePage() {
               }}
               disabled={assignTrainingMut.isPending}
             >
-              Assign
+              {t("performance.assignTrainingDialog.assignBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -917,30 +925,30 @@ export default function HRPerformancePage() {
       <Dialog open={!!editTrain} onOpenChange={(o) => !o && setEditTrain(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Update training</DialogTitle>
-            <DialogDescription>Adjust status, score, or certification.</DialogDescription>
+            <DialogTitle>{t("performance.editTrainingDialog.title")}</DialogTitle>
+            <DialogDescription>{t("performance.editTrainingDialog.description")}</DialogDescription>
           </DialogHeader>
           {editTrain && (
             <div className="space-y-3">
               <p className="text-sm font-medium">{String(editTrain.title ?? "")}</p>
               <div>
-                <Label>Status</Label>
+                <Label>{t("performance.editTrainingDialog.statusLabel")}</Label>
                 <Select value={editStatus} onValueChange={setEditStatus}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["assigned", "in_progress", "completed", "overdue"].map((s) => (
+                    {TRAINING_STATUS_VALUES.map((s) => (
                       <SelectItem key={s} value={s}>
-                        {s.replace("_", " ")}
+                        {t(`performance.trainingStatus.${s}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Score (0–100)</Label>
-                <Input value={editScore} onChange={(ev) => setEditScore(ev.target.value)} placeholder="Optional" />
+                <Label>{t("performance.editTrainingDialog.scoreLabel")}</Label>
+                <Input value={editScore} onChange={(ev) => setEditScore(ev.target.value)} placeholder={t("performance.editTrainingDialog.scorePlaceholder")} />
               </div>
             </div>
           )}
@@ -956,7 +964,7 @@ export default function HRPerformancePage() {
               }
               disabled={updateTrainingMut.isPending || !editTrain}
             >
-              Save
+              {t("performance.editTrainingDialog.saveBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -966,37 +974,37 @@ export default function HRPerformancePage() {
       <Dialog open={!!editSelf} onOpenChange={(o) => !o && setEditSelf(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Manager / HR feedback</DialogTitle>
-            <DialogDescription>Self-review for {String(editSelf?.employeeName ?? "")}</DialogDescription>
+            <DialogTitle>{t("performance.feedbackDialog.title")}</DialogTitle>
+            <DialogDescription>{t("performance.feedbackDialog.descriptionFor", { name: String(editSelf?.employeeName ?? "") })}</DialogDescription>
           </DialogHeader>
           {editSelf && (
             <div className="space-y-3 max-h-[50vh] overflow-y-auto text-sm">
               <div>
-                <Label className="text-muted-foreground">Period</Label>
+                <Label className="text-muted-foreground">{t("performance.feedbackDialog.periodLabel")}</Label>
                 <p>{String(editSelf.reviewPeriod ?? "")}</p>
               </div>
               <div>
-                <Label className="text-muted-foreground">Self rating</Label>
+                <Label className="text-muted-foreground">{t("performance.feedbackDialog.selfRatingLabel")}</Label>
                 <p>{editSelf.selfRating != null ? String(editSelf.selfRating) : "—"}</p>
               </div>
               <div>
-                <Label className="text-muted-foreground">Achievements</Label>
+                <Label className="text-muted-foreground">{t("performance.feedbackDialog.achievementsLabel")}</Label>
                 <p className="whitespace-pre-wrap">{String(editSelf.selfAchievements ?? "—")}</p>
               </div>
               <div>
-                <Label className="text-muted-foreground">Goals</Label>
+                <Label className="text-muted-foreground">{t("performance.feedbackDialog.goalsLabel")}</Label>
                 <p className="whitespace-pre-wrap">{String(editSelf.selfGoals ?? "—")}</p>
               </div>
               <div>
-                <Label>Manager rating (1–5)</Label>
+                <Label>{t("performance.feedbackDialog.mgrRatingLabel")}</Label>
                 <Input value={mgrRating} onChange={(ev) => setMgrRating(ev.target.value)} type="number" min={1} max={5} />
               </div>
               <div>
-                <Label>Feedback</Label>
+                <Label>{t("performance.feedbackDialog.feedbackLabel")}</Label>
                 <Textarea value={mgrFeedback} onChange={(ev) => setMgrFeedback(ev.target.value)} rows={3} />
               </div>
               <div>
-                <Label>Goals next period</Label>
+                <Label>{t("performance.feedbackDialog.goalsNextLabel")}</Label>
                 <Textarea value={goalsNext} onChange={(ev) => setGoalsNext(ev.target.value)} rows={2} />
               </div>
             </div>
@@ -1016,7 +1024,7 @@ export default function HRPerformancePage() {
               }
               disabled={updateSelfMut.isPending || !editSelf}
             >
-              Mark reviewed
+              {t("performance.feedbackDialog.markReviewedBtn")}
             </Button>
             <Button
               onClick={() =>
@@ -1030,7 +1038,7 @@ export default function HRPerformancePage() {
               }
               disabled={updateSelfMut.isPending || !editSelf}
             >
-              Save draft feedback
+              {t("performance.feedbackDialog.saveDraftBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1040,14 +1048,14 @@ export default function HRPerformancePage() {
       <Dialog open={formalOpen} onOpenChange={setFormalOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>New formal performance review</DialogTitle>
+            <DialogTitle>{t("performance.formalReviewDialog.title")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Employee</Label>
+              <Label>{t("performance.formalReviewDialog.employeeLabel")}</Label>
               <Select value={frEmpId} onValueChange={setFrEmpId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select employee" />
+                  <SelectValue placeholder={t("performance.formalReviewDialog.selectEmployee")} />
                 </SelectTrigger>
                 <SelectContent>
                   {(employees ?? []).map((e: { id: number; firstName?: string; lastName?: string }) => (
@@ -1059,27 +1067,27 @@ export default function HRPerformancePage() {
               </Select>
             </div>
             <div>
-              <Label>Period (e.g. Q1 2026)</Label>
+              <Label>{t("performance.formalReviewDialog.periodLabel")}</Label>
               <Input value={frPeriod} onChange={(ev) => setFrPeriod(ev.target.value)} />
             </div>
             <div>
-              <Label>Overall score (0–10)</Label>
+              <Label>{t("performance.formalReviewDialog.scoreLabel")}</Label>
               <Input value={frScore} onChange={(ev) => setFrScore(ev.target.value)} type="number" min={0} max={10} step={0.5} />
             </div>
             <div>
-              <Label>Strengths</Label>
+              <Label>{t("performance.formalReviewDialog.strengthsLabel")}</Label>
               <Textarea value={frStrengths} onChange={(ev) => setFrStrengths(ev.target.value)} rows={2} />
             </div>
             <div>
-              <Label>Improvements</Label>
+              <Label>{t("performance.formalReviewDialog.improvementsLabel")}</Label>
               <Textarea value={frImprove} onChange={(ev) => setFrImprove(ev.target.value)} rows={2} />
             </div>
             <div>
-              <Label>Goals</Label>
+              <Label>{t("performance.formalReviewDialog.goalsLabel")}</Label>
               <Textarea value={frGoals} onChange={(ev) => setFrGoals(ev.target.value)} rows={2} />
             </div>
             <div>
-              <Label>Comments</Label>
+              <Label>{t("performance.formalReviewDialog.commentsLabel")}</Label>
               <Textarea value={frComments} onChange={(ev) => setFrComments(ev.target.value)} rows={2} />
             </div>
           </div>
@@ -1087,7 +1095,7 @@ export default function HRPerformancePage() {
             <Button
               onClick={() => {
                 if (!frEmpId || !frPeriod.trim()) {
-                  toast.error("Employee and period are required.");
+                  toast.error(t("performance.formalReviewDialog.validationError"));
                   return;
                 }
                 createReviewMut.mutate({
@@ -1102,7 +1110,7 @@ export default function HRPerformancePage() {
               }}
               disabled={createReviewMut.isPending}
             >
-              Save review
+              {t("performance.formalReviewDialog.saveBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1112,18 +1120,18 @@ export default function HRPerformancePage() {
       <Dialog open={targetOpen} onOpenChange={setTargetOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Assign KPI target</DialogTitle>
-            <DialogDescription>Uses the same engine as KPI &amp; Performance — notifies the employee.</DialogDescription>
+            <DialogTitle>{t("performance.targetDialog.title")}</DialogTitle>
+            <DialogDescription>{t("performance.targetDialog.description")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Employee (login user)</Label>
+              <Label>{t("performance.targetDialog.employeeLabel")}</Label>
               <Select
                 value={tEmpUserId != null ? String(tEmpUserId) : ""}
                 onValueChange={(v) => setTEmpUserId(Number(v))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select" />
+                  <SelectValue placeholder={t("performance.targetDialog.selectEmployee")} />
                 </SelectTrigger>
                 <SelectContent>
                   {(employees ?? []).map((e: { id: number; userId?: number | null; firstName?: string; lastName?: string }) => {
@@ -1138,30 +1146,30 @@ export default function HRPerformancePage() {
               </Select>
             </div>
             <div>
-              <Label>Metric name</Label>
-              <Input value={tMetricName} onChange={(ev) => setTMetricName(ev.target.value)} placeholder="e.g. Monthly sales" />
+              <Label>{t("performance.targetDialog.metricNameLabel")}</Label>
+              <Input value={tMetricName} onChange={(ev) => setTMetricName(ev.target.value)} placeholder={t("performance.targetDialog.metricNamePlaceholder")} />
             </div>
             <div>
-              <Label>Metric type</Label>
+              <Label>{t("performance.targetDialog.metricTypeLabel")}</Label>
               <Select value={tMetricType} onValueChange={setTMetricType}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {METRIC_TYPES.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.label}
+                  {METRIC_TYPE_VALUES.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {t(`kpi.metricTypes.${v}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Target value</Label>
+              <Label>{t("performance.targetDialog.targetValueLabel")}</Label>
               <Input value={tTargetValue} onChange={(ev) => setTTargetValue(ev.target.value)} type="number" />
             </div>
             <div>
-              <Label>Commission rate (%)</Label>
+              <Label>{t("performance.targetDialog.commissionRateLabel")}</Label>
               <Input value={tCommRate} onChange={(ev) => setTCommRate(ev.target.value)} type="number" />
             </div>
           </div>
@@ -1169,7 +1177,7 @@ export default function HRPerformancePage() {
             <Button
               onClick={() => {
                 if (!tEmpUserId || !tMetricName.trim() || !tTargetValue) {
-                  toast.error("Fill required fields.");
+                  toast.error(t("performance.targetDialog.validationError"));
                   return;
                 }
                 setTargetMut.mutate({
@@ -1186,7 +1194,7 @@ export default function HRPerformancePage() {
               }}
               disabled={setTargetMut.isPending}
             >
-              Set target
+              {t("performance.targetDialog.setBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>

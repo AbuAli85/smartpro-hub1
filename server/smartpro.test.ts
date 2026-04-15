@@ -511,14 +511,14 @@ describe("subscriptions", () => {
 // ─── Attendance Tests ─────────────────────────────────────────────────────────
 describe("hr.attendance", () => {
   it("listAttendance returns empty array when no company", async () => {
-    seedSingleCompanyWorkspace();
+    seedWorkspaceMembershipPair();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.hr.listAttendance({ month: "2026-03" });
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("attendanceStats returns zero stats when no company", async () => {
-    seedSingleCompanyWorkspace();
+    seedWorkspaceMembershipPair();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.hr.attendanceStats({ month: "2026-03" });
     // Returns zero-filled stats object (not null) when no company

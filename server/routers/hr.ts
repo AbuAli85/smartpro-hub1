@@ -109,7 +109,17 @@ function normalizeMemberPermissions(p: unknown): string[] {
 async function requireHrAdminOrDelegatedReports(ctxUser: User, companyId?: number | null): Promise<number> {
   const cid = await requireActiveCompanyId(ctxUser.id, companyId, ctxUser);
   const db = await getDb();
-  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+  if (!db) {
+    const row = await getUserCompanyById(ctxUser.id, cid);
+    const role = row?.member?.role;
+    if (role !== "company_admin" && role !== "hr_admin") {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "HR Admin, Company Admin, or view_reports permission required",
+      });
+    }
+    return cid;
+  }
   const [callerMember] = await db
     .select({ role: companyMembers.role, permissions: companyMembers.permissions })
     .from(companyMembers)

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { isRTL } from "@/lib/i18n";
@@ -21,6 +22,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import {
   FileText,
@@ -34,6 +36,7 @@ import {
   CheckCircle2,
   Clock,
   Ban,
+  QrCode,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -760,6 +763,39 @@ export default function ClientBillingPage() {
           <p className="text-sm text-muted-foreground">{t("clientBilling.pageSubtitle")}</p>
         </div>
       </div>
+
+      <Card className="border-muted bg-muted/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold">{t("clientBilling.howItWorks.title")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <p className="text-muted-foreground leading-relaxed">{t("clientBilling.howItWorks.intro")}</p>
+          <ol
+            className={cn(
+              "list-decimal space-y-2 text-foreground/90 [list-style-position:outside]",
+              rtl ? "pe-5 me-4" : "ps-5"
+            )}
+          >
+            <li>{t("clientBilling.howItWorks.step1")}</li>
+            <li>{t("clientBilling.howItWorks.step2")}</li>
+            <li>{t("clientBilling.howItWorks.step3")}</li>
+          </ol>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button variant="outline" size="sm" className="gap-1.5" asChild>
+              <Link href="/hr/attendance-sites">
+                <QrCode className="w-4 h-4" />
+                {t("clientBilling.howItWorks.openAttendanceSites")}
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5" asChild>
+              <Link href="/hr/attendance">
+                <Clock className="w-4 h-4" />
+                {t("clientBilling.howItWorks.openAttendance")}
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tabs */}
       <Tabs defaultValue="invoices" className="space-y-6">

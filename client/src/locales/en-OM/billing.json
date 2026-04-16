@@ -60,6 +60,15 @@
   "clientBilling": {
     "pageTitle": "Client Billing",
     "pageSubtitle": "Manage client invoices, track payments, and monitor cash flow",
+    "howItWorks": {
+      "title": "How this connects to your work",
+      "intro": "This page does not register “customers” in a separate directory. Your billable customer is whoever you name on each attendance site, and invoices are built from real attendance at those sites.",
+      "step1": "On Attendance sites, set the client you bill (name) and the daily rate (OMR) for each location.",
+      "step2": "When staff check in and sessions close, those days count toward the month you invoice.",
+      "step3": "Generate monthly invoices turns billable days × daily rate into invoices here. Then you record payments; aging and cash flow follow from that history.",
+      "openAttendanceSites": "Open Attendance sites",
+      "openAttendance": "Open Attendance"
+    },
     "tabs": {
       "invoices": "Invoices",
       "arAging": "AR Aging",
@@ -72,7 +81,7 @@
       "generateMonthly": "Generate Monthly Invoices",
       "generating": "Generating…",
       "noInvoices": "No invoices found",
-      "noInvoicesHint": "Generate monthly invoices or adjust your filter to see results.",
+      "noInvoicesHint": "Set up sites with a client name and rate, record closed attendance for that month, then generate—or adjust your filter.",
       "columns": {
         "invoiceNo": "Invoice No.",
         "client": "Client",
@@ -108,7 +117,7 @@
       },
       "generateDialog": {
         "title": "Generate Monthly Invoices",
-        "description": "This will generate invoices for all active clients for the selected month. Existing invoices for the same month will not be duplicated.",
+        "description": "Builds invoices from billable attendance: each site must have a client name and daily rate, and closed attendance days count in the month you pick. One invoice per client per month; nothing is duplicated if it already exists.",
         "monthLabel": "Month",
         "yearLabel": "Year",
         "confirm": "Generate",

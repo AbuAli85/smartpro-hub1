@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/tooltip";
 import { VIEW_COPY } from "@shared/promoterFinancialViewSemantics";
 import { formatWarningAckForDisplay } from "@shared/promoterFinancialWarningAck";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 function monthBounds(d: Date): { start: string; end: string } {
   const y = d.getFullYear();
@@ -48,8 +50,15 @@ const viewSemanticsLabel: Record<string, string> = {
 };
 
 export default function PromoterFinanceHubPage() {
-  const { activeCompanyId } = useActiveCompany();
+  const { user } = useAuth();
+  const { activeCompanyId, activeCompany } = useActiveCompany();
   const companyId = activeCompanyId ?? undefined;
+  /** Matches server `requirePromoterFinanceControl`: approve, export, finalize payroll, issue/mark paid invoices. */
+  const canFinanceFinalize = Boolean(
+    (user && canAccessGlobalAdminProcedures(user)) ||
+      activeCompany?.role === "company_admin" ||
+      activeCompany?.role === "finance_admin",
+  );
   const [periodStart, setPeriodStart] = useState(() => monthBounds(new Date()).start);
   const [periodEnd, setPeriodEnd] = useState(() => monthBounds(new Date()).end);
   const [ackKeys, setAckKeys] = useState("");
@@ -297,7 +306,12 @@ export default function PromoterFinanceHubPage() {
                                   size="sm"
                                   variant="secondary"
                                   type="button"
-                                  disabled={approveRun.isPending}
+                                  disabled={approveRun.isPending || !canFinanceFinalize}
+                                  title={
+                                    !canFinanceFinalize
+                                      ? "Only company or finance administrators can approve payroll runs"
+                                      : undefined
+                                  }
                                   onClick={() => approveRun.mutate({ companyId, runId: r.id })}
                                 >
                                   Approve
@@ -309,7 +323,12 @@ export default function PromoterFinanceHubPage() {
                                 size="sm"
                                 variant="secondary"
                                 type="button"
-                                disabled={approveRun.isPending}
+                                disabled={approveRun.isPending || !canFinanceFinalize}
+                                title={
+                                  !canFinanceFinalize
+                                    ? "Only company or finance administrators can approve payroll runs"
+                                    : undefined
+                                }
                                 onClick={() => approveRun.mutate({ companyId, runId: r.id })}
                               >
                                 Approve
@@ -320,7 +339,12 @@ export default function PromoterFinanceHubPage() {
                                 size="sm"
                                 variant="outline"
                                 type="button"
-                                disabled={exportRun.isPending}
+                                disabled={exportRun.isPending || !canFinanceFinalize}
+                                title={
+                                  !canFinanceFinalize
+                                    ? "Only company or finance administrators can export payroll"
+                                    : undefined
+                                }
                                 onClick={() =>
                                   exportRun.mutate(
                                     { companyId, runId: r.id },
@@ -345,7 +369,12 @@ export default function PromoterFinanceHubPage() {
                               <Button
                                 size="sm"
                                 type="button"
-                                disabled={markPaid.isPending}
+                                disabled={markPaid.isPending || !canFinanceFinalize}
+                                title={
+                                  !canFinanceFinalize
+                                    ? "Only company or finance administrators can mark payroll paid"
+                                    : undefined
+                                }
                                 onClick={() => markPaid.mutate({ companyId, runId: r.id })}
                               >
                                 Mark paid
@@ -509,7 +538,12 @@ export default function PromoterFinanceHubPage() {
                               <Button
                                 size="sm"
                                 type="button"
-                                disabled={issueInv.isPending}
+                                disabled={issueInv.isPending || !canFinanceFinalize}
+                                title={
+                                  !canFinanceFinalize
+                                    ? "Only company or finance administrators can issue invoices"
+                                    : undefined
+                                }
                                 onClick={() => issueInv.mutate({ companyId, invoiceId: inv.id })}
                               >
                                 Issue
@@ -522,7 +556,12 @@ export default function PromoterFinanceHubPage() {
                                 size="sm"
                                 variant="outline"
                                 type="button"
-                                disabled={markInvoicePaidMut.isPending}
+                                disabled={markInvoicePaidMut.isPending || !canFinanceFinalize}
+                                title={
+                                  !canFinanceFinalize
+                                    ? "Only company or finance administrators can mark invoices paid"
+                                    : undefined
+                                }
                                 onClick={() => markInvoicePaidMut.mutate({ companyId, invoiceId: inv.id })}
                               >
                                 Mark paid

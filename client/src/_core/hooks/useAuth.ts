@@ -54,10 +54,6 @@ export function useAuth(options?: UseAuthOptions) {
   }, [logoutMutation, utils]);
 
   const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
     return {
       user: meQuery.data ?? null,
       loading: meQuery.isLoading || logoutInFlight > 0,
@@ -72,19 +68,41 @@ export function useAuth(options?: UseAuthOptions) {
     logoutMutation.error,
   ]);
 
+  // Persist authenticated user info to localStorage for runtime access.
+  // Only write when a real user object is present; the logout() function
+  // is responsible for removing the key when the session ends.
+  useEffect(() => {
+    if (!meQuery.data) return;
+    try {
+      localStorage.setItem(
+        "manus-runtime-user-info",
+        JSON.stringify(meQuery.data)
+      );
+    } catch {
+      /* ignore private mode / SSR */
+    }
+  }, [meQuery.data]);
+
+  // Redirect to login when the session is confirmed absent.
+  // Guard against the `idle` fetchStatus (query not yet attempted) to avoid
+  // a premature redirect on the very first render before auth.me has resolved.
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
     if (meQuery.isLoading || logoutInFlight > 0) return;
+    // `fetchStatus === "idle"` means the query has not been attempted yet —
+    // do not treat this as "logged out".
+    if (meQuery.fetchStatus === "idle") return;
     if (state.user) return;
     if (typeof window === "undefined") return;
     if (window.location.pathname === redirectPath) return;
 
-    window.location.href = redirectPath
+    window.location.href = redirectPath;
   }, [
     redirectOnUnauthenticated,
     redirectPath,
     logoutInFlight,
     meQuery.isLoading,
+    meQuery.fetchStatus,
     state.user,
   ]);
 

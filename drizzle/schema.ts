@@ -3295,6 +3295,21 @@ export const promoterAssignments = mysqlTable(
       .default("assignment_override"),
     contractReferenceNumber: varchar("contract_reference_number", { length: 100 }),
     issueDate: date("issue_date"),
+    /**
+     * CMS mirror state — assignment row is authoritative; outsourcing_contracts is best-effort.
+     * @see server/promoterAssignmentCmsSync.ts
+     */
+    cmsSyncState: mysqlEnum("cms_sync_state", [
+      "not_required",
+      "pending",
+      "synced",
+      "skipped",
+      "failed",
+    ] as const)
+      .notNull()
+      .default("not_required"),
+    lastSyncError: text("last_sync_error"),
+    lastSyncedAt: timestamp("last_synced_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
@@ -3309,6 +3324,7 @@ export const promoterAssignments = mysqlTable(
     index("idx_pa_company_site").on(t.companyId, t.clientSiteId),
     index("idx_pa_employee_status").on(t.promoterEmployeeId, t.assignmentStatus),
     index("idx_pa_dates").on(t.startDate, t.endDate),
+    index("idx_pa_cms_sync").on(t.companyId, t.cmsSyncState),
   ]
 );
 export type PromoterAssignment = typeof promoterAssignments.$inferSelect;
@@ -3511,6 +3527,8 @@ export const outsourcingContracts = mysqlTable(
     signedPdfUrl: text("signed_pdf_url"),
     renewalOfContractId: char("renewal_of_contract_id", { length: 36 }),
     metadata: json("metadata").$type<Record<string, unknown>>(),
+    /** Commercial target promoters under this agreement (nullable; staffing coverage vs assignments). */
+    requiredHeadcount: int("required_headcount"),
     createdBy: int("created_by"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

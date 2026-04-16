@@ -58,5 +58,7 @@ describe("promoterAssignments Phase 1", () => {
     expect(r.total).toBe(0);
     expect(r.byStatus.active).toBe(0);
     expect(r.activeHeadcountByBrand).toEqual([]);
+    expect(r.coverageByBrand).toEqual([]);
+    expect(r.operationalTodayTotal).toBe(0);
   });
 });

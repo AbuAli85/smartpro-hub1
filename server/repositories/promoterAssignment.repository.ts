@@ -2,14 +2,17 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { promoterAssignments } from "../../drizzle/schema";
 import { dateRangesOverlap } from "../../shared/promoterAssignmentLifecycle";
+import {
+  buildPromoterAssignmentAuditPayload,
+  type PromoterAssignmentAuditPayload,
+} from "../../shared/promoterAssignmentAudit";
 import { createAuditLog } from "./audit.repository";
 
 export type DbLike = MySql2Database<Record<string, never>>;
 
 /**
- * Overlap rule (Phase 1): an employee cannot have two **active** assignments for the same client brand
- * (`first_party_company_id`) and the same site key (`client_site_id`, including both NULL) with overlapping dates.
- * Open-ended assignments use NULL `end_date` as infinity for overlap checks.
+ * Overlap rule: two **active** assignments for the same employee + client brand + site key
+ * with overlapping calendar ranges. NULL end_date means open-ended (treated as far future for overlap).
  */
 export async function hasOverlappingActiveAssignment(
   db: DbLike,
@@ -22,9 +25,10 @@ export async function hasOverlappingActiveAssignment(
     excludeAssignmentId?: string;
   },
 ): Promise<boolean> {
-  const siteMatch = params.clientSiteId == null
-    ? sql`${promoterAssignments.clientSiteId} IS NULL`
-    : eq(promoterAssignments.clientSiteId, params.clientSiteId);
+  const siteMatch =
+    params.clientSiteId == null
+      ? sql`${promoterAssignments.clientSiteId} IS NULL`
+      : eq(promoterAssignments.clientSiteId, params.clientSiteId);
 
   const rows = await db
     .select({
@@ -44,33 +48,24 @@ export async function hasOverlappingActiveAssignment(
     );
 
   for (const r of rows) {
-    if (
-      dateRangesOverlap(params.startDate, params.endDate, r.startDate, r.endDate ?? null)
-    ) {
+    if (dateRangesOverlap(params.startDate, params.endDate, r.startDate, r.endDate ?? null)) {
       return true;
     }
   }
   return false;
 }
 
+/** Writes standardized JSON to audit_logs.newValues; action column mirrors payload.eventType. */
 export async function emitPromoterAssignmentAudit(input: {
-  companyId: number;
   userId: number;
-  action:
-    | "assignment_created"
-    | "assignment_updated"
-    | "assignment_status_changed"
-    | "assignment_rate_changed"
-    | "assignment_supervisor_changed";
-  assignmentId: string;
-  metadata: Record<string, unknown>;
+  payload: PromoterAssignmentAuditPayload;
 }): Promise<void> {
   await createAuditLog({
     userId: input.userId,
-    companyId: input.companyId,
-    action: input.action,
+    companyId: input.payload.companyId,
+    action: input.payload.eventType,
     entityType: "promoter_assignment",
     entityId: null,
-    newValues: { assignmentId: input.assignmentId, ...input.metadata },
+    newValues: buildPromoterAssignmentAuditPayload(input.payload),
   });
 }

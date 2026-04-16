@@ -7,7 +7,25 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, desc, eq, inArray, like, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  like,
+  lte,
+  ne,
+  notInArray,
+  or,
+  sql,
+  sum,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
@@ -22,6 +40,8 @@ import {
   requiresTerminationReason,
   type AssignmentStatus,
 } from "../../shared/promoterAssignmentLifecycle";
+import { evaluatePromoterAssignmentHealth } from "../../shared/promoterAssignmentHealth";
+import { getAssignmentTemporalState } from "../../shared/promoterAssignmentTemporal";
 import type { User } from "../../drizzle/schema";
 import { getCompanies, getDb, getUserCompanies } from "../db";
 import {
@@ -29,6 +49,7 @@ import {
   companies,
   companyMembers,
   employees,
+  outsourcingContracts,
   promoterAssignments,
   users,
   type InsertPromoterAssignment,
@@ -47,6 +68,10 @@ import {
   emitPromoterAssignmentAudit,
   hasOverlappingActiveAssignment,
 } from "../repositories/promoterAssignment.repository";
+import {
+  CMS_SYNC_SKIP_OPEN_ENDED,
+  setPromoterAssignmentCmsSyncState,
+} from "../promoterAssignmentCmsSync";
 
 const ASSIGNMENT_ROLES = ["company_admin", "hr_admin"] as const;
 
@@ -61,6 +86,8 @@ const listAssignmentsInput = optionalActiveWorkspace.merge(
     dateFrom: z.string().optional(),
     dateTo: z.string().optional(),
     search: z.string().optional(),
+    /** Temporal / health filters — assignment truth uses dates + status (see shared/promoterAssignmentTemporal.ts). */
+    temporalFilter: z.enum(["all", "operational_today", "future_scheduled", "needs_attention"]).optional(),
   }),
 );
 
@@ -322,6 +349,38 @@ export const promoterAssignmentsRouter = router({
       );
     }
 
+    if (input?.temporalFilter === "operational_today") {
+      conditions.push(
+        and(
+          eq(promoterAssignments.assignmentStatus, "active"),
+          lte(promoterAssignments.startDate, sql`CURDATE()`),
+          or(isNull(promoterAssignments.endDate), gte(promoterAssignments.endDate, sql`CURDATE()`))
+        )!
+      );
+    }
+    if (input?.temporalFilter === "future_scheduled") {
+      conditions.push(
+        and(
+          eq(promoterAssignments.assignmentStatus, "active"),
+          gt(promoterAssignments.startDate, sql`CURDATE()`)
+        )!
+      );
+    }
+    if (input?.temporalFilter === "needs_attention") {
+      conditions.push(
+        or(
+          isNull(promoterAssignments.clientSiteId),
+          isNull(promoterAssignments.supervisorUserId),
+          and(eq(promoterAssignments.assignmentStatus, "active"), isNull(promoterAssignments.billingRate)),
+          and(
+            eq(promoterAssignments.assignmentStatus, "suspended"),
+            or(isNull(promoterAssignments.suspensionReason), eq(promoterAssignments.suspensionReason, ""))
+          ),
+          inArray(promoterAssignments.cmsSyncState, ["skipped", "failed"])
+        )!
+      );
+    }
+
     const whereClause = conditions.length ? and(...conditions) : undefined;
 
     const base = db
@@ -349,6 +408,9 @@ export const promoterAssignmentsRouter = router({
         rateSource: promoterAssignments.rateSource,
         contractReferenceNumber: promoterAssignments.contractReferenceNumber,
         issueDate: promoterAssignments.issueDate,
+        cmsSyncState: promoterAssignments.cmsSyncState,
+        lastSyncError: promoterAssignments.lastSyncError,
+        lastSyncedAt: promoterAssignments.lastSyncedAt,
         createdAt: promoterAssignments.createdAt,
         updatedAt: promoterAssignments.updatedAt,
         firstPartyName: fpAlias.name,
@@ -373,6 +435,8 @@ export const promoterAssignmentsRouter = router({
 
     const rows = await base;
 
+    const refYmd = new Date().toISOString().slice(0, 10);
+
     return rows.map((r) => {
       const promoterName =
         `${r.promoterFirstName ?? ""} ${r.promoterLastName ?? ""}`.trim() ||
@@ -383,6 +447,30 @@ export const promoterAssignmentsRouter = router({
           : r.secondPartyCompanyId === activeId
             ? "second_party"
             : "observer";
+      const assignmentStatus = r.assignmentStatus as AssignmentStatus;
+      const temporalState = getAssignmentTemporalState(
+        {
+          assignmentStatus,
+          startDate: r.startDate,
+          endDate: r.endDate,
+        },
+        refYmd,
+      );
+      const healthFlags = evaluatePromoterAssignmentHealth(
+        {
+          assignmentStatus,
+          startDate: r.startDate,
+          endDate: r.endDate,
+          clientSiteId: r.clientSiteId,
+          supervisorUserId: r.supervisorUserId,
+          billingRate: r.billingRate != null ? String(r.billingRate) : null,
+          rateSource: r.rateSource ?? null,
+          suspensionReason: r.suspensionReason,
+          terminationReason: r.terminationReason,
+          cmsSyncState: r.cmsSyncState ?? null,
+        },
+        { referenceDate: refYmd, strictRateSource: false },
+      );
       return {
         id: r.id,
         companyId: r.companyId,
@@ -390,9 +478,9 @@ export const promoterAssignmentsRouter = router({
         secondPartyCompanyId: r.secondPartyCompanyId,
         clientSiteId: r.clientSiteId,
         promoterEmployeeId: r.promoterEmployeeId,
-        assignmentStatus: r.assignmentStatus,
+        assignmentStatus,
         /** @deprecated use assignmentStatus — mapped for older UI */
-        status: r.assignmentStatus,
+        status: assignmentStatus,
         locationAr: r.locationAr,
         locationEn: r.locationEn,
         startDate: r.startDate,
@@ -410,6 +498,9 @@ export const promoterAssignmentsRouter = router({
         rateSource: r.rateSource,
         contractReferenceNumber: r.contractReferenceNumber,
         issueDate: r.issueDate,
+        cmsSyncState: r.cmsSyncState,
+        lastSyncError: r.lastSyncError,
+        lastSyncedAt: r.lastSyncedAt,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
         firstPartyName: r.firstPartyName ?? "Unknown company",
@@ -420,6 +511,9 @@ export const promoterAssignmentsRouter = router({
         promoterPassportNumber: r.promoterPassportNumber ?? null,
         promoterNationality: r.promoterNationality ?? null,
         activeCompanyRole,
+        temporalState,
+        healthFlags,
+        referenceDate: refYmd,
       };
     });
   }),
@@ -438,8 +532,29 @@ export const promoterAssignmentsRouter = router({
           completed: 0,
           terminated: 0,
         } satisfies Record<AssignmentStatus, number>,
-        activeHeadcountByBrand: [] as { firstPartyCompanyId: number; brandName: string; count: number }[],
-        activeHeadcountBySite: [] as { clientSiteId: number | null; siteName: string | null; count: number }[],
+        operationalTodayTotal: 0,
+        scheduledFutureTotal: 0,
+        needsAttentionApproxCount: 0,
+        operationalHeadcountByBrand: [] as {
+          firstPartyCompanyId: number;
+          brandName: string;
+          count: number;
+        }[],
+        operationalHeadcountBySite: [] as {
+          clientSiteId: number | null;
+          siteName: string | null;
+          count: number;
+        }[],
+        activeHeadcountByBrand: [],
+        activeHeadcountBySite: [],
+        coverageByBrand: [] as {
+          brandId: number;
+          brandName: string;
+          requiredHeadcount: number | null;
+          operationalActiveCount: number;
+          gap: number | null;
+          overstaffed: number | null;
+        }[],
       };
     }
 
@@ -468,12 +583,55 @@ export const promoterAssignmentsRouter = router({
       total += n;
     }
 
+    /** Deployable today: active + started + not ended (open end ok). See shared/promoterAssignmentTemporal.ts */
+    const operationalDateWhere = and(
+      eq(promoterAssignments.assignmentStatus, "active"),
+      lte(promoterAssignments.startDate, sql`CURDATE()`),
+      or(isNull(promoterAssignments.endDate), gte(promoterAssignments.endDate, sql`CURDATE()`)),
+    );
+
+    const operationalScope = vis ? and(vis, operationalDateWhere) : operationalDateWhere;
+
+    const futureScope = vis
+      ? and(vis, eq(promoterAssignments.assignmentStatus, "active"), gt(promoterAssignments.startDate, sql`CURDATE()`))
+      : and(eq(promoterAssignments.assignmentStatus, "active"), gt(promoterAssignments.startDate, sql`CURDATE()`));
+
+    const needsAttentionScope = vis
+      ? and(
+          vis,
+          or(
+            isNull(promoterAssignments.clientSiteId),
+            isNull(promoterAssignments.supervisorUserId),
+            and(eq(promoterAssignments.assignmentStatus, "active"), isNull(promoterAssignments.billingRate)),
+            and(
+              eq(promoterAssignments.assignmentStatus, "suspended"),
+              or(isNull(promoterAssignments.suspensionReason), eq(promoterAssignments.suspensionReason, "")),
+            ),
+            inArray(promoterAssignments.cmsSyncState, ["skipped", "failed"]),
+          ),
+        )
+      : or(
+          isNull(promoterAssignments.clientSiteId),
+          isNull(promoterAssignments.supervisorUserId),
+          and(eq(promoterAssignments.assignmentStatus, "active"), isNull(promoterAssignments.billingRate)),
+          and(
+            eq(promoterAssignments.assignmentStatus, "suspended"),
+            or(isNull(promoterAssignments.suspensionReason), eq(promoterAssignments.suspensionReason, "")),
+          ),
+          inArray(promoterAssignments.cmsSyncState, ["skipped", "failed"]),
+        );
+
+    const [{ opToday }] = await db
+      .select({ opToday: count() })
+      .from(promoterAssignments)
+      .where(operationalScope);
+
+    const [{ fut }] = await db.select({ fut: count() }).from(promoterAssignments).where(futureScope);
+
+    const [{ naCt }] = await db.select({ naCt: count() }).from(promoterAssignments).where(needsAttentionScope);
+
     const fpAlias = alias(companies, "sum_fp");
     const siteAlias = alias(attendanceSites, "sum_site");
-
-    const activeBrandWhere = vis
-      ? and(vis, eq(promoterAssignments.assignmentStatus, "active"))
-      : eq(promoterAssignments.assignmentStatus, "active");
 
     const brandRows = await db
       .select({
@@ -483,7 +641,7 @@ export const promoterAssignmentsRouter = router({
       })
       .from(promoterAssignments)
       .leftJoin(fpAlias, eq(fpAlias.id, promoterAssignments.firstPartyCompanyId))
-      .where(activeBrandWhere)
+      .where(operationalScope)
       .groupBy(promoterAssignments.firstPartyCompanyId, fpAlias.name);
 
     const siteRows = await db
@@ -494,22 +652,100 @@ export const promoterAssignmentsRouter = router({
       })
       .from(promoterAssignments)
       .leftJoin(siteAlias, eq(siteAlias.id, promoterAssignments.clientSiteId))
-      .where(activeBrandWhere)
+      .where(operationalScope)
       .groupBy(promoterAssignments.clientSiteId, siteAlias.name);
+
+    /**
+     * Coverage grouping: **by client brand** (`outsourcing_contracts.company_id` = first-party client tenant).
+     * Required headcount is summed from promoter_assignment CMS contracts that are not expired/terminated.
+     * Scoped to brands that appear in visible assignments (tenant-safe).
+     */
+    const visibleBrandRows = await db
+      .selectDistinct({ id: promoterAssignments.firstPartyCompanyId })
+      .from(promoterAssignments)
+      .where(vis ? vis : sql`1=1`);
+    const visibleBrandIds = visibleBrandRows.map((r) => r.id);
+
+    const reqRows =
+      visibleBrandIds.length === 0
+        ? []
+        : await db
+            .select({
+              brandId: outsourcingContracts.companyId,
+              required: sum(outsourcingContracts.requiredHeadcount),
+            })
+            .from(outsourcingContracts)
+            .where(
+              and(
+                eq(outsourcingContracts.contractTypeId, "promoter_assignment"),
+                notInArray(outsourcingContracts.status, ["expired", "terminated"]),
+                isNotNull(outsourcingContracts.companyId),
+                inArray(outsourcingContracts.companyId, visibleBrandIds),
+              ),
+            )
+            .groupBy(outsourcingContracts.companyId);
+
+    const reqByBrand = new Map<number, number>();
+    for (const r of reqRows) {
+      if (r.brandId != null && r.required != null) {
+        reqByBrand.set(r.brandId, Number(r.required));
+      }
+    }
+
+    const opByBrand = new Map<number, { name: string; n: number }>();
+    for (const r of brandRows) {
+      opByBrand.set(r.firstPartyCompanyId, {
+        name: r.brandName ?? `Company #${r.firstPartyCompanyId}`,
+        n: Number(r.c),
+      });
+    }
+
+    const brandIds = new Set<number>([...reqByBrand.keys(), ...opByBrand.keys()]);
+    const coverageByBrand = [...brandIds].map((brandId) => {
+      const requiredHeadcount = reqByBrand.has(brandId) ? reqByBrand.get(brandId)! : null;
+      const operationalActiveCount = opByBrand.get(brandId)?.n ?? 0;
+      const brandName = opByBrand.get(brandId)?.name ?? `Company #${brandId}`;
+      let gap: number | null = null;
+      let overstaffed: number | null = null;
+      if (requiredHeadcount != null) {
+        gap = requiredHeadcount - operationalActiveCount;
+        overstaffed = operationalActiveCount > requiredHeadcount ? operationalActiveCount - requiredHeadcount : 0;
+      }
+      return {
+        brandId,
+        brandName,
+        requiredHeadcount,
+        operationalActiveCount,
+        gap,
+        overstaffed,
+      };
+    });
+
+    const operationalHeadcountByBrand = brandRows.map((r) => ({
+      firstPartyCompanyId: r.firstPartyCompanyId,
+      brandName: r.brandName ?? `Company #${r.firstPartyCompanyId}`,
+      count: Number(r.c),
+    }));
+
+    const operationalHeadcountBySite = siteRows.map((r) => ({
+      clientSiteId: r.clientSiteId,
+      siteName: r.siteName,
+      count: Number(r.c),
+    }));
 
     return {
       total,
       byStatus,
-      activeHeadcountByBrand: brandRows.map((r) => ({
-        firstPartyCompanyId: r.firstPartyCompanyId,
-        brandName: r.brandName ?? `Company #${r.firstPartyCompanyId}`,
-        count: Number(r.c),
-      })),
-      activeHeadcountBySite: siteRows.map((r) => ({
-        clientSiteId: r.clientSiteId,
-        siteName: r.siteName,
-        count: Number(r.c),
-      })),
+      operationalTodayTotal: Number(opToday),
+      scheduledFutureTotal: Number(fut),
+      needsAttentionApproxCount: Number(naCt),
+      operationalHeadcountByBrand,
+      operationalHeadcountBySite,
+      /** @deprecated Prefer operationalHeadcountByBrand (temporal). */
+      activeHeadcountByBrand: operationalHeadcountByBrand,
+      /** @deprecated Prefer operationalHeadcountBySite (temporal). */
+      activeHeadcountBySite: operationalHeadcountBySite,
+      coverageByBrand,
     };
   }),
 
@@ -626,37 +862,59 @@ export const promoterAssignmentsRouter = router({
 
       if (rateChanged) {
         await emitPromoterAssignmentAudit({
-          companyId: existing.companyId,
           userId: ctx.user.id,
-          action: "assignment_rate_changed",
-          assignmentId: input.id,
-          metadata: {
-            previousBillingRate: existing.billingRate,
-            newBillingRate: updates.billingRate ?? existing.billingRate,
-            billingModel: updates.billingModel ?? existing.billingModel,
-            rateSource: updates.rateSource ?? existing.rateSource,
+          payload: {
+            assignmentId: input.id,
+            companyId: existing.companyId,
+            employeeId: existing.promoterEmployeeId,
+            clientCompanyId: existing.firstPartyCompanyId,
+            siteId: existing.clientSiteId,
+            employerCompanyId: existing.secondPartyCompanyId,
+            eventType: "assignment_rate_changed",
+            change: {
+              field: "billingRate",
+              from: existing.billingRate,
+              to: updates.billingRate ?? existing.billingRate,
+            },
+            meta: {
+              billingModel: updates.billingModel ?? existing.billingModel,
+              rateSource: updates.rateSource ?? existing.rateSource,
+            },
           },
         });
       }
       if (supChanged) {
         await emitPromoterAssignmentAudit({
-          companyId: existing.companyId,
           userId: ctx.user.id,
-          action: "assignment_supervisor_changed",
-          assignmentId: input.id,
-          metadata: {
-            previousSupervisorUserId: existing.supervisorUserId,
-            newSupervisorUserId: input.supervisorUserId ?? null,
+          payload: {
+            assignmentId: input.id,
+            companyId: existing.companyId,
+            employeeId: existing.promoterEmployeeId,
+            clientCompanyId: existing.firstPartyCompanyId,
+            siteId: existing.clientSiteId,
+            employerCompanyId: existing.secondPartyCompanyId,
+            eventType: "assignment_supervisor_changed",
+            change: {
+              field: "supervisorUserId",
+              from: existing.supervisorUserId,
+              to: input.supervisorUserId ?? null,
+            },
           },
         });
       }
 
       await emitPromoterAssignmentAudit({
-        companyId: existing.companyId,
         userId: ctx.user.id,
-        action: "assignment_updated",
-        assignmentId: input.id,
-        metadata: { fields: Object.keys(updates) },
+        payload: {
+          assignmentId: input.id,
+          companyId: existing.companyId,
+          employeeId: existing.promoterEmployeeId,
+          clientCompanyId: existing.firstPartyCompanyId,
+          siteId: existing.clientSiteId,
+          employerCompanyId: existing.secondPartyCompanyId,
+          eventType: "assignment_updated",
+          meta: { fields: Object.keys(updates) },
+        },
       });
 
       // Mirror to CMS (non-fatal)
@@ -701,10 +959,14 @@ export const promoterAssignmentsRouter = router({
               actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
               details: { source: "promoterAssignments.updateDetails" },
             });
+            await setPromoterAssignmentCmsSyncState(db, input.id, "synced");
           }
         }
       } catch (e) {
         console.error("[updateDetails-mirror]", e);
+        await setPromoterAssignmentCmsSyncState(db, input.id, "failed", {
+          errorMessage: e instanceof Error ? e.message : String(e),
+        });
       }
 
       return { ok: true as const };
@@ -768,19 +1030,23 @@ export const promoterAssignmentsRouter = router({
         endDate = new Date(input.endDate.trim().slice(0, 10));
       }
 
-      if (to === "active") {
-        if (!row.endDate && !input.endDate?.trim()) {
+      if (endDate && row.startDate) {
+        const sd = row.startDate instanceof Date ? row.startDate : new Date(String(row.startDate));
+        if (endDate < sd) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "Set an end date before activating (required for contract mirror and operations).",
+            message: "End date cannot be before start date",
           });
         }
+      }
+
+      if (to === "active") {
         const overlap = await hasOverlappingActiveAssignment(db, {
           firstPartyCompanyId: row.firstPartyCompanyId,
           promoterEmployeeId: row.promoterEmployeeId,
           clientSiteId: row.clientSiteId,
           startDate: row.startDate,
-          endDate: row.endDate ?? (input.endDate ? new Date(input.endDate) : null),
+          endDate: endDate ?? row.endDate,
           excludeAssignmentId: row.id,
         });
         if (overlap) {
@@ -805,17 +1071,16 @@ export const promoterAssignmentsRouter = router({
         .where(eq(promoterAssignments.id, input.id));
 
       await emitPromoterAssignmentAudit({
-        companyId: row.companyId,
         userId: ctx.user.id,
-        action: "assignment_status_changed",
-        assignmentId: input.id,
-        metadata: {
-          oldStatus: from,
-          newStatus: to,
-          promoterEmployeeId: row.promoterEmployeeId,
-          clientSiteId: row.clientSiteId,
-          firstPartyCompanyId: row.firstPartyCompanyId,
-          secondPartyCompanyId: row.secondPartyCompanyId,
+        payload: {
+          assignmentId: input.id,
+          companyId: row.companyId,
+          employeeId: row.promoterEmployeeId,
+          clientCompanyId: row.firstPartyCompanyId,
+          siteId: row.clientSiteId,
+          employerCompanyId: row.secondPartyCompanyId,
+          eventType: "assignment_status_changed",
+          change: { field: "assignmentStatus", from, to },
         },
       });
 
@@ -841,77 +1106,93 @@ export const promoterAssignmentsRouter = router({
             actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
             details: { from, to, source: "promoterAssignments.transition" },
           });
-        } else if (to === "active" && row.endDate) {
-          const [emp] = await db
-            .select()
-            .from(employees)
-            .where(eq(employees.id, row.promoterEmployeeId))
-            .limit(1);
-          const coIds = [row.firstPartyCompanyId, row.secondPartyCompanyId];
-          const coRows = await db
-            .select({
-              id: companies.id,
-              name: companies.name,
-              nameAr: companies.nameAr,
-              crNumber: companies.crNumber,
-              registrationNumber: companies.registrationNumber,
-            })
-            .from(companies)
-            .where(inArray(companies.id, coIds));
-          const coMap = new Map(coRows.map((c) => [c.id, c]));
-          const clientCo = coMap.get(row.firstPartyCompanyId);
-          const employerCo = coMap.get(row.secondPartyCompanyId);
-          if (emp && clientCo && employerCo) {
-            const fullNameEn = `${emp.firstName} ${emp.lastName}`.trim();
-            const fullNameAr =
-              `${emp.firstNameAr ?? ""} ${emp.lastNameAr ?? ""}`.trim() || fullNameEn;
-            await createOutsourcingContractFull(db, {
-              contractId: row.id,
-              companyId: row.firstPartyCompanyId,
-              contractTypeId: "promoter_assignment",
-              contractNumber: row.contractReferenceNumber ?? null,
-              status: "active",
-              issueDate: row.issueDate,
-              effectiveDate: row.startDate,
-              expiryDate: row.endDate!,
-              createdBy: ctx.user.id,
-              firstParty: {
-                companyId: clientCo.id,
-                partyId: null,
-                nameEn: clientCo.name,
-                nameAr: clientCo.nameAr ?? null,
-                regNumber: clientCo.crNumber ?? clientCo.registrationNumber ?? null,
-              },
-              secondParty: {
-                companyId: employerCo.id,
-                partyId: null,
-                nameEn: employerCo.name,
-                nameAr: employerCo.nameAr ?? null,
-                regNumber: employerCo.crNumber ?? employerCo.registrationNumber ?? null,
-              },
-              location: {
-                locationEn: row.locationEn?.trim() ?? "",
-                locationAr: row.locationAr?.trim() ?? "",
-                clientSiteId: row.clientSiteId,
-              },
-              promoter: {
-                employeeId: emp.id,
-                employerCompanyId: row.secondPartyCompanyId,
-                fullNameEn,
-                fullNameAr,
-                civilId: emp.nationalId?.trim() ?? null,
-                passportNumber: emp.passportNumber?.trim() ?? null,
-                passportExpiry: null,
-                nationality: emp.nationality?.trim() ?? null,
-                jobTitleEn: emp.position?.trim() ?? emp.profession?.trim() ?? null,
-                jobTitleAr: null,
-              },
-              actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
+          await setPromoterAssignmentCmsSyncState(db, input.id, "synced");
+        } else if (to === "active") {
+          const effectiveEnd = endDate ?? null;
+          if (!effectiveEnd) {
+            await setPromoterAssignmentCmsSyncState(db, input.id, "skipped", {
+              errorMessage: CMS_SYNC_SKIP_OPEN_ENDED,
             });
+          } else {
+            const [emp] = await db
+              .select()
+              .from(employees)
+              .where(eq(employees.id, row.promoterEmployeeId))
+              .limit(1);
+            const coIds = [row.firstPartyCompanyId, row.secondPartyCompanyId];
+            const coRows = await db
+              .select({
+                id: companies.id,
+                name: companies.name,
+                nameAr: companies.nameAr,
+                crNumber: companies.crNumber,
+                registrationNumber: companies.registrationNumber,
+              })
+              .from(companies)
+              .where(inArray(companies.id, coIds));
+            const coMap = new Map(coRows.map((c) => [c.id, c]));
+            const clientCo = coMap.get(row.firstPartyCompanyId);
+            const employerCo = coMap.get(row.secondPartyCompanyId);
+            if (emp && clientCo && employerCo) {
+              const fullNameEn = `${emp.firstName} ${emp.lastName}`.trim();
+              const fullNameAr =
+                `${emp.firstNameAr ?? ""} ${emp.lastNameAr ?? ""}`.trim() || fullNameEn;
+              await createOutsourcingContractFull(db, {
+                contractId: row.id,
+                companyId: row.firstPartyCompanyId,
+                contractTypeId: "promoter_assignment",
+                contractNumber: row.contractReferenceNumber ?? null,
+                status: "active",
+                issueDate: row.issueDate,
+                effectiveDate: row.startDate,
+                expiryDate: effectiveEnd,
+                createdBy: ctx.user.id,
+                firstParty: {
+                  companyId: clientCo.id,
+                  partyId: null,
+                  nameEn: clientCo.name,
+                  nameAr: clientCo.nameAr ?? null,
+                  regNumber: clientCo.crNumber ?? clientCo.registrationNumber ?? null,
+                },
+                secondParty: {
+                  companyId: employerCo.id,
+                  partyId: null,
+                  nameEn: employerCo.name,
+                  nameAr: employerCo.nameAr ?? null,
+                  regNumber: employerCo.crNumber ?? employerCo.registrationNumber ?? null,
+                },
+                location: {
+                  locationEn: row.locationEn?.trim() ?? "",
+                  locationAr: row.locationAr?.trim() ?? "",
+                  clientSiteId: row.clientSiteId,
+                },
+                promoter: {
+                  employeeId: emp.id,
+                  employerCompanyId: row.secondPartyCompanyId,
+                  fullNameEn,
+                  fullNameAr,
+                  civilId: emp.nationalId?.trim() ?? null,
+                  passportNumber: emp.passportNumber?.trim() ?? null,
+                  passportExpiry: null,
+                  nationality: emp.nationality?.trim() ?? null,
+                  jobTitleEn: emp.position?.trim() ?? emp.profession?.trim() ?? null,
+                  jobTitleAr: null,
+                },
+                actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
+              });
+              await setPromoterAssignmentCmsSyncState(db, input.id, "synced");
+            } else {
+              await setPromoterAssignmentCmsSyncState(db, input.id, "failed", {
+                errorMessage: "CMS mirror failed: missing employee or company rows for dual-write.",
+              });
+            }
           }
         }
       } catch (e) {
         console.error("[transition-mirror]", e);
+        await setPromoterAssignmentCmsSyncState(db, input.id, "failed", {
+          errorMessage: e instanceof Error ? e.message : String(e),
+        });
       }
 
       return { ok: true as const };
@@ -1053,12 +1334,6 @@ export const promoterAssignmentsRouter = router({
       }
 
       if (assignmentStatus === "active") {
-        if (!normalized.endDate) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "End date is required for an active assignment",
-          });
-        }
         const overlap = await hasOverlappingActiveAssignment(db, {
           firstPartyCompanyId: input.clientCompanyId,
           promoterEmployeeId: input.promoterEmployeeId,
@@ -1112,26 +1387,41 @@ export const promoterAssignmentsRouter = router({
       await db.insert(promoterAssignments).values(row);
 
       await emitPromoterAssignmentAudit({
-        companyId: input.clientCompanyId,
         userId: ctx.user.id,
-        action: "assignment_created",
-        assignmentId: id,
-        metadata: {
-          assignmentStatus,
-          promoterEmployeeId: input.promoterEmployeeId,
-          firstPartyCompanyId: input.clientCompanyId,
-          secondPartyCompanyId: input.employerCompanyId,
-          clientSiteId,
+        payload: {
+          assignmentId: id,
+          companyId: input.clientCompanyId,
+          employeeId: input.promoterEmployeeId,
+          clientCompanyId: input.clientCompanyId,
+          siteId: clientSiteId,
+          employerCompanyId: input.employerCompanyId,
+          eventType: "assignment_created",
+          meta: {
+            assignmentStatus,
+            promoterEmployeeId: input.promoterEmployeeId,
+            firstPartyCompanyId: input.clientCompanyId,
+            secondPartyCompanyId: input.employerCompanyId,
+            clientSiteId,
+          },
         },
       });
 
+      /** CMS v1 needs an expiry; open-ended active assignments skip mirror (assignment row is truth). */
       const shouldMirrorCms =
         assignmentStatus !== "draft" && normalized.endDate != null;
+
+      if (assignmentStatus === "active" && !normalized.endDate) {
+        await setPromoterAssignmentCmsSyncState(db, id, "skipped", {
+          errorMessage: CMS_SYNC_SKIP_OPEN_ENDED,
+        });
+      }
 
       try {
         if (shouldMirrorCms) {
           const alreadyMigrated = await outsourcingContractExistsForId(db, id);
-          if (!alreadyMigrated) {
+          if (alreadyMigrated) {
+            await setPromoterAssignmentCmsSyncState(db, id, "synced");
+          } else {
             const coIds = [input.clientCompanyId, input.employerCompanyId];
             const coRows = await db
               .select({
@@ -1198,11 +1488,19 @@ export const promoterAssignmentsRouter = router({
                 },
                 actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
               });
+              await setPromoterAssignmentCmsSyncState(db, id, "synced");
+            } else {
+              await setPromoterAssignmentCmsSyncState(db, id, "failed", {
+                errorMessage: "CMS mirror failed: missing company rows for dual-write.",
+              });
             }
           }
         }
       } catch (dualWriteErr) {
         console.error("[dual-write] Failed to mirror to CMS tables:", dualWriteErr);
+        await setPromoterAssignmentCmsSyncState(db, id, "failed", {
+          errorMessage: dualWriteErr instanceof Error ? dualWriteErr.message : String(dualWriteErr),
+        });
       }
 
       return { id };

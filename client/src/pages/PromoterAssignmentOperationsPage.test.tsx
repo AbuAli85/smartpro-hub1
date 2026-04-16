@@ -28,8 +28,21 @@ vi.mock("@/lib/trpc", () => ({
           data: {
             total: 3,
             byStatus: { draft: 1, active: 1, suspended: 0, completed: 1, terminated: 0 },
+            operationalTodayTotal: 1,
+            scheduledFutureTotal: 0,
+            needsAttentionApproxCount: 0,
             activeHeadcountByBrand: [{ firstPartyCompanyId: 1, brandName: "Brand A", count: 1 }],
             activeHeadcountBySite: [{ clientSiteId: 5, siteName: "Mall", count: 1 }],
+            coverageByBrand: [
+              {
+                brandId: 1,
+                brandName: "Brand A",
+                requiredHeadcount: 5,
+                operationalActiveCount: 1,
+                gap: 4,
+                overstaffed: 0,
+              },
+            ],
           },
           isLoading: false,
         }),
@@ -50,6 +63,8 @@ vi.mock("@/lib/trpc", () => ({
               startDate: "2026-01-01",
               endDate: "2026-12-31",
               supervisorLabel: null,
+              temporalState: "operational",
+              healthFlags: ["missing_supervisor"],
             },
           ],
           isLoading: false,
@@ -63,10 +78,12 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 describe("PromoterAssignmentOperationsPage", () => {
-  it("renders KPI strip and table heading", () => {
+  it("renders KPI strip, coverage, and table heading", () => {
     render(<PromoterAssignmentOperationsPage />);
     expect(screen.getByText("Total")).toBeInTheDocument();
     expect(screen.getByText("Assignments")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("Staffing coverage by brand")).toBeInTheDocument();
+    expect(screen.getByText("No supervisor")).toBeInTheDocument();
   });
 });

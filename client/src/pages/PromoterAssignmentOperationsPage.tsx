@@ -55,6 +55,33 @@ function fmtDate(d: Date | string | null | undefined): string {
   return s.slice(0, 10);
 }
 
+function temporalHint(state: string | undefined): string | null {
+  switch (state) {
+    case "operational":
+      return "Deployable today";
+    case "scheduled_future":
+      return "Future start";
+    case "ended":
+      return "Ended (by dates)";
+    case "suspended":
+      return "Not deployable";
+    default:
+      return null;
+  }
+}
+
+const HEALTH_SHORT: Record<string, string> = {
+  missing_site: "No site",
+  missing_supervisor: "No supervisor",
+  missing_billing_rate: "No rate",
+  active_without_rate_source: "Rate source",
+  suspended_without_reason: "No suspend reason",
+  invalid_date_range: "Bad dates",
+  terminal_without_end_date: "No end",
+  cms_sync_skipped_or_blocked: "CMS sync",
+  contract_target_unknown: "No target",
+};
+
 function statusBadgeClass(s: string): string {
   switch (s) {
     case "active":
@@ -85,6 +112,8 @@ type ListRow = {
   startDate: Date | string;
   endDate: Date | string | null;
   supervisorLabel: string | null;
+  temporalState?: string;
+  healthFlags?: string[];
 };
 
 export default function PromoterAssignmentOperationsPage() {
@@ -92,6 +121,9 @@ export default function PromoterAssignmentOperationsPage() {
   const companyId = activeCompanyId ?? undefined;
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [temporalFilter, setTemporalFilter] = useState<
+    "all" | "operational_today" | "future_scheduled" | "needs_attention"
+  >("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [siteFilter, setSiteFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -108,6 +140,7 @@ export default function PromoterAssignmentOperationsPage() {
       companyId,
       assignmentStatus:
         statusFilter !== "all" ? (statusFilter as AssignmentStatus) : undefined,
+      temporalFilter: temporalFilter !== "all" ? temporalFilter : undefined,
       firstPartyCompanyId: brandFilter !== "all" ? Number(brandFilter) : undefined,
       clientSiteId: siteFilter !== "all" ? Number(siteFilter) : undefined,
       search: search.trim() || undefined,
@@ -139,6 +172,12 @@ export default function PromoterAssignmentOperationsPage() {
 
   const brandOptions = useMemo(() => summary?.activeHeadcountByBrand ?? [], [summary]);
   const siteOptions = useMemo(() => summary?.activeHeadcountBySite ?? [], [summary]);
+  const coverageByBrand = useMemo(
+    () =>
+      (summary as { coverageByBrand?: { brandId: number; brandName: string; requiredHeadcount: number | null; operationalActiveCount: number; gap: number | null; overstaffed: number | null }[] } | undefined)
+        ?.coverageByBrand ?? [],
+    [summary],
+  );
 
   const kpi = summary?.byStatus;
 
@@ -191,6 +230,54 @@ export default function PromoterAssignmentOperationsPage() {
         ))}
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Card>
+          <CardHeader className="py-3 pb-1">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Operational today</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 pb-3">
+            <div className="text-2xl font-semibold tabular-nums">
+              {summaryLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                summary?.operationalTodayTotal ?? "—"
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Active, started, and in date range (open end allowed).
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="py-3 pb-1">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Future scheduled</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 pb-3">
+            <div className="text-2xl font-semibold tabular-nums">
+              {summaryLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                summary?.scheduledFutureTotal ?? "—"
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="py-3 pb-1">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Needs attention (approx.)</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 pb-3">
+            <div className="text-2xl font-semibold tabular-nums">
+              {summaryLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                summary?.needsAttentionApproxCount ?? "—"
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
@@ -232,6 +319,50 @@ export default function PromoterAssignmentOperationsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-sm">Staffing coverage by brand</CardTitle>
+          <p className="text-xs text-muted-foreground font-normal">
+            Required headcount comes from promoter-assignment contracts; &quot;operational&quot; counts deployable
+            today (same rule as dashboard).
+          </p>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          {coverageByBrand.length === 0 && !summaryLoading ? (
+            <p className="text-sm text-muted-foreground">No brand coverage rows yet (contracts or assignments).</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Brand</TableHead>
+                  <TableHead className="text-right">Required</TableHead>
+                  <TableHead className="text-right">Operational</TableHead>
+                  <TableHead className="text-right">Gap</TableHead>
+                  <TableHead className="text-right">Over</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {coverageByBrand.map((covRow) => (
+                  <TableRow key={covRow.brandId}>
+                    <TableCell className="font-medium">{covRow.brandName}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {covRow.requiredHeadcount ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{covRow.operationalActiveCount}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {covRow.gap == null ? "—" : covRow.gap}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {covRow.overstaffed == null || covRow.overstaffed === 0 ? "—" : covRow.overstaffed}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Assignments</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -253,6 +384,22 @@ export default function PromoterAssignmentOperationsPage() {
                     {s}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={temporalFilter}
+              onValueChange={(v) =>
+                setTemporalFilter(v as "all" | "operational_today" | "future_scheduled" | "needs_attention")
+              }
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Time / health" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All (time / health)</SelectItem>
+                <SelectItem value="operational_today">Operational today</SelectItem>
+                <SelectItem value="future_scheduled">Future scheduled</SelectItem>
+                <SelectItem value="needs_attention">Needs attention</SelectItem>
               </SelectContent>
             </Select>
             <Select value={brandFilter} onValueChange={setBrandFilter}>
@@ -295,6 +442,7 @@ export default function PromoterAssignmentOperationsPage() {
                   <TableHead>Brand</TableHead>
                   <TableHead>Site</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="min-w-[120px]">Attention</TableHead>
                   <TableHead>Rate</TableHead>
                   <TableHead>Start</TableHead>
                   <TableHead>End</TableHead>
@@ -304,13 +452,13 @@ export default function PromoterAssignmentOperationsPage() {
               <TableBody>
                 {listLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin inline" />
                     </TableCell>
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-muted-foreground text-center py-8">
+                    <TableCell colSpan={9} className="text-muted-foreground text-center py-8">
                       No assignments match your filters.
                     </TableCell>
                   </TableRow>
@@ -321,9 +469,38 @@ export default function PromoterAssignmentOperationsPage() {
                       <TableCell>{r.firstPartyName}</TableCell>
                       <TableCell>{r.siteName ?? "—"}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={statusBadgeClass(r.assignmentStatus)}>
-                          {r.assignmentStatus}
-                        </Badge>
+                        <div className="flex flex-col gap-0.5">
+                          <Badge variant="outline" className={statusBadgeClass(r.assignmentStatus)}>
+                            {r.assignmentStatus}
+                          </Badge>
+                          {temporalHint(r.temporalState) && (
+                            <span className="text-[10px] text-muted-foreground leading-tight">
+                              {temporalHint(r.temporalState)}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {r.healthFlags && r.healthFlags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 max-w-[140px]">
+                            {r.healthFlags.slice(0, 3).map((f) => (
+                              <Badge
+                                key={f}
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 font-normal border-amber-500/40 text-amber-900"
+                              >
+                                {HEALTH_SHORT[f] ?? f}
+                              </Badge>
+                            ))}
+                            {r.healthFlags.length > 3 && (
+                              <span className="text-[10px] text-muted-foreground self-center">
+                                +{r.healthFlags.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm tabular-nums">
                         {r.billingModel && r.billingRate != null

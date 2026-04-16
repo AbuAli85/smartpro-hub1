@@ -68,3 +68,4 @@ Every procedure: **`requireWorkspaceMembership`** + row `company_id` ownership c
 
 - `docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md`
 - `docs/DEPLOYMENT_ECONOMICS_BACKLOG.md`
+- **PR body (paste when opening the foundation PR):** `docs/issues/PR_DESCRIPTION_PHASE1_DEPLOYMENT_ECONOMICS.md`

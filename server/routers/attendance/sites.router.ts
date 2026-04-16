@@ -40,6 +40,7 @@ export const siteInputSchema = z.object({
   operatingHoursEnd: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
   timezone: z.string().default("Asia/Muscat"),
   enforceHours: z.boolean().default(false),
+  billingCustomerId: z.number().int().positive().optional().nullable(),
 });
 
 export const sitesRouter = router({
@@ -65,6 +66,7 @@ export const sitesRouter = router({
         operatingHoursEnd: input.operatingHoursEnd ?? null,
         timezone: input.timezone,
         enforceHours: input.enforceHours,
+        billingCustomerId: input.billingCustomerId ?? null,
         qrToken,
         isActive: true,
         createdByUserId: ctx.user.id,
@@ -134,6 +136,7 @@ export const sitesRouter = router({
           operatingHoursEnd: input.operatingHoursEnd ?? null,
           timezone: input.timezone,
           enforceHours: input.enforceHours,
+          billingCustomerId: input.billingCustomerId ?? null,
         })
         .where(eq(attendanceSites.id, input.siteId));
       const [updated] = await db

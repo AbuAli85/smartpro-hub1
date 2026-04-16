@@ -89,6 +89,7 @@ interface SiteFormData {
   operatingHoursEnd: string;
   timezone: string;
   enforceHours: boolean;
+  billingCustomerId: number | null;
 }
 
 const DEFAULT_FORM: SiteFormData = {
@@ -97,6 +98,7 @@ const DEFAULT_FORM: SiteFormData = {
   siteType: "office", clientName: "", dailyRateOmr: 0,
   operatingHoursStart: "08:00", operatingHoursEnd: "18:00",
   timezone: "Asia/Muscat", enforceHours: false,
+  billingCustomerId: null,
 };
 
 // â”€â”€â”€ Map Location Picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -234,6 +236,7 @@ function SiteFormDialog({
           operatingHoursEnd: editSite.operatingHoursEnd ?? "18:00",
           timezone: editSite.timezone ?? "Asia/Muscat",
           enforceHours: editSite.enforceHours ?? false,
+          billingCustomerId: editSite.billingCustomerId ?? null,
         });
       } else {
         setForm(DEFAULT_FORM);
@@ -241,6 +244,11 @@ function SiteFormDialog({
       setTab("basic");
     }
   }, [editSite, open]);
+
+  const { data: billingCustomersList } = trpc.deploymentEconomics.billingCustomers.list.useQuery(
+    {},
+    { enabled: open }
+  );
 
   const createMutation = trpc.attendance.createSite.useMutation({
     onSuccess: () => { toast.success("Site created"); onSuccess(); onClose(); },
@@ -269,6 +277,7 @@ function SiteFormDialog({
       operatingHoursEnd: form.operatingHoursEnd || undefined,
       timezone: form.timezone,
       enforceHours: form.enforceHours,
+      billingCustomerId: form.billingCustomerId,
     };
     if (editSite) {
       updateMutation.mutate({ siteId: editSite.id, ...payload });
@@ -324,6 +333,28 @@ function SiteFormDialog({
                 placeholder="e.g. Samsung, LG, Panasonic"
               />
               <p className="text-xs text-muted-foreground">For outsourced promoters â€” the brand they represent at this site.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Billing Customer</Label>
+              <Select
+                value={form.billingCustomerId != null ? String(form.billingCustomerId) : "__none__"}
+                onValueChange={(v) => setForm((f) => ({ ...f, billingCustomerId: v === "__none__" ? null : Number(v) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Not linked" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not linked —</SelectItem>
+                  {(billingCustomersList ?? []).map((bc) => (
+                    <SelectItem key={bc.id} value={String(bc.id)}>
+                      {bc.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Link this site to a billing customer for invoice generation and deployment tracking.
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Daily Rate (OMR)</Label>

@@ -227,4 +227,4 @@ Use as checkboxes; reviewers verify before merge.
 
 *After these are in the issue and satisfied per PR, Phase 2 risk stays bounded.*
 
-*Full paste-ready issue body (title, labels, PR split): `docs/issues/PHASE2-deployment-economics-github-issue.md`.*
+*Full paste-ready issue body (title, labels, PR split, **merge hygiene**): `docs/issues/PHASE2-deployment-economics-github-issue.md`.*

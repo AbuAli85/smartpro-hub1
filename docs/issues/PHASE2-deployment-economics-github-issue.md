@@ -66,6 +66,26 @@ Deliver **trusted billable quantity** → **locked snapshot** → **optional dep
 
 ---
 
-## PR description
+## Merge hygiene (enforce failure-mode protections in review)
 
-Each PR should state **which step (1–5)** it completes, link **this issue**, and repeat the relevant acceptance bullets from the section above.
+- **Link every PR** to this Phase 2 issue: use **`Part of #&lt;issue&gt;`** (or your repo’s equivalent) for stacked PRs so the chain stays traceable; the **final** PR in the sequence may use **`Closes #&lt;issue&gt;`** if your process closes the issue only when all steps land.
+- **Paste the relevant §8 constraints** into each PR body (see table below). Reviewers treat them as **required**, not nice-to-have.
+- **Do not combine steps** in one PR: especially **do not** ship snapshot schema/APIs **together with** invoice hook-in — that bypasses the “snapshot truth before invoice writes” gate and makes §8.3 / §8.7 hard to review.
+
+| PR step | What ships | §8 / acceptance to restate in PR body |
+|--------|------------|--------------------------------------|
+| **1** | Snapshot schema + draft APIs only | §8.1 uniqueness strategy; §8.5 site id on snapshot at draft; no invoice code. |
+| **2** | Aggregation + lock + immutability | §8.2 deployment ∩ month; §8.6 lock idempotency; draft→locked state machine; still **no** invoice writes. |
+| **3** | Invoice hook-in + linkage columns | §8.3 auto-mode exclusion; §8.4 void vs invoice; §8.7 `billable_snapshot_id` / `customer_deployment_id`; legacy parity. |
+| **4** | Reconciliation APIs | Reconciliation bullets + live vs stored quantities. |
+| **5** | Alerts (queries + doc) | Alert acceptance + documented queries. |
+
+---
+
+## PR description (template)
+
+Each PR **must**:
+
+1. State **which step (1–5)** it completes.
+2. Link **this issue** (`Part of` / `Closes` per your workflow).
+3. **Copy-paste** the matching row from the table above (§8 constraints for that step) into the PR body so reviewers do not rely on memory.

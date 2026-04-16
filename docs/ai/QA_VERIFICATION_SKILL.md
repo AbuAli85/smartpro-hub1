@@ -31,15 +31,18 @@ Use this after implementation and before claiming a task is complete.
 - feedback / errors are understandable
 
 ### Quality
-- lint / typecheck implications considered
+- typecheck (`pnpm check`) and tests (`pnpm test`) run or gaps stated
+- **do not claim “lint passed”** unless a real lint command was run for the touched code — there is **no root `lint` script** in `package.json`; say exactly what ran
 - tests added or updated
 - translations handled
 - no hidden regressions in adjacent modules
 
 ## Required output
 
-- What was tested automatically
+- What was tested automatically (name commands: e.g. `pnpm check`, `pnpm test` — not vague “lint” unless lint actually ran)
 - What was tested manually
 - What was not verified
 - Residual risks
 - Final readiness verdict
+
+For substantive work, align the write-up with `FINAL_REPORT_TEMPLATE.md`.

@@ -20,6 +20,16 @@ This repository is a production-oriented multi-tenant business platform. AI tool
    - i18n / translation safety
    - regression risk
 
+## Mandatory pre-implementation checklist
+
+Before writing code, always list:
+
+1. Exact files likely involved
+2. Source of truth for permissions
+3. Source of truth for state/status
+4. Whether DB or API changes are required
+5. What tests must be updated
+
 ## Required work phases
 
 Every task must follow these phases:
@@ -29,7 +39,7 @@ Every task must follow these phases:
 3. Plan
 4. Implementation
 5. Verification
-6. Report
+6. Report (use `FINAL_REPORT_TEMPLATE.md` for substantive work so outputs stay comparable across tools)
 
 ## Definition of complete
 

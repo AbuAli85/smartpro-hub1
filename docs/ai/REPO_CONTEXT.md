@@ -25,6 +25,8 @@ Concrete navigation and commands for this codebase. Pair with `AI_OPERATING_SYST
 
 **Not defined in `package.json`:** dedicated `lint` (no ESLint script), `test:unit` / `test:integration` split, or `db:reset`. Use `pnpm check` + `pnpm test` before PRs; DB reset is environment-specific (restore DB / re-run migrations as appropriate).
 
+**Honest reporting:** This repo has **no root `lint` script**. Do not claim “lint passed” or “lint/typecheck/tests passed” unless you actually ran a real linter for the touched area (if one exists elsewhere) **and** say what ran. For the default workflow, report **`pnpm check`** (TypeScript) and **`pnpm test`** explicitly; use **`pnpm format`** only when formatting was applied or verified.
+
 ## Entry points
 
 | Layer | Location |
@@ -111,7 +113,8 @@ Treat changes in these areas with extra end-to-end review: attendance, payroll, 
 
 - [ ] `pnpm check` passes
 - [ ] `pnpm test` passes (or explain gaps)
+- [ ] Do not claim “lint passed” unless a real lint was run; otherwise state only what ran (see **Honest reporting** above)
 - [ ] Relevant manual QA (happy path + permission/tenant cases where applicable)
 - [ ] Role/tenant behavior verified for sensitive flows
 - [ ] User-facing strings handled for i18n if applicable
-- [ ] Final report / summary for reviewers (per `AI_OPERATING_SYSTEM.md`)
+- [ ] Final report for substantive work (use `FINAL_REPORT_TEMPLATE.md`; principles in `AI_OPERATING_SYSTEM.md`)

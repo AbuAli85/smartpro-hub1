@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -204,6 +204,13 @@ function GenerateMonthlyDialog({
   const now = new Date();
   const [month, setMonth] = useState(String(now.getMonth() + 1));
   const [year, setYear] = useState(String(now.getFullYear()));
+
+  useEffect(() => {
+    if (!open) return;
+    const n = new Date();
+    setMonth(String(n.getMonth() + 1));
+    setYear(String(n.getFullYear()));
+  }, [open]);
 
   const mutation = trpc.clientBilling.generateMonthlyInvoices.useMutation({
     onSuccess: (data) => {
@@ -450,28 +457,50 @@ function InvoiceListTab({ companyId, t, rtl }: { companyId?: number; t: (k: stri
 
 // ─── AR Aging Tab ──────────────────────────────────────────────────────────────
 
-interface AgingBuckets {
-  current: number;
-  days1to30: number;
-  days31to60: number;
-  days61to90: number;
-  over90: number;
+/** Display keys map to `clientBilling.arAging.buckets.*` (server uses `days1To30` → `days1to30`, etc.). */
+type DisplayAgingKey = "current" | "days1to30" | "days31to60" | "days61to90" | "over90";
+
+function normalizeARAging(data: unknown): {
+  buckets: Record<DisplayAgingKey, number>;
   total: number;
+} | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  const read = (a: string, b?: string) => {
+    const v = d[a] ?? (b ? d[b] : undefined);
+    return Number(v ?? 0);
+  };
+  if ("totalOutstanding" in d || "days1To30" in d) {
+    return {
+      buckets: {
+        current: read("current"),
+        days1to30: read("days1To30"),
+        days31to60: read("days31To60"),
+        days61to90: read("days61To90"),
+        over90: read("days91Plus"),
+      },
+      total: read("totalOutstanding", "total"),
+    };
+  }
+  return {
+    buckets: {
+      current: read("current"),
+      days1to30: read("days1to30"),
+      days31to60: read("days31to60"),
+      days61to90: read("days61to90"),
+      over90: read("over90"),
+    },
+    total: read("total"),
+  };
 }
 
 function ARAgingTab({ companyId, t }: { companyId?: number; t: (k: string) => string }) {
   const { data, isLoading } = trpc.clientBilling.getARAgingSummary.useQuery({ companyId });
-  const buckets = data as AgingBuckets | undefined;
+  const normalized = useMemo(() => normalizeARAging(data), [data]);
 
-  const bucketKeys: (keyof Omit<AgingBuckets, "total">)[] = [
-    "current",
-    "days1to30",
-    "days31to60",
-    "days61to90",
-    "over90",
-  ];
+  const bucketOrder: DisplayAgingKey[] = ["current", "days1to30", "days31to60", "days61to90", "over90"];
 
-  const bucketColors: Record<string, string> = {
+  const bucketColors: Record<DisplayAgingKey, string> = {
     current: "bg-emerald-500",
     days1to30: "bg-amber-400",
     days31to60: "bg-orange-500",
@@ -479,7 +508,8 @@ function ARAgingTab({ companyId, t }: { companyId?: number; t: (k: string) => st
     over90: "bg-red-800",
   };
 
-  const total = buckets?.total ?? 0;
+  const total = normalized?.total ?? 0;
+  const buckets = normalized?.buckets;
 
   return (
     <div className="space-y-6">
@@ -514,7 +544,7 @@ function ARAgingTab({ companyId, t }: { companyId?: number; t: (k: string) => st
           {/* Stacked bar */}
           <div className="rounded-xl border border-border bg-card p-6 space-y-4">
             <div className="flex h-6 rounded-full overflow-hidden gap-0.5">
-              {bucketKeys.map((key) => {
+              {bucketOrder.map((key) => {
                 const val = buckets?.[key] ?? 0;
                 const pct = total > 0 ? (val / total) * 100 : 0;
                 if (pct < 0.5) return null;
@@ -531,7 +561,7 @@ function ARAgingTab({ companyId, t }: { companyId?: number; t: (k: string) => st
 
             {/* Legend rows */}
             <div className="space-y-2">
-              {bucketKeys.map((key) => {
+              {bucketOrder.map((key) => {
                 const val = buckets?.[key] ?? 0;
                 const pct = total > 0 ? (val / total) * 100 : 0;
                 return (
@@ -567,7 +597,9 @@ interface ProjectionRow {
 function cashFlowMonthLabel(monthIndex: number): string {
   const d = new Date();
   d.setMonth(d.getMonth() + monthIndex);
-  return d.toISOString().slice(0, 7);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
 }
 
 function normalizeCashFlowProjection(raw: unknown): ProjectionRow[] {
@@ -594,14 +626,16 @@ function CashFlowTab({ companyId, t }: { companyId?: number; t: (k: string) => s
   );
   const projection = useMemo(() => normalizeCashFlowProjection(data?.projection), [data?.projection]);
 
-  const maxBalance = useMemo(
+  const assumedInflow = Number(data?.assumedMonthlyInflowOmr ?? 0);
+  /** Bars show projected monthly inflow (matches the summary card); avoids flat bars when opening/closing are zero. */
+  const maxBar = useMemo(
     () =>
       Math.max(
-        ...projection.map((r) => r.closingBalanceOmr),
-        typeof data?.openingBalanceOmr === "number" ? data.openingBalanceOmr : Number(data?.openingBalanceOmr ?? 0),
-        1
+        assumedInflow,
+        ...projection.map((r) => r.inflowOmr),
+        0.0001
       ),
-    [projection, data?.openingBalanceOmr]
+    [projection, assumedInflow]
   );
 
   return (
@@ -662,13 +696,13 @@ function CashFlowTab({ companyId, t }: { companyId?: number; t: (k: string) => s
           <div className="rounded-xl border border-border bg-card p-6">
             <div className="flex items-end gap-1 h-40 overflow-x-auto pb-2">
               {projection.map((row) => {
-                const pct = maxBalance > 0 ? (row.closingBalanceOmr / maxBalance) * 100 : 0;
+                const pct = maxBar > 0 ? (row.inflowOmr / maxBar) * 100 : 0;
                 return (
                   <div key={row.month} className="flex flex-col items-center gap-1 flex-1 min-w-[32px]">
                     <div
-                      className="w-full rounded-t-sm bg-primary/80 hover:bg-primary transition-colors"
-                      style={{ height: `${Math.max(pct, 2)}%` }}
-                      title={`${row.month}: ${row.closingBalanceOmr.toFixed(3)} OMR`}
+                      className="w-full rounded-t-sm bg-primary/80 hover:bg-primary transition-colors min-h-px"
+                      style={{ height: `${pct}%` }}
+                      title={`${row.month}: ${t("clientBilling.cashFlow.inflow")} ${row.inflowOmr.toFixed(3)} · ${t("clientBilling.cashFlow.closingBalance")} ${row.closingBalanceOmr.toFixed(3)}`}
                     />
                     <span className="text-[10px] text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">
                       {row.month.slice(0, 7)}

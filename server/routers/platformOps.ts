@@ -47,6 +47,7 @@ import {
 } from "../../shared/roleHelpers";
 import { PLATFORM_ROLE_VALUES } from "../../shared/platformRoles";
 import { GLOBAL_PLATFORM_ROLE_SLUGS } from "../../shared/identityAuthority";
+import { fetchAdminUserDetail, queryAdminUsersList } from "../adminUsersViewModel";
 
 // ─── Platform Operations Router ───────────────────────────────────────────────
 
@@ -898,5 +899,61 @@ export const platformOpsRouter = router({
     }
 
     return { duplicateEmailGroups, privilegedWithout2fa, activeWithoutMembership };
+  }),
+
+  /**
+   * Admin identity & access console — paginated list with server-side filters (view model).
+   */
+  adminUsersList: adminProcedure
+    .input(
+      z
+        .object({
+          search: z.string().optional(),
+          accountStatuses: z.array(z.enum(["active", "invited", "suspended", "merged", "archived"])).optional(),
+          globalPlatformRole: z.string().optional(),
+          membershipRole: z.string().optional(),
+          authProvider: z.string().optional(),
+          twoFactor: z.enum(["any", "enabled", "missing"]).optional(),
+          identityQuickFilter: z
+            .enum(["any", "duplicate", "no_memberships", "merged_inactive", "privileged_no_2fa"])
+            .optional(),
+          createdAfter: z.coerce.date().optional(),
+          createdBefore: z.coerce.date().optional(),
+          staleAfterDays: z.number().min(0).optional(),
+          limit: z.number().min(1).max(200).default(50),
+          offset: z.number().min(0).default(0),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { items: [], total: 0 };
+      const i = input ?? {};
+      return queryAdminUsersList(db, {
+        search: i.search,
+        accountStatuses: i.accountStatuses,
+        globalPlatformRole: i.globalPlatformRole,
+        membershipRole: i.membershipRole,
+        authProvider: i.authProvider,
+        twoFactor: i.twoFactor ?? "any",
+        identityQuickFilter:
+          i.identityQuickFilter === undefined || i.identityQuickFilter === "any" ? "any" : i.identityQuickFilter,
+        createdAfter: i.createdAfter,
+        createdBefore: i.createdBefore,
+        staleAfterDays: i.staleAfterDays,
+        limit: i.limit ?? 50,
+        offset: i.offset ?? 0,
+      });
+    }),
+
+  /**
+   * Full user detail for admin identity console (drawer/page).
+   */
+  adminUserDetail: adminProcedure.input(z.object({ userId: z.number() })).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const detail = await fetchAdminUserDetail(db, input.userId);
+    if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+    return detail;
   }),
 });

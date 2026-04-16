@@ -7,16 +7,25 @@ import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
 export async function setupVite(app: Express, server: Server) {
-  const serverOptions = {
-    middlewareMode: true,
-    hmr: { server },
-    allowedHosts: true as const,
-  };
+  const baseServer = viteConfig.server ?? {};
+  const hmrBase =
+    baseServer.hmr && typeof baseServer.hmr === "object" && !Array.isArray(baseServer.hmr)
+      ? baseServer.hmr
+      : {};
 
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
-    server: serverOptions,
+    server: {
+      ...baseServer,
+      middlewareMode: true,
+      hmr: {
+        ...hmrBase,
+        server,
+      },
+      // Dev behind tunnels / preview URLs: allow any Host header (matches prior behavior).
+      allowedHosts: true as const,
+    },
     appType: "custom",
   });
 

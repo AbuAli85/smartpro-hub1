@@ -169,6 +169,8 @@ export default defineConfig({
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
+    // Dev-only plugins (e.g. Manus runtime) can resolve a second copy of React and break hooks / i18n.
+    dedupe: ["react", "react-dom"],
   },
   envDir: path.resolve(import.meta.dirname),
   root: path.resolve(import.meta.dirname, "client"),
@@ -189,6 +191,9 @@ export default defineConfig({
     hmr: {
       clientPort: 443,
       protocol: "wss",
+      // When the app is opened via a tunnel URL, set this so the HMR client targets the public host
+      // (e.g. VITE_HMR_HOST=3000-xxxx.sg1.manus.computer). Omit for plain localhost.
+      ...(process.env.VITE_HMR_HOST ? { host: process.env.VITE_HMR_HOST } : {}),
     },
     allowedHosts: [
       ".manuspre.computer",

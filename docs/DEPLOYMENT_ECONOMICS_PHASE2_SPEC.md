@@ -6,7 +6,9 @@
 
 **Parent docs:** `docs/DEPLOYMENT_ECONOMICS_BACKLOG.md` §Phase 2, `docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md`
 
-**Pre-coding review:** `docs/DEPLOYMENT_ECONOMICS_PHASE2_FAILURE_MODES.md` — uniqueness, month boundaries, idempotency, reconciliation, mixed-mode, audit gaps.
+**Pre-coding review:** `docs/DEPLOYMENT_ECONOMICS_PHASE2_FAILURE_MODES.md` — uniqueness, month boundaries, idempotency, reconciliation, mixed-mode, audit gaps. **§8–§9 = implementation constraints + issue checkboxes.**
+
+**GitHub issue (paste-ready):** `docs/issues/PHASE2-deployment-economics-github-issue.md`
 
 ---
 
@@ -83,6 +85,7 @@ Month N
 | `id` | int PK AI | |
 | `company_id` | int NOT NULL | Tenant |
 | `customer_deployment_id` | int NOT NULL FK → `customer_deployments` | |
+| `billing_attendance_site_id` | int NOT NULL FK → `attendance_sites` | Site used for aggregation; **set at draft creation** (immutability; see failure-modes §8.5) |
 | `period_year`, `period_month` | int | Calendar period billed |
 | `quantity` | decimal(12,3) NOT NULL | Billable units (e.g. days for `unit=day`) |
 | `quantity_source` | varchar(32) | `attendance_aggregated` \| `manual_adjustment` \| `import` |

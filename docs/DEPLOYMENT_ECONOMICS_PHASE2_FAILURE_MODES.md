@@ -173,16 +173,58 @@ Snapshots exist; flag off; `generate` legacy only — **no** double bill if excl
 
 ---
 
-## 8. Summary — tighten before first PR
+## 8. Pre-coding gate — implementation constraints (not optional)
 
-1. **Enforce** non-void uniqueness in app layer if DB unique + void is awkward; or add **version** column.
-2. **Intersect** deployment `effective_*` dates with month range for aggregation.
-3. **Persist** `billing_site_id` on snapshot at draft creation if site can change.
-4. **Define** `mode=auto` exclusion matrix to prevent legacy+deployment double billing.
-5. **Block** snapshot void when invoice references it (or define finance workflow).
-6. **Document** state machine and idempotent `lock`.
-7. **Backfill** `billable_snapshot_id` on invoice when generating from deployment path.
+These are **explicit constraints** for Phase 2. They belong in the **GitHub issue acceptance criteria** and in PR review — not as “future cleanup.”
+
+### 8.1 Non-void uniqueness strategy
+
+- **Constraint:** At most one **authoritative** snapshot per `(company_id, customer_deployment_id, period_year, period_month)` in states `draft` or `locked` at any time.
+- **Accept:** DB unique + app rules for void, **or** versioned rows, **or** documented transaction pattern — chosen approach must be **written in the first snapshot PR** and tested.
+
+### 8.2 Deployment date intersection rule
+
+- **Constraint:** Billable aggregation counts only sessions whose `business_date` falls in **both** the billing calendar month **and** `[customer_deployments.effective_from, customer_deployments.effective_to]` (intersected with month range).
+
+### 8.3 Auto-mode exclusion rule (double-bill prevention)
+
+- **Constraint:** Documented matrix for `mode=auto` (and any mixed run): a site/customer **cannot** produce both a legacy invoice line and a deployment invoice for the **same commercial period** unless explicitly allowed by product (default: **forbidden**). Implementation must log skip reasons (`no_snapshot`, `draft_only`, `excluded_by_rule`, etc.).
+
+### 8.4 Locked snapshot vs invoiced snapshot policy
+
+- **Constraint:** **Void** of a snapshot that is referenced by a non-void invoice is **blocked** unless a separate finance workflow (credit note / void invoice) exists — minimum Phase 2 = **block + clear error**.
+
+### 8.5 Snapshot site immutability rule
+
+- **Constraint:** Persist **`billing_attendance_site_id`** (or equivalent) on the snapshot at **draft creation** so aggregation does not silently follow a changed `primary_attendance_site_id` on the deployment mid-period.
+
+### 8.6 Lock idempotency
+
+- **Constraint:** `lock` mutation is **idempotent** for already-locked snapshots.
+
+### 8.7 Invoice ↔ snapshot linkage
+
+- **Constraint:** Deployment-path invoice creation **sets** `billable_snapshot_id` and `customer_deployment_id` on `client_service_invoices` when those columns exist.
 
 ---
 
-*After addressing these in design or tickets, Phase 2 implementation risk drops from “integration surprise” to “normal CRUD.”*
+## 9. Issue acceptance criteria — paste into Phase 2 GitHub issue
+
+Use as checkboxes; reviewers verify before merge.
+
+- [ ] **§8.1** Uniqueness strategy for draft/locked snapshots implemented and tested (void behavior defined).
+- [ ] **§8.2** Session dates intersect deployment effective range and calendar month.
+- [ ] **§8.3** `mode=auto` / mixed legacy exclusion documented in code + no double-bill for pilot scenarios.
+- [ ] **§8.4** Cannot void snapshot linked to active invoice (or approved finance exception path).
+- [ ] **§8.5** Snapshot stores site id used for aggregation at draft time.
+- [ ] **§8.6** Lock is idempotent.
+- [ ] **§8.7** Invoice rows link to snapshot + deployment when generated from deployment path.
+- [ ] Reconciliation API returns live vs stored quantities where applicable (`DEPLOYMENT_ECONOMICS_PHASE2_SPEC.md` §7).
+- [ ] Legacy `generateMonthlyInvoices` behavior unchanged when `mode=legacy` (or flag off) per spec.
+- [ ] At least two alert queries from spec §8 / failure-modes §7 documented and runnable.
+
+---
+
+*After these are in the issue and satisfied per PR, Phase 2 risk stays bounded.*
+
+*Full paste-ready issue body (title, labels, PR split): `docs/issues/PHASE2-deployment-economics-github-issue.md`.*

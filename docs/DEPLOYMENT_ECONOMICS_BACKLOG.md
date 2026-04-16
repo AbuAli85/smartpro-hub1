@@ -214,7 +214,8 @@ Indexes: all scoped by `company_id +` natural keys; unique constraints where nee
 
 - `docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md` — **precise Phase 1 PR** (schema, routers, out-of-scope)
 - `docs/DEPLOYMENT_ECONOMICS_PHASE2_SPEC.md` — **billable snapshots, invoice hook-in, reconciliation, alerts** (post–foundation)
-- `docs/DEPLOYMENT_ECONOMICS_PHASE2_FAILURE_MODES.md` — **failure-mode review** before coding Phase 2
+- `docs/DEPLOYMENT_ECONOMICS_PHASE2_FAILURE_MODES.md` — **failure-mode review** before coding Phase 2 (§8–§9 = acceptance criteria)
+- `docs/issues/PHASE2-deployment-economics-github-issue.md` — **paste-ready Phase 2 issue**
 - `docs/AGREEMENT_PARTY_FOUNDATION.md` — `business_parties`
 - `docs/ARCHITECTURE.md` — platform overview
 - `docs/PRODUCTION_READINESS_ASSESSMENT.md` — readiness checklist

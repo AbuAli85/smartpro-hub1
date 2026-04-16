@@ -2706,6 +2706,8 @@ export const attendanceRecords = mysqlTable(
      */
     scheduleId: int("schedule_id"),
     siteId: int("site_id"),
+    /** Phase 2: resolved promoter assignment for this clock row (nullable). */
+    promoterAssignmentId: char("promoter_assignment_id", { length: 36 }),
     siteName: varchar("site_name", { length: 128 }),
     checkIn: timestamp("check_in").notNull(),
     checkOut: timestamp("check_out"),
@@ -2721,6 +2723,7 @@ export const attendanceRecords = mysqlTable(
   (t) => [
     index("idx_att_rec_company_checkin").on(t.companyId, t.checkIn),
     index("idx_att_rec_employee_checkin").on(t.employeeId, t.checkIn),
+    index("idx_att_rec_promoter_assignment").on(t.promoterAssignmentId),
   ]
 );
 export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
@@ -2755,6 +2758,7 @@ export const attendanceSessions = mysqlTable(
     checkInAt: timestamp("check_in_at").notNull(),
     checkOutAt: timestamp("check_out_at"),
     siteId: int("site_id"),
+    promoterAssignmentId: char("promoter_assignment_id", { length: 36 }),
     siteName: varchar("site_name", { length: 128 }),
     method: mysqlEnum("method", ["qr_scan", "manual", "admin"] as const).notNull().default("qr_scan"),
     source: mysqlEnum("source", ["employee_portal", "admin_panel", "system"] as const)
@@ -2776,6 +2780,7 @@ export const attendanceSessions = mysqlTable(
     index("idx_att_sess_employee_date").on(t.employeeId, t.businessDate),
     index("idx_att_sess_schedule").on(t.scheduleId),
     index("idx_att_sess_source_record").on(t.sourceRecordId),
+    index("idx_att_sess_promoter_assignment").on(t.promoterAssignmentId),
   ]
 );
 export type AttendanceSession = typeof attendanceSessions.$inferSelect;

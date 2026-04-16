@@ -62,6 +62,7 @@ import {
   OPERATIONAL_TRIAGE_AUDIT_ACTIONS,
   resolveOperationalAuditLensFilter,
 } from "../attendanceAuditOperational";
+import { linkAttendanceRecordToPromoterAssignment } from "../promoterAssignmentAttendanceLink";
 
 async function requireDb() {
   const db = await getDb();
@@ -706,6 +707,19 @@ export const attendanceRouter = router({
             }) ?? undefined,
           source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
         });
+
+        try {
+          await linkAttendanceRecordToPromoterAssignment(tx, {
+            attendanceRecordId: recordId,
+            employeeId: emp.id,
+            companyId: site.companyId,
+            siteId: site.id,
+            businessDateYmd: dayCtx.businessDate,
+            actorUserId: ctx.user.id,
+          });
+        } catch (linkErr) {
+          console.warn("[promoterAssignmentLink] QR check-in", linkErr);
+        }
       });
 
       // ── Non-fatal: WhatsApp late alert ────────────────────────────────────────────
@@ -1566,6 +1580,19 @@ export const attendanceRouter = router({
             2000,
           ),
         });
+
+        try {
+          await linkAttendanceRecordToPromoterAssignment(tx, {
+            attendanceRecordId: record.id,
+            employeeId: empRow.id,
+            companyId: membership.company.id,
+            siteId: req.siteId ?? null,
+            businessDateYmd: approvedBusinessDate,
+            actorUserId: ctx.user.id,
+          });
+        } catch (linkErr) {
+          console.warn("[promoterAssignmentLink] manual check-in", linkErr);
+        }
       });
 
       return { success: true, attendanceRecordId: recordIdOut };
@@ -1972,6 +1999,21 @@ export const attendanceRouter = router({
             .where(eq(attendanceRecords.id, attendanceRecordIdForAudit))
             .limit(1);
           afterArRow = ar2 ?? null;
+        }
+
+        if (attendanceRecordIdForAudit != null) {
+          try {
+            await linkAttendanceRecordToPromoterAssignment(tx, {
+              attendanceRecordId: attendanceRecordIdForAudit,
+              employeeId: req.employeeId,
+              companyId: membership.company.id,
+              siteId: afterArRow?.siteId ?? null,
+              businessDateYmd: req.requestedDate,
+              actorUserId: ctx.user.id,
+            });
+          } catch (linkErr) {
+            console.warn("[promoterAssignmentLink] correction", linkErr);
+          }
         }
 
         /** Legacy HR `attendance` month grid (`hr.listAttendance`) — keep in sync with approved clock row. */

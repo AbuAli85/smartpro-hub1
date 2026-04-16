@@ -201,6 +201,10 @@ export default function PromoterAssignmentOperationsPage() {
             <Link href="/hr/contracts" className="text-primary underline">
               Promoter agreements
             </Link>
+            . Phase 2 staging:{" "}
+            <Link href="/hr/promoter-staging" className="text-primary underline">
+              execution & payroll/billing staging
+            </Link>
             .
           </p>
         </div>

@@ -56,5 +56,101 @@
     "paymentRecorded": "Payment recorded successfully.",
     "invoiceGenerated": "Invoice generated successfully.",
     "reportGenerated": "Report generated successfully."
+  },
+  "clientBilling": {
+    "pageTitle": "Client Billing",
+    "pageSubtitle": "Manage client invoices, track payments, and monitor cash flow",
+    "tabs": {
+      "invoices": "Invoices",
+      "arAging": "AR Aging",
+      "cashFlow": "Cash Flow"
+    },
+    "invoiceList": {
+      "searchPlaceholder": "Search invoices…",
+      "filterByStatus": "Filter by status",
+      "allStatuses": "All statuses",
+      "generateMonthly": "Generate Monthly Invoices",
+      "generating": "Generating…",
+      "noInvoices": "No invoices found",
+      "noInvoicesHint": "Generate monthly invoices or adjust your filter to see results.",
+      "columns": {
+        "invoiceNo": "Invoice No.",
+        "client": "Client",
+        "issueDate": "Issue Date",
+        "dueDate": "Due Date",
+        "total": "Total (OMR)",
+        "paid": "Paid (OMR)",
+        "balance": "Balance (OMR)",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "actions": {
+        "recordPayment": "Record Payment",
+        "viewDetails": "View Details"
+      },
+      "recordPaymentDialog": {
+        "title": "Record Payment",
+        "amountLabel": "Amount (OMR)",
+        "methodLabel": "Payment Method",
+        "referenceLabel": "Reference / Cheque No.",
+        "referencePlaceholder": "Optional",
+        "methods": {
+          "bank": "Bank Transfer",
+          "cash": "Cash",
+          "card": "Card",
+          "other": "Other"
+        },
+        "submit": "Record Payment",
+        "submitting": "Recording…",
+        "cancel": "Cancel",
+        "success": "Payment recorded successfully.",
+        "error": "Failed to record payment."
+      },
+      "generateDialog": {
+        "title": "Generate Monthly Invoices",
+        "description": "This will generate invoices for all active clients for the selected month. Existing invoices for the same month will not be duplicated.",
+        "monthLabel": "Month",
+        "yearLabel": "Year",
+        "confirm": "Generate",
+        "cancel": "Cancel",
+        "success": "{{count}} invoice(s) generated, {{skipped}} skipped.",
+        "error": "Failed to generate invoices."
+      }
+    },
+    "arAging": {
+      "title": "Accounts Receivable Aging",
+      "subtitle": "Outstanding balances grouped by days overdue",
+      "totalOutstanding": "Total Outstanding",
+      "buckets": {
+        "current": "Current (not yet due)",
+        "days1to30": "1 – 30 days",
+        "days31to60": "31 – 60 days",
+        "days61to90": "61 – 90 days",
+        "over90": "Over 90 days"
+      },
+      "noData": "No outstanding balances",
+      "noDataHint": "All invoices are current or fully paid."
+    },
+    "cashFlow": {
+      "title": "Cash Flow Projection",
+      "subtitle": "Projected monthly inflows based on recent billing history",
+      "horizonLabel": "Projection horizon",
+      "horizonMonths": "{{n}} months",
+      "openingBalance": "Opening Balance (OMR)",
+      "assumedMonthlyInflow": "Assumed Monthly Inflow (OMR)",
+      "month": "Month",
+      "inflow": "Inflow (OMR)",
+      "closingBalance": "Closing Balance (OMR)",
+      "noData": "No projection data available",
+      "noDataHint": "Generate invoices first to build a billing history for projection."
+    },
+    "invoiceStatuses": {
+      "draft": "Draft",
+      "sent": "Sent",
+      "partial": "Partial",
+      "paid": "Paid",
+      "overdue": "Overdue",
+      "void": "Void"
+    }
   }
 }

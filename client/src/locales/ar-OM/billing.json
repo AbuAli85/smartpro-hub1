@@ -56,5 +56,101 @@
     "paymentRecorded": "تم تسجيل الدفعة بنجاح.",
     "invoiceGenerated": "تم إنشاء الفاتورة بنجاح.",
     "reportGenerated": "تم إنشاء التقرير بنجاح."
+  },
+  "clientBilling": {
+    "pageTitle": "فواتير العملاء",
+    "pageSubtitle": "إدارة فواتير العملاء وتتبع المدفوعات ومراقبة التدفق النقدي",
+    "tabs": {
+      "invoices": "الفواتير",
+      "arAging": "تقادم الذمم",
+      "cashFlow": "التدفق النقدي"
+    },
+    "invoiceList": {
+      "searchPlaceholder": "البحث في الفواتير…",
+      "filterByStatus": "تصفية حسب الحالة",
+      "allStatuses": "جميع الحالات",
+      "generateMonthly": "إنشاء فواتير شهرية",
+      "generating": "جارٍ الإنشاء…",
+      "noInvoices": "لا توجد فواتير",
+      "noInvoicesHint": "أنشئ فواتير شهرية أو عدّل الفلتر لعرض النتائج.",
+      "columns": {
+        "invoiceNo": "رقم الفاتورة",
+        "client": "العميل",
+        "issueDate": "تاريخ الإصدار",
+        "dueDate": "تاريخ الاستحقاق",
+        "total": "الإجمالي (ر.ع.)",
+        "paid": "المدفوع (ر.ع.)",
+        "balance": "الرصيد (ر.ع.)",
+        "status": "الحالة",
+        "actions": "الإجراءات"
+      },
+      "actions": {
+        "recordPayment": "تسجيل دفعة",
+        "viewDetails": "عرض التفاصيل"
+      },
+      "recordPaymentDialog": {
+        "title": "تسجيل دفعة",
+        "amountLabel": "المبلغ (ر.ع.)",
+        "methodLabel": "طريقة الدفع",
+        "referenceLabel": "المرجع / رقم الشيك",
+        "referencePlaceholder": "اختياري",
+        "methods": {
+          "bank": "تحويل بنكي",
+          "cash": "نقداً",
+          "card": "بطاقة",
+          "other": "أخرى"
+        },
+        "submit": "تسجيل الدفعة",
+        "submitting": "جارٍ التسجيل…",
+        "cancel": "إلغاء",
+        "success": "تم تسجيل الدفعة بنجاح.",
+        "error": "فشل تسجيل الدفعة."
+      },
+      "generateDialog": {
+        "title": "إنشاء فواتير شهرية",
+        "description": "سيتم إنشاء فواتير لجميع العملاء النشطين للشهر المحدد. لن تتكرر الفواتير الموجودة لنفس الشهر.",
+        "monthLabel": "الشهر",
+        "yearLabel": "السنة",
+        "confirm": "إنشاء",
+        "cancel": "إلغاء",
+        "success": "تم إنشاء {{count}} فاتورة، تم تخطي {{skipped}}.",
+        "error": "فشل إنشاء الفواتير."
+      }
+    },
+    "arAging": {
+      "title": "تقادم الذمم المدينة",
+      "subtitle": "الأرصدة المستحقة مجمّعة حسب أيام التأخر",
+      "totalOutstanding": "إجمالي المستحقات",
+      "buckets": {
+        "current": "جارٍ (لم يحل موعده)",
+        "days1to30": "من 1 إلى 30 يوماً",
+        "days31to60": "من 31 إلى 60 يوماً",
+        "days61to90": "من 61 إلى 90 يوماً",
+        "over90": "أكثر من 90 يوماً"
+      },
+      "noData": "لا توجد أرصدة مستحقة",
+      "noDataHint": "جميع الفواتير جارية أو مدفوعة بالكامل."
+    },
+    "cashFlow": {
+      "title": "توقعات التدفق النقدي",
+      "subtitle": "التدفقات الشهرية المتوقعة بناءً على سجل الفوترة الأخير",
+      "horizonLabel": "أفق التوقع",
+      "horizonMonths": "{{n}} أشهر",
+      "openingBalance": "الرصيد الافتتاحي (ر.ع.)",
+      "assumedMonthlyInflow": "التدفق الشهري المفترض (ر.ع.)",
+      "month": "الشهر",
+      "inflow": "التدفق الداخل (ر.ع.)",
+      "closingBalance": "الرصيد الختامي (ر.ع.)",
+      "noData": "لا تتوفر بيانات توقع",
+      "noDataHint": "أنشئ فواتير أولاً لبناء سجل فوترة يُستخدم في التوقع."
+    },
+    "invoiceStatuses": {
+      "draft": "مسودة",
+      "sent": "مُرسَلة",
+      "partial": "مدفوعة جزئياً",
+      "paid": "مدفوعة",
+      "overdue": "متأخرة",
+      "void": "ملغاة"
+    }
   }
 }

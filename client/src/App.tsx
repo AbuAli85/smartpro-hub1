@@ -52,6 +52,7 @@ const SanadPartnerOnboardingPage = lazy(() => import("./pages/SanadPartnerOnboar
 const SanadCentreProfilePage = lazy(() => import("./pages/SanadCentreProfilePage"));
 const SanadCatalogueAdminPage = lazy(() => import("./pages/SanadCatalogueAdminPage"));
 const BillingEnginePage = lazy(() => import("./pages/BillingEnginePage"));
+const ClientBillingPage = lazy(() => import("./pages/ClientBillingPage"));
 const ExpiryAlertsPage = lazy(() => import("./pages/ExpiryAlertsPage"));
 const RenewalWorkflowsPage = lazy(() => import("./pages/RenewalWorkflowsPage"));
 const PlatformOpsPage = lazy(() => import("./pages/PlatformOpsPage"));
@@ -229,6 +230,7 @@ function AppRoutes() {
         <Route path="/sanad/marketplace" component={SanadMarketplacePage} />
         <Route path="/sanad/catalogue-admin" component={SanadCatalogueAdminPage} />
         <Route path="/billing" component={BillingEnginePage} />
+        <Route path="/client-billing" component={ClientBillingPage} />
         <Route path="/alerts" component={ExpiryAlertsPage} />
         <Route path="/renewal-workflows/:id" component={WorkflowDetailPage} />
         <Route path="/renewal-workflows" component={RenewalWorkflowsPage} />

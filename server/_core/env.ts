@@ -46,10 +46,18 @@ export function validateProductionEnvironment(): void {
   if (!ENV.appId.trim()) problems.push("VITE_APP_ID");
   if (!ENV.oAuthServerUrl.trim()) problems.push("OAUTH_SERVER_URL");
   if (!ENV.appPublicUrl) problems.push("APP_PUBLIC_URL or PUBLIC_APP_URL");
-  if (!ENV.thawaniSecretKey) problems.push("THAWANI_SECRET_KEY");
-  if (!ENV.thawaniWebhookSecret) problems.push("THAWANI_WEBHOOK_SECRET");
-  if (!ENV.stripeSecretKey) problems.push("STRIPE_SECRET_KEY");
-  if (!ENV.stripeWebhookSecret) problems.push("STRIPE_WEBHOOK_SECRET");
+  // Payment gateway secrets are optional — warn but do not block startup
+  const paymentWarnings: string[] = [];
+  if (!ENV.thawaniSecretKey) paymentWarnings.push("THAWANI_SECRET_KEY");
+  if (!ENV.thawaniWebhookSecret) paymentWarnings.push("THAWANI_WEBHOOK_SECRET");
+  if (!ENV.stripeSecretKey) paymentWarnings.push("STRIPE_SECRET_KEY");
+  if (!ENV.stripeWebhookSecret) paymentWarnings.push("STRIPE_WEBHOOK_SECRET");
+  if (paymentWarnings.length) {
+    console.warn(
+      "[SmartPRO] Payment gateway not fully configured (features disabled):",
+      paymentWarnings.join(", ")
+    );
+  }
   if (problems.length) {
     console.error(
       "[SmartPRO] Refusing to start — invalid production environment:",

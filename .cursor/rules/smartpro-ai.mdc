@@ -1,0 +1,14 @@
+---
+description: SmartPRO AI workflow — end-to-end discipline, tenant/RBAC, verification
+alwaysApply: true
+---
+
+# SmartPRO AI conventions
+
+Treat work as production, multi-tenant, end-to-end workflows. Full guidance lives under `docs/ai/` — start with `AI_OPERATING_SYSTEM.md` and `SMARTPRO_DOMAIN_GUARDRAILS.md`.
+
+**Default task prefix:** Treat this as a production end-to-end workflow task; do not jump tasks, do not add unnecessary features, do not patch symptoms only, and do not call it complete without verification evidence.
+
+**Non-negotiables:** Understand the flow before coding; server authority over client visibility; tenant isolation and RBAC on sensitive paths; minimal but complete changes; evidence before “done.”
+
+Use `FEATURE_GATE_SKILL.md` before new scope, `END_TO_END_IMPLEMENTATION_SKILL.md` for substantive work, `QA_VERIFICATION_SKILL.md` before completion, and `BUG_TRIAGE_SKILL.md` for defects.

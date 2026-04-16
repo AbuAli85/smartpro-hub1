@@ -213,6 +213,7 @@ Indexes: all scoped by `company_id +` natural keys; unique constraints where nee
 ## 9. Related docs
 
 - `docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md` — **precise Phase 1 PR** (schema, routers, out-of-scope)
+- `docs/DEPLOYMENT_ECONOMICS_PHASE2_SPEC.md` — **billable snapshots, invoice hook-in, reconciliation, alerts** (post–foundation)
 - `docs/AGREEMENT_PARTY_FOUNDATION.md` — `business_parties`
 - `docs/ARCHITECTURE.md` — platform overview
 - `docs/PRODUCTION_READINESS_ASSESSMENT.md` — readiness checklist

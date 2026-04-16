@@ -11,7 +11,7 @@ import { registerWhatsAppWebhookRoutes } from "../whatsappCloud";
 import { registerPaymentWebhookRoutes } from "../paymentWebhooks";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { serveStatic, setupVite } from "./vite";
+import { serveStatic } from "./vite-static";
 import { applySecurityMiddleware } from "./security";
 import { validateProductionEnvironment } from "./env";
 import { runPendingMigrations } from "../runPendingMigrations";
@@ -77,6 +77,7 @@ async function startServer() {
   );
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
+    const { setupVite } = await import("./vite-dev");
     await setupVite(app, server);
   } else {
     serveStatic(app);

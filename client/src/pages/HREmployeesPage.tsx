@@ -236,7 +236,7 @@ const BLANK = {
   maritalStatus: "" as "" | "single" | "married" | "divorced" | "widowed",
   department: "", position: "", employmentType: "full_time" as const,
   salary: "", currency: "OMR", hireDate: "", employeeNumber: "",
-  pasiNumber: "", bankName: "", bankAccountNumber: "",
+  pasiNumber: "", bankName: "", bankAccountNumber: "", ibanNumber: "",
   emergencyContactName: "", emergencyContactPhone: "",
   visaNumber: "", visaExpiryDate: "",
   workPermitNumber: "", workPermitExpiryDate: "",
@@ -425,7 +425,18 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
                 <div className="space-y-1.5"><Label>PASI Number</Label><Input value={form.pasiNumber} onChange={(e) => f("pasiNumber", e.target.value)} placeholder="Social insurance #" /></div>
                 <div className="space-y-1.5"><Label>Bank Name</Label><Input value={form.bankName} onChange={(e) => f("bankName", e.target.value)} placeholder="Bank Muscat, etc." /></div>
               </div>
-              <div className="space-y-1.5"><Label>Bank Account Number (IBAN)</Label><Input value={form.bankAccountNumber} onChange={(e) => f("bankAccountNumber", e.target.value)} placeholder="OM12 3456 7890 1234 5678 9012" /></div>
+              <div className="space-y-1.5"><Label>Bank Account Number</Label><Input value={form.bankAccountNumber} onChange={(e) => f("bankAccountNumber", e.target.value)} placeholder="Account number" /></div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">Oman IBAN <span className="text-xs font-normal text-muted-foreground">(for WPS)</span></Label>
+                <Input
+                  value={form.ibanNumber}
+                  onChange={(e) => f("ibanNumber", e.target.value.toUpperCase().replace(/\s/g, ""))}
+                  placeholder="OM12 3456 7890 1234 5678 9012"
+                  maxLength={34}
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">23-character Omani IBAN (OM + 2 check digits + 19 digits). Used for WPS SIF file generation.</p>
+              </div>
               <Separator />
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Visa & Work Permit</p>
               <div className="grid grid-cols-2 gap-3">
@@ -494,6 +505,41 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── IBAN Quick-Edit ────────────────────────────────────────────────────────
+function IbanQuickEdit({ employeeId, companyId, onSave }: { employeeId: number; companyId?: number; onSave: () => void }) {
+  const [iban, setIban] = useState("");
+  const [editing, setEditing] = useState(false);
+  const updateMutation = trpc.hr.updateEmployee.useMutation({
+    onSuccess: () => { toast.success("IBAN saved"); setEditing(false); onSave(); },
+    onError: (e) => toast.error(e.message),
+  });
+  if (!editing) return (
+    <div className="flex items-center gap-2 py-1">
+      <Hash size={13} className="text-muted-foreground shrink-0" />
+      <span className="text-xs text-muted-foreground">No IBAN set</span>
+      <button onClick={() => setEditing(true)} className="text-xs text-[var(--smartpro-orange)] hover:underline flex items-center gap-1 ml-auto"><Edit2 size={11} /> Add IBAN</button>
+    </div>
+  );
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium flex items-center gap-1">Oman IBAN <span className="text-[10px] text-muted-foreground">(WPS)</span></label>
+      <Input
+        value={iban}
+        onChange={(e) => setIban(e.target.value.toUpperCase().replace(/\s/g, ""))}
+        placeholder="OM12 3456 7890 1234 5678 9012"
+        maxLength={34}
+        className="font-mono h-8 text-sm"
+      />
+      <div className="flex gap-2">
+        <Button size="sm" className="h-7 text-xs" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: employeeId, companyId, ibanNumber: iban || undefined })}>
+          {updateMutation.isPending ? "Saving..." : "Save IBAN"}
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditing(false)}>Cancel</Button>
+      </div>
+    </div>
   );
 }
 
@@ -679,7 +725,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
         )}
 
         {/* Banking */}
-        {((emp as any).bankName || (emp as any).bankAccountNumber) && (
+        {((emp as any).bankName || (emp as any).bankAccountNumber || (emp as any).ibanNumber) && (
           <>
             <Separator />
             <div>
@@ -687,9 +733,21 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
               <div className="space-y-2">
                 {(emp as any).bankName && <div className="flex items-center gap-2"><DollarSign size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">Bank: <span className="font-medium">{(emp as any).bankName}</span></span></div>}
                 {(emp as any).bankAccountNumber && <div className="flex items-center gap-2"><Hash size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">Account: <span className="font-mono font-semibold">{(emp as any).bankAccountNumber}</span></span></div>}
+                {(emp as any).ibanNumber ? (
+                  <div className="flex items-center gap-2">
+                    <Hash size={13} className="text-muted-foreground shrink-0" />
+                    <span className="text-xs">IBAN <span className="text-[10px] text-muted-foreground">(WPS)</span>: <span className="font-mono font-semibold tracking-wider">{(emp as any).ibanNumber}</span></span>
+                  </div>
+                ) : (
+                  <IbanQuickEdit employeeId={emp.id} companyId={cid} onSave={() => refetch()} />
+                )}
               </div>
             </div>
           </>
+        )}
+        {/* IBAN quick-edit (shown when banking section is absent but user wants to add IBAN) */}
+        {!(emp as any).bankName && !(emp as any).bankAccountNumber && !(emp as any).ibanNumber && (
+          <IbanQuickEdit employeeId={emp.id} companyId={cid} onSave={() => refetch()} />
         )}
 
         {/* Compensation */}

@@ -56,6 +56,7 @@ import { onboardingRouter } from "./routers/onboarding";
 import { surveyRouter } from "./routers/survey";
 import { deploymentEconomicsRouter } from "./routers/deploymentEconomics";
 import { paymentsRouter } from "./routers/payments";
+import { twoFactorRouter } from "./routers/twoFactor";
 
 export const appRouter = router({
   system: systemRouter,
@@ -139,6 +140,8 @@ export const appRouter = router({
   deploymentEconomics: deploymentEconomicsRouter,
   /** Client AR: Thawani + Stripe checkout sessions, manual payments, refunds, aging. */
   payments: paymentsRouter,
+  /** TOTP + backup codes — setup when signed in; challenge after OAuth when enabled. */
+  twoFactor: twoFactorRouter,
 });
 
 export type AppRouter = typeof appRouter;

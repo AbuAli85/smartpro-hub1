@@ -239,6 +239,13 @@
       "when": 1776118139399,
       "tag": "0058_wps_employee_bank_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1776118139400,
+      "tag": "0059_two_factor_auth",
+      "breakpoints": true
     }
   ]
 }

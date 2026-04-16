@@ -132,6 +132,7 @@ const ConvertPage = lazy(() => import("./pages/ConvertPage"));
 const RetainPage = lazy(() => import("./pages/RetainPage"));
 const BuyerPortalRoutes = lazy(() => import("./pages/BuyerPortalRoutes"));
 const BuyerPortalLegacyPathPage = lazy(() => import("./pages/BuyerPortalLegacyPathPage"));
+const MfaChallengePage = lazy(() => import("./pages/MfaChallengePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // ─── Page loading fallback ────────────────────────────────────────────────────
@@ -152,6 +153,7 @@ function PublicRoutes() {
       {buyerPortalUi ? <Route path="/buyer/invoices" component={BuyerPortalRoutes} /> : null}
       {buyerPortalUi ? <Route path="/buyer" component={BuyerPortalRoutes} /> : null}
       <Route path="/jobs" component={PublicJobBoardPage} />
+      <Route path="/auth/mfa" component={MfaChallengePage} />
       <Route path="/contracts/:id/sign" component={ContractSignPage} />
       <Route path="/attend/:token" component={AttendCheckInPage} />
       <Route path="/sanad/join" component={SanadJoinInvitePage} />

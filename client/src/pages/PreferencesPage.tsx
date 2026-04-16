@@ -11,6 +11,7 @@ import { OPTIONAL_NAV_HREFS, shouldUsePortalOnlyShell } from "@shared/clientNav"
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { TwoFactorSettings } from "@/components/TwoFactorSettings";
 
 const OPTIONAL_LABELS: Record<string, string> = {
   "/analytics": "Analytics",
@@ -44,7 +45,7 @@ export default function PreferencesPage() {
 
   if (portalOnly) {
     return (
-      <div className="p-6 max-w-lg mx-auto">
+      <div className="p-6 max-w-lg mx-auto space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Preferences</CardTitle>
@@ -53,6 +54,7 @@ export default function PreferencesPage() {
             </CardDescription>
           </CardHeader>
         </Card>
+        <TwoFactorSettings />
       </div>
     );
   }
@@ -66,6 +68,8 @@ export default function PreferencesPage() {
           permissions on the server.
         </p>
       </div>
+
+      <TwoFactorSettings />
 
       <Card>
         <CardHeader>

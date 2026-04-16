@@ -25,6 +25,8 @@ export const ENV = {
     (process.env.NODE_ENV !== "production" && process.env.THAWANI_SANDBOX !== "false"),
   stripeSecretKey: (process.env.STRIPE_SECRET_KEY ?? "").trim(),
   stripeWebhookSecret: (process.env.STRIPE_WEBHOOK_SECRET ?? "").trim(),
+  /** AES-256-GCM key material for TOTP secrets at rest (min 32 chars recommended). */
+  twoFactorEncryptionKey: (process.env.TWO_FACTOR_ENCRYPTION_KEY ?? "").trim(),
 };
 
 /** True when env has parseable JSON (or base64-wrapped JSON) and a private_key OpenSSL can load. */

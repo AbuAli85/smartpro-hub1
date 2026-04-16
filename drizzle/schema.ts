@@ -46,10 +46,31 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
+  twoFactorSecretEncrypted: text("two_factor_secret_encrypted"),
+  /** JSON array of bcrypt hashes for one-time backup codes. */
+  twoFactorBackupCodesJson: text("two_factor_backup_codes_json"),
+  twoFactorVerifiedAt: timestamp("two_factor_verified_at"),
 })
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+/** Pending MFA step after OAuth when 2FA is enabled on the account. */
+export const mfaChallenges = mysqlTable(
+  "mfa_challenges",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: int("user_id").notNull(),
+    returnPath: varchar("return_path", { length: 2048 }).notNull().default("/"),
+    status: mysqlEnum("status", ["pending", "consumed", "expired"]).notNull().default("pending"),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_mfa_challenges_user").on(t.userId)]
+);
+export type MfaChallenge = typeof mfaChallenges.$inferSelect;
+export type InsertMfaChallenge = typeof mfaChallenges.$inferInsert;
 
 // ─── COMPANIES (TENANTS) ──────────────────────────────────────────────────────
 

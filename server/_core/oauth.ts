@@ -8,6 +8,7 @@ import { getDb } from "../db";
 import { companyMembers, employees, users } from "../../drizzle/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { recordSessionLoginAudits } from "../complianceAudit";
+import { createMfaChallengeForUser } from "../lib/twoFactorService";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -184,6 +185,39 @@ export function registerOAuthRoutes(app: Express) {
         console.error("[OAuth] Auto-link employee failed (non-fatal):", autoLinkErr);
       }
 
+      const redirectTo = redirectPathFromState(state);
+
+      const userForMfa = await db.getUserByOpenId(userInfo.openId);
+      if (userForMfa?.twoFactorEnabled && userForMfa.twoFactorSecretEncrypted) {
+        const mfaDb = await getDb();
+        if (!mfaDb) {
+          res.status(503).type("html").send("<p>Database unavailable. Try again shortly.</p>");
+          return;
+        }
+        try {
+          const challengeId = await createMfaChallengeForUser(mfaDb, {
+            userId: userForMfa.id,
+            returnPath: redirectTo,
+          });
+          const base = appBaseUrlFromState(state, req);
+          if (!base) {
+            res.status(400).send("Invalid OAuth state (origin)");
+            return;
+          }
+          res.redirect(302, `${base}/auth/mfa?challenge=${encodeURIComponent(challengeId)}`);
+          return;
+        } catch (mfaErr) {
+          console.error("[OAuth] MFA challenge creation failed:", mfaErr);
+          const base = appBaseUrlFromState(state, req);
+          if (base) {
+            redirectWithSignInError(res, base, redirectTo, "mfa_unavailable");
+            return;
+          }
+          res.status(500).send("MFA unavailable");
+          return;
+        }
+      }
+
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {
         name: userInfo.name || "",
         expiresInMs: SESSION_EXPIRY_MS,
@@ -191,22 +225,6 @@ export function registerOAuthRoutes(app: Express) {
 
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_EXPIRY_MS });
-
-      // Parse optional returnPath from state: state = btoa("origin|/path") or btoa("origin")
-      let redirectTo = "/";
-      try {
-        const decoded = Buffer.from(state, "base64").toString("utf8");
-        const pipeIdx = decoded.indexOf("|");
-        if (pipeIdx !== -1) {
-          const returnPath = decoded.slice(pipeIdx + 1);
-          // Only allow relative paths (starting with /) to prevent open redirect
-          if (returnPath.startsWith("/")) {
-            redirectTo = returnPath;
-          }
-        }
-      } catch {
-        // malformed state — fall back to /
-      }
 
       res.redirect(302, redirectTo);
     } catch (error) {

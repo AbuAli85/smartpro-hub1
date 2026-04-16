@@ -128,7 +128,7 @@ Index: `(company_id, billing_customer_id)` or FK index only.
 
 ## 4. tRPC routers (minimal)
 
-**Register in** `server/routers` **and** root router (same pattern as other routers).
+**Implementation:** one nested router **`deploymentEconomics`** on `appRouter` (`server/routers/deploymentEconomics.ts`, registered in `server/routers.ts`). Client paths look like `trpc.deploymentEconomics.billingCustomers.list`, `trpc.deploymentEconomics.customerDeployments.create`, etc. Assignments live under `deploymentEconomics.customerDeploymentAssignments.*`.
 
 ### 4.1 `billingCustomers`
 

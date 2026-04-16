@@ -2447,6 +2447,54 @@ export const announcementReads = mysqlTable("announcement_reads", {
 export type AnnouncementRead = typeof announcementReads.$inferSelect;
 export type InsertAnnouncementRead = typeof announcementReads.$inferInsert;
 
+// ─── DEPLOYMENT ECONOMICS — BILLING CUSTOMERS (Phase 1) ─────────────────────
+/** Tenant AR extension; optional link to canonical `business_parties.id` (FK in SQL migration). */
+export const billingCustomers = mysqlTable(
+  "billing_customers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    partyId: char("party_id", { length: 36 }),
+    displayName: varchar("display_name", { length: 255 }).notNull(),
+    legalName: varchar("legal_name", { length: 255 }),
+    taxRegistration: varchar("tax_registration", { length: 100 }),
+    vatTreatment: varchar("vat_treatment", { length: 64 }),
+    paymentTermsDays: int("payment_terms_days"),
+    status: varchar("status", { length: 32 }).notNull().default("active"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_bc_company").on(t.companyId),
+    index("idx_bc_company_status").on(t.companyId, t.status),
+    index("idx_bc_party").on(t.partyId),
+    unique("uq_bc_company_party").on(t.companyId, t.partyId),
+  ]
+);
+export type BillingCustomer = typeof billingCustomers.$inferSelect;
+export type InsertBillingCustomer = typeof billingCustomers.$inferInsert;
+
+export const customerContracts = mysqlTable(
+  "customer_contracts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    billingCustomerId: int("billing_customer_id").notNull().references(() => billingCustomers.id),
+    reference: varchar("reference", { length: 128 }),
+    effectiveFrom: date("effective_from", { mode: "string" }).notNull(),
+    effectiveTo: date("effective_to", { mode: "string" }).notNull(),
+    status: varchar("status", { length: 32 }).notNull().default("draft"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_cc_company").on(t.companyId),
+    index("idx_cc_billing_customer").on(t.billingCustomerId),
+  ]
+);
+export type CustomerContract = typeof customerContracts.$inferSelect;
+export type InsertCustomerContract = typeof customerContracts.$inferInsert;
+
 // ─── ATTENDANCE SITES ─────────────────────────────────────────────────────────
 export const attendanceSites = mysqlTable("attendance_sites", {
   id: int("id").autoincrement().primaryKey(),
@@ -2463,6 +2511,8 @@ export const attendanceSites = mysqlTable("attendance_sites", {
   clientName: varchar("client_name", { length: 255 }),
   /** Contracted daily billing rate for this site (OMR). Used for client invoice summaries. */
   dailyRateOmr: decimal("daily_rate_omr", { precision: 10, scale: 3 }).default("0.000"),
+  /** Optional link to normalized billing customer (legacy path when NULL). */
+  billingCustomerId: int("billing_customer_id").references(() => billingCustomers.id),
   // Operating hours
   operatingHoursStart: varchar("operating_hours_start", { length: 5 }),
   operatingHoursEnd: varchar("operating_hours_end", { length: 5 }),
@@ -2474,7 +2524,9 @@ export const attendanceSites = mysqlTable("attendance_sites", {
   createdByUserId: int("created_by_user_id").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+},
+(t) => [index("idx_as_billing_customer").on(t.billingCustomerId)]
+);
 export type AttendanceSite = typeof attendanceSites.$inferSelect;
 export type InsertAttendanceSite = typeof attendanceSites.$inferInsert;
 
@@ -3425,6 +3477,84 @@ export const outsourcingContractEvents = mysqlTable(
 );
 export type OutsourcingContractEvent = typeof outsourcingContractEvents.$inferSelect;
 export type InsertOutsourcingContractEvent = typeof outsourcingContractEvents.$inferInsert;
+
+// ─── DEPLOYMENT ECONOMICS — CUSTOMER DEPLOYMENTS + RATES (Phase 1) ────────────
+export const customerDeployments = mysqlTable(
+  "customer_deployments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    billingCustomerId: int("billing_customer_id").notNull().references(() => billingCustomers.id),
+    customerContractId: int("customer_contract_id").references(() => customerContracts.id),
+    primaryAttendanceSiteId: int("primary_attendance_site_id").references(() => attendanceSites.id),
+    outsourcingContractId: char("outsourcing_contract_id", { length: 36 }).references(() => outsourcingContracts.id),
+    effectiveFrom: date("effective_from", { mode: "string" }).notNull(),
+    effectiveTo: date("effective_to", { mode: "string" }).notNull(),
+    status: varchar("status", { length: 32 }).notNull().default("draft"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_cdep_company").on(t.companyId),
+    index("idx_cdep_billing_customer").on(t.billingCustomerId),
+    index("idx_cdep_contract").on(t.customerContractId),
+    index("idx_cdep_site").on(t.primaryAttendanceSiteId),
+    index("idx_cdep_outsourcing").on(t.outsourcingContractId),
+  ]
+);
+export type CustomerDeployment = typeof customerDeployments.$inferSelect;
+export type InsertCustomerDeployment = typeof customerDeployments.$inferInsert;
+
+export const customerDeploymentAssignments = mysqlTable(
+  "customer_deployment_assignments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    customerDeploymentId: int("customer_deployment_id")
+      .notNull()
+      .references(() => customerDeployments.id, { onDelete: "cascade" }),
+    employeeId: int("employee_id").notNull().references(() => employees.id),
+    role: varchar("role", { length: 64 }),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }).notNull(),
+    status: varchar("status", { length: 32 }).notNull().default("active"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_cda_company").on(t.companyId),
+    index("idx_cda_deployment").on(t.customerDeploymentId),
+    index("idx_cda_employee").on(t.employeeId),
+  ]
+);
+export type CustomerDeploymentAssignment = typeof customerDeploymentAssignments.$inferSelect;
+export type InsertCustomerDeploymentAssignment = typeof customerDeploymentAssignments.$inferInsert;
+
+export const billingRateRules = mysqlTable(
+  "billing_rate_rules",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    customerDeploymentId: int("customer_deployment_id")
+      .notNull()
+      .references(() => customerDeployments.id, { onDelete: "cascade" }),
+    unit: varchar("unit", { length: 32 }).notNull(),
+    amountOmr: decimal("amount_omr", { precision: 14, scale: 3 }).notNull(),
+    effectiveFrom: date("effective_from", { mode: "string" }).notNull(),
+    effectiveTo: date("effective_to", { mode: "string" }),
+    ruleMetaJson: json("rule_meta_json").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_brr_company").on(t.companyId),
+    index("idx_brr_deployment").on(t.customerDeploymentId),
+    index("idx_brr_effective").on(t.effectiveFrom, t.effectiveTo),
+  ]
+);
+export type BillingRateRule = typeof billingRateRules.$inferSelect;
+export type InsertBillingRateRule = typeof billingRateRules.$inferInsert;
 
 // ─── SANAD NETWORK INTELLIGENCE (government partner analytics) ────────────────
 

@@ -1,15 +1,17 @@
-<!--
-  Paste into GitHub: New Issue → title + body below (omit this HTML comment).
-  Source of truth: docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md
--->
+# GitHub issue — paste into https://github.com/AbuAli85/smartpro-hub1/issues/new
 
-## Title (copy this line)
+## Title
 
-`feat(finance): Phase 1 deployment economics — schema + billingCustomers / customerDeployments / billingRateRules (API-only)`
+```
+feat(finance): Phase 1 deployment economics — schema + billingCustomers / customerDeployments / billingRateRules (API-only)
+```
 
-## Labels (suggested)
+## Labels
 
-`enhancement` · `area:finance` (or your repo’s equivalent) · `migration`
+- `enhancement`
+- `migration`
+- `area:finance` (if present)
+- **`phase:foundation`** — data model foundation for the finance layer (Phase 2–4 stack on this)
 
 ---
 
@@ -32,17 +34,19 @@
 - `customer_deployment_assignments`
 - `billing_rate_rules`
 
-## In scope — routers (minimal)
+## In scope — API
 
-- `billingCustomers` — list, getById, create, update, setStatus
-- `customerDeployments` — list, getById, create, update, setStatus/close
-- `billingRateRules` — listForDeployment, create, update, void/close
+- Nested router **`deploymentEconomics`** on `appRouter` (`server/routers/deploymentEconomics.ts`):
+  - `billingCustomers.*` — list, getById, create, update, setStatus
+  - `customerDeployments.*` — list, getById, create, update, setStatus
+  - `billingRateRules.*` — listForDeployment, create, update, setEffectiveTo
+  - `customerDeploymentAssignments.*` — create, listForDeployment
 
-Register routers in the app root router; every procedure: **`requireWorkspaceMembership`** + row `company_id` ownership checks.
+Every procedure: **`requireWorkspaceMembership`** + row `company_id` ownership checks.
 
 ## Audit
 
-Emit **`audit_events`** for create/update/status on: billing customer, customer deployment, assignment, rate rule (see spec for `entityType` strings).
+`audit_events` on create/update/status for billing customer, customer deployment, assignment, rate rule (`entityType` per `server/lib/deploymentEconomicsAudit.ts`).
 
 ## Acceptance checklist
 
@@ -62,5 +66,5 @@ Emit **`audit_events`** for create/update/status on: billing customer, customer 
 
 ## References
 
-- `docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md` — full column and procedure detail
-- `docs/DEPLOYMENT_ECONOMICS_BACKLOG.md` — full program context
+- `docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md`
+- `docs/DEPLOYMENT_ECONOMICS_BACKLOG.md`

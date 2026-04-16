@@ -54,6 +54,7 @@ import { accountabilityPerformanceRouter } from "./routers/accountabilityPerform
 import { workspaceRouter } from "./routers/workspace";
 import { onboardingRouter } from "./routers/onboarding";
 import { surveyRouter } from "./routers/survey";
+import { deploymentEconomicsRouter } from "./routers/deploymentEconomics";
 
 export const appRouter = router({
   system: systemRouter,
@@ -133,6 +134,8 @@ export const appRouter = router({
   workspace: workspaceRouter,
   onboarding: onboardingRouter,
   survey: surveyRouter,
+  /** Phase 1 deployment economics: billing customers, customer deployments, rate rules (API-only). */
+  deploymentEconomics: deploymentEconomicsRouter,
 });
 
 export type AppRouter = typeof appRouter;

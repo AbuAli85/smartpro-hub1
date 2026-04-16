@@ -34,7 +34,7 @@ Before writing code, always list:
 
 Every task must follow these phases:
 
-1. Discovery
+1. Discovery (optional: frame the request with `TASK_INTAKE_TEMPLATE.md`)
 2. Diagnosis
 3. Plan
 4. Implementation

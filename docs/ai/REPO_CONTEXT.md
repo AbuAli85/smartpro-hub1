@@ -69,7 +69,7 @@ Concrete navigation and commands for this codebase. Pair with `AI_OPERATING_SYST
 | Drizzle schema & migrations | `drizzle/` |
 | One-off / ops scripts | `scripts/` |
 | Product docs | `docs/` |
-| AI workflow pack | `docs/ai/` |
+| AI workflow pack | `docs/ai/` — `REPO_CONTEXT.md` (this file); optional `TASK_INTAKE_TEMPLATE.md` at start; `FINAL_REPORT_TEMPLATE.md` at closeout |
 | Cursor project rules | `.cursor/rules/` |
 | Runtime patches | `patches/` |
 

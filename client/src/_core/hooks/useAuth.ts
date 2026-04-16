@@ -1,7 +1,11 @@
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
+import { useIsMutating } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
+
+/** Shared across all `useAuth()` instances so layout shells show loading during sign-out. */
+const AUTH_LOGOUT_MUTATION_KEY = ["auth", "logout"] as const;
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -19,10 +23,13 @@ export function useAuth(options?: UseAuthOptions) {
   });
 
   const logoutMutation = trpc.auth.logout.useMutation({
+    mutationKey: AUTH_LOGOUT_MUTATION_KEY,
     onSuccess: () => {
       utils.auth.me.setData(undefined, null);
     },
   });
+
+  const logoutInFlight = useIsMutating({ mutationKey: AUTH_LOGOUT_MUTATION_KEY });
 
   const logout = useCallback(async () => {
     try {
@@ -36,6 +43,11 @@ export function useAuth(options?: UseAuthOptions) {
       }
       throw error;
     } finally {
+      try {
+        localStorage.removeItem("manus-runtime-user-info");
+      } catch {
+        /* ignore private mode / SSR */
+      }
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
     }
@@ -48,7 +60,7 @@ export function useAuth(options?: UseAuthOptions) {
     );
     return {
       user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
+      loading: meQuery.isLoading || logoutInFlight > 0,
       error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
     };
@@ -56,13 +68,13 @@ export function useAuth(options?: UseAuthOptions) {
     meQuery.data,
     meQuery.error,
     meQuery.isLoading,
+    logoutInFlight,
     logoutMutation.error,
-    logoutMutation.isPending,
   ]);
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
-    if (meQuery.isLoading || logoutMutation.isPending) return;
+    if (meQuery.isLoading || logoutInFlight > 0) return;
     if (state.user) return;
     if (typeof window === "undefined") return;
     if (window.location.pathname === redirectPath) return;
@@ -71,7 +83,7 @@ export function useAuth(options?: UseAuthOptions) {
   }, [
     redirectOnUnauthenticated,
     redirectPath,
-    logoutMutation.isPending,
+    logoutInFlight,
     meQuery.isLoading,
     state.user,
   ]);

@@ -198,7 +198,7 @@ describe("auth", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.auth.logout();
     expect(result.success).toBe(true);
-    expect(clearedCookies).toHaveLength(1);
+    expect(clearedCookies.length).toBeGreaterThanOrEqual(1);
     expect(clearedCookies[0]?.options).toMatchObject({ maxAge: -1 });
   });
 });

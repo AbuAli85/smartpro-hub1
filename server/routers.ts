@@ -68,6 +68,14 @@ export const appRouter = router({
       const user = ctx.user;
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      // Older deployments may have issued SameSite=None; browsers need a matching clear or the session cookie can persist.
+      if (cookieOptions.sameSite !== "none") {
+        ctx.res.clearCookie(COOKIE_NAME, {
+          ...cookieOptions,
+          sameSite: "none",
+          maxAge: -1,
+        });
+      }
       if (user) {
         try {
           const db = await getDb();

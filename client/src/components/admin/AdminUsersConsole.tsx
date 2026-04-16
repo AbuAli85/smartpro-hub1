@@ -112,10 +112,10 @@ export function AdminUsersConsole() {
       globalPlatformRole: globalPlatformRole === "any" ? undefined : globalPlatformRole,
       membershipRole: membershipRole === "any" ? undefined : membershipRole,
       authProvider: authProvider.trim() || undefined,
-      twoFactor: twoFactor === "any" ? "any" : (twoFactor as "enabled" | "missing"),
+      twoFactor: (twoFactor as "any" | "enabled" | "missing"),
       identityQuickFilter:
-        identityQuick === "any" ? "any" : (identityQuick as "duplicate" | "no_memberships" | "merged_inactive" | "privileged_no_2fa"),
-      securityQuickFilter: securityQuick === "any" ? "any" : "needs_attention",
+        (identityQuick as "any" | "duplicate" | "no_memberships" | "merged_inactive" | "privileged_no_2fa"),
+      securityQuickFilter: (securityQuick as "any" | "needs_attention"),
       createdAfter: createdAfter ? new Date(`${createdAfter}T00:00:00`) : undefined,
       createdBefore: createdBefore ? new Date(`${createdBefore}T23:59:59.999`) : undefined,
       staleAfterDays: staleN !== undefined && !Number.isNaN(staleN) && staleN >= 0 ? staleN : undefined,

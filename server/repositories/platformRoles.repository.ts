@@ -19,7 +19,7 @@ export async function getActivePlatformRoleSlugsForUser(userId: number): Promise
     .select({ role: platformUserRoles.role })
     .from(platformUserRoles)
     .where(and(eq(platformUserRoles.userId, userId), isNull(platformUserRoles.revokedAt)));
-  return rows.map((r) => r.role).filter((x): x is string => typeof x === "string");
+  return rows.map((r) => String(r.role)).filter(Boolean);
 }
 
 /**

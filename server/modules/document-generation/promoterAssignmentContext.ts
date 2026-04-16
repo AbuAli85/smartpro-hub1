@@ -118,8 +118,8 @@ export async function buildPromoterAssignmentDocumentContext(
     assignment: {
       location_ar: nonEmptyOrThrow("Location (Arabic)", row.locationAr),
       location_en: nonEmptyOrThrow("Location (English)", row.locationEn),
-      start_date: sqlDateToIso(row.startDate),
-      end_date: sqlDateToIso(row.endDate),
+      start_date: sqlDateToIso(row.startDate ?? new Date()),
+      end_date: sqlDateToIso(row.endDate ?? new Date()),
     },
   };
 

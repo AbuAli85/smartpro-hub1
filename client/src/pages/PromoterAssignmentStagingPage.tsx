@@ -237,7 +237,7 @@ export default function PromoterAssignmentStagingPage() {
             <select
               className="border rounded-md h-9 px-2 text-sm bg-background"
               value={mismatchCategory}
-              onChange={(e) => setMismatchCategory(e.target.value)}
+              onChange={(e) => setMismatchCategory(e.target.value as Parameters<typeof setMismatchCategory>[0])}
             >
               <option value="all">All categories</option>
               <option value="none">No mismatch only</option>

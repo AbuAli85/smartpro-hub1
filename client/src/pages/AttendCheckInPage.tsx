@@ -128,7 +128,7 @@ export default function AttendCheckInPage() {
       setDone("checked_in");
       setDoneTime(new Date(record.checkIn));
       if (payload.promoterLinkageHint) {
-        toast.message("Assignment linkage", { description: payload.promoterLinkageHint.message });
+        toast.message("Assignment linkage", { description: (payload.promoterLinkageHint as { message: string } | null)?.message ?? "" });
       }
       refetchToday();
       void utils.attendance.listAttendanceAudit.invalidate();

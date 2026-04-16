@@ -723,7 +723,7 @@ export async function fetchAdminUserDetail(db: Db, userId: number): Promise<Admi
   const granters =
     granterIds.length > 0
       ? await db
-          .select({ id: users.id, name: users.name, email: users.email, displayName: users.displayName })
+          .select({ id: users.id, name: users.name, email: users.email, primaryEmail: users.primaryEmail, displayName: users.displayName })
           .from(users)
           .where(inArray(users.id, Array.from(new Set(granterIds))))
       : [];

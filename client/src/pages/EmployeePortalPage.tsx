@@ -566,7 +566,7 @@ function AttendanceTodayCard({
     onSuccess: (data) => {
       toast.success("Checked in", { description: "Time recorded for today." });
       if (data.promoterLinkageHint) {
-        toast.message("Assignment linkage", { description: data.promoterLinkageHint.message });
+        toast.message("Assignment linkage", { description: (data.promoterLinkageHint as { message: string } | null)?.message ?? "" });
       }
       refetchToday();
       utils.employeePortal.getMyAttendanceRecords.invalidate();

@@ -268,7 +268,7 @@ export async function updatePromoterPayrollRunStatus(
   params: {
     companyId: number;
     runId: number;
-    status: (typeof promoterPayrollRuns.$inferInsert)["status"];
+    status: PromoterPayrollRunStatus;
     userId: number;
     extra?: Partial<typeof promoterPayrollRuns.$inferInsert>;
   },

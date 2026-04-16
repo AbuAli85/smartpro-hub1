@@ -3,7 +3,7 @@
  * Reads promoter_assignments + attendance + employees; assignment row is truth.
  */
 
-import { and, count, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, count, eq, gt, gte, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import {
   attendanceRecords,

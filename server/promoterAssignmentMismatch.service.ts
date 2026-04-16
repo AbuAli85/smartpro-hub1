@@ -4,7 +4,7 @@
 
 import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { attendanceRecords, attendanceSites, companies, employees } from "../drizzle/schema";
+import { attendanceRecords, attendanceSites, companies, employees, promoterAssignments } from "../drizzle/schema";
 import type { AttendanceAssignmentResolution } from "../shared/attendanceAssignmentResolution";
 import { resolvePromoterAssignmentForAttendance } from "../shared/attendanceAssignmentResolution";
 import {
@@ -133,10 +133,11 @@ export async function getMismatchDetailRows(
   const out: MismatchDetailRow[] = [];
 
   for (const r of rows) {
+    const checkInVal = r.checkIn as Date | string;
     const dateYmd =
-      typeof r.checkIn === "string"
-        ? r.checkIn.slice(0, 10)
-        : r.checkIn.toISOString().slice(0, 10);
+      typeof checkInVal === "string"
+        ? checkInVal.slice(0, 10)
+        : checkInVal.toISOString().slice(0, 10);
 
     let resolution: AttendanceAssignmentResolution | null = null;
     let linked = r.paId ? paMap.get(r.paId) ?? null : null;

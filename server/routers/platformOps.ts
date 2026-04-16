@@ -929,23 +929,22 @@ export const platformOpsRouter = router({
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
-      const i = input ?? {};
       return queryAdminUsersList(db, {
-        search: i.search,
-        accountStatuses: i.accountStatuses,
-        globalPlatformRole: i.globalPlatformRole,
-        membershipRole: i.membershipRole,
-        authProvider: i.authProvider,
-        twoFactor: i.twoFactor ?? "any",
+        search: input?.search,
+        accountStatuses: input?.accountStatuses,
+        globalPlatformRole: input?.globalPlatformRole,
+        membershipRole: input?.membershipRole,
+        authProvider: input?.authProvider,
+        twoFactor: input?.twoFactor ?? "any",
         identityQuickFilter:
-          i.identityQuickFilter === undefined || i.identityQuickFilter === "any" ? "any" : i.identityQuickFilter,
-        createdAfter: i.createdAfter,
-        createdBefore: i.createdBefore,
-        staleAfterDays: i.staleAfterDays,
+          input?.identityQuickFilter === undefined || input?.identityQuickFilter === "any" ? "any" : input.identityQuickFilter,
+        createdAfter: input?.createdAfter,
+        createdBefore: input?.createdBefore,
+        staleAfterDays: input?.staleAfterDays,
         securityQuickFilter:
-          i.securityQuickFilter === undefined || i.securityQuickFilter === "any" ? "any" : "needs_attention",
-        limit: i.limit ?? 50,
-        offset: i.offset ?? 0,
+          input?.securityQuickFilter === undefined || input?.securityQuickFilter === "any" ? "any" : "needs_attention",
+        limit: input?.limit ?? 50,
+        offset: input?.offset ?? 0,
       });
     }),
 

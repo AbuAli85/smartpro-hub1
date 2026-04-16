@@ -20,3 +20,7 @@
 - [x] **ARCH-04** Extract attendance sites sub-router into `server/routers/attendance/sites.router.ts`
 - [x] **QUAL-03** Add `scripts/migrate.ts` idempotent Drizzle migration runner (`pnpm db:migrate`)
 - [x] **QUAL-06** Archive 1,979-line `todo.md` → `docs/todo.archive.md`
+
+## Bug Fixes (current session)
+
+- [x] **BUG-LOGOUT** Fix logout not working: after `auth.logout` succeeds, `auth.me.invalidate()` re-fetches with the still-present session cookie (cookie clear not effective in browser) and returns the user again, so the UI never transitions to logged-out state. Fix: after logout mutation completes, force a hard redirect to the login URL instead of relying on React Query invalidation to detect the unauthenticated state.

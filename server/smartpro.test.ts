@@ -198,8 +198,10 @@ describe("auth", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.auth.logout();
     expect(result.success).toBe(true);
-    expect(clearedCookies.length).toBeGreaterThanOrEqual(1);
-    expect(clearedCookies[0]?.options).toMatchObject({ maxAge: -1 });
+    expect(clearedCookies.length).toBeGreaterThanOrEqual(2);
+    // maxAge must NOT be present (Express 4 deprecation fix — clearCookie sets Expires automatically).
+    expect(clearedCookies[0]?.options).not.toHaveProperty("maxAge");
+    expect(clearedCookies[0]?.options).toMatchObject({ httpOnly: true, path: "/" });
   });
 });
 

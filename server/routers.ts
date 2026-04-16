@@ -67,14 +67,22 @@ export const appRouter = router({
     logout: publicProcedure.mutation(async ({ ctx }) => {
       const user = ctx.user;
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      // Older deployments may have issued SameSite=None; browsers need a matching clear or the session cookie can persist.
-      if (cookieOptions.sameSite !== "none") {
-        ctx.res.clearCookie(COOKIE_NAME, {
-          ...cookieOptions,
-          sameSite: "none",
-          maxAge: -1,
-        });
+      // Clear with the exact options used at login (domain + secure + sameSite=lax).
+      // Omit maxAge — Express 4 deprecated passing maxAge to clearCookie; it sets
+      // Expires=past automatically.
+      const { maxAge: _omit, ...clearOptions } = cookieOptions as typeof cookieOptions & { maxAge?: number };
+      ctx.res.clearCookie(COOKIE_NAME, clearOptions);
+      // Older deployments may have issued SameSite=None; clear that variant too.
+      if (clearOptions.sameSite !== "none") {
+        ctx.res.clearCookie(COOKIE_NAME, { ...clearOptions, sameSite: "none" });
+      }
+      // Domain-less fallback: if the cookie was set without a domain attribute
+      // (e.g. by an older version of the server or a different proxy hostname),
+      // clear it without the domain so the browser drops it regardless.
+      if (clearOptions.domain) {
+        const { domain: _d, ...noDomainOptions } = clearOptions;
+        ctx.res.clearCookie(COOKIE_NAME, noDomainOptions);
+        ctx.res.clearCookie(COOKIE_NAME, { ...noDomainOptions, sameSite: "none" });
       }
       if (user) {
         try {

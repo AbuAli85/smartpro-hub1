@@ -10,7 +10,9 @@ type CookieCall = {
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] } {
+function createAuthContext(
+  proto: "https" | "http" = "https"
+): { ctx: TrpcContext; clearedCookies: CookieCall[] } {
   const clearedCookies: CookieCall[] = [];
 
   const user: AuthenticatedUser = {
@@ -28,7 +30,7 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
   const ctx: TrpcContext = {
     user,
     req: {
-      protocol: "https",
+      protocol: proto,
       headers: {},
     } as TrpcContext["req"],
     res: {
@@ -49,22 +51,38 @@ describe("auth.logout", () => {
     const result = await caller.auth.logout();
 
     expect(result).toEqual({ success: true });
-    expect(clearedCookies).toHaveLength(2);
-    expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
-    expect(clearedCookies[0]?.options).toMatchObject({
-      maxAge: -1,
-      secure: true,
-      sameSite: "lax",
-      httpOnly: true,
-      path: "/",
-    });
-    expect(clearedCookies[1]?.name).toBe(COOKIE_NAME);
-    expect(clearedCookies[1]?.options).toMatchObject({
-      maxAge: -1,
-      secure: true,
-      sameSite: "none",
-      httpOnly: true,
-      path: "/",
-    });
+
+    // All cleared cookies must target COOKIE_NAME.
+    for (const c of clearedCookies) {
+      expect(c.name).toBe(COOKIE_NAME);
+    }
+
+    // maxAge must NOT be present (Express 4 deprecation fix).
+    for (const c of clearedCookies) {
+      expect(c.options).not.toHaveProperty("maxAge");
+    }
+
+    // There should be at least two clears: SameSite=Lax and SameSite=None.
+    const sameSiteValues = clearedCookies.map((c) => c.options.sameSite);
+    expect(sameSiteValues).toContain("lax");
+    expect(sameSiteValues).toContain("none");
+
+    // Every clear must be HttpOnly and have a Path.
+    for (const c of clearedCookies) {
+      expect(c.options).toMatchObject({ httpOnly: true, path: "/" });
+    }
+  });
+
+  it("returns success even when the user is not authenticated", async () => {
+    const { ctx, clearedCookies } = createAuthContext();
+    // Simulate unauthenticated context.
+    (ctx as { user: null }).user = null;
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.auth.logout();
+
+    expect(result).toEqual({ success: true });
+    // Cookie clearing should still happen regardless of auth state.
+    expect(clearedCookies.length).toBeGreaterThanOrEqual(2);
   });
 });

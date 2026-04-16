@@ -39,17 +39,27 @@ export function useAuth(options?: UseAuthOptions) {
         error instanceof TRPCClientError &&
         error.data?.code === "UNAUTHORIZED"
       ) {
-        return;
+        // Already logged out server-side — proceed to redirect.
+      } else {
+        throw error;
       }
-      throw error;
     } finally {
+      // Clear local state immediately.
       try {
         localStorage.removeItem("manus-runtime-user-info");
       } catch {
         /* ignore private mode / SSR */
       }
       utils.auth.me.setData(undefined, null);
-      await utils.auth.me.invalidate();
+      // Force a hard redirect to the login page.
+      // We do NOT call auth.me.invalidate() here because the session cookie
+      // may still be present in the browser (e.g. due to domain/SameSite
+      // attribute mismatch between the dev proxy and the cookie that was
+      // originally set). A hard redirect ensures the browser drops the stale
+      // React Query cache and the user lands on the login screen regardless.
+      if (typeof window !== "undefined") {
+        window.location.href = getLoginUrl();
+      }
     }
   }, [logoutMutation, utils]);
 

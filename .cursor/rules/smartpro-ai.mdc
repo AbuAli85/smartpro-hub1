@@ -1,14 +1,21 @@
 ---
-description: SmartPRO AI workflow — end-to-end discipline, tenant/RBAC, verification
+description: SmartPRO AI workflow — ordered skills, repo context, tenant/RBAC, verification
 alwaysApply: true
 ---
 
 # SmartPRO AI conventions
 
-Treat work as production, multi-tenant, end-to-end workflows. Full guidance lives under `docs/ai/` — start with `AI_OPERATING_SYSTEM.md` and `SMARTPRO_DOMAIN_GUARDRAILS.md`.
+Treat work as production, multi-tenant, end-to-end workflows. **Repo facts:** `docs/ai/REPO_CONTEXT.md`. **Principles:** `docs/ai/AI_OPERATING_SYSTEM.md`, `docs/ai/SMARTPRO_DOMAIN_GUARDRAILS.md`.
 
 **Default task prefix:** Treat this as a production end-to-end workflow task; do not jump tasks, do not add unnecessary features, do not patch symptoms only, and do not call it complete without verification evidence.
 
-**Non-negotiables:** Understand the flow before coding; server authority over client visibility; tenant isolation and RBAC on sensitive paths; minimal but complete changes; evidence before “done.”
+## Mandatory sequence (do not skip)
 
-Use `FEATURE_GATE_SKILL.md` before new scope, `END_TO_END_IMPLEMENTATION_SKILL.md` for substantive work, `QA_VERIFICATION_SKILL.md` before completion, and `BUG_TRIAGE_SKILL.md` for defects.
+1. **New feature / screen / workflow / table / major UI** → read `FEATURE_GATE_SKILL.md` first, then `END_TO_END_IMPLEMENTATION_SKILL.md`.
+2. **Bug / regression / “not working”** → read `BUG_TRIAGE_SKILL.md` first, then `END_TO_END_IMPLEMENTATION_SKILL.md` as needed.
+3. **After implementation** → `QA_VERIFICATION_SKILL.md` before claiming done.
+4. **Final output** → always use a structured report (problem, root cause, change, verification, residual risk) — see master prompts in `docs/ai/`. Never skip the reporting structure for substantive work.
+
+**Non-negotiables:** Inspect before editing; server authority over client visibility; tenant isolation and RBAC on sensitive paths; minimal but complete changes; evidence before “done.”
+
+**Reviews:** Use `CODE_REVIEW_SKILL.md` for PR/plan review; use tool-specific master prompts (`CURSOR_MASTER_PROMPT.md`, etc.) when helpful.

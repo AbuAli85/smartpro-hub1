@@ -1,5 +1,13 @@
 # Cursor Master Prompt
 
+**Before writing code, list:**
+
+1. Exact files likely involved  
+2. Source of truth for permissions  
+3. Source of truth for state/status  
+4. Whether DB or API changes are required  
+5. What tests must be updated  
+
 Review and work in this repository as a senior engineer on a production multi-tenant platform.
 
 I want end-to-end execution only.

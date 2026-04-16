@@ -10,9 +10,13 @@ import {
   resolvePromoterAssignmentForAttendance,
   type AssignmentCandidateForAttendance,
 } from "../shared/attendanceAssignmentResolution";
+import { classifyAttendanceMismatch } from "../shared/promoterAssignmentMismatchSignals";
 import { createAuditLog } from "./repositories/audit.repository";
 
 export type DbTx = MySql2Database<Record<string, never>>;
+
+/** Soft warning for API responses — does not block check-in. */
+export type PromoterLinkageHint = { code: string; message: string } | null;
 
 export async function loadAssignmentCandidatesForAttendance(
   db: DbTx,
@@ -54,7 +58,7 @@ export async function linkAttendanceRecordToPromoterAssignment(
     businessDateYmd: string;
     actorUserId: number;
   },
-): Promise<void> {
+): Promise<PromoterLinkageHint> {
   const candidates = await loadAssignmentCandidatesForAttendance(tx, {
     employeeId: opts.employeeId,
     firstPartyCompanyId: opts.companyId,
@@ -89,7 +93,7 @@ export async function linkAttendanceRecordToPromoterAssignment(
         siteId: opts.siteId,
       },
     });
-    return;
+    return null;
   }
 
   await createAuditLog({
@@ -106,4 +110,13 @@ export async function linkAttendanceRecordToPromoterAssignment(
       siteId: opts.siteId,
     },
   });
+
+  const { signal, reason } = classifyAttendanceMismatch({
+    businessDateYmd: opts.businessDateYmd,
+    attendanceSiteId: opts.siteId,
+    resolution,
+    linkedAssignment: null,
+  });
+  if (signal === "none") return null;
+  return { code: signal, message: reason };
 }

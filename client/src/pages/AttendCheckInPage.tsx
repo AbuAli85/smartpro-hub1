@@ -123,9 +123,13 @@ export default function AttendCheckInPage() {
   );
 
   const checkInMutation = trpc.attendance.checkIn.useMutation({
-    onSuccess: (record) => {
+    onSuccess: (payload) => {
+      const record = payload.record;
       setDone("checked_in");
       setDoneTime(new Date(record.checkIn));
+      if (payload.promoterLinkageHint) {
+        toast.message("Assignment linkage", { description: payload.promoterLinkageHint.message });
+      }
       refetchToday();
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.attendance.myManualCheckIns.invalidate();

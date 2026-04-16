@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeBillableUnits, resolvePromoterAssignmentCommercial } from "./promoterAssignmentCommercialResolution";
+import {
+  computeBillableUnits,
+  isMonthlyProrationSensitive,
+  resolvePromoterAssignmentCommercial,
+} from "./promoterAssignmentCommercialResolution";
 
 describe("promoterAssignmentCommercialResolution", () => {
   it("resolves billing rate with assignment override", () => {
@@ -37,5 +41,28 @@ describe("promoterAssignmentCommercialResolution", () => {
       attendanceHours: null,
     });
     expect(u.units).toBe(1);
+  });
+
+  it("per_month prorated mode uses overlap vs period days", () => {
+    const u = computeBillableUnits({
+      billingModel: "per_month",
+      overlapDays: 15,
+      attendanceHours: null,
+      monthlyMode: "prorated_by_calendar_days",
+      periodStartYmd: "2026-04-01",
+      periodEndYmd: "2026-04-30",
+    });
+    expect(u.units).toBeCloseTo(0.5, 3);
+  });
+
+  it("flags proration sensitivity under flat monthly mode when overlap is partial", () => {
+    expect(
+      isMonthlyProrationSensitive(
+        "flat_if_any_overlap",
+        { overlapStart: "2026-04-10", overlapEnd: "2026-04-30" },
+        "2026-04-01",
+        "2026-04-30",
+      ),
+    ).toBe(true);
   });
 });

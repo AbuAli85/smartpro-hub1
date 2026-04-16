@@ -1,5 +1,6 @@
 /**
  * Phase 2: execution summary, payroll staging, billing staging (assignment-centered).
+ * Phase 2.5: mismatch visibility, readiness, billing monthly mode.
  */
 
 import { z } from "zod";
@@ -17,7 +18,11 @@ import {
   getPromoterExecutionSummary,
   summarizeStaging,
 } from "../promoterAssignmentOps.service";
+import { getMismatchDetailRows, getMismatchSummary } from "../promoterAssignmentMismatch.service";
 import { createAuditLog } from "../repositories/audit.repository";
+import { MISMATCH_SIGNALS } from "../../shared/promoterAssignmentMismatchSignals";
+
+const MISMATCH_CATEGORY_INPUT = ["all", ...MISMATCH_SIGNALS] as const;
 
 const ASSIGNMENT_ROLES = ["company_admin", "hr_admin"] as const;
 
@@ -42,6 +47,25 @@ const periodInput = optionalActiveWorkspace.merge(
   z.object({
     periodStartYmd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     periodEndYmd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    monthlyBillingMode: z.enum(["flat_if_any_overlap", "prorated_by_calendar_days"]).optional(),
+  }),
+);
+
+const mismatchPeriodInput = optionalActiveWorkspace.merge(
+  z.object({
+    dateFromYmd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    dateToYmd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  }),
+);
+
+const mismatchDetailInput = mismatchPeriodInput.merge(
+  z.object({
+    category: z.enum(MISMATCH_CATEGORY_INPUT).optional(),
+    brandId: z.number().int().positive().optional(),
+    siteId: z.number().int().positive().optional(),
+    employeeId: z.number().int().positive().optional(),
+    linkedOnly: z.boolean().optional(),
+    limit: z.number().int().min(1).max(2000).optional(),
   }),
 );
 
@@ -58,10 +82,45 @@ export const promoterAssignmentOpsRouter = router({
         attendanceUnresolvedToday: 0,
         suspendedAttemptedAttendance: 0,
         futureAssignmentAttendanceAttempts: 0,
+        mismatchIssueCountToday: 0,
       };
     }
     const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     return getPromoterExecutionSummary(db, { activeCompanyId: activeId, isPlatformAdmin: isPlatform });
+  }),
+
+  mismatchSummary: protectedProcedure.input(mismatchPeriodInput).query(async ({ ctx, input }) => {
+    const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+    await requireCanViewPromoterOps(ctx.user, activeId);
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+    return getMismatchSummary(db, {
+      activeCompanyId: activeId,
+      isPlatformAdmin: isPlatform,
+      dateFromYmd: input.dateFromYmd,
+      dateToYmd: input.dateToYmd,
+    });
+  }),
+
+  mismatchDetail: protectedProcedure.input(mismatchDetailInput).query(async ({ ctx, input }) => {
+    const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+    await requireCanViewPromoterOps(ctx.user, activeId);
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+    return getMismatchDetailRows(db, {
+      activeCompanyId: activeId,
+      isPlatformAdmin: isPlatform,
+      dateFromYmd: input.dateFromYmd,
+      dateToYmd: input.dateToYmd,
+      category: input.category ?? "all",
+      brandId: input.brandId,
+      siteId: input.siteId,
+      employeeId: input.employeeId,
+      linkedOnly: input.linkedOnly,
+      limit: input.limit,
+    });
   }),
 
   payrollStaging: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
@@ -87,6 +146,11 @@ export const promoterAssignmentOpsRouter = router({
         periodStartYmd: input.periodStartYmd,
         periodEndYmd: input.periodEndYmd,
         rowCount: rows.length,
+        ready: summary.ready,
+        warning: summary.warning,
+        blocked: summary.blocked,
+        topBlockers: summary.topBlockers,
+        topWarnings: summary.topWarnings,
       },
     });
     return { rows, summary };
@@ -103,6 +167,7 @@ export const promoterAssignmentOpsRouter = router({
       isPlatformAdmin: isPlatform,
       periodStartYmd: input.periodStartYmd,
       periodEndYmd: input.periodEndYmd,
+      monthlyBillingMode: input.monthlyBillingMode,
     });
     const summary = summarizeStaging(rows, "billableAmount");
     await createAuditLog({
@@ -115,7 +180,13 @@ export const promoterAssignmentOpsRouter = router({
         periodStartYmd: input.periodStartYmd,
         periodEndYmd: input.periodEndYmd,
         rowCount: rows.length,
+        monthlyBillingMode: input.monthlyBillingMode ?? "flat_if_any_overlap",
+        ready: summary.ready,
+        warning: summary.warning,
+        blocked: summary.blocked,
         totalBillableAmount: summary.totalBillableAmount,
+        topBlockers: summary.topBlockers,
+        topWarnings: summary.topWarnings,
       },
     });
     return { rows, summary };

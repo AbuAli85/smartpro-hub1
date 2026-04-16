@@ -20,8 +20,14 @@ import {
 } from "../shared/promoterAssignmentPeriodHelpers";
 import {
   computeBillableUnits,
+  isMonthlyProrationSensitive,
   resolvePromoterAssignmentCommercial,
+  type MonthlyBillingMode,
 } from "../shared/promoterAssignmentCommercialResolution";
+import { validatePromoterAssignmentCommercial } from "../shared/promoterAssignmentCommercialValidation";
+import { evaluateStagingReadiness, type StagingReadiness } from "../shared/promoterAssignmentStagingReadiness";
+import { normalizeStagingKey } from "../shared/promoterAssignmentStagingTaxonomy";
+import { getMismatchSummary } from "./promoterAssignmentMismatch.service";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 
 export type DbLike = MySql2Database<Record<string, never>>;
@@ -95,6 +101,13 @@ export async function getPromoterExecutionSummary(
     )
     .where(and(attVisible, dayClause));
 
+  const mm = await getMismatchSummary(db, {
+    activeCompanyId: params.activeCompanyId,
+    isPlatformAdmin: params.isPlatformAdmin,
+    dateFromYmd: today,
+    dateToYmd: today,
+  });
+
   return {
     referenceDate: today,
     operationalAssignmentsToday: Number(operationalToday),
@@ -102,6 +115,7 @@ export async function getPromoterExecutionSummary(
     attendanceUnresolvedToday: Number(unresolvedToday),
     suspendedAttemptedAttendance: suspendedAttempted,
     futureAssignmentAttendanceAttempts: Number(futureRow?.c ?? 0),
+    mismatchIssueCountToday: mm.issuesCount,
   };
 }
 
@@ -133,7 +147,8 @@ export async function getPayrollStagingRows(
 ): Promise<
   (StagingRowBase & {
     payableOverlapDays: number;
-    readiness: "ready" | "blocked";
+    readiness: StagingReadiness;
+    warnings: string[];
     blockers: string[];
     payrollNote: string | null;
   })[]
@@ -183,6 +198,7 @@ export async function getPayrollStagingRows(
     );
 
     const blockers: string[] = [];
+    const warnings: string[] = [];
     if (!overlap) blockers.push("no_effective_overlap_in_period");
     if (r.assignmentStatus === "suspended") blockers.push("suspended_assignment");
     if (r.assignmentStatus === "draft") blockers.push("draft_assignment");
@@ -198,7 +214,7 @@ export async function getPayrollStagingRows(
       },
       { intent: "payroll" },
     );
-    blockers.push(...comm.blockers);
+    blockers.push(...comm.blockers.map(normalizeStagingKey));
 
     let attendanceDaysInPeriod = 0;
     let attendanceHoursInPeriod = 0;
@@ -223,7 +239,11 @@ export async function getPayrollStagingRows(
     }
 
     const overlapDays = overlap ? countOverlapCalendarDays(overlap) : 0;
-    const readiness = blockers.length === 0 ? "ready" : "blocked";
+    if (overlapDays > 0 && attendanceDaysInPeriod === 0) {
+      warnings.push("low_attendance_vs_overlap");
+    }
+
+    const readiness = evaluateStagingReadiness({ blockers, warnings });
 
     out.push({
       assignmentId: r.id,
@@ -242,6 +262,7 @@ export async function getPayrollStagingRows(
       attendanceHoursInPeriod,
       payableOverlapDays: overlapDays,
       readiness,
+      warnings: [...new Set(warnings)],
       blockers: [...new Set(blockers)],
       payrollNote: comm.payrollBasisNote,
     });
@@ -257,6 +278,7 @@ export async function getBillingStagingRows(
     isPlatformAdmin: boolean;
     periodStartYmd: string;
     periodEndYmd: string;
+    monthlyBillingMode?: MonthlyBillingMode;
   },
 ): Promise<
   (StagingRowBase & {
@@ -265,8 +287,12 @@ export async function getBillingStagingRows(
     currencyCode: string;
     billableUnits: number | null;
     billableAmount: number | null;
-    readiness: "ready" | "blocked";
+    readiness: StagingReadiness;
+    warnings: string[];
     blockers: string[];
+    monthlyBillingMode: MonthlyBillingMode;
+    monthlyProrationSensitive: boolean;
+    monthlyEstimateOnly: boolean;
   })[]
 > {
   const vis = params.isPlatformAdmin ? undefined : visibilityOr(params.activeCompanyId);
@@ -296,6 +322,7 @@ export async function getBillingStagingRows(
     .where(vis ? vis : sql`1=1`);
 
   const out: Awaited<ReturnType<typeof getBillingStagingRows>> = [];
+  const monthlyMode: MonthlyBillingMode = params.monthlyBillingMode ?? "flat_if_any_overlap";
 
   for (const r of rows) {
     const a = {
@@ -334,7 +361,19 @@ export async function getBillingStagingRows(
       employeeSalary: r.salary != null ? String(r.salary) : null,
     });
 
-    const blockers = [...comm.blockers].filter((b) => b !== "payroll_basis_not_configured");
+    const val = validatePromoterAssignmentCommercial({
+      assignmentStatus: r.assignmentStatus,
+      billingModel: r.billingModel,
+      billingRate: r.billingRate != null ? String(r.billingRate) : null,
+      currencyCode: r.currencyCode,
+      rateSource: r.rateSource,
+      expectBilling: r.assignmentStatus !== "draft",
+    });
+
+    const blockers = [...comm.blockers.map(normalizeStagingKey), ...val.blockers].filter(
+      (b) => b !== "missing_payroll_basis",
+    );
+    const warnings = [...val.warnings];
     if (!overlap) blockers.push("no_billable_overlap");
     if (r.assignmentStatus === "draft") blockers.push("draft_assignment");
 
@@ -342,15 +381,27 @@ export async function getBillingStagingRows(
       billingModel: r.billingModel,
       overlapDays,
       attendanceHours: r.billingModel === "per_hour" ? attendanceHours : null,
+      periodStartYmd: params.periodStartYmd,
+      periodEndYmd: params.periodEndYmd,
+      monthlyMode,
     });
     if (units.units == null) blockers.push("billable_units_unresolved");
+
+    const prorationSensitive =
+      r.billingModel === "per_month" && overlap
+        ? isMonthlyProrationSensitive(monthlyMode, overlap, params.periodStartYmd, params.periodEndYmd)
+        : false;
+    if (prorationSensitive) warnings.push("monthly_proration_sensitive");
+    if (r.billingModel === "per_month" && monthlyMode === "flat_if_any_overlap" && overlap) {
+      warnings.push("monthly_estimate_only");
+    }
 
     const rateNum = comm.billingRate != null ? Number(comm.billingRate) : NaN;
     const billableAmount =
       units.units != null && Number.isFinite(rateNum) ? Math.round(units.units * rateNum * 1000) / 1000 : null;
     if (billableAmount == null) blockers.push("billable_amount_unresolved");
 
-    const readiness = blockers.length === 0 ? "ready" : "blocked";
+    const readiness = evaluateStagingReadiness({ blockers, warnings });
 
     const temporalState = getAssignmentTemporalState(
       {
@@ -382,26 +433,37 @@ export async function getBillingStagingRows(
       billableUnits: units.units,
       billableAmount,
       readiness,
+      warnings: [...new Set(warnings)],
       blockers: [...new Set(blockers)],
+      monthlyBillingMode: monthlyMode,
+      monthlyProrationSensitive: prorationSensitive,
+      monthlyEstimateOnly: monthlyMode === "flat_if_any_overlap" && r.billingModel === "per_month",
     });
   }
 
   return out;
 }
 
-export function summarizeStaging<T extends { readiness: "ready" | "blocked"; blockers: string[] }>(
-  rows: T[],
-  amountField?: keyof T,
-) {
+export function summarizeStaging<
+  T extends { readiness: StagingReadiness; blockers: string[]; warnings?: string[] },
+>(rows: T[], amountField?: keyof T) {
   let ready = 0;
+  let warning = 0;
   let blocked = 0;
+  let notApplicable = 0;
   const blockerCounts = new Map<string, number>();
+  const warningCounts = new Map<string, number>();
   let totalAmount = 0;
   for (const r of rows) {
     if (r.readiness === "ready") ready++;
+    else if (r.readiness === "warning") warning++;
+    else if (r.readiness === "not_applicable") notApplicable++;
     else blocked++;
     for (const b of r.blockers) {
       blockerCounts.set(b, (blockerCounts.get(b) ?? 0) + 1);
+    }
+    for (const w of r.warnings ?? []) {
+      warningCounts.set(w, (warningCounts.get(w) ?? 0) + 1);
     }
     if (amountField && typeof r[amountField] === "number") {
       totalAmount += r[amountField] as number;
@@ -411,5 +473,18 @@ export function summarizeStaging<T extends { readiness: "ready" | "blocked"; blo
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
     .map(([reason, count]) => ({ reason, count }));
-  return { totalRows: rows.length, ready, blocked, topBlockers, totalBillableAmount: totalAmount };
+  const topWarnings = [...warningCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([reason, count]) => ({ reason, count }));
+  return {
+    totalRows: rows.length,
+    ready,
+    warning,
+    blocked,
+    notApplicable,
+    topBlockers,
+    topWarnings,
+    totalBillableAmount: totalAmount,
+  };
 }

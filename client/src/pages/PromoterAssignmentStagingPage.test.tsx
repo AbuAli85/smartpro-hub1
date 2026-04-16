@@ -23,7 +23,30 @@ vi.mock("@/lib/trpc", () => ({
             operationalAssignmentsToday: 2,
             attendanceResolvedToday: 1,
             attendanceUnresolvedToday: 0,
+            mismatchIssueCountToday: 1,
+            futureAssignmentAttendanceAttempts: 0,
+            suspendedAttemptedAttendance: 0,
           },
+          isLoading: false,
+        }),
+      },
+      mismatchSummary: {
+        useQuery: () => ({
+          data: {
+            totalAttendanceInRange: 40,
+            issuesCount: 3,
+            ambiguousResolutionCases: 0,
+            bySignal: { unlinked_attendance: 2 },
+            topBrands: [],
+            topSites: [],
+            topEmployees: [],
+          },
+          isLoading: false,
+        }),
+      },
+      mismatchDetail: {
+        useQuery: () => ({
+          data: [],
           isLoading: false,
         }),
       },
@@ -39,10 +62,20 @@ vi.mock("@/lib/trpc", () => ({
                 overlapDays: 5,
                 attendanceDaysInPeriod: 3,
                 readiness: "blocked",
-                blockers: ["payroll_basis_not_configured"],
+                warnings: [],
+                blockers: ["missing_payroll_basis"],
               },
             ],
-            summary: { totalRows: 1, ready: 0, blocked: 1, topBlockers: [], totalBillableAmount: 0 },
+            summary: {
+              totalRows: 1,
+              ready: 0,
+              warning: 0,
+              blocked: 1,
+              notApplicable: 0,
+              topBlockers: [{ reason: "missing_payroll_basis", count: 1 }],
+              topWarnings: [],
+              totalBillableAmount: 0,
+            },
           },
           isLoading: false,
         }),
@@ -51,7 +84,16 @@ vi.mock("@/lib/trpc", () => ({
         useQuery: () => ({
           data: {
             rows: [],
-            summary: { totalRows: 0, ready: 0, blocked: 0, topBlockers: [], totalBillableAmount: 0 },
+            summary: {
+              totalRows: 0,
+              ready: 0,
+              warning: 0,
+              blocked: 0,
+              notApplicable: 0,
+              topBlockers: [],
+              topWarnings: [],
+              totalBillableAmount: 0,
+            },
           },
           isLoading: false,
         }),
@@ -61,10 +103,11 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 describe("PromoterAssignmentStagingPage", () => {
-  it("renders execution summary and payroll blocker text", () => {
+  it("renders execution trust strip and payroll blocker text", () => {
     render(<PromoterAssignmentStagingPage />);
     expect(screen.getByText(/Promoter execution & staging/i)).toBeInTheDocument();
     expect(screen.getByText("Jane")).toBeInTheDocument();
-    expect(screen.getByText(/payroll_basis_not_configured/i)).toBeInTheDocument();
+    expect(screen.getByText(/missing_payroll_basis/i)).toBeInTheDocument();
+    expect(screen.getByText(/Execution trust strip/i)).toBeInTheDocument();
   });
 });

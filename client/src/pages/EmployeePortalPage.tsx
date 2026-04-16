@@ -563,8 +563,11 @@ function AttendanceTodayCard({
   });
   // Direct check-in / check-out mutations
   const doCheckIn = trpc.attendance.checkIn.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("Checked in", { description: "Time recorded for today." });
+      if (data.promoterLinkageHint) {
+        toast.message("Assignment linkage", { description: data.promoterLinkageHint.message });
+      }
       refetchToday();
       utils.employeePortal.getMyAttendanceRecords.invalidate();
       utils.employeePortal.getMyAttendanceSummary.invalidate();

@@ -62,7 +62,10 @@ import {
   OPERATIONAL_TRIAGE_AUDIT_ACTIONS,
   resolveOperationalAuditLensFilter,
 } from "../attendanceAuditOperational";
-import { linkAttendanceRecordToPromoterAssignment } from "../promoterAssignmentAttendanceLink";
+import {
+  linkAttendanceRecordToPromoterAssignment,
+  type PromoterLinkageHint,
+} from "../promoterAssignmentAttendanceLink";
 
 async function requireDb() {
   const db = await getDb();
@@ -637,6 +640,7 @@ export const attendanceRouter = router({
 
       const checkInTime = new Date();
       let record: (typeof attendanceRecords.$inferSelect) | undefined;
+      let promoterLinkageHint: PromoterLinkageHint = null;
       await db.transaction(async (tx) => {
         const [result] = await tx.insert(attendanceRecords).values({
           companyId: site.companyId,
@@ -709,7 +713,7 @@ export const attendanceRouter = router({
         });
 
         try {
-          await linkAttendanceRecordToPromoterAssignment(tx, {
+          promoterLinkageHint = await linkAttendanceRecordToPromoterAssignment(tx, {
             attendanceRecordId: recordId,
             employeeId: emp.id,
             companyId: site.companyId,
@@ -749,7 +753,7 @@ export const attendanceRouter = router({
         /* non-fatal */
       }
 
-      return record!;
+      return { record: record!, promoterLinkageHint };
     }),
 
   // ─── Admin: manually trigger the absent-marking job ──────────────────────────
@@ -1494,6 +1498,7 @@ export const attendanceRouter = router({
         muscatCalendarYmdFromUtcInstant(req.requestedAt);
 
       let recordIdOut = 0;
+      let promoterLinkageHint: PromoterLinkageHint = null;
       await db.transaction(async (tx) => {
         const [record] = await tx
           .insert(attendanceRecords)
@@ -1582,7 +1587,7 @@ export const attendanceRouter = router({
         });
 
         try {
-          await linkAttendanceRecordToPromoterAssignment(tx, {
+          promoterLinkageHint = await linkAttendanceRecordToPromoterAssignment(tx, {
             attendanceRecordId: record.id,
             employeeId: empRow.id,
             companyId: membership.company.id,
@@ -1595,7 +1600,7 @@ export const attendanceRouter = router({
         }
       });
 
-      return { success: true, attendanceRecordId: recordIdOut };
+      return { success: true, attendanceRecordId: recordIdOut, promoterLinkageHint };
     }),
 
   /**
@@ -1890,6 +1895,7 @@ export const attendanceRouter = router({
         attendanceRecord: beforeArRow,
       });
 
+      let correctionLinkageHint: PromoterLinkageHint = null;
       await db.transaction(async (tx) => {
         let attendanceRecordIdForAudit: number | undefined = req.attendanceRecordId ?? undefined;
 
@@ -2003,7 +2009,7 @@ export const attendanceRouter = router({
 
         if (attendanceRecordIdForAudit != null) {
           try {
-            await linkAttendanceRecordToPromoterAssignment(tx, {
+            correctionLinkageHint = await linkAttendanceRecordToPromoterAssignment(tx, {
               attendanceRecordId: attendanceRecordIdForAudit,
               employeeId: req.employeeId,
               companyId: membership.company.id,
@@ -2098,7 +2104,7 @@ export const attendanceRouter = router({
         });
       });
 
-      return { success: true };
+      return { success: true, promoterLinkageHint: correctionLinkageHint };
     }),
 
   // ─── Admin: Reject a correction request ────────────────────────────────────────────

@@ -73,7 +73,7 @@ export function resolvePromoterAssignmentCommercial(
     payrollBasisNote = "employee.salary (placeholder — not final payroll engine)";
   } else {
     payrollBasisNote = "employee.salary not available — payroll cost not resolved";
-    blockers.push("payroll_basis_not_configured");
+    blockers.push("missing_payroll_basis");
   }
 
   return {
@@ -88,6 +88,9 @@ export function resolvePromoterAssignmentCommercial(
   };
 }
 
+/** Phase 2.5: monthly client billing recognition mode. */
+export type MonthlyBillingMode = "flat_if_any_overlap" | "prorated_by_calendar_days";
+
 export type BillableUnitInput = {
   billingModel: BillingModel;
   /** Effective overlap days in period (inclusive). */
@@ -96,7 +99,37 @@ export type BillableUnitInput = {
   attendanceHours: number | null;
   /** When set, used for fixed_term / per_month heuristics. */
   periodMonthsApprox?: number;
+  /** Period bounds for monthly proration (YYYY-MM-DD). */
+  periodStartYmd?: string;
+  periodEndYmd?: string;
+  /** Defaults to flat_if_any_overlap. */
+  monthlyMode?: MonthlyBillingMode;
 };
+
+/**
+ * Calendar days inclusive between two YYYY-MM-DD strings.
+ */
+export function countPeriodCalendarDays(periodStartYmd: string, periodEndYmd: string): number {
+  const s = new Date(`${periodStartYmd.slice(0, 10)}T12:00:00Z`).getTime();
+  const e = new Date(`${periodEndYmd.slice(0, 10)}T12:00:00Z`).getTime();
+  return Math.floor((e - s) / 86400000) + 1;
+}
+
+/**
+ * Under `flat_if_any_overlap`, monthly amount is estimate-only if overlap does not cover full billing period.
+ */
+export function isMonthlyProrationSensitive(
+  mode: MonthlyBillingMode,
+  overlap: { overlapStart: string; overlapEnd: string } | null,
+  periodStartYmd: string,
+  periodEndYmd: string,
+): boolean {
+  if (!overlap) return false;
+  if (mode === "prorated_by_calendar_days") return false;
+  const ps = periodStartYmd.slice(0, 10);
+  const pe = periodEndYmd.slice(0, 10);
+  return overlap.overlapStart > ps || overlap.overlapEnd < pe;
+}
 
 /**
  * Computes billable units per model. Assumptions are documented in comments.
@@ -106,8 +139,24 @@ export function computeBillableUnits(input: BillableUnitInput): { units: number 
   if (m == null) return { units: null, note: "no_billing_model" };
 
   if (m === "per_month") {
-    /** Phase 2: one billable unit if any overlap in the billing period. */
-    return { units: input.overlapDays > 0 ? 1 : 0, note: "per_month: 1 if any effective overlap in period" };
+    const mode = input.monthlyMode ?? "flat_if_any_overlap";
+    if (input.overlapDays <= 0) return { units: 0, note: "per_month: no overlap" };
+    if (mode === "flat_if_any_overlap") {
+      return { units: 1, note: "per_month flat_if_any_overlap: 1 unit if any overlap" };
+    }
+    /** Prorate: overlap days / period days (fractional unit for staging — not rounded money). */
+    const pStart = input.periodStartYmd?.slice(0, 10);
+    const pEnd = input.periodEndYmd?.slice(0, 10);
+    if (!pStart || !pEnd) {
+      return { units: 1, note: "per_month prorated: fallback 1 (period bounds missing)" };
+    }
+    const periodDays = countPeriodCalendarDays(pStart, pEnd);
+    if (periodDays <= 0) return { units: null, note: "per_month: invalid period" };
+    const frac = input.overlapDays / periodDays;
+    return {
+      units: Math.round(frac * 10000) / 10000,
+      note: "per_month prorated_by_calendar_days: overlapDays/periodDays",
+    };
   }
   if (m === "per_day") {
     /** Billable days = effective overlap days (assignment truth); attendance reconciliation is separate. */

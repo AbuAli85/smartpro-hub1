@@ -24,6 +24,7 @@ import {
   buildWpsDatPayload,
 } from "../lib/payrollExecution";
 import { executeMonthlyPayroll, monthYmdRange } from "../lib/payrollExecuteMonthly";
+import { estimateGratuityArticle39, omr as omrBilling } from "../lib/billingEngine";
 import {
   recordPayrollRunApprovedAudit,
   recordPayrollRunMarkedPaidAudit,
@@ -776,6 +777,38 @@ export const payrollRouter = router({
       const pendingApproval = runs.filter(r => r.status === "draft" || r.status === "processing").length;
       const lastRun = runs[0] ?? null;
       return { totalPaidYTD, pendingApproval, lastRun, recentRuns: runs.slice(0, 6) };
+    }),
+
+  /** End-of-service gratuity estimate — Oman Labour Law Art. 39 (planning; not legal advice). */
+  getGratuityEstimate: protectedProcedure
+    .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const [emp] = await db
+        .select()
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      const [cfg] = await db
+        .select()
+        .from(employeeSalaryConfigs)
+        .where(and(eq(employeeSalaryConfigs.employeeId, input.employeeId), eq(employeeSalaryConfigs.companyId, m.companyId)))
+        .orderBy(desc(employeeSalaryConfigs.effectiveFrom))
+        .limit(1);
+      const basic = cfg ? Number(cfg.basicSalary) : Number(emp.salary ?? 0);
+      const hire = emp.hireDate ? new Date(emp.hireDate) : null;
+      const years = hire ? Math.max(0, (Date.now() - hire.getTime()) / (365.25 * 24 * 3600000)) : 0;
+      const est = estimateGratuityArticle39({ basicSalaryOmr: basic, yearsOfService: years });
+      return {
+        employeeId: emp.id,
+        basicSalaryOmr: basic,
+        yearsOfService: omrBilling(years),
+        ...est,
+        disclaimer: "Planning estimate only — not legal advice.",
+      };
     }),
 
   // ─── SALARY CONFIG ──────────────────────────────────────────────────────────

@@ -1964,6 +1964,73 @@ export const payrollLineItems = mysqlTable(
 export type PayrollLineItem = typeof payrollLineItems.$inferSelect;
 export type InsertPayrollLineItem = typeof payrollLineItems.$inferInsert;
 
+// ─── CLIENT SERVICE INVOICING (tenant → external client) ─────────────────────
+export const clientServiceInvoices = mysqlTable(
+  "client_service_invoices",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    clientKey: varchar("client_key", { length: 255 }).notNull(),
+    clientDisplayName: varchar("client_display_name", { length: 255 }).notNull(),
+    invoiceNumber: varchar("invoice_number", { length: 64 }).notNull().unique(),
+    periodYear: int("period_year").notNull(),
+    periodMonth: int("period_month").notNull(),
+    issueDate: date("issue_date", { mode: "string" }).notNull(),
+    dueDate: date("due_date", { mode: "string" }).notNull(),
+    subtotalOmr: decimal("subtotal_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    vatOmr: decimal("vat_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    totalOmr: decimal("total_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    amountPaidOmr: decimal("amount_paid_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    balanceOmr: decimal("balance_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    status: mysqlEnum("status", ["draft", "sent", "partial", "paid", "overdue", "void"])
+      .notNull()
+      .default("draft"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_client_invoice_period").on(t.companyId, t.clientKey, t.periodYear, t.periodMonth),
+    index("idx_csi_company_status").on(t.companyId, t.status),
+    index("idx_csi_company_due").on(t.companyId, t.dueDate),
+  ]
+);
+export type ClientServiceInvoice = typeof clientServiceInvoices.$inferSelect;
+export type InsertClientServiceInvoice = typeof clientServiceInvoices.$inferInsert;
+
+export const clientInvoiceLineItems = mysqlTable(
+  "client_invoice_line_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    invoiceId: int("invoice_id").notNull(),
+    attendanceSiteId: int("attendance_site_id"),
+    description: varchar("description", { length: 512 }).notNull(),
+    quantity: decimal("quantity", { precision: 12, scale: 3 }).notNull(),
+    unitRateOmr: decimal("unit_rate_omr", { precision: 14, scale: 3 }).notNull(),
+    lineTotalOmr: decimal("line_total_omr", { precision: 14, scale: 3 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_cili_invoice").on(t.invoiceId)]
+);
+export type ClientInvoiceLineItem = typeof clientInvoiceLineItems.$inferSelect;
+export type InsertClientInvoiceLineItem = typeof clientInvoiceLineItems.$inferInsert;
+
+export const invoicePaymentRecords = mysqlTable(
+  "invoice_payment_records",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    invoiceId: int("invoice_id").notNull(),
+    amountOmr: decimal("amount_omr", { precision: 14, scale: 3 }).notNull(),
+    paidAt: timestamp("paid_at").notNull(),
+    paymentMethod: mysqlEnum("payment_method", ["bank", "cash", "card", "other"]).notNull().default("bank"),
+    reference: varchar("reference", { length: 255 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_ipr_invoice").on(t.invoiceId)]
+);
+export type InvoicePaymentRecord = typeof invoicePaymentRecords.$inferSelect;
+export type InsertInvoicePaymentRecord = typeof invoicePaymentRecords.$inferInsert;
+
 // ─── RECRUITMENT: INTERVIEW SCHEDULES ─────────────────────────────────────────
 export const interviewSchedules = mysqlTable(
   "interview_schedules",

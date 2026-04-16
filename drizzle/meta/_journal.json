@@ -211,6 +211,13 @@
       "when": 1776118139395,
       "tag": "0054_payroll_execution_wps",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1776118139396,
+      "tag": "0055_client_invoicing_payments",
+      "breakpoints": true
     }
   ]
 }

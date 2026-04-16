@@ -304,7 +304,20 @@ function InvoiceListTab({ companyId, t, rtl }: { companyId?: number; t: (k: stri
   );
 
   const invoices: Invoice[] = useMemo(() => {
-    const raw = (data as Invoice[] | undefined) ?? [];
+    const rows = data?.invoices;
+    const raw: Invoice[] = Array.isArray(rows)
+      ? rows.map((row) => ({
+          id: row.id,
+          invoiceNumber: row.invoiceNumber,
+          clientName: row.clientDisplayName ?? null,
+          issueDate: row.issueDate,
+          dueDate: row.dueDate,
+          totalOmr: String(row.totalOmr),
+          paidOmr: String(row.amountPaidOmr),
+          balanceOmr: String(row.balanceOmr),
+          status: row.status as InvoiceStatus,
+        }))
+      : [];
     if (!search.trim()) return raw;
     const q = search.toLowerCase();
     return raw.filter(

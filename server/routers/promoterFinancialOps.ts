@@ -15,14 +15,17 @@ import {
   createPromoterInvoicesFromStaging,
   createPromoterPayrollRunFromStaging,
   exportPromoterPayrollRunCsv,
+  getPromoterInvoiceDetail,
   getPromoterPayrollRunDetail,
   getProfitabilitySummary,
   issuePromoterInvoice,
   listPromoterInvoices,
   listPromoterPayrollRuns,
+  markInvoicePaid,
   updatePromoterPayrollRunStatus,
 } from "../promoterFinancialExecution.service";
 const FINANCE_ROLES = ["company_admin", "hr_admin", "finance_admin"] as const;
+const FINANCE_CONTROL_ROLES = ["company_admin", "finance_admin"] as const;
 
 async function requirePromoterFinance(
   user: { id: number; role?: string | null; platformRole?: string | null },
@@ -37,6 +40,24 @@ async function requirePromoterFinance(
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Only company admin, HR admin, or finance admin can manage promoter financial execution.",
+    });
+  }
+}
+
+/** Approve, export, mark paid, issue invoice — company admin or finance admin (not HR-only). */
+async function requirePromoterFinanceControl(
+  user: { id: number; role?: string | null; platformRole?: string | null },
+  companyId: number,
+): Promise<void> {
+  const m = await requireWorkspaceMembership(user as User, companyId);
+  requireNotAuditor(m.role);
+  if (
+    !canAccessGlobalAdminProcedures(user) &&
+    !(FINANCE_CONTROL_ROLES as readonly string[]).includes(m.role)
+  ) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Only company administrators and finance administrators can approve, export, or finalize promoter financial records.",
     });
   }
 }
@@ -88,9 +109,10 @@ export const promoterFinancialOpsRouter = router({
         periodStartYmd: input.periodStartYmd,
         periodEndYmd: input.periodEndYmd,
         createdByUserId: ctx.user.id,
-        warningAck: input.acceptedWarningKeys
-          ? { acceptedWarningKeys: input.acceptedWarningKeys ?? [], reviewerNote: input.reviewerNote }
-          : undefined,
+        warningAck:
+          input.acceptedWarningKeys != null || input.reviewerNote
+            ? { acceptedWarningKeys: input.acceptedWarningKeys ?? [], reviewerNote: input.reviewerNote }
+            : undefined,
       });
       if (!result.run) {
         throw new TRPCError({
@@ -121,9 +143,10 @@ export const promoterFinancialOpsRouter = router({
     .input(optionalActiveWorkspace.merge(z.object({ runId: z.number().int().positive() })))
     .mutation(async ({ ctx, input }) => {
       const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      await requirePromoterFinance(ctx.user, activeId);
+      await requirePromoterFinanceControl(ctx.user, activeId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      try {
       await updatePromoterPayrollRunStatus(db, {
         companyId: activeId,
         runId: input.runId,
@@ -131,6 +154,10 @@ export const promoterFinancialOpsRouter = router({
         userId: ctx.user.id,
         extra: { approvedByUserId: ctx.user.id, approvedAt: new Date() },
       });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
       return { ok: true };
     }),
 
@@ -138,31 +165,41 @@ export const promoterFinancialOpsRouter = router({
     .input(optionalActiveWorkspace.merge(z.object({ runId: z.number().int().positive() })))
     .mutation(async ({ ctx, input }) => {
       const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      await requirePromoterFinance(ctx.user, activeId);
+      await requirePromoterFinanceControl(ctx.user, activeId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      return exportPromoterPayrollRunCsv(db, {
+      try {
+      return await exportPromoterPayrollRunCsv(db, {
         companyId: activeId,
         runId: input.runId,
         userId: ctx.user.id,
       });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
     }),
 
   markPayrollRunPaid: protectedProcedure
     .input(optionalActiveWorkspace.merge(z.object({ runId: z.number().int().positive() })))
     .mutation(async ({ ctx, input }) => {
       const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      await requirePromoterFinance(ctx.user, activeId);
+      await requirePromoterFinanceControl(ctx.user, activeId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      await updatePromoterPayrollRunStatus(db, {
+      try {
+      const r = await updatePromoterPayrollRunStatus(db, {
         companyId: activeId,
         runId: input.runId,
         status: "paid",
         userId: ctx.user.id,
         extra: { paidAt: new Date(), paidByUserId: ctx.user.id },
       });
-      return { ok: true };
+      return { ok: true, skipped: r.skipped };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
     }),
 
   listInvoices: protectedProcedure.input(optionalActiveWorkspace).query(async ({ ctx, input }) => {
@@ -173,9 +210,21 @@ export const promoterFinancialOpsRouter = router({
     return listPromoterInvoices(db, { companyId: activeId });
   }),
 
+  getInvoice: protectedProcedure
+    .input(optionalActiveWorkspace.merge(z.object({ invoiceId: z.number().int().positive() })))
+    .query(async ({ ctx, input }) => {
+      const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      await requirePromoterFinance(ctx.user, activeId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const d = await getPromoterInvoiceDetail(db, { companyId: activeId, invoiceId: input.invoiceId });
+      if (!d) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
+      return d;
+    }),
+
   createInvoicesFromStaging: protectedProcedure
     .input(
-      periodInput.merge(ackInput).merge(
+      periodInput.merge(stagingAckFields.partial()).merge(
         z.object({
           monthlyBillingMode: z.enum(["flat_if_any_overlap", "prorated_by_calendar_days"]).default("flat_if_any_overlap"),
         }),
@@ -213,14 +262,39 @@ export const promoterFinancialOpsRouter = router({
     .input(optionalActiveWorkspace.merge(z.object({ invoiceId: z.number().int().positive() })))
     .mutation(async ({ ctx, input }) => {
       const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      await requirePromoterFinance(ctx.user, activeId);
+      await requirePromoterFinanceControl(ctx.user, activeId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      return issuePromoterInvoice(db, {
-        companyId: activeId,
-        invoiceId: input.invoiceId,
-        userId: ctx.user.id,
-      });
+      try {
+        return await issuePromoterInvoice(db, {
+          companyId: activeId,
+          invoiceId: input.invoiceId,
+          userId: ctx.user.id,
+        });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
+    }),
+
+  markInvoicePaid: protectedProcedure
+    .input(optionalActiveWorkspace.merge(z.object({ invoiceId: z.number().int().positive() })))
+    .mutation(async ({ ctx, input }) => {
+      const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      await requirePromoterFinanceControl(ctx.user, activeId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      try {
+        const r = await markInvoicePaid(db, {
+          companyId: activeId,
+          invoiceId: input.invoiceId,
+          userId: ctx.user.id,
+        });
+        return { ok: true, skipped: r.skipped };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
     }),
 
   profitabilitySummary: protectedProcedure

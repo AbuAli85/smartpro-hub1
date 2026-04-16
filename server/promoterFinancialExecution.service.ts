@@ -1,8 +1,9 @@
 /**
  * Phase 3 — promoter payroll runs & invoices from frozen staging snapshots.
+ * Phase 3.5 — transactions, state machines, structured audit, idempotency, profitability exclusions.
  */
 
-import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import {
   companies,
   employees,
@@ -22,16 +23,43 @@ import {
   resolvePromoterAssignmentCommercial,
   countPeriodCalendarDays,
 } from "../shared/promoterAssignmentCommercialResolution";
+import { buildFinancialAuditPayload } from "../shared/promoterFinancialAuditPayload";
+import { mayGeneratePayrollExportCsv, mayRegenerateInvoiceArtifact } from "../shared/promoterFinancialArtifactPolicy";
+import {
+  isAllowedPayrollTransition,
+  isAllowedInvoiceTransition,
+  type PromoterPayrollRunStatus,
+  type PromoterInvoiceStatus,
+} from "../shared/promoterFinancialStateMachine";
+import { profitabilityViewLabel } from "../shared/promoterFinancialViewSemantics";
+import { normalizeWarningAck } from "../shared/promoterFinancialWarningAck";
 import { createAuditLog } from "./repositories/audit.repository";
 import { storagePut } from "./storage";
 import type { MySql2Database } from "drizzle-orm/mysql2";
-
 export type DbLike = MySql2Database<Record<string, never>>;
 
 function parseSalaryOmr(salary: string | null | undefined): number | null {
   if (salary == null || String(salary).trim() === "") return null;
   const n = Number(salary);
   return Number.isFinite(n) ? n : null;
+}
+
+async function auditFinancial(params: {
+  userId: number;
+  companyId: number;
+  action: string;
+  entityType: string;
+  entityId: number | null;
+  payload: Record<string, unknown>;
+}) {
+  await createAuditLog({
+    userId: params.userId,
+    companyId: params.companyId,
+    action: params.action,
+    entityType: params.entityType,
+    entityId: params.entityId == null ? 0 : params.entityId,
+    newValues: { financialPayload: params.payload, schemaVersion: 1 },
+  });
 }
 
 export async function createPromoterPayrollRunFromStaging(
@@ -71,108 +99,147 @@ export async function createPromoterPayrollRunFromStaging(
     return { run: null as null, excluded, message: "No eligible payroll staging rows for this period." };
   }
 
-  let totalAccrued = 0;
-  const linePayloads: (typeof promoterPayrollRunLines.$inferInsert)[] = [];
+  const ackNormalized = params.warningAck
+    ? {
+        version: 1 as const,
+        acceptedWarningKeys: params.warningAck.acceptedWarningKeys ?? [],
+        reviewerNote: params.warningAck.reviewerNote,
+        recordedAt: new Date().toISOString(),
+        recordedByUserId: params.createdByUserId,
+      }
+    : null;
 
-  for (const r of included) {
-    const [emp] = await db
-      .select({ salary: employees.salary })
-      .from(employees)
-      .where(eq(employees.id, r.employeeId))
-      .limit(1);
-    const comm = resolvePromoterAssignmentCommercial(
-      {
-        assignmentStatus: r.assignmentStatus as "active",
-        billingModel: null,
-        billingRate: null,
-        currencyCode: "OMR",
-        rateSource: null,
-        employeeSalary: emp?.salary != null ? String(emp.salary) : null,
-      },
-      { intent: "payroll" },
-    );
-    const monthly = parseSalaryOmr(comm.payrollBasisAmount);
-    const pd = countPeriodCalendarDays(params.periodStartYmd, params.periodEndYmd);
-    const accrued =
-      monthly != null
-        ? computePromoterPayrollAccrualOmr({
-            monthlySalaryOmr: monthly,
-            periodStartYmd: params.periodStartYmd,
-            periodEndYmd: params.periodEndYmd,
-            overlapDays: r.overlapDays,
-          })
-        : 0;
-    totalAccrued += accrued;
+  const result = await db.transaction(async (tx) => {
+    let totalAccrued = 0;
+    const linePayloads: (typeof promoterPayrollRunLines.$inferInsert)[] = [];
 
-    linePayloads.push({
-      companyId: params.activeCompanyId,
-      runId: 0,
-      assignmentId: r.assignmentId,
-      employeeId: r.employeeId,
-      brandCompanyId: r.firstPartyCompanyId,
-      clientSiteId: r.clientSiteId,
-      readinessSnapshot: r.readiness,
-      blockersJson: r.blockers,
-      warningsJson: r.warnings,
-      payrollNote: r.payrollNote,
-      monthlySalaryBasisOmr: monthly != null ? String(monthly) : null,
-      periodCalendarDays: pd,
-      overlapDays: r.overlapDays,
-      accruedPayOmr: String(accrued),
-      stagingRowSnapshotJson: { ...r, snapshotAt: new Date().toISOString() },
-    });
-  }
+    for (const r of included) {
+      const [emp] = await tx
+        .select({ salary: employees.salary })
+        .from(employees)
+        .where(eq(employees.id, r.employeeId))
+        .limit(1);
+      const comm = resolvePromoterAssignmentCommercial(
+        {
+          assignmentStatus: r.assignmentStatus as "active",
+          billingModel: null,
+          billingRate: null,
+          currencyCode: "OMR",
+          rateSource: null,
+          employeeSalary: emp?.salary != null ? String(emp.salary) : null,
+        },
+        { intent: "payroll" },
+      );
+      const monthly = parseSalaryOmr(comm.payrollBasisAmount);
+      const pd = countPeriodCalendarDays(params.periodStartYmd, params.periodEndYmd);
+      const accrued =
+        monthly != null
+          ? computePromoterPayrollAccrualOmr({
+              monthlySalaryOmr: monthly,
+              periodStartYmd: params.periodStartYmd,
+              periodEndYmd: params.periodEndYmd,
+              overlapDays: r.overlapDays,
+            })
+          : 0;
+      totalAccrued += accrued;
 
-  const [runInsert] = await db
-    .insert(promoterPayrollRuns)
-    .values({
-      companyId: params.activeCompanyId,
-      periodStartYmd: params.periodStartYmd,
-      periodEndYmd: params.periodEndYmd,
-      status: "draft",
-      totalAccruedOmr: String(Math.round(totalAccrued * 1000) / 1000),
-      lineCount: linePayloads.length,
-      stagingSnapshotJson: {
+      linePayloads.push({
+        companyId: params.activeCompanyId,
+        runId: 0,
+        assignmentId: r.assignmentId,
+        employeeId: r.employeeId,
+        brandCompanyId: r.firstPartyCompanyId,
+        clientSiteId: r.clientSiteId,
+        readinessSnapshot: r.readiness,
+        blockersJson: r.blockers,
+        warningsJson: r.warnings,
+        payrollNote: r.payrollNote,
+        monthlySalaryBasisOmr: monthly != null ? String(monthly) : null,
+        periodCalendarDays: pd,
+        overlapDays: r.overlapDays,
+        accruedPayOmr: String(accrued),
+        stagingRowSnapshotJson: { ...r, snapshotAt: new Date().toISOString() },
+      });
+    }
+
+    const [runInsert] = await tx
+      .insert(promoterPayrollRuns)
+      .values({
+        companyId: params.activeCompanyId,
         periodStartYmd: params.periodStartYmd,
         periodEndYmd: params.periodEndYmd,
-        rowCount: included.length,
-      },
-      warningAckJson: params.warningAck ? { ...params.warningAck } : null,
-      createdByUserId: params.createdByUserId,
-    })
-    .$returningId();
+        status: "draft",
+        totalAccruedOmr: String(Math.round(totalAccrued * 1000) / 1000),
+        lineCount: linePayloads.length,
+        stagingSnapshotJson: {
+          periodStartYmd: params.periodStartYmd,
+          periodEndYmd: params.periodEndYmd,
+          rowCount: included.length,
+        },
+        warningAckJson: ackNormalized ? { ...ackNormalized } : null,
+        createdByUserId: params.createdByUserId,
+      })
+      .$returningId();
 
-  const runId = Number((runInsert as { insertId?: number }).insertId ?? (runInsert as { id?: number }).id ?? 0);
-  if (!runId) throw new Error("promoter payroll run insert failed");
+    const runId = Number((runInsert as { insertId?: number }).insertId ?? (runInsert as { id?: number }).id ?? 0);
+    if (!runId) throw new Error("promoter payroll run insert failed");
 
-  for (const line of linePayloads) {
-    line.runId = runId;
-  }
-  await db.insert(promoterPayrollRunLines).values(linePayloads);
+    for (const line of linePayloads) {
+      line.runId = runId;
+    }
+    await tx.insert(promoterPayrollRunLines).values(linePayloads);
 
-  await createAuditLog({
-    userId: params.createdByUserId,
+    const [run] = await tx.select().from(promoterPayrollRuns).where(eq(promoterPayrollRuns.id, runId)).limit(1);
+    return { run, runId, totalAccrued, linePayloads };
+  });
+
+  const pl = buildFinancialAuditPayload({
     companyId: params.activeCompanyId,
-    action: "payroll_run_created",
-    entityType: "promoter_payroll_run",
-    entityId: runId,
-    newValues: {
+    actorUserId: params.createdByUserId,
+    occurredAt: new Date().toISOString(),
+    entityNumericId: result.runId,
+    entityKind: "promoter_payroll_run",
+    periodStartYmd: params.periodStartYmd,
+    periodEndYmd: params.periodEndYmd,
+    toStatus: "draft",
+    acceptedWarningKeys: params.warningAck?.acceptedWarningKeys,
+    reviewerNote: params.warningAck?.reviewerNote ?? null,
+    financialTotals: { totalAccruedOmr: result.totalAccrued, lineCount: result.linePayloads.length },
+    sourceStagingSummary: {
       periodStartYmd: params.periodStartYmd,
       periodEndYmd: params.periodEndYmd,
-      lineCount: linePayloads.length,
-      totalAccruedOmr: totalAccrued,
+      includedRowCount: included.length,
     },
   });
 
-  const [run] = await db.select().from(promoterPayrollRuns).where(eq(promoterPayrollRuns.id, runId)).limit(1);
-  return { run, excluded };
+  await auditFinancial({
+    userId: params.createdByUserId,
+    companyId: params.activeCompanyId,
+    action: "promoter_payroll_run_created",
+    entityType: "promoter_payroll_run",
+    entityId: result.runId,
+    payload: pl,
+  });
+
+  if (params.warningAck?.acceptedWarningKeys?.length) {
+    await auditFinancial({
+      userId: params.createdByUserId,
+      companyId: params.activeCompanyId,
+      action: "promoter_payroll_warning_override_recorded",
+      entityType: "promoter_payroll_run",
+      entityId: result.runId,
+      payload: {
+        ...pl,
+        acceptedWarningKeys: params.warningAck.acceptedWarningKeys,
+        reviewerNote: params.warningAck.reviewerNote ?? null,
+      },
+    });
+  }
+
+  return { run: result.run, excluded };
 }
 
-export async function listPromoterPayrollRuns(
-  db: DbLike,
-  params: { companyId: number },
-  limit = 50,
-) {
+export async function listPromoterPayrollRuns(db: DbLike, params: { companyId: number }, limit = 50) {
   return db
     .select()
     .from(promoterPayrollRuns)
@@ -192,7 +259,8 @@ export async function getPromoterPayrollRunDetail(db: DbLike, params: { companyI
     .select()
     .from(promoterPayrollRunLines)
     .where(and(eq(promoterPayrollRunLines.runId, params.runId), eq(promoterPayrollRunLines.companyId, params.companyId)));
-  return { run, lines };
+  const warningAck = normalizeWarningAck(run.warningAckJson);
+  return { run, lines, warningAck };
 }
 
 export async function updatePromoterPayrollRunStatus(
@@ -204,7 +272,36 @@ export async function updatePromoterPayrollRunStatus(
     userId: number;
     extra?: Partial<typeof promoterPayrollRuns.$inferInsert>;
   },
-) {
+): Promise<{ skipped?: boolean }> {
+  return transitionPayrollRun(db, params);
+}
+
+export async function transitionPayrollRun(
+  db: DbLike,
+  params: {
+    companyId: number;
+    runId: number;
+    status: PromoterPayrollRunStatus;
+    userId: number;
+    extra?: Partial<typeof promoterPayrollRuns.$inferInsert>;
+  },
+): Promise<{ skipped?: boolean }> {
+  const [run] = await db
+    .select()
+    .from(promoterPayrollRuns)
+    .where(and(eq(promoterPayrollRuns.id, params.runId), eq(promoterPayrollRuns.companyId, params.companyId)))
+    .limit(1);
+  if (!run) throw new Error("Run not found");
+
+  const from = run.status as PromoterPayrollRunStatus;
+  const to = params.status;
+  if (from === to) {
+    return { skipped: true };
+  }
+  if (!isAllowedPayrollTransition(from, to)) {
+    throw new Error(`Invalid payroll run transition: ${from} -> ${to}`);
+  }
+
   await db
     .update(promoterPayrollRuns)
     .set({
@@ -214,33 +311,50 @@ export async function updatePromoterPayrollRunStatus(
     })
     .where(and(eq(promoterPayrollRuns.id, params.runId), eq(promoterPayrollRuns.companyId, params.companyId)));
 
-  const action =
-    params.status === "approved"
-      ? "payroll_run_approved"
-      : params.status === "exported"
-        ? "payroll_run_exported"
-        : params.status === "paid"
-          ? "payroll_run_marked_paid"
-          : "payroll_run_status_changed";
-  await createAuditLog({
+  const actionMap: Partial<Record<PromoterPayrollRunStatus, string>> = {
+    review_ready: "promoter_payroll_run_review_ready",
+    approved: "promoter_payroll_run_approved",
+    exported: "promoter_payroll_run_exported",
+    paid: "promoter_payroll_run_marked_paid",
+    cancelled: "promoter_payroll_run_cancelled",
+  };
+  const action = actionMap[to] ?? "promoter_payroll_run_status_changed";
+
+  const pl = buildFinancialAuditPayload({
+    companyId: params.companyId,
+    actorUserId: params.userId,
+    occurredAt: new Date().toISOString(),
+    entityNumericId: params.runId,
+    entityKind: "promoter_payroll_run",
+    periodStartYmd: run.periodStartYmd,
+    periodEndYmd: run.periodEndYmd,
+    fromStatus: from,
+    toStatus: to,
+    financialTotals: { totalAccruedOmr: Number(run.totalAccruedOmr) },
+  });
+
+  await auditFinancial({
     userId: params.userId,
     companyId: params.companyId,
     action,
     entityType: "promoter_payroll_run",
     entityId: params.runId,
-    newValues: { status: params.status },
+    payload: pl,
   });
+
+  return {};
 }
 
 export async function exportPromoterPayrollRunCsv(
   db: DbLike,
   params: { companyId: number; runId: number; userId: number },
-): Promise<{ csvText: string; url?: string; key?: string }> {
+): Promise<{ csvText: string; url?: string; key?: string; skippedStorage?: boolean; exportGeneration?: number }> {
   const detail = await getPromoterPayrollRunDetail(db, params);
   if (!detail) throw new Error("Run not found");
-  if (detail.run.status !== "approved" && detail.run.status !== "exported" && detail.run.status !== "paid") {
+  if (!mayGeneratePayrollExportCsv(detail.run.status)) {
     throw new Error("Approve the payroll run before export.");
   }
+
   const headers = [
     "assignment_id",
     "employee_id",
@@ -263,39 +377,66 @@ export async function exportPromoterPayrollRunCsv(
     );
   }
   const csvText = lines.join("\n");
+
+  const nextGen = (detail.run.exportGeneration ?? 0) + 1;
   let url: string | undefined;
   let key: string | undefined;
+  let skippedStorage = false;
+
   try {
     const up = await storagePut(
-      `promoter-payroll/${params.companyId}/${params.runId}/export.csv`,
+      `promoter-payroll/${params.companyId}/${params.runId}/v${nextGen}.csv`,
       csvText,
       "text/csv",
     );
     url = up.url;
     key = up.key;
-    await db
-      .update(promoterPayrollRuns)
-      .set({
-        exportCsvKey: key,
-        exportCsvUrl: url,
-        exportedAt: new Date(),
-        exportedByUserId: params.userId,
+    const exportExtra = {
+      exportCsvKey: key,
+      exportCsvUrl: url,
+      exportedAt: new Date(),
+      exportedByUserId: params.userId,
+      exportGeneration: nextGen,
+    };
+
+    if (detail.run.status === "approved") {
+      await transitionPayrollRun(db, {
+        companyId: params.companyId,
+        runId: params.runId,
         status: "exported",
-        updatedAt: new Date(),
-      })
-      .where(and(eq(promoterPayrollRuns.id, params.runId), eq(promoterPayrollRuns.companyId, params.companyId)));
-    await createAuditLog({
-      userId: params.userId,
-      companyId: params.companyId,
-      action: "payroll_run_exported",
-      entityType: "promoter_payroll_run",
-      entityId: params.runId,
-      newValues: { key },
-    });
+        userId: params.userId,
+        extra: exportExtra,
+      });
+    } else {
+      await db
+        .update(promoterPayrollRuns)
+        .set({
+          ...exportExtra,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(promoterPayrollRuns.id, params.runId), eq(promoterPayrollRuns.companyId, params.companyId)));
+      const pl = buildFinancialAuditPayload({
+        companyId: params.companyId,
+        actorUserId: params.userId,
+        occurredAt: new Date().toISOString(),
+        entityNumericId: params.runId,
+        entityKind: "promoter_payroll_run",
+        artifact: { kind: "payroll_csv", storageKey: key, storageUrl: url, exportGeneration: nextGen },
+      });
+      await auditFinancial({
+        userId: params.userId,
+        companyId: params.companyId,
+        action: "promoter_payroll_run_exported",
+        entityType: "promoter_payroll_run",
+        entityId: params.runId,
+        payload: pl,
+      });
+    }
   } catch {
-    /* storage optional — still return CSV body */
+    skippedStorage = true;
   }
-  return { csvText, url, key };
+
+  return { csvText, url, key, skippedStorage, exportGeneration: nextGen };
 }
 
 export async function createPromoterInvoicesFromStaging(
@@ -332,62 +473,104 @@ export async function createPromoterInvoicesFromStaging(
   }
 
   const created: { id: number; invoiceNumber: string; clientCompanyId: number }[] = [];
+  const ackNormalized = params.warningAck
+    ? {
+        version: 1 as const,
+        acceptedWarningKeys: params.warningAck.acceptedWarningKeys ?? [],
+        reviewerNote: params.warningAck.reviewerNote,
+        recordedAt: new Date().toISOString(),
+        recordedByUserId: params.createdByUserId,
+      }
+    : null;
+
   for (const [clientCompanyId, clientRows] of byClient) {
     if (clientRows.length === 0) continue;
-    let subtotal = 0;
-    for (const r of clientRows) {
-      subtotal += r.billableAmount ?? 0;
-    }
-    const invNum = `INV-${params.activeCompanyId}-${clientCompanyId}-${params.periodStartYmd}-${params.periodEndYmd}`;
-    const [ins] = await db
-      .insert(promoterInvoices)
-      .values({
+    await db.transaction(async (tx) => {
+      let subtotal = 0;
+      for (const r of clientRows) {
+        subtotal += r.billableAmount ?? 0;
+      }
+      const invNum = `INV-${params.activeCompanyId}-${clientCompanyId}-${params.periodStartYmd}-${params.periodEndYmd}`;
+      const [ins] = await tx
+        .insert(promoterInvoices)
+        .values({
+          companyId: params.activeCompanyId,
+          invoiceNumber: invNum,
+          clientCompanyId,
+          periodStartYmd: params.periodStartYmd,
+          periodEndYmd: params.periodEndYmd,
+          currencyCode: clientRows[0]?.currencyCode ?? "OMR",
+          subtotalOmr: String(Math.round(subtotal * 1000) / 1000),
+          totalOmr: String(Math.round(subtotal * 1000) / 1000),
+          status: "draft",
+          monthlyBillingMode: params.monthlyBillingMode,
+          warningAckJson: ackNormalized ? { ...ackNormalized } : null,
+          createdByUserId: params.createdByUserId,
+        })
+        .$returningId();
+      const invoiceId = Number((ins as { insertId?: number }).insertId ?? 0);
+      if (!invoiceId) throw new Error("Invoice insert failed");
+
+      for (const r of clientRows) {
+        await tx.insert(promoterInvoiceLines).values({
+          companyId: params.activeCompanyId,
+          invoiceId,
+          assignmentId: r.assignmentId,
+          employeeId: r.employeeId,
+          brandCompanyId: r.firstPartyCompanyId,
+          clientSiteId: r.clientSiteId,
+          billingModel: r.billingModel,
+          billableUnits: r.billableUnits != null ? String(r.billableUnits) : null,
+          unitRateOmr: r.billingRate != null ? String(r.billingRate) : null,
+          lineTotalOmr: String(r.billableAmount ?? 0),
+          monthlyBillingMode: r.monthlyBillingMode,
+          monthlyProrationSensitive: r.monthlyProrationSensitive,
+          monthlyEstimateOnly: r.monthlyEstimateOnly,
+          readinessSnapshot: r.readiness,
+          blockersJson: r.blockers,
+          warningsJson: r.warnings,
+          stagingRowSnapshotJson: { ...r, snapshotAt: new Date().toISOString() },
+        });
+      }
+
+      created.push({ id: invoiceId, invoiceNumber: invNum, clientCompanyId });
+
+      const pl = buildFinancialAuditPayload({
         companyId: params.activeCompanyId,
-        invoiceNumber: invNum,
-        clientCompanyId,
+        actorUserId: params.createdByUserId,
+        occurredAt: new Date().toISOString(),
+        entityNumericId: invoiceId,
+        entityKind: "promoter_invoice",
         periodStartYmd: params.periodStartYmd,
         periodEndYmd: params.periodEndYmd,
-        currencyCode: clientRows[0]?.currencyCode ?? "OMR",
-        subtotalOmr: String(Math.round(subtotal * 1000) / 1000),
-        totalOmr: String(Math.round(subtotal * 1000) / 1000),
-        status: "draft",
-        monthlyBillingMode: params.monthlyBillingMode,
-        warningAckJson: params.warningAck ? { ...params.warningAck } : null,
-        createdByUserId: params.createdByUserId,
-      })
-      .$returningId();
-    const invoiceId = Number((ins as { insertId?: number }).insertId ?? 0);
-    if (!invoiceId) continue;
-
-    for (const r of clientRows) {
-      await db.insert(promoterInvoiceLines).values({
-        companyId: params.activeCompanyId,
-        invoiceId,
-        assignmentId: r.assignmentId,
-        employeeId: r.employeeId,
-        brandCompanyId: r.firstPartyCompanyId,
-        clientSiteId: r.clientSiteId,
-        billingModel: r.billingModel,
-        billableUnits: r.billableUnits != null ? String(r.billableUnits) : null,
-        unitRateOmr: r.billingRate != null ? String(r.billingRate) : null,
-        lineTotalOmr: String(r.billableAmount ?? 0),
-        monthlyBillingMode: r.monthlyBillingMode,
-        monthlyProrationSensitive: r.monthlyProrationSensitive,
-        monthlyEstimateOnly: r.monthlyEstimateOnly,
-        readinessSnapshot: r.readiness,
-        blockersJson: r.blockers,
-        warningsJson: r.warnings,
-        stagingRowSnapshotJson: { ...r, snapshotAt: new Date().toISOString() },
+        toStatus: "draft",
+        clientCompanyId,
+        financialTotals: { totalInvoiceOmr: subtotal, lineCount: clientRows.length },
       });
-    }
-    created.push({ id: invoiceId, invoiceNumber: invNum, clientCompanyId });
-    await createAuditLog({
-      userId: params.createdByUserId,
-      companyId: params.activeCompanyId,
-      action: "invoice_created",
-      entityType: "promoter_invoice",
-      entityId: invoiceId,
-      newValues: { invoiceNumber: invNum, clientCompanyId, lineCount: clientRows.length },
+
+      await auditFinancial({
+        userId: params.createdByUserId,
+        companyId: params.activeCompanyId,
+        action: "promoter_invoice_created",
+        entityType: "promoter_invoice",
+        entityId: invoiceId,
+        payload: pl,
+      });
+
+      if (params.warningAck?.acceptedWarningKeys?.length) {
+        await auditFinancial({
+          userId: params.createdByUserId,
+          companyId: params.activeCompanyId,
+          action: "promoter_invoice_warning_override_recorded",
+          entityType: "promoter_invoice",
+          entityId: invoiceId,
+          payload: {
+            ...pl,
+            acceptedWarningKeys: params.warningAck.acceptedWarningKeys,
+            reviewerNote: params.warningAck.reviewerNote ?? null,
+          },
+        });
+      }
     });
   }
   return { created };
@@ -396,14 +579,13 @@ export async function createPromoterInvoicesFromStaging(
 export async function issuePromoterInvoice(
   db: DbLike,
   params: { companyId: number; invoiceId: number; userId: number },
-) {
+): Promise<{ html: string; htmlUrl?: string; skipped?: boolean }> {
   const [inv] = await db
     .select()
     .from(promoterInvoices)
     .where(and(eq(promoterInvoices.id, params.invoiceId), eq(promoterInvoices.companyId, params.companyId)))
     .limit(1);
   if (!inv) throw new Error("Invoice not found");
-  if (inv.status !== "draft" && inv.status !== "review_ready") throw new Error("Invoice cannot be issued from this status");
 
   const lines = await db
     .select()
@@ -429,11 +611,26 @@ export async function issuePromoterInvoice(
     })),
   });
 
+  if (inv.status === "issued" || inv.status === "sent" || inv.status === "partially_paid" || inv.status === "paid") {
+    return { html, htmlUrl: inv.htmlArtifactUrl ?? undefined, skipped: true };
+  }
+  if (!mayRegenerateInvoiceArtifact(inv.status)) {
+    throw new Error("Invoice cannot be issued from this status");
+  }
+
+  const issuedSnapshot = {
+    issuedAt: new Date().toISOString(),
+    lineIds: lines.map((l) => l.id),
+    lineTotals: lines.map((l) => ({ id: l.id, lineTotalOmr: l.lineTotalOmr })),
+    invoiceTotalOmr: inv.totalOmr,
+    invoiceNumber: inv.invoiceNumber,
+  };
+
   let htmlUrl: string | undefined;
   let htmlKey: string | undefined;
   try {
     const up = await storagePut(
-      `promoter-invoices/${params.companyId}/${params.invoiceId}/invoice.html`,
+      `promoter-invoices/${params.companyId}/${params.invoiceId}/issued.html`,
       html,
       "text/html",
     );
@@ -451,17 +648,33 @@ export async function issuePromoterInvoice(
       issuedByUserId: params.userId,
       htmlArtifactKey: htmlKey ?? null,
       htmlArtifactUrl: htmlUrl ?? null,
+      issuedSnapshotJson: issuedSnapshot,
       updatedAt: new Date(),
     })
     .where(eq(promoterInvoices.id, params.invoiceId));
 
-  await createAuditLog({
+  const pl = buildFinancialAuditPayload({
+    companyId: params.companyId,
+    actorUserId: params.userId,
+    occurredAt: new Date().toISOString(),
+    entityNumericId: params.invoiceId,
+    entityKind: "promoter_invoice",
+    periodStartYmd: inv.periodStartYmd,
+    periodEndYmd: inv.periodEndYmd,
+    fromStatus: inv.status,
+    toStatus: "issued",
+    clientCompanyId: inv.clientCompanyId,
+    artifact: { kind: "invoice_html", storageKey: htmlKey ?? null, storageUrl: htmlUrl ?? null, immutableAfter: true },
+    financialTotals: { totalInvoiceOmr: Number(inv.totalOmr), lineCount: lines.length },
+  });
+
+  await auditFinancial({
     userId: params.userId,
     companyId: params.companyId,
-    action: "invoice_issued",
+    action: "promoter_invoice_issued",
     entityType: "promoter_invoice",
     entityId: params.invoiceId,
-    newValues: { invoiceNumber: inv.invoiceNumber },
+    payload: pl,
   });
 
   return { html, htmlUrl };
@@ -509,6 +722,64 @@ export async function listPromoterInvoices(db: DbLike, params: { companyId: numb
     .limit(limit);
 }
 
+export async function getPromoterInvoiceDetail(db: DbLike, params: { companyId: number; invoiceId: number }) {
+  const [inv] = await db
+    .select()
+    .from(promoterInvoices)
+    .where(and(eq(promoterInvoices.id, params.invoiceId), eq(promoterInvoices.companyId, params.companyId)))
+    .limit(1);
+  if (!inv) return null;
+  const lines = await db
+    .select()
+    .from(promoterInvoiceLines)
+    .where(
+      and(eq(promoterInvoiceLines.invoiceId, params.invoiceId), eq(promoterInvoiceLines.companyId, params.companyId)),
+    );
+  const warningAck = normalizeWarningAck(inv.warningAckJson);
+  return { invoice: inv, lines, warningAck };
+}
+
+export async function markInvoicePaid(
+  db: DbLike,
+  params: { companyId: number; invoiceId: number; userId: number },
+): Promise<{ skipped?: boolean }> {
+  const [inv] = await db
+    .select()
+    .from(promoterInvoices)
+    .where(and(eq(promoterInvoices.id, params.invoiceId), eq(promoterInvoices.companyId, params.companyId)))
+    .limit(1);
+  if (!inv) throw new Error("Invoice not found");
+  const from = inv.status as PromoterInvoiceStatus;
+  if (from === "paid") return { skipped: true };
+  if (!isAllowedInvoiceTransition(from, "paid")) {
+    throw new Error(`Cannot mark paid from status ${from}`);
+  }
+  await db
+    .update(promoterInvoices)
+    .set({ status: "paid", updatedAt: new Date() })
+    .where(eq(promoterInvoices.id, params.invoiceId));
+
+  const pl = buildFinancialAuditPayload({
+    companyId: params.companyId,
+    actorUserId: params.userId,
+    occurredAt: new Date().toISOString(),
+    entityNumericId: params.invoiceId,
+    entityKind: "promoter_invoice",
+    fromStatus: from,
+    toStatus: "paid",
+    clientCompanyId: inv.clientCompanyId,
+  });
+  await auditFinancial({
+    userId: params.userId,
+    companyId: params.companyId,
+    action: "promoter_invoice_marked_paid",
+    entityType: "promoter_invoice",
+    entityId: params.invoiceId,
+    payload: pl,
+  });
+  return {};
+}
+
 export async function getProfitabilitySummary(
   db: DbLike,
   params: {
@@ -517,6 +788,7 @@ export async function getProfitabilitySummary(
     periodStartYmd: string;
     periodEndYmd: string;
     mode: "forecast" | "executed";
+    actorUserId?: number;
   },
 ) {
   const forecastPay = await getPayrollStagingRows(db, {
@@ -533,13 +805,30 @@ export async function getProfitabilitySummary(
     monthlyBillingMode: "flat_if_any_overlap",
   });
 
+  const exclusions: { kind: string; reason: string; assignmentId?: string }[] = [];
+
   let forecastRevenue = 0;
   let forecastCost = 0;
   for (const b of forecastBill) {
-    if (b.readiness !== "blocked") forecastRevenue += b.billableAmount ?? 0;
+    if (b.readiness === "blocked") {
+      exclusions.push({
+        kind: "forecast_billing_blocked",
+        reason: b.blockers.join(", ") || "blocked",
+        assignmentId: b.assignmentId,
+      });
+      continue;
+    }
+    forecastRevenue += b.billableAmount ?? 0;
   }
   for (const p of forecastPay) {
-    if (p.readiness === "blocked") continue;
+    if (p.readiness === "blocked") {
+      exclusions.push({
+        kind: "forecast_payroll_blocked",
+        reason: p.blockers.join(", ") || "blocked",
+        assignmentId: p.assignmentId,
+      });
+      continue;
+    }
     const [emp] = await db
       .select({ salary: employees.salary })
       .from(employees)
@@ -564,6 +853,12 @@ export async function getProfitabilitySummary(
         periodEndYmd: params.periodEndYmd,
         overlapDays: p.overlapDays,
       });
+    } else {
+      exclusions.push({
+        kind: "forecast_payroll_no_salary",
+        reason: "missing_payroll_basis",
+        assignmentId: p.assignmentId,
+      });
     }
   }
 
@@ -580,7 +875,13 @@ export async function getProfitabilitySummary(
       ),
     );
   for (const inv of invRows) {
-    if (!["issued", "sent", "partially_paid", "paid"].includes(inv.status)) continue;
+    if (!["issued", "sent", "partially_paid", "paid"].includes(inv.status)) {
+      exclusions.push({
+        kind: "executed_invoice_not_final",
+        reason: `invoice ${inv.id} status ${inv.status}`,
+      });
+      continue;
+    }
     executedRevenue += Number(inv.totalOmr);
   }
 
@@ -594,7 +895,17 @@ export async function getProfitabilitySummary(
         gte(promoterPayrollRuns.periodEndYmd, params.periodStartYmd),
       ),
     );
-  const runIds = runRows.filter((r) => ["approved", "exported", "paid"].includes(r.status)).map((r) => r.id);
+  const finalizedRuns = runRows.filter((r) => ["approved", "exported", "paid"].includes(r.status));
+  for (const r of runRows) {
+    if (!["approved", "exported", "paid"].includes(r.status)) {
+      exclusions.push({
+        kind: "executed_payroll_not_final",
+        reason: `run ${r.id} status ${r.status}`,
+      });
+    }
+  }
+
+  const runIds = finalizedRuns.map((r) => r.id);
   if (runIds.length) {
     const costAgg = await db
       .select({ s: sql<string>`coalesce(sum(${promoterPayrollRunLines.accruedPayOmr}),0)` })
@@ -608,10 +919,15 @@ export async function getProfitabilitySummary(
     executedCost = Number(costAgg[0]?.s ?? 0);
   }
 
-  const view =
-    params.mode === "forecast"
-      ? classifyProfitabilityView({ hasForecastComponents: true, hasExecutedComponents: false })
-      : classifyProfitabilityView({ hasForecastComponents: false, hasExecutedComponents: true });
+  const view = classifyProfitabilityView({
+    hasForecastComponents: true,
+    hasExecutedComponents: executedRevenue > 0 || executedCost > 0,
+  });
+
+  const viewSemantics = profitabilityViewLabel({
+    forecastReady: true,
+    executedReady: executedRevenue > 0 || executedCost > 0,
+  });
 
   const margin =
     params.mode === "forecast"
@@ -620,12 +936,20 @@ export async function getProfitabilitySummary(
   const denom = params.mode === "forecast" ? forecastRevenue : executedRevenue;
   const marginPct = denom > 0 ? (margin / denom) * 100 : null;
 
+  const exclusionsForMode = exclusions.filter((e) =>
+    params.mode === "forecast" ? e.kind.startsWith("forecast") : e.kind.startsWith("executed"),
+  );
+
   return {
     view: params.mode === "forecast" ? ("forecast" as const) : ("executed" as const),
+    viewSemantics,
+    viewMixedLabel: view,
     revenue: params.mode === "forecast" ? forecastRevenue : executedRevenue,
     payrollCost: params.mode === "forecast" ? forecastCost : executedCost,
     grossMargin: margin,
     grossMarginPercent: marginPct,
+    exclusions: exclusionsForMode,
+    exclusionsAll: exclusions,
     meta: {
       forecastRevenue,
       forecastCost,

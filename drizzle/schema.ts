@@ -3361,6 +3361,8 @@ export const promoterPayrollRuns = mysqlTable(
     exportCsvUrl: varchar("export_csv_url", { length: 1024 }),
     exportedAt: timestamp("exported_at"),
     exportedByUserId: int("exported_by_user_id"),
+    /** Increments on each successful stored export; audit retains full history. */
+    exportGeneration: int("export_generation").notNull().default(0),
     createdByUserId: int("created_by_user_id"),
     approvedByUserId: int("approved_by_user_id"),
     approvedAt: timestamp("approved_at"),
@@ -3434,6 +3436,8 @@ export const promoterInvoices = mysqlTable(
     warningAckJson: json("warning_ack_json").$type<Record<string, unknown> | null>(),
     htmlArtifactKey: varchar("html_artifact_key", { length: 512 }),
     htmlArtifactUrl: varchar("html_artifact_url", { length: 1024 }),
+    /** Frozen line totals / checksums at issue time — immutable after issue. */
+    issuedSnapshotJson: json("issued_snapshot_json").$type<Record<string, unknown> | null>(),
     pdfArtifactKey: varchar("pdf_artifact_key", { length: 512 }),
     pdfArtifactUrl: varchar("pdf_artifact_url", { length: 1024 }),
     issuedAt: timestamp("issued_at"),

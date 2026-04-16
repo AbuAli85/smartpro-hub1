@@ -225,6 +225,13 @@
       "when": 1776118139397,
       "tag": "0056_deployment_economics_phase1",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1776118139398,
+      "tag": "0057_payment_gateway",
+      "breakpoints": true
     }
   ]
 }

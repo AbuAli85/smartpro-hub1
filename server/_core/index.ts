@@ -8,6 +8,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerHRLetterPublicRoutes } from "../hrLetterPublicRoutes";
 import { registerSurveyNurturePublicRoutes } from "../surveyNurturePublicRoutes";
 import { registerWhatsAppWebhookRoutes } from "../whatsappCloud";
+import { registerPaymentWebhookRoutes } from "../paymentWebhooks";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -49,6 +50,8 @@ async function startServer() {
   applySecurityMiddleware(app);
   // WhatsApp Cloud webhooks need raw JSON body for HMAC verification (must be before express.json).
   registerWhatsAppWebhookRoutes(app);
+  // Thawani / Stripe payment webhooks need raw body for signature verification (must be before express.json).
+  registerPaymentWebhookRoutes(app);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

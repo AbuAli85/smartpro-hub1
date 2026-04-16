@@ -55,6 +55,7 @@ import { workspaceRouter } from "./routers/workspace";
 import { onboardingRouter } from "./routers/onboarding";
 import { surveyRouter } from "./routers/survey";
 import { deploymentEconomicsRouter } from "./routers/deploymentEconomics";
+import { paymentsRouter } from "./routers/payments";
 
 export const appRouter = router({
   system: systemRouter,
@@ -136,6 +137,8 @@ export const appRouter = router({
   survey: surveyRouter,
   /** Phase 1 deployment economics: billing customers, customer deployments, rate rules (API-only). */
   deploymentEconomics: deploymentEconomicsRouter,
+  /** Client AR: Thawani + Stripe checkout sessions, manual payments, refunds, aging. */
+  payments: paymentsRouter,
 });
 
 export type AppRouter = typeof appRouter;

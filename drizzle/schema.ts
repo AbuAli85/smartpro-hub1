@@ -2024,12 +2024,57 @@ export const invoicePaymentRecords = mysqlTable(
     paidAt: timestamp("paid_at").notNull(),
     paymentMethod: mysqlEnum("payment_method", ["bank", "cash", "card", "other"]).notNull().default("bank"),
     reference: varchar("reference", { length: 255 }),
+    gateway: mysqlEnum("gateway", ["thawani", "stripe"]),
+    gatewaySessionId: varchar("gateway_session_id", { length: 255 }),
+    gatewayPaymentId: varchar("gateway_payment_id", { length: 255 }),
+    gatewayStatus: varchar("gateway_status", { length: 64 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("idx_ipr_invoice").on(t.invoiceId)]
+  (t) => [
+    index("idx_ipr_invoice").on(t.invoiceId),
+    index("idx_ipr_gateway_session").on(t.gatewaySessionId),
+  ]
 );
 export type InvoicePaymentRecord = typeof invoicePaymentRecords.$inferSelect;
 export type InsertInvoicePaymentRecord = typeof invoicePaymentRecords.$inferInsert;
+
+export const paymentGatewaySessions = mysqlTable(
+  "payment_gateway_sessions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    invoiceId: int("invoice_id").notNull(),
+    gateway: mysqlEnum("gateway", ["thawani", "stripe"]).notNull(),
+    clientReference: varchar("client_reference", { length: 255 }).notNull(),
+    gatewaySessionId: varchar("gateway_session_id", { length: 255 }),
+    gatewayPaymentId: varchar("gateway_payment_id", { length: 255 }),
+    amountOmr: decimal("amount_omr", { precision: 14, scale: 3 }).notNull(),
+    status: mysqlEnum("status", ["pending", "completed", "failed", "cancelled"]).notNull().default("pending"),
+    metadata: json("metadata").$type<Record<string, string | number | boolean | null>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_pgs_client_reference").on(t.clientReference),
+    index("idx_pgs_company").on(t.companyId),
+    index("idx_pgs_invoice").on(t.invoiceId),
+    index("idx_pgs_gateway_session").on(t.gatewaySessionId),
+  ]
+);
+export type PaymentGatewaySession = typeof paymentGatewaySessions.$inferSelect;
+export type InsertPaymentGatewaySession = typeof paymentGatewaySessions.$inferInsert;
+
+export const paymentWebhookEvents = mysqlTable(
+  "payment_webhook_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    gateway: mysqlEnum("gateway", ["thawani", "stripe"]).notNull(),
+    externalEventId: varchar("external_event_id", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [unique("uq_pwe_gateway_event").on(t.gateway, t.externalEventId)]
+);
+export type PaymentWebhookEvent = typeof paymentWebhookEvents.$inferSelect;
 
 // ─── RECRUITMENT: INTERVIEW SCHEDULES ─────────────────────────────────────────
 export const interviewSchedules = mysqlTable(

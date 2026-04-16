@@ -92,6 +92,31 @@ export function applyPayment(
   return { amountPaidOmr: paid, balanceOmr: b, status };
 }
 
+/**
+ * Reverse a recorded payment (after a gateway refund). Does not create a new payment row;
+ * use when the PSP refund is the source of truth.
+ */
+export function applyRefund(
+  invoice: Pick<InvoiceBalanceState, "totalOmr" | "amountPaidOmr" | "balanceOmr" | "status">,
+  refundOmr: number
+): { amountPaidOmr: number; balanceOmr: number; status: InvoiceBalanceState["status"] } {
+  if (invoice.status === "void") {
+    throw new Error("Cannot refund a void invoice");
+  }
+  if (refundOmr <= 0) {
+    throw new Error("Refund amount must be positive");
+  }
+  const paid = omr(Number(invoice.amountPaidOmr) - refundOmr);
+  if (paid < -0.0005) {
+    throw new Error("Refund exceeds recorded payments");
+  }
+  const amountPaidOmr = Math.max(0, paid);
+  const balanceOmr = omr(Number(invoice.totalOmr) - amountPaidOmr);
+  const status: InvoiceBalanceState["status"] =
+    balanceOmr <= 0.0005 ? "paid" : amountPaidOmr <= 0.0005 ? "sent" : "partial";
+  return { amountPaidOmr, balanceOmr, status };
+}
+
 /** AR aging buckets (amounts in OMR). */
 export type AgingBuckets = {
   current: number;

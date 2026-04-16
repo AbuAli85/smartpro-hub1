@@ -30,6 +30,12 @@ Implements **Phase 1 foundation** for deployment economics: tenant-scoped **bill
 - **`clientBilling` / legacy path:** unchanged when `attendance_sites.billing_customer_id` is **NULL** (site text + daily rate + existing flows).
 - **Payroll:** no coupling added.
 
+### Pre-merge mental model (do not skip)
+
+1. **`party_id`** — Optional link to `business_parties`; **not** a primary join key. Application logic must **not** assume a single row per tenant when `party_id IS NULL`. Phase 2+ joins must handle NULL explicitly.
+2. **Ownership** — Every mutation must keep `company_id` consistent: assignment ↔ employee ↔ deployment; rate rule ↔ deployment; deployment ↔ site (no cross-tenant site switch).
+3. **Router boundaries** — `deploymentEconomics` stays the write surface for this data. **`clientBilling` and `payroll` do not absorb this logic**; later phases **read** from deployment economics, they do not duplicate writes here.
+
 ---
 
 ## Reviewer checklist

@@ -6,6 +6,8 @@
 
 **Parent docs:** `docs/DEPLOYMENT_ECONOMICS_BACKLOG.md` §Phase 2, `docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md`
 
+**Pre-coding review:** `docs/DEPLOYMENT_ECONOMICS_PHASE2_FAILURE_MODES.md` — uniqueness, month boundaries, idempotency, reconciliation, mixed-mode, audit gaps.
+
 ---
 
 ## Locked decisions (pre-implementation)

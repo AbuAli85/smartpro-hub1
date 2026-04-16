@@ -1,4 +1,5 @@
 import { canAccessGlobalAdminProcedures } from "./rbac";
+import { seesPlatformOperatorNavFromIdentity } from "./identityAuthority";
 import {
   GLOBAL_ADMIN_ONLY_PATH_PREFIXES,
   PLATFORM_OPERATOR_ONLY_PATH_PREFIXES,
@@ -382,11 +383,9 @@ function membershipScopedNavDenies(
 export function seesPlatformOperatorNav(user: {
   role?: string | null;
   platformRole?: string | null;
+  platformRoles?: string[] | null;
 } | null): boolean {
-  if (!user) return false;
-  if (canAccessGlobalAdminProcedures(user)) return true;
-  const pr = user.platformRole;
-  return pr === "regional_manager" || pr === "client_services";
+  return seesPlatformOperatorNavFromIdentity(user);
 }
 
 /**

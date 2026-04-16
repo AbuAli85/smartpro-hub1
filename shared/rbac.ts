@@ -1,31 +1,27 @@
 /**
  * Canonical RBAC helpers for SmartPRO.
  *
- * The `users.role` column ("user" | "admin") is a legacy template flag.
- * Production access control uses `users.platformRole` (see drizzle/schema users table).
- *
- * Use `canAccessGlobalAdminProcedures` anywhere the code previously checked
- * `user.role === "admin"` for cross-tenant / platform-level operations.
+ * Global operator grants are stored in `platform_user_roles` and exposed on the session user
+ * as `platformRoles`. Legacy `users.role` / `users.platformRole` remain during transition — see
+ * shared/identityAuthority.ts.
  */
 
-export function canAccessGlobalAdminProcedures(user: {
-  role?: string | null;
-  platformRole?: string | null;
-}): boolean {
-  if (user.role === "admin") return true;
-  const pr = user.platformRole;
-  return pr === "super_admin" || pr === "platform_admin";
+import {
+  canAccessGlobalAdminFromIdentity,
+  canAccessSurveyAdminFromIdentity,
+  isCompanyProvisioningAdminFromIdentity,
+  type IdentityAugmentedUser,
+} from "./identityAuthority";
+
+export function canAccessGlobalAdminProcedures(user: IdentityAugmentedUser): boolean {
+  return canAccessGlobalAdminFromIdentity(user);
 }
 
 /**
  * Users who may auto-provision a default company on first login (workforce / onboarding).
  */
-export function isCompanyProvisioningAdmin(user: {
-  role?: string | null;
-  platformRole?: string | null;
-}): boolean {
-  if (canAccessGlobalAdminProcedures(user)) return true;
-  return user.platformRole === "company_admin";
+export function isCompanyProvisioningAdmin(user: IdentityAugmentedUser): boolean {
+  return isCompanyProvisioningAdminFromIdentity(user);
 }
 
 /**
@@ -68,13 +64,8 @@ export function mapMemberRoleToPlatformRole(
  * Users who may access survey admin (response list, detail, analytics).
  * Platform operators + regional_manager + client_services.
  */
-export function canAccessSurveyAdmin(user: {
-  role?: string | null;
-  platformRole?: string | null;
-}): boolean {
-  if (canAccessGlobalAdminProcedures(user)) return true;
-  const pr = user.platformRole;
-  return pr === "regional_manager" || pr === "client_services" || pr === "company_admin";
+export function canAccessSurveyAdmin(user: IdentityAugmentedUser): boolean {
+  return canAccessSurveyAdminFromIdentity(user);
 }
 
 /**

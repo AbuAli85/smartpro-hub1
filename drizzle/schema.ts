@@ -15,12 +15,21 @@ import {
 } from "drizzle-orm/mysql-core";
 
 // ─── USERS & RBAC ─────────────────────────────────────────────────────────────
+// Identity split: canonical email + normalized lookup + display label live here.
+// Global platform authority is normalized in `platform_user_roles`; tenant roles in `company_members`.
+// Legacy: `name` / `platformRole` / `role` remain for backward compatibility (synced where possible).
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
+  /** Canonical mailbox (mirrors `email` for OAuth-linked accounts). */
+  primaryEmail: varchar("primary_email", { length: 320 }),
+  /** Lowercased + trimmed; used for duplicate detection (unique enforcement phased). */
+  emailNormalized: varchar("email_normalized", { length: 320 }),
+  /** Preferred UI label; legacy `name` kept in sync on write paths. */
+  displayName: text("display_name"),
   phone: varchar("phone", { length: 32 }),
   avatarUrl: text("avatarUrl"),
   loginMethod: varchar("loginMethod", { length: 64 }),
@@ -43,6 +52,16 @@ export const users = mysqlTable("users", {
     .default("client")
     .notNull(),
   isActive: boolean("isActive").default(true).notNull(),
+  accountStatus: mysqlEnum("account_status", [
+    "active",
+    "invited",
+    "suspended",
+    "merged",
+    "archived",
+  ])
+    .default("active")
+    .notNull(),
+  mergedIntoUserId: int("merged_into_user_id"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -71,6 +90,78 @@ export const mfaChallenges = mysqlTable(
 );
 export type MfaChallenge = typeof mfaChallenges.$inferSelect;
 export type InsertMfaChallenge = typeof mfaChallenges.$inferInsert;
+
+/** Contact + localization split from core `users` row. */
+export const userProfiles = mysqlTable("user_profiles", {
+  userId: int("user_id").primaryKey(),
+  firstName: varchar("first_name", { length: 255 }),
+  lastName: varchar("last_name", { length: 255 }),
+  phone: varchar("phone", { length: 32 }),
+  avatarUrl: text("avatar_url"),
+  locale: varchar("locale", { length: 32 }),
+  timezone: varchar("timezone", { length: 64 }),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserProfileRow = typeof userProfiles.$inferSelect;
+
+export const userAuthIdentities = mysqlTable(
+  "user_auth_identities",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("user_id").notNull(),
+    provider: varchar("provider", { length: 64 }).notNull(),
+    providerSubjectId: varchar("provider_subject_id", { length: 255 }).notNull(),
+    providerEmail: varchar("provider_email", { length: 320 }),
+    isPrimary: boolean("is_primary").default(false).notNull(),
+    linkedAt: timestamp("linked_at").defaultNow().notNull(),
+    lastUsedAt: timestamp("last_used_at"),
+  },
+  (t) => [
+    index("idx_auth_user").on(t.userId),
+    unique("uq_auth_provider_subject").on(t.provider, t.providerSubjectId),
+  ],
+);
+
+export type UserAuthIdentity = typeof userAuthIdentities.$inferSelect;
+
+/** Cross-tenant platform operator roles (not company membership). */
+export const platformUserRoles = mysqlTable(
+  "platform_user_roles",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("user_id").notNull(),
+    role: mysqlEnum("role", [
+      "super_admin",
+      "platform_admin",
+      "regional_manager",
+      "client_services",
+      "sanad_network_admin",
+      "sanad_compliance_reviewer",
+    ]).notNull(),
+    grantedBy: int("granted_by"),
+    grantedAt: timestamp("granted_at").defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (t) => [
+    index("idx_pur_user").on(t.userId),
+    index("idx_pur_user_active").on(t.userId, t.revokedAt),
+  ],
+);
+
+export type PlatformUserRoleRow = typeof platformUserRoles.$inferSelect;
+
+export const userSecuritySettings = mysqlTable("user_security_settings", {
+  userId: int("user_id").primaryKey(),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
+  twoFactorVerifiedAt: timestamp("two_factor_verified_at"),
+  recoveryCodesHash: text("recovery_codes_hash"),
+  requiresStepUpAuth: boolean("requires_step_up_auth").default(false).notNull(),
+  passwordLastChangedAt: timestamp("password_last_changed_at"),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserSecuritySettingsRow = typeof userSecuritySettings.$inferSelect;
 
 // ─── COMPANIES (TENANTS) ──────────────────────────────────────────────────────
 
@@ -143,7 +234,10 @@ export const companyMembers = mysqlTable(
     permissions: json("permissions").$type<string[]>().default([]),
     isActive: boolean("isActive").default(true).notNull(),
     invitedBy: int("invitedBy"),
+    invitedAt: timestamp("invited_at"),
+    acceptedAt: timestamp("accepted_at"),
     joinedAt: timestamp("joinedAt").defaultNow().notNull(),
+    removedAt: timestamp("removed_at"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (t) => [

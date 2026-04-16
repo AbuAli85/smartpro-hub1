@@ -1,8 +1,24 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, desc, eq, gte, like, lte, or, sql, sum } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  isNotNull,
+  isNull,
+  like,
+  lte,
+  notInArray,
+  or,
+  sql,
+  sum,
+} from "drizzle-orm";
 import { escapeLike } from "@shared/objectUtils";
 import { z } from "zod";
-import { getDb } from "../db";
+import { getDb, replaceGlobalPlatformRolesForUser } from "../db";
 import {
   auditLogs,
   companies,
@@ -14,6 +30,7 @@ import {
   sanadApplications,
   sanadOffices,
   users,
+  platformUserRoles,
 } from "../../drizzle/schema";
 import { adminProcedure, platformOperatorReadProcedure, router } from "../_core/trpc";
 import { getAccessShadowSnapshot } from "../_core/accessShadow";
@@ -29,6 +46,7 @@ import {
   deriveBestMemberRole,
 } from "../../shared/roleHelpers";
 import { PLATFORM_ROLE_VALUES } from "../../shared/platformRoles";
+import { GLOBAL_PLATFORM_ROLE_SLUGS } from "../../shared/identityAuthority";
 
 // ─── Platform Operations Router ───────────────────────────────────────────────
 
@@ -394,6 +412,15 @@ export const platformOpsRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Nothing to update" });
       // Fetch old values for audit
       const [oldUser] = await db.select({ platformRole: users.platformRole, isActive: users.isActive }).from(users).where(eq(users.id, input.userId));
+
+      if (input.platformRole !== undefined) {
+        if (GLOBAL_PLATFORM_ROLE_SLUGS.has(input.platformRole)) {
+          await replaceGlobalPlatformRolesForUser(input.userId, [input.platformRole], ctx.user.id);
+        } else {
+          await replaceGlobalPlatformRolesForUser(input.userId, [], ctx.user.id);
+        }
+      }
+
       await db.update(users).set(updates).where(eq(users.id, input.userId));
       // Audit log
       await db.insert(auditLogs).values({
@@ -786,4 +813,90 @@ export const platformOpsRouter = router({
 
   /** In-memory snapshot of shadow mismatch aggregates (global admin only). */
   getAccessShadowSnapshot: adminProcedure.query(() => getAccessShadowSnapshot()),
+
+  /**
+   * Operational identity health: duplicate normalized emails, privileged users without 2FA, accounts without memberships.
+   */
+  getIdentityHealthReport: adminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) {
+      return {
+        duplicateEmailGroups: [] as { emailNormalized: string; userIds: number[] }[],
+        privilegedWithout2fa: [] as { userId: number; email: string | null; platformRoles: string[] }[],
+        activeWithoutMembership: [] as { userId: number; email: string | null }[],
+      };
+    }
+
+    const dupRows = await db
+      .select({
+        emailNormalized: users.emailNormalized,
+        c: count(users.id),
+      })
+      .from(users)
+      .where(and(isNotNull(users.emailNormalized), notInArray(users.accountStatus, ["merged", "archived"])))
+      .groupBy(users.emailNormalized)
+      .having(gt(count(users.id), 1));
+
+    const duplicateEmailGroups: { emailNormalized: string; userIds: number[] }[] = [];
+    for (const d of dupRows) {
+      if (!d.emailNormalized) continue;
+      const ids = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.emailNormalized, d.emailNormalized),
+            notInArray(users.accountStatus, ["merged", "archived"]),
+          ),
+        )
+        .orderBy(asc(users.id));
+      duplicateEmailGroups.push({
+        emailNormalized: d.emailNormalized,
+        userIds: ids.map((r) => r.id),
+      });
+    }
+
+    const allUsers = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        twoFactorEnabled: users.twoFactorEnabled,
+      })
+      .from(users)
+      .where(notInArray(users.accountStatus, ["merged", "archived"]));
+
+    const platformByUser = new Map<number, string[]>();
+    const pur = await db
+      .select({ userId: platformUserRoles.userId, role: platformUserRoles.role })
+      .from(platformUserRoles)
+      .where(isNull(platformUserRoles.revokedAt));
+    for (const row of pur) {
+      if (!platformByUser.has(row.userId)) platformByUser.set(row.userId, []);
+      platformByUser.get(row.userId)!.push(row.role);
+    }
+
+    const privilegedWithout2fa: { userId: number; email: string | null; platformRoles: string[] }[] = [];
+    for (const u of allUsers) {
+      const pr = platformByUser.get(u.id) ?? [];
+      const needs2fa = pr.some((p) => p === "super_admin" || p === "platform_admin");
+      if (needs2fa && !u.twoFactorEnabled) {
+        privilegedWithout2fa.push({ userId: u.id, email: u.email, platformRoles: pr });
+      }
+    }
+
+    const memberUserIds = await db
+      .select({ userId: companyMembers.userId })
+      .from(companyMembers)
+      .where(eq(companyMembers.isActive, true));
+
+    const mset = new Set(memberUserIds.map((m) => m.userId));
+    const activeWithoutMembership: { userId: number; email: string | null }[] = [];
+    for (const u of allUsers) {
+      if (!mset.has(u.id)) {
+        activeWithoutMembership.push({ userId: u.id, email: u.email });
+      }
+    }
+
+    return { duplicateEmailGroups, privilegedWithout2fa, activeWithoutMembership };
+  }),
 });

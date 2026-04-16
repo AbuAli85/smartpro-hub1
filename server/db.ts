@@ -14,6 +14,7 @@ export { getDb, requireDb } from "./db.client";
 
 // ── Domain repositories ───────────────────────────────────────────────────────
 export * from "./repositories/users.repository";
+export * from "./repositories/platformRoles.repository";
 export * from "./repositories/companies.repository";
 export * from "./repositories/subscriptions.repository";
 export * from "./repositories/sanad.repository";

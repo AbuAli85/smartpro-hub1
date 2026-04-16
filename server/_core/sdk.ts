@@ -6,6 +6,7 @@ import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
+import type { SessionUser } from "./sessionUser";
 import { ENV } from "./env";
 import type {
   ExchangeTokenRequest,
@@ -256,7 +257,7 @@ class SDKServer {
     } as GetUserInfoWithJwtResponse;
   }
 
-  async authenticateRequest(req: Request): Promise<User> {
+  async authenticateRequest(req: Request): Promise<SessionUser> {
     // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
@@ -297,7 +298,14 @@ class SDKServer {
       lastSignedIn: signedInAt,
     });
 
-    return user;
+    const st = user.accountStatus ?? "active";
+    if (st === "merged" || st === "archived") {
+      throw ForbiddenError("Account is not active");
+    }
+
+    const platformRoles = await db.getActivePlatformRoleSlugsForUser(user.id);
+
+    return { ...user, platformRoles };
   }
 }
 

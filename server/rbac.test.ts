@@ -16,6 +16,12 @@ describe("canAccessGlobalAdminProcedures", () => {
     expect(canAccessGlobalAdminProcedures({ role: "user", platformRole: "platform_admin" })).toBe(true);
   });
 
+  it("allows super_admin via platform_user_roles (session.platformRoles)", () => {
+    expect(
+      canAccessGlobalAdminProcedures({ role: "user", platformRole: "client", platformRoles: ["super_admin"] }),
+    ).toBe(true);
+  });
+
   it("denies normal company users", () => {
     expect(canAccessGlobalAdminProcedures({ role: "user", platformRole: "company_admin" })).toBe(false);
     expect(canAccessGlobalAdminProcedures({ role: "user", platformRole: "company_member" })).toBe(false);

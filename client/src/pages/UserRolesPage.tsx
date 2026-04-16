@@ -687,6 +687,10 @@ export default function UserRolesPage() {
   );
 
   const { data: companiesData } = trpc.platformOps.listCompanies.useQuery();
+  const { data: identityHealth } = trpc.platformOps.getIdentityHealthReport.useQuery(undefined, {
+    enabled: canMutate,
+    refetchOnWindowFocus: false,
+  });
   const utils = trpc.useUtils();
 
   const bulkFix = trpc.platformOps.bulkFixMismatches.useMutation({
@@ -747,6 +751,33 @@ export default function UserRolesPage() {
           <RefreshCw size={14} />Refresh
         </Button>
       </div>
+
+      {canMutate &&
+        identityHealth &&
+        (identityHealth.duplicateEmailGroups.length > 0 || identityHealth.privilegedWithout2fa.length > 0) && (
+          <Card className="border-amber-200 bg-amber-50/60 dark:bg-amber-950/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                Identity health
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground space-y-2">
+              {identityHealth.duplicateEmailGroups.length > 0 && (
+                <p>
+                  <strong className="text-foreground">{identityHealth.duplicateEmailGroups.length}</strong> duplicate
+                  normalized email group(s) detected — review rows before enabling strict uniqueness.
+                </p>
+              )}
+              {identityHealth.privilegedWithout2fa.length > 0 && (
+                <p>
+                  <strong className="text-foreground">{identityHealth.privilegedWithout2fa.length}</strong> super/platform
+                  operator account(s) without 2FA — policy enforcement will block when wired.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
       {/* Stats — by account type */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

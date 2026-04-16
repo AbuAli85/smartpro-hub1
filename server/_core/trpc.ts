@@ -4,7 +4,7 @@ import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
-import type { User } from "../../drizzle/schema";
+import type { SessionUser } from "./sessionUser";
 import {
   extractCompanyIdFromRawInput,
   isAccessV2ShadowCompanyEnabled,
@@ -12,7 +12,7 @@ import {
 } from "./accessShadow";
 import { getImplicitWorkspaceCompanyIdForShadow } from "./membership";
 
-type AuthenticatedContext = Omit<TrpcContext, "user"> & { user: User };
+type AuthenticatedContext = Omit<TrpcContext, "user"> & { user: SessionUser };
 
 /** Base tRPC instance (for composing feature-specific middleware). */
 export const t = initTRPC.context<TrpcContext>().create({
@@ -96,7 +96,10 @@ export const platformOperatorReadProcedure = t.procedure
 
 /**
  * Cross-tenant platform procedures (officers, platformOps mutations, system.notifyOwner).
- * Allows legacy `users.role === "admin"` or platformRole super_admin / platform_admin.
+ * Uses {@link canAccessGlobalAdminProcedures} (platform_user_roles + legacy fallbacks).
+ *
+ * TODO (security policy): enforce mandatory 2FA for super_admin / platform_admin using
+ * `user_security_settings` + step-up middleware once UI flows are production-ready.
  */
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {

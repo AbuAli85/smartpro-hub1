@@ -1,0 +1,767 @@
+# SmartPro Hub — Cursor Master Prompt
+# Based on full codebase audit of github.com/AbuAli85/smartpro-hub1
+
+> **Use this file as your Cursor system context.** Save as `.cursorrules` in the project root OR paste into Cursor Composer (Cmd+I) at the start of each session.
+
+---
+
+## 🗂 CODEBASE SNAPSHOT (as of April 2026)
+
+| Metric | Value |
+|--------|-------|
+| Total lines of code | ~210,000 |
+| Frontend pages | 131 |
+| Server routers | 53 |
+| Database tables | 151 (MySQL via Drizzle ORM) |
+| DB migrations | 57 applied |
+| Test files | 167 |
+| Production readiness | ⚠️ Not yet — 3–4 months of depth work needed |
+
+---
+
+## 🏗 ACTUAL TECH STACK (what's already in the repo)
+
+```
+Runtime:      Node.js + TypeScript (ESM)
+Frontend:     React + Vite + Wouter (routing) + TanStack Query
+Backend:      tRPC v11 (type-safe API layer)
+Database:     MySQL (Drizzle ORM + drizzle-kit migrations)
+Auth:         Custom session-based auth (no NextAuth)
+UI:           Radix UI + shadcn/ui + Tailwind CSS
+Drag-drop:    @dnd-kit/core + @dnd-kit/sortable
+PDF:          PDFKit
+Storage:      AWS S3 (@aws-sdk/client-s3)
+WhatsApp:     WhatsApp Cloud API (server/whatsappCloud.ts)
+Monitoring:   Sentry (@sentry/node)
+Testing:      Vitest + Playwright
+AI/LLM:       OpenAI (server/_core/llm.ts)
+Image gen:    server/_core/imageGeneration.ts
+Voice:        server/_core/voiceTranscription.ts
+i18n:         Custom (client/src/locales/, ~17 pages incomplete)
+```
+
+---
+
+## 📁 PROJECT STRUCTURE
+
+```
+smartpro-hub1/
+├── client/src/
+│   ├── pages/          ← 131 React page components
+│   ├── features/       ← Feature-specific components (controlTower/)
+│   ├── components/     ← Shared UI components
+│   ├── hooks/          ← Custom React hooks
+│   ├── contexts/       ← React contexts
+│   ├── lib/            ← Utilities
+│   ├── locales/        ← i18n translation files
+│   └── App.tsx         ← Routes (wouter)
+├── server/
+│   ├── _core/          ← Auth, tenant, tRPC setup, LLM, storage
+│   ├── routers/        ← 53 tRPC routers (one per domain)
+│   └── *.ts            ← Domain services and test files
+├── shared/             ← Shared types, RBAC, attendance logic, nav config
+├── drizzle/
+│   ├── schema.ts       ← 151 table definitions (4,194 lines)
+│   └── *.sql           ← 57 migration files
+└── docs/               ← Architecture decisions, specs, assessments
+```
+
+---
+
+## ✅ MODULES ALREADY BUILT (do NOT rebuild from scratch)
+
+### Strong (8–9/10) — touch only for depth improvements
+- **Attendance & Scheduling** — check-in/out, geofencing, GPS, shift templates, anomaly detection, overtime, schedule groups, sessions
+- **RBAC & Multi-tenancy** — 13 platform roles, tenant isolation at DB query layer, Sanad/PRO officer system, buyer portal separation
+- **HR — Employee Management** — full lifecycle, document vault, MOL Oman profiles, leave management, performance reviews, KPI tracking
+- **Contracts** — contract management, templates, signatures, audit trail, outsourcing contract management
+- **Workforce** — work permits, compliance certificates, promoter assignments, field worker portal
+- **CRM** — contacts, deals, communications (exists but shallow — needs depth)
+- **Quotations** — service quotations with line items and CRM link
+- **Announcements** — company-wide announcements with read tracking
+- **Surveys** — full survey engine with sections, questions, options, responses, analytics
+- **Document Generation** — templates, placeholders, generated documents, audit logs
+- **Sanad Network** — Sanad offices, pipeline, ratings, marketplace readiness, intelligence data
+
+### Partial (4–6/10) — needs significant depth work
+- **Payroll** — payslip generation, PASI deductions, approval workflow; MISSING: WPS file, gratuity, 0% test coverage
+- **Billing/Invoicing** — invoice generation, PDF export, buyer portal; MISSING: payment gateway, aging, dunning, credit notes
+- **Analytics** — reports exist; MISSING: proper BI dashboards, cross-module insights
+- **Automation** — automation_rules + logs tables exist; MISSING: visual builder UI, reliable execution engine
+
+---
+
+## 🚨 CRITICAL GAPS — BUILD THESE (priority order)
+
+### GAP 1: Payment Gateway Integration [BLOCKER]
+**File to modify:** `server/routers/billing.ts`, `server/routers/clientBilling.ts`
+**What's missing:** Invoices are PDFs only. No money movement.
+
+```typescript
+// CREATE: server/routers/payments.ts
+// Integrate Thawani Pay (Oman) as primary + Stripe as secondary
+// Required endpoints:
+// - payments.createCheckoutSession (invoice → payment link)
+// - payments.handleWebhook (Thawani + Stripe)
+// - payments.recordManualPayment
+// - payments.getInvoicePaymentStatus
+// - payments.refund
+
+// Thawani API base: https://payment.thawani.om/api/v1
+// Stripe: use @stripe/stripe-js already in package.json? Check + add if missing
+
+// Update invoicePaymentRecords table (already exists in schema):
+// Add: gateway (enum: thawani | stripe | manual | bank_transfer)
+// Add: gatewayPaymentId, gatewayCheckoutId, gatewayStatus
+```
+
+**New env vars needed:**
+```env
+THAWANI_SECRET_KEY=
+THAWANI_PUBLISHABLE_KEY=
+THAWANI_WEBHOOK_SECRET=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+```
+
+---
+
+### GAP 2: WPS (Wage Protection System) File Generation [LEGAL REQUIREMENT — OMAN]
+**File to modify:** `server/routers/payroll.ts`
+**What's missing:** Cannot legally pay employees in Oman without WPS-compliant bank file.
+
+```typescript
+// CREATE: server/payrollWPS.ts
+// Generate WPS-compliant SIF (Salary Information File) for Omani banks
+// Required fields per Oman MOL WPS spec:
+// - EmployerID (MOL registration number)
+// - EmployeeID (residence card / passport number)
+// - BankCode (Oman bank SWIFT/BIC)
+// - IBAN
+// - BasicSalary, HousingAllowance, OtherAllowances, Deductions, NetSalary
+// - PaymentDate, PayPeriod (YYYYMM)
+// File format: pipe-delimited .txt per bank spec
+// Add payrollRuns.wpsFileUrl column (S3 upload on generation)
+// Add payrollRuns.wpsStatus enum: pending | generated | submitted | confirmed
+
+// Also add to schema (migration needed):
+// employees.iban varchar(34)
+// employees.bankCode varchar(10)
+// employees.bankName varchar(100)
+```
+
+---
+
+### GAP 3: 2FA (Two-Factor Authentication) [SECURITY AUDIT FAIL]
+**File to modify:** `server/_core/auth.ts` (or equivalent), `client/src/pages/PreferencesPage.tsx`
+**What's missing:** No MFA at all — fails basic security audit.
+
+```typescript
+// ADD to users table (migration):
+// twoFactorEnabled boolean DEFAULT false
+// twoFactorSecret varchar(64) -- TOTP secret (encrypted at rest)
+// twoFactorBackupCodes text -- JSON array of hashed backup codes
+
+// CREATE: server/routers/twoFactor.ts
+// - twoFactor.setupInitiate → generate TOTP secret + QR code URI (use 'otplib')
+// - twoFactor.setupConfirm → verify first TOTP code, save secret, return backup codes
+// - twoFactor.disable → verify current code + password before disabling
+// - twoFactor.verify → called during login flow when enabled
+
+// MODIFY: login handler in server/_core/auth.ts
+// After password check: if twoFactorEnabled, return { requiresMfa: true, tempToken }
+// Add /auth/mfa endpoint that accepts tempToken + TOTP code → creates full session
+
+// Frontend: Add 2FA setup wizard in PreferencesPage.tsx
+// Show QR code (use qrcode library), backup codes display, enable/disable toggle
+```
+
+---
+
+### GAP 4: End-of-Service Gratuity Calculator [OMAN LABOUR LAW]
+**File to modify:** `server/routers/payroll.ts`, `server/routers/hr.ts`
+**What's missing:** Cannot offboard employees correctly without gratuity calculation.
+
+```typescript
+// CREATE: server/gratuityCalculator.ts
+// Oman Labour Law (Royal Decree 35/2003, amended) gratuity rules:
+//
+// For employees with < 3 years service: NO gratuity (resignation)
+// For employees with 3–5 years: 15 days basic salary per year
+// For employees with > 5 years: 1 month basic salary per year
+// For termination by employer: 1 month per year regardless
+// For retirement: 1 month per year
+// Maximum: no statutory cap in Oman (unlike UAE)
+// Calculation base: LAST DRAWN basic salary only (not allowances)
+// Partial years: pro-rated by days
+//
+// Function signature:
+// calculateGratuity(params: {
+//   hireDate: Date,
+//   terminationDate: Date,
+//   lastBasicSalary: number,  // OMR
+//   terminationType: 'resignation' | 'termination' | 'retirement' | 'end_of_contract',
+//   nationality: 'omani' | 'expat'  // Omanis on PASI — different rules
+// }): { gratuityAmount: number, yearsOfService: number, breakdown: string }
+
+// ADD to schema: employeeFinalSettlements table
+// Fields: employeeId, terminationDate, terminationType, yearsOfService,
+//         basicSalaryAtTermination, gratuityAmount, leaveEncashment,
+//         otherDeductions, netPayable, status, approvedById, paidAt
+```
+
+---
+
+### GAP 5: Invoice Aging & Collections Automation [REVENUE CRITICAL]
+**File to modify:** `server/routers/clientBilling.ts`
+**What's missing:** No way to track or chase overdue invoices.
+
+```typescript
+// CREATE: server/routers/collections.ts (extend existing collectionWorkItems)
+// The collectionWorkItems table already exists (migration 0022) — wire it up properly
+
+// Required procedures:
+// collections.getAgingReport → group invoices by: current, 1-30d, 31-60d, 61-90d, 90d+
+// collections.getOverdueInvoices → filter by dueDate < now AND status != paid
+// collections.sendPaymentReminder → email + WhatsApp reminder (use existing whatsappCloud.ts)
+// collections.createCollectionCase → escalate invoice to case management
+// collections.markCollectionAttempt → log call/email attempt with outcome
+
+// Automation: add cron job (existing automationRules engine) for:
+// - Day 0 (due date): send "invoice due" reminder
+// - Day +3: send first overdue reminder  
+// - Day +7: send second reminder + WhatsApp
+// - Day +14: auto-create collection work item
+// - Day +30: escalate to manager notification
+
+// CREATE: client/src/pages/CollectionsPage.tsx
+// Show aging chart, overdue list, collection pipeline kanban
+```
+
+---
+
+### GAP 6: Arabic / RTL Full Support [MARKET PENETRATION]
+**Current state:** ~17 pages still need `t()` wrapping (tracked in todo.md QUAL-02)
+**Files:** `client/src/locales/`, all pages with hardcoded English strings
+
+```typescript
+// STEP 1: Audit all pages for hardcoded strings
+// Run: grep -r "\"[A-Z]" client/src/pages/ | grep -v ".test." | grep -v "import"
+
+// STEP 2: Complete missing translation keys in:
+// client/src/locales/en.json  ← ensure all keys exist
+// client/src/locales/ar.json  ← translate all keys to Arabic
+
+// STEP 3: RTL layout fixes
+// Add to index.css:
+// [dir="rtl"] .sidebar { right: 0; left: auto; }
+// [dir="rtl"] .content { margin-right: 240px; margin-left: 0; }
+// Use Tailwind logical properties: ms-* me-* ps-* pe-* instead of ml-* mr-* pl-* pr-*
+
+// STEP 4: Arabic number formatting
+// Use Intl.NumberFormat('ar-OM', { style: 'currency', currency: 'OMR' })
+// for all monetary values when locale = ar
+
+// STEP 5: Date formatting — add Hijri calendar support
+// Use 'date-fns-tz' + '@formatjs/intl-datetimeformat' for Hijri dates
+// Toggle between Gregorian/Hijri in user preferences
+
+// PRIORITY PAGES (highest traffic — translate first):
+// Dashboard.tsx, HREmployeesPage.tsx, AttendanceHRPage.tsx,
+// PayrollProcessingPage.tsx, CRMPage.tsx, ContractsPage.tsx
+```
+
+---
+
+### GAP 7: CRM Depth — Pipeline Kanban + Activity Timeline [DAILY USE]
+**Current state:** `crmContacts`, `crmDeals`, `crmCommunications` tables exist but UI is shallow
+**File:** `client/src/pages/CRMPage.tsx`, `server/routers/crm.ts`
+
+```typescript
+// ENHANCE server/routers/crm.ts with:
+// crm.getPipelineBoard → deals grouped by stage with totals
+// crm.moveDeal → update stageId + log activity (drag-drop)
+// crm.getContactTimeline → all activities, emails, notes, deals for one contact
+// crm.logActivity → type: call | email | meeting | note | task
+// crm.bulkImportContacts → CSV upload → parse → validate → insert
+// crm.getLeadScore → calculate score from: activity count, deal value, engagement
+// crm.getDealForecast → deals by close date with probability-weighted value
+
+// ENHANCE client/src/pages/CRMPage.tsx:
+// Add Kanban board using existing @dnd-kit/core (already in package.json)
+// Columns = pipeline stages, cards = deals with value + contact + days in stage
+// Add contact detail slide-over with full timeline
+// Add activity log form (quick-add call/note/email)
+// Add lead score badge on contact cards
+```
+
+---
+
+### GAP 8: Visual Automation Builder UI [USER EMPOWERMENT]
+**Current state:** `automationRules` + `automationLogs` tables exist, `server/routers/automation.ts` exists
+**Missing:** No UI to create/edit automations — users cannot use this feature
+
+```typescript
+// CREATE: client/src/pages/AutomationBuilderPage.tsx
+// Visual drag-drop automation builder with 3 zones:
+// [TRIGGER] → [CONDITIONS] → [ACTIONS]
+
+// Available TRIGGERS (map to existing system events):
+const TRIGGERS = [
+  'employee.created', 'employee.onboarded', 'employee.terminated',
+  'attendance.missed', 'attendance.late', 'attendance.anomaly',
+  'leave.requested', 'leave.approved', 'leave.rejected',
+  'contract.expiring', 'contract.signed',
+  'permit.expiring', 'document.expiring',
+  'invoice.created', 'invoice.overdue', 'invoice.paid',
+  'deal.stage_changed', 'deal.won', 'deal.lost',
+  'ticket.created', 'ticket.sla_breach',
+  'cron.daily', 'cron.weekly', 'cron.monthly',
+]
+
+// Available ACTIONS:
+const ACTIONS = [
+  'send.email',          // use existing Resend/email setup
+  'send.whatsapp',       // use existing whatsappCloud.ts
+  'send.notification',   // use existing notifications system
+  'create.task',         // employeeTasks table
+  'update.field',        // generic field update
+  'assign.officer',      // PRO officer assignment
+  'call.webhook',        // external HTTP POST
+  'delay.hours',         // wait N hours before next action
+]
+
+// Store as JSON in automationRules.trigger_config + action_config
+// automationLogs already tracks execution history — wire to UI log view
+```
+
+---
+
+### GAP 9: Booking/Marketplace Depth — Public-Facing Book Now [REVENUE]
+**Current state:** `marketplaceBookings` table exists, `server/routers/marketplace.ts` exists
+**Missing:** Public booking page, booking confirmation flow, payment integration
+
+```typescript
+// CREATE: client/src/pages/PublicBookingPage.tsx (unauthenticated route)
+// URL: /book/:serviceId or /book/:listingSlug
+// Show: service details, available time slots, contact form
+// Flow: select slot → enter details → pay (Thawani) → confirmation email
+
+// ENHANCE server/routers/marketplace.ts:
+// marketplace.getPublicListing → no auth required
+// marketplace.getAvailableSlots → slots not already booked for date range
+// marketplace.createPublicBooking → create booking + payment intent
+// marketplace.confirmBooking → called after payment webhook success
+// marketplace.sendConfirmationEmail → send to customer + provider
+
+// ADD booking reminders (cron job):
+// 24h before: send reminder to customer + provider
+// 1h before: send final reminder via WhatsApp (whatsappCloud.ts)
+// Post-booking: send review request after completion
+```
+
+---
+
+### GAP 10: Executive Dashboard & BI Reports [MANAGEMENT LAYER]
+**Current state:** `AnalyticsPage.tsx` exists but is shallow, `analyticsReports` table exists
+**Missing:** Cross-module KPI dashboard with real data
+
+```typescript
+// ENHANCE client/src/pages/ExecutiveDashboardPage.tsx
+// (file exists but needs real data wiring)
+
+// CREATE: server/routers/executiveDashboard.ts
+// Aggregated queries across modules:
+
+// Financial KPIs:
+// - Total revenue this month vs last month (from clientServiceInvoices)
+// - Outstanding AR (sum of unpaid invoices grouped by aging bucket)
+// - Collection rate % (paid / total invoiced)
+// - Top 5 clients by revenue
+
+// Workforce KPIs:
+// - Headcount by department
+// - Attendance rate % today / this week
+// - Open positions (jobPostings where status = open)
+// - Expiring documents in next 30 days (work permits, visas)
+
+// Operations KPIs:
+// - Active PRO service requests by status
+// - Contract renewals due in 30/60/90 days
+// - SLA breach count this week (caseSlaTracking)
+// - Open collection cases
+
+// All queries MUST respect tenant isolation (company_id filter)
+// Cache with Redis (5-min TTL) — add ioredis if not already in deps
+```
+
+---
+
+### GAP 11: Payroll — Test Coverage (0% → 80%) [REGRESSION SAFETY]
+**Current state:** `server/routers/payroll.ts` has zero test coverage — dangerous
+**File:** Create `server/payroll.test.ts`
+
+```typescript
+// WRITE tests for all critical payroll paths:
+
+describe('Payroll calculations', () => {
+  it('calculates basic salary correctly for full month')
+  it('pro-rates salary for partial month (hire mid-month)')
+  it('applies PASI deduction correctly for Omani nationals (6.5% employee + 10.5% employer)')
+  it('applies housing allowance when configured')
+  it('deducts salary loans correctly')
+  it('does not double-count overtime already approved')
+  it('handles zero-salary employees (trainees) without division errors')
+  it('generates correct WPS SIF file format')
+  it('calculates gratuity correctly for 3-year resignation')
+  it('calculates gratuity correctly for 5-year termination')
+  it('rejects payroll run if attendance not approved for period')
+  it('prevents duplicate payroll run for same month')
+  it('enforces tenant isolation — cannot access other company payroll')
+})
+
+// Also write tests for:
+// - Invoice generation from attendance data
+// - Overtime approval affecting payslip
+// - Leave deduction from salary
+```
+
+---
+
+### GAP 12: Billing Test Coverage (0% → critical paths) [REGRESSION SAFETY]
+**Create:** `server/billing.test.ts` (extend existing `server/billing.test.ts`)
+
+```typescript
+describe('Invoice generation', () => {
+  it('generates invoice with correct VAT (5% Oman rate)')
+  it('applies correct daily rate from attendance_sites')
+  it('includes only approved attendance records')
+  it('does not duplicate line items on re-generation')
+  it('correctly calculates totals with mixed service types')
+  it('payment recording updates invoice status to paid')
+  it('partial payment leaves correct outstanding balance')
+  it('enforces tenant isolation on invoice queries')
+  it('buyer portal can only view their own invoices')
+})
+```
+
+---
+
+### GAP 13: OASIS/PACI Integration Stub [OMAN REGULATORY]
+**What's needed:** Visa status sync with Oman government systems
+
+```typescript
+// CREATE: server/oasisIntegration.ts
+// Stub implementation with interface for when API access is obtained
+
+interface OasisClient {
+  // Check visa status for an employee
+  checkVisaStatus(params: {
+    passportNumber: string
+    nationality: string
+    visaNumber?: string
+  }): Promise<{ status: 'valid' | 'expired' | 'cancelled', expiryDate: Date | null }>
+
+  // Verify residence card (Civil Card)
+  verifyCivilCard(civilCardNumber: string): Promise<{
+    valid: boolean
+    holderName: string
+    expiryDate: Date
+  }>
+}
+
+// For now: implement as mock that reads from employeeGovernmentProfiles
+// Log all calls for audit
+// When real API credentials obtained: swap implementation, tests pass unchanged
+// Add to employee detail page: "Verify with OASIS" button (gated behind feature flag)
+```
+
+---
+
+## 🔧 CODE QUALITY FIXES (from todo.md open items)
+
+### ARCH-04: Decompose Attendance Router
+The main `server/routers/attendance.ts` is too large. Continue decomposing:
+
+```
+server/routers/attendance/
+├── index.ts          ← barrel re-export (already started)
+├── sites.router.ts   ← already extracted
+├── records.router.ts ← extract: check-in, check-out, history
+├── anomalies.router.ts ← extract: anomaly detection, reports  
+├── corrections.router.ts ← extract: manual correction requests
+├── sessions.router.ts ← extract: attendance sessions
+└── schedule.router.ts ← extract: schedule queries
+```
+
+### QUAL-01: Test Coverage Gaps (currently 12.6%)
+Priority files to add tests for (in order of business risk):
+1. `server/routers/payroll.ts` (0% — URGENT)
+2. `server/routers/billing.ts` (0% — URGENT)
+3. `server/routers/clientBilling.ts`
+4. `server/routers/contracts.ts`
+5. `server/routers/pro.ts`
+
+### QUAL-02: i18n Completion
+Pages still needing `t()` wrapping (17 identified):
+Run this to find them:
+```bash
+grep -rL "useTranslation\|t(" client/src/pages/*.tsx | grep -v test
+```
+For each: import `useTranslation`, wrap all user-visible strings with `t('namespace.key')`, add keys to both `en.json` and `ar.json`.
+
+### QUAL-05: Repository Pattern Migration
+New routers should follow the repository pattern established in `server/repositories/`:
+- Never query Drizzle directly in router procedures
+- Always go through a repository function
+- Repository functions handle tenant isolation + return typed results
+
+---
+
+## 📐 CODING STANDARDS (follow exactly)
+
+### tRPC Router Pattern
+```typescript
+// server/routers/example.ts
+import { z } from 'zod'
+import { router, protectedProcedure } from '../_core/trpc'
+import { requireActiveCompanyId } from '../_core/tenant'
+import { requireWorkspaceMembership } from '../_core/membership'
+
+export const exampleRouter = router({
+  list: protectedProcedure
+    .input(z.object({ /* ... */ }))
+    .query(async ({ ctx, input }) => {
+      const companyId = requireActiveCompanyId(ctx)
+      // ALWAYS filter by companyId — never skip this
+      const results = await db.select()
+        .from(table)
+        .where(eq(table.companyId, companyId))
+      return results
+    }),
+
+  create: protectedProcedure
+    .input(z.object({ /* ... */ }))
+    .mutation(async ({ ctx, input }) => {
+      const { companyId, userId } = await requireWorkspaceMembership(ctx)
+      // Insert with companyId always
+      const [result] = await db.insert(table).values({
+        ...input,
+        companyId,
+        createdBy: userId,
+      })
+      // Audit log every mutation
+      await db.insert(auditLogs).values({
+        companyId, userId,
+        action: 'create', resource: 'example', resourceId: String(result.insertId),
+      })
+      return result
+    }),
+})
+```
+
+### Drizzle Query Pattern
+```typescript
+// Always use repository functions, never raw Drizzle in routers
+// server/repositories/example.repository.ts
+import { db } from '../db'
+import { eq, and, desc } from 'drizzle-orm'
+import { exampleTable } from '../../drizzle/schema'
+
+export async function findByCompany(companyId: number) {
+  return db.select()
+    .from(exampleTable)
+    .where(eq(exampleTable.companyId, companyId))
+    .orderBy(desc(exampleTable.createdAt))
+}
+```
+
+### Frontend Component Pattern
+```typescript
+// Use TanStack Query for all server state
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { trpc } from '../lib/trpc'  // or equivalent tRPC client
+
+function ExamplePage() {
+  const { data, isLoading } = trpc.example.list.useQuery()
+  const qc = useQueryClient()
+  
+  const create = trpc.example.create.useMutation({
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['example'] })
+  })
+  
+  if (isLoading) return <LoadingSpinner />
+  // ...
+}
+```
+
+### Migration Pattern
+```typescript
+// Always add a new numbered migration file
+// drizzle/00XX_descriptive_name.sql
+// Never modify existing migration files
+// Run: pnpm db:migrate to apply
+```
+
+---
+
+## 🔐 SECURITY RULES (non-negotiable)
+
+1. **Every tRPC procedure** must call `requireActiveCompanyId(ctx)` or `requireWorkspaceMembership(ctx)`
+2. **Every mutation** on an existing row must verify `row.companyId === ctx.companyId` before updating
+3. **Every S3 URL generation** must validate ownership of the owning row first (see docs/ARCHITECTURE.md)
+4. **Never** use `companyId ?? 1` or numeric fallbacks — throw `TRPCError({ code: 'UNAUTHORIZED' })` instead
+5. **All file uploads** must: validate MIME type whitelist, enforce size limit (10MB default), partition S3 key by `companyId`
+6. **Audit log** every create / update / delete / status change
+7. **Rate limit** all public-facing routes (existing middleware in `server/_core/security.ts`)
+
+---
+
+## 🌍 OMAN-SPECIFIC BUSINESS RULES
+
+Always apply these when building financial or HR features:
+
+```typescript
+const OMAN_CONSTANTS = {
+  // Tax
+  VAT_RATE: 0.05,                    // 5% VAT (introduced 2021)
+  WITHHOLDING_TAX: 0.10,             // 10% on dividends / specific services
+  
+  // Payroll — PASI (Public Authority for Social Insurance)
+  PASI_EMPLOYEE_CONTRIBUTION: 0.065, // 6.5% of basic salary (Omani nationals only)
+  PASI_EMPLOYER_CONTRIBUTION: 0.105, // 10.5% of basic salary (Omani nationals only)
+  PASI_MAX_INSURABLE_SALARY: 1500,   // OMR — salary cap for PASI calc
+  
+  // Labour law
+  ANNUAL_LEAVE_DAYS: 30,             // minimum annual leave (Labour Law)
+  SICK_LEAVE_DAYS: 10,               // paid sick leave per year
+  MATERNITY_LEAVE_DAYS: 50,          // 50 calendar days
+  NOTICE_PERIOD_DAYS: 30,            // standard (varies by contract)
+  PROBATION_MAX_MONTHS: 3,           // max 3 months probation
+  
+  // Working hours
+  NORMAL_HOURS_PER_DAY: 8,
+  MAX_HOURS_PER_WEEK: 48,
+  RAMADAN_HOURS_REDUCTION: 2,        // 2 hours less per day during Ramadan
+  
+  // Currency
+  CURRENCY: 'OMR',
+  CURRENCY_DECIMALS: 3,              // OMR uses 3 decimal places (baisa)
+  
+  // WPS (Wage Protection System)
+  WPS_SUBMISSION_DEADLINE_DAYS: 10,  // must pay within 10 days of due date
+}
+```
+
+---
+
+## 📋 DEPLOYMENT ECONOMICS MODULE (In Progress)
+**Context:** Tracked in `docs/DEPLOYMENT_ECONOMICS_BACKLOG.md`
+
+This is an active multi-phase build. Current status:
+- Phase 1 schema: `customer_deployments`, `customer_deployment_assignments`, `billing_rate_rules` — DONE (migration 0056)
+- Phase 1 APIs: `server/routers/deploymentEconomics.ts` — STARTED
+- Phase 2 (billing math, margin facts): NOT STARTED
+
+**When working on this module:**
+1. Read `docs/DEPLOYMENT_ECONOMICS_BACKLOG.md` fully first
+2. `billing_customers` is the canonical AR entity — never create parallel customer identity
+3. `business_parties` is the canonical legal party — always link via `party_id`
+4. Legacy path: `attendance_sites` with `billing_customer_id = NULL` must keep working unchanged
+5. No dual-write between `promoter_assignments` and `customer_deployment_assignments`
+
+---
+
+## 🔄 SANAD MODULE (Oman PRO Services Network)
+**Context:** "Sanad" = the SmartPro network of PRO service providers in Oman
+
+Key concepts:
+- `sanadOffices` = PRO service offices registered on the platform
+- `sanadApplications` = applications submitted by companies to Sanad offices
+- `sanadServiceCatalogue` = services offered (visas, licenses, company formation, etc.)
+- `sanadIntel*` = intelligence data about Sanad centers (imported from official data)
+- `sanadCentresPipeline` = CRM-style pipeline for Sanad business development
+
+**Current gaps in Sanad:**
+- No digital payment collection from companies to Sanad offices
+- Sanad officer self-service portal is limited
+- No SLA tracking on Sanad service delivery
+- `sanadCentresPipeline` needs activity notes depth (tracked as P0 in migration 0045)
+
+---
+
+## 🗺 NAVIGATION SYSTEM
+The navigation is role-driven and complex. DO NOT modify nav config without reading:
+- `shared/clientNav.ts` (31K lines — the full nav definition)
+- `shared/roleNavConfig.ts` — which nav items are visible per role
+- `shared/hubNavVisibility.ts` — hub-level visibility rules
+- `shared/navPlatformRestrictedPrefixes.ts` — platform-only paths
+
+To add a new page to nav:
+1. Add the page component to `client/src/pages/`
+2. Add a route in `client/src/App.tsx`  
+3. Add nav entry in `shared/clientNav.ts` with correct `roles` array
+4. Test with `shared/roleNavConfig.test.ts`
+
+---
+
+## ⚡ QUICK REFERENCE — KEY FILES
+
+| What | Where |
+|------|-------|
+| DB schema (all 151 tables) | `drizzle/schema.ts` |
+| tRPC router registry | `server/_core/trpc.ts` or `server/_core/index.ts` |
+| Auth + session | `server/_core/auth.ts` / `cookies.ts` |
+| Tenant helpers | `server/_core/tenant.ts` |
+| RBAC permissions | `shared/rbac.ts` |
+| Role definitions | `shared/roleHelpers.ts` |
+| Navigation config | `shared/clientNav.ts` |
+| WhatsApp integration | `server/whatsappCloud.ts` |
+| LLM/AI | `server/_core/llm.ts` |
+| Storage (S3) | `server/_core/sdk.ts` (or storage.ts) |
+| Email | Look for resend/nodemailer in `server/` |
+| Attendance logic | `shared/attendanceIntelligence.ts` |
+| Oman leave policy | `shared/omanLeavePolicyDefaults.ts` |
+| Letter engine | `shared/letterEngine/` |
+| Production assessment | `docs/PRODUCTION_READINESS_ASSESSMENT.md` |
+| Architecture decisions | `docs/ARCHITECTURE.md` |
+
+---
+
+## 🏁 RECOMMENDED SPRINT ORDER
+
+### Sprint 1 — Money & Legal Compliance (Weeks 1–3)
+1. Thawani Pay integration (invoice payment collection)
+2. WPS file generation (payroll legal requirement)
+3. End-of-service gratuity calculator
+4. Payroll test coverage (0% → 80%)
+5. Billing test coverage (0% → critical paths)
+
+### Sprint 2 — Security & Auth (Weeks 4–5)
+1. 2FA / TOTP implementation
+2. Session revocation on role change (immediate)
+3. Rate limiting on all public routes audit
+4. Security penetration checklist from `docs/HARDENING_SUMMARY_2026-03.md`
+
+### Sprint 3 — Revenue & CRM Depth (Weeks 6–8)
+1. CRM Kanban board + activity timeline
+2. Invoice aging report + collections automation
+3. Collections dunning workflow (automated reminders)
+4. Booking public-facing page + Thawani payment
+
+### Sprint 4 — Arabic & Market Fit (Weeks 9–10)
+1. Complete i18n (17 remaining pages)
+2. RTL layout fixes
+3. Arabic number/date formatting
+4. Hijri calendar support
+
+### Sprint 5 — Intelligence & Automation (Weeks 11–12)
+1. Executive BI dashboard (real data)
+2. Visual automation builder UI
+3. OASIS integration stub
+4. Deployment economics Phase 2 (billing math)
+
+---
+
+*This prompt was generated from a full automated analysis of the smartpro-hub1 codebase on April 16, 2026.*
+*Always re-read `docs/PRODUCTION_READINESS_ASSESSMENT.md` before starting new features.*

@@ -57,6 +57,7 @@ import { surveyRouter } from "./routers/survey";
 import { deploymentEconomicsRouter } from "./routers/deploymentEconomics";
 import { paymentsRouter } from "./routers/payments";
 import { twoFactorRouter } from "./routers/twoFactor";
+import { collectionsRouter } from "./routers/collections";
 
 export const appRouter = router({
   system: systemRouter,
@@ -98,6 +99,8 @@ export const appRouter = router({
   workforce: workforceRouter,
   officers: officersRouter,
   billing: billingRouter,
+  /** AR aging, collection cases, manual email/WhatsApp reminders (Option B). */
+  collections: collectionsRouter,
   renewalWorkflows: renewalWorkflowsRouter,
   ratings: ratingsRouter,
   reports: reportsRouter,

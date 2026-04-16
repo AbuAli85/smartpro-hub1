@@ -208,6 +208,73 @@ export async function buildAgedReceivablesSnapshot(
   };
 }
 
+/**
+ * Same rules as {@link buildAgedReceivablesSnapshot}, but aggregated across all tenants (platform ops).
+ */
+export async function buildAgedReceivablesSnapshotAllTenants(
+  db: DbClient,
+  now: Date = new Date(),
+): Promise<AgedReceivablesSnapshot> {
+  const proRows = await db
+    .select({
+      amountOmr: proBillingCycles.amountOmr,
+      status: proBillingCycles.status,
+      dueDate: proBillingCycles.dueDate,
+    })
+    .from(proBillingCycles);
+
+  const proBuckets = EMPTY_BUCKETS();
+  let proTotal = 0;
+  let proCount = 0;
+
+  for (const r of proRows) {
+    const due = r.dueDate ? new Date(r.dueDate) : null;
+    const amt = Number(r.amountOmr ?? 0);
+    const isOverdueStatus = r.status === "overdue";
+    const isPastDuePending = r.status === "pending" && due != null && due.getTime() < now.getTime();
+    if (!isOverdueStatus && !isPastDuePending) continue;
+    proTotal += amt;
+    proCount += 1;
+    const days = daysPastDue(due, now);
+    addToBuckets(proBuckets, bucketKeyForDaysPastDue(days), amt);
+  }
+
+  const subRows = await db
+    .select({
+      amount: subscriptionInvoices.amount,
+      status: subscriptionInvoices.status,
+      dueDate: subscriptionInvoices.dueDate,
+    })
+    .from(subscriptionInvoices);
+
+  const subBuckets = EMPTY_BUCKETS();
+  let subTotal = 0;
+  let subCount = 0;
+
+  for (const r of subRows) {
+    const due = r.dueDate ? new Date(r.dueDate) : null;
+    const amt = Number(r.amount ?? 0);
+    const isOverdue = r.status === "overdue";
+    const isIssuedPastDue =
+      r.status === "issued" && due != null && due.getTime() < now.getTime();
+    if (!isOverdue && !isIssuedPastDue) continue;
+    subTotal += amt;
+    subCount += 1;
+    const days = daysPastDue(due, now);
+    addToBuckets(subBuckets, bucketKeyForDaysPastDue(days), amt);
+  }
+
+  const basis =
+    "All-tenant aged receivables: PRO cycles overdue or pending past due; subscription invoices overdue or issued past due.";
+
+  return {
+    basis,
+    officerPro: { totalOmr: proTotal, rowCount: proCount, buckets: proBuckets },
+    platformSubscription: { totalOmr: subTotal, rowCount: subCount, buckets: subBuckets },
+    combinedAtRiskOmr: proTotal + subTotal,
+  };
+}
+
 export async function buildDecisionsQueueSnapshot(
   db: DbClient,
   companyId: number,

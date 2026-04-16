@@ -174,6 +174,60 @@ function trustStrip(): string {
   </table>`;
 }
 
+/** Payment reminder for overdue PRO / subscription receivables (collections workflow). */
+export async function sendPaymentReminderEmail(params: {
+  to: string;
+  companyName: string;
+  invoiceLabel: string;
+  amountOmr: string;
+  dueDateStr: string;
+  daysPastDue: number;
+  portalUrl: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const { to, companyName, invoiceLabel, amountOmr, dueDateStr, daysPastDue, portalUrl } = params;
+  const body = `
+    <h1 style="color:${C.text};font-size:22px;font-weight:800;margin:0 0 8px;text-align:center;">Payment reminder</h1>
+    <p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 24px;">Outstanding balance for <strong>${companyName}</strong></p>
+    <div style="background:${C.cardBg};border-radius:12px;border:1px solid ${C.border};padding:4px 20px;margin:0 0 24px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        ${infoRow("Invoice", invoiceLabel)}
+        ${infoRow("Amount (OMR)", amountOmr, true)}
+        ${infoRow("Due date", dueDateStr)}
+        ${infoRow("Days overdue", String(daysPastDue))}
+      </table>
+    </div>
+    <p style="color:${C.textMuted};font-size:14px;line-height:1.6;margin:0 0 16px;text-align:center;">
+      Please arrange payment at your earliest convenience. If you have already paid, disregard this message.
+    </p>
+    <div style="text-align:center;">
+      ${ctaButton(portalUrl, "Open client portal")}
+    </div>
+    ${trustStrip()}
+  `;
+  try {
+    const resend = getResend();
+    const result = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [to],
+      subject: `Payment reminder — ${invoiceLabel} (${amountOmr} OMR)`,
+      html: baseLayout(
+        `Payment reminder — ${invoiceLabel}`,
+        `Balance ${amountOmr} OMR for ${companyName}. Due ${dueDateStr}.`,
+        body,
+      ),
+    });
+    if (result.error) {
+      console.error("[Email] Payment reminder error:", result.error);
+      return { success: false, error: result.error.message };
+    }
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[Email] sendPaymentReminderEmail failed:", err);
+    return { success: false, error: msg };
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // EMAIL 1 — Team Invite
 // ─────────────────────────────────────────────────────────────────────────────

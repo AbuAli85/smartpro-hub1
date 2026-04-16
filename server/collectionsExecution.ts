@@ -3,8 +3,13 @@
  */
 
 import type { getDb } from "./db";
-import { collectionWorkItems, proBillingCycles, subscriptionInvoices } from "../drizzle/schema";
-import { and, eq } from "drizzle-orm";
+import {
+  collectionWorkItems,
+  companies,
+  proBillingCycles,
+  subscriptionInvoices,
+} from "../drizzle/schema";
+import { and, eq, sql } from "drizzle-orm";
 import { daysPastDue, bucketKeyForDaysPastDue, type ArBucketKey } from "./controlTower";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -163,6 +168,118 @@ export async function listCollectionsExecutionQueue(
     .filter((r) => r.workflowStatus !== "resolved")
     .sort((a, b) => b.priorityScore - a.priorityScore)
     .slice(0, limit);
+}
+
+export type OverdueReceivableDetailRow = {
+  companyId: number;
+  companyName: string;
+  sourceType: CollectionSourceType;
+  sourceId: number;
+  invoiceLabel: string;
+  amountOmr: number;
+  dueDate: Date | null;
+  daysPastDue: number;
+  agingBucket: ArBucketKey;
+  workflowStatus: CollectionWorkflowStatus;
+  note: string | null;
+  dbStatus: string;
+};
+
+/**
+ * All at-risk receivable lines (including resolved workflow) for aging tables and manual outreach.
+ */
+export async function listOverdueReceivableDetailRows(
+  db: DbClient,
+  params: { companyId?: number },
+  now: Date = new Date(),
+): Promise<OverdueReceivableDetailRow[]> {
+  const companyCond =
+    params.companyId != null ? eq(proBillingCycles.companyId, params.companyId) : sql`1=1`;
+  const proJoined = await db
+    .select({
+      row: proBillingCycles,
+      companyName: companies.name,
+    })
+    .from(proBillingCycles)
+    .innerJoin(companies, eq(companies.id, proBillingCycles.companyId))
+    .where(companyCond);
+
+  const subCompanyCond =
+    params.companyId != null ? eq(subscriptionInvoices.companyId, params.companyId) : sql`1=1`;
+  const subJoined = await db
+    .select({
+      row: subscriptionInvoices,
+      companyName: companies.name,
+    })
+    .from(subscriptionInvoices)
+    .innerJoin(companies, eq(companies.id, subscriptionInvoices.companyId))
+    .where(subCompanyCond);
+
+  const workCond =
+    params.companyId != null ? eq(collectionWorkItems.companyId, params.companyId) : sql`1=1`;
+  const wRows = await db.select().from(collectionWorkItems).where(workCond);
+  const workMap = new Map(
+    wRows.map((w) => [
+      `${w.sourceType}:${w.sourceId}`,
+      { workflowStatus: w.workflowStatus as CollectionWorkflowStatus, note: w.note },
+    ]),
+  );
+
+  const out: OverdueReceivableDetailRow[] = [];
+
+  for (const { row: r, companyName } of proJoined) {
+    const due = r.dueDate ? new Date(r.dueDate) : null;
+    const past = r.status === "pending" && due != null && due.getTime() < now.getTime();
+    const atRisk = r.status === "overdue" || past;
+    if (!atRisk) continue;
+    const days = daysPastDue(due, now);
+    const bucket = bucketKeyForDaysPastDue(days);
+    const key = `pro_billing_cycle:${r.id}`;
+    const persisted = workMap.get(key);
+    const workflowStatus: CollectionWorkflowStatus = persisted?.workflowStatus ?? "needs_follow_up";
+    out.push({
+      companyId: r.companyId,
+      companyName,
+      sourceType: "pro_billing_cycle",
+      sourceId: r.id,
+      invoiceLabel: r.invoiceNumber,
+      amountOmr: Number(r.amountOmr ?? 0),
+      dueDate: due,
+      daysPastDue: days,
+      agingBucket: bucket,
+      workflowStatus,
+      note: persisted?.note ?? null,
+      dbStatus: r.status,
+    });
+  }
+
+  for (const { row: r, companyName } of subJoined) {
+    const due = r.dueDate ? new Date(r.dueDate) : null;
+    const issuedPast = r.status === "issued" && due != null && due.getTime() < now.getTime();
+    const atRisk = r.status === "overdue" || issuedPast;
+    if (!atRisk) continue;
+    const days = daysPastDue(due, now);
+    const bucket = bucketKeyForDaysPastDue(days);
+    const key = `subscription_invoice:${r.id}`;
+    const persisted = workMap.get(key);
+    const workflowStatus: CollectionWorkflowStatus = persisted?.workflowStatus ?? "needs_follow_up";
+    out.push({
+      companyId: r.companyId,
+      companyName,
+      sourceType: "subscription_invoice",
+      sourceId: r.id,
+      invoiceLabel: r.invoiceNumber,
+      amountOmr: Number(r.amount ?? 0),
+      dueDate: due,
+      daysPastDue: days,
+      agingBucket: bucket,
+      workflowStatus,
+      note: persisted?.note ?? null,
+      dbStatus: r.status,
+    });
+  }
+
+  return out.sort((a, b) => b.daysPastDue - a.daysPastDue || b.amountOmr - a.amountOmr);
 }
 
 export async function upsertCollectionWorkItem(

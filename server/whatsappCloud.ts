@@ -127,6 +127,29 @@ export async function sendSurveyOfficeInviteTemplateAr(params: {
   });
 }
 
+/** True when Meta template for collections reminders is configured (body: {{1}} company, {{2}} invoice ref, {{3}} amount OMR). */
+export function isCollectionReminderWhatsAppTemplateConfigured(): boolean {
+  return isWhatsAppCloudCoreConfigured() && Boolean(trimEnv("WHATSAPP_TEMPLATE_COLLECTION_REMINDER"));
+}
+
+/**
+ * Approved utility template — create in Meta with three body parameters matching the order below.
+ */
+export async function sendCollectionPaymentReminderTemplate(params: {
+  toDigits: string;
+  companyName: string;
+  invoiceLabel: string;
+  amountOmr: string;
+}): Promise<SendResult> {
+  const name = trimEnv("WHATSAPP_TEMPLATE_COLLECTION_REMINDER");
+  if (!name) return { ok: false, error: "WHATSAPP_TEMPLATE_COLLECTION_REMINDER is not set." };
+  return sendTemplateMessage({
+    toDigits: params.toDigits,
+    templateName: name,
+    bodyTexts: [params.companyName, params.invoiceLabel, params.amountOmr],
+  });
+}
+
 // ── Attendance: late check-in alert to manager ────────────────────────────────
 /**
  * Sends a WhatsApp alert when an employee checks in late.

@@ -135,21 +135,30 @@ const MONTHS = ["January","February","March","April","May","June","July","August
 const fmt = (n: number | string | null | undefined) => `OMR ${Number(n ?? 0).toFixed(3)}`;
 const fmtShort = (n: number | string | null | undefined) => Number(n ?? 0).toFixed(3);
 
-const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  draft: { label: "Draft", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400", icon: <Clock size={12} /> },
-  processing: { label: "Processing", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400", icon: <RefreshCw size={12} className="animate-spin" /> },
-  pending_execution: { label: "Pending execution", color: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400", icon: <Play size={12} /> },
-  approved: { label: "Approved", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400", icon: <CheckCircle size={12} /> },
-  wps_generated: { label: "WPS generated", color: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400", icon: <Download size={12} /> },
-  ready_for_upload: { label: "Ready for upload", color: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400", icon: <Download size={12} /> },
-  locked: { label: "Locked", color: "bg-slate-200 text-slate-800 dark:bg-slate-800/40 dark:text-slate-300", icon: <ShieldCheck size={12} /> },
-  paid: { label: "Paid", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle size={12} /> },
-  cancelled: { label: "Cancelled", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", icon: <X size={12} /> },
+const STATUS_COLORS: Record<string, { color: string; icon: React.ReactNode }> = {
+  draft: { color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400", icon: <Clock size={12} /> },
+  processing: { color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400", icon: <RefreshCw size={12} className="animate-spin" /> },
+  pending_execution: { color: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400", icon: <Play size={12} /> },
+  approved: { color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400", icon: <CheckCircle size={12} /> },
+  wps_generated: { color: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400", icon: <Download size={12} /> },
+  ready_for_upload: { color: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400", icon: <Download size={12} /> },
+  locked: { color: "bg-slate-200 text-slate-800 dark:bg-slate-800/40 dark:text-slate-300", icon: <ShieldCheck size={12} /> },
+  paid: { color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle size={12} /> },
+  cancelled: { color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", icon: <X size={12} /> },
 };
+
+function useStatusConfig() {
+  const { t } = useTranslation("hr");
+  return (status: string) => ({
+    ...(STATUS_COLORS[status] ?? STATUS_COLORS.draft),
+    label: t(`payroll.runStatus.${status}`, status),
+  });
+}
 
 // â”€â”€â”€ Run Payroll Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RunPayrollTab() {
   const now = new Date();
+  const getStatus = useStatusConfig();
   const { activeCompanyId } = useActiveCompany();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [createOpen, setCreateOpen] = useState(false);
@@ -260,7 +269,7 @@ function RunPayrollTab() {
       ) : (
         <div className="space-y-3">
           {runs.map((run) => {
-            const sc = statusConfig[run.status] ?? statusConfig.draft;
+            const sc = getStatus(run.status);
             const isSelected = selectedRunId === run.id;
             return (
               <Card key={run.id} className={`cursor-pointer transition-all ${isSelected ? "ring-2 ring-primary" : "hover:shadow-md"}`}
@@ -899,6 +908,7 @@ function PayrollProcessingPageSkeleton() {
 // â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function PayrollProcessingPage() {
   const { t } = useTranslation("hr");
+  const getStatus = useStatusConfig();
   const { user } = useAuth();
   const { activeCompanyId } = useActiveCompany();
   const now = new Date();
@@ -932,7 +942,7 @@ export default function PayrollProcessingPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Active Employees", value: employees?.length ?? 0, icon: <Users size={18} />, color: "text-blue-600" },
-          { label: "This Month", value: thisMonthRun ? `${statusConfig[thisMonthRun.status]?.label}` : "Not run", icon: <Calendar size={18} />, color: thisMonthRun ? "text-green-600" : "text-amber-600" },
+          { label: "This Month", value: thisMonthRun ? getStatus(thisMonthRun.status).label : "Not run", icon: <Calendar size={18} />, color: thisMonthRun ? "text-green-600" : "text-amber-600" },
           { label: "Active Loans", value: activeLoans, icon: <CreditCard size={18} />, color: "text-red-600" },
           { label: `${now.getFullYear()} Total Net`, value: fmt(totalNetThisYear), icon: <TrendingUp size={18} />, color: "text-green-600" },
         ].map((kpi) => (

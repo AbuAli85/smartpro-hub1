@@ -649,6 +649,17 @@
     "processed": "تمت المعالجة",
     "pending": "في انتظار المعالجة",
     "created": "تم إنشاء سجل الرواتب",
+    "runStatus": {
+      "draft": "مسودة",
+      "processing": "قيد المعالجة",
+      "pending_execution": "في انتظار التنفيذ",
+      "approved": "معتمد",
+      "wps_generated": "تم إنشاء ملف الأجور",
+      "ready_for_upload": "جاهز للرفع",
+      "locked": "مقفل",
+      "paid": "مدفوع",
+      "cancelled": "ملغى"
+    },
     "form": {
       "title": "معالجة الرواتب",
       "selectEmployee": "اختر موظفاً",

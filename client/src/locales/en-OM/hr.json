@@ -649,6 +649,17 @@
     "processed": "Processed",
     "pending": "Pending Processing",
     "created": "Payroll record created",
+    "runStatus": {
+      "draft": "Draft",
+      "processing": "Processing",
+      "pending_execution": "Pending Execution",
+      "approved": "Approved",
+      "wps_generated": "WPS Generated",
+      "ready_for_upload": "Ready for Upload",
+      "locked": "Locked",
+      "paid": "Paid",
+      "cancelled": "Cancelled"
+    },
     "form": {
       "title": "Process Payroll",
       "selectEmployee": "Select employee",

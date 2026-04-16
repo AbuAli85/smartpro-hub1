@@ -173,3 +173,12 @@ AI tools working with this playbook should:
 - respect tenant/RBAC boundaries
 - report honestly
 - complete work end-to-end
+
+---
+
+## Maintaining this pack
+
+Keep navigation and facts accurate as the repo evolves:
+
+- **New doc in `docs/ai/`** — add it to this `README.md` (order of use, skill lists, or recipes) so the index stays canonical.
+- **`package.json` scripts or tooling change** — update `REPO_CONTEXT.md` (commands, honest-reporting notes, PR checklist) so command claims stay true.

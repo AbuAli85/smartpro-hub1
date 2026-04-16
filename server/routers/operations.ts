@@ -164,7 +164,7 @@ const getSmartDashboardOutputSchema = z.object({
   }),
   payroll: z.object({
     monthlyTotal: z.number(),
-    thisMonthStatus: z.enum(["draft", "processing", "approved", "paid", "cancelled", "not_run"]),
+    thisMonthStatus: z.enum(["draft", "processing", "approved", "paid", "cancelled", "pending_execution", "locked", "wps_generated", "ready_for_upload", "not_run"]),
     thisMonthNet: z.number(),
   }),
   leave: z.object({ pending: z.number() }),

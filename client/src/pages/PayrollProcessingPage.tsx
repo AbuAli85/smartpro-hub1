@@ -138,7 +138,11 @@ const fmtShort = (n: number | string | null | undefined) => Number(n ?? 0).toFix
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   draft: { label: "Draft", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400", icon: <Clock size={12} /> },
   processing: { label: "Processing", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400", icon: <RefreshCw size={12} className="animate-spin" /> },
+  pending_execution: { label: "Pending execution", color: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400", icon: <Play size={12} /> },
   approved: { label: "Approved", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400", icon: <CheckCircle size={12} /> },
+  wps_generated: { label: "WPS generated", color: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400", icon: <Download size={12} /> },
+  ready_for_upload: { label: "Ready for upload", color: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400", icon: <Download size={12} /> },
+  locked: { label: "Locked", color: "bg-slate-200 text-slate-800 dark:bg-slate-800/40 dark:text-slate-300", icon: <ShieldCheck size={12} /> },
   paid: { label: "Paid", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle size={12} /> },
   cancelled: { label: "Cancelled", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", icon: <X size={12} /> },
 };
@@ -160,6 +164,9 @@ function RunPayrollTab() {
     { runId: selectedRunId! }, { enabled: !!selectedRunId }
   );
   const { data: runCompliance } = trpc.payroll.getRunCompliance.useQuery(
+    { runId: selectedRunId! }, { enabled: !!selectedRunId }
+  );
+  const { data: reconciliation } = trpc.payroll.reconciliation.useQuery(
     { runId: selectedRunId! }, { enabled: !!selectedRunId }
   );
 
@@ -193,13 +200,27 @@ function RunPayrollTab() {
     onError: (e) => toast.error(e.message),
   });
 
-  const generateWps = trpc.payroll.generateWpsFile.useMutation({
+  const generateWps = trpc.payroll.generateWPSFile.useMutation({
     onSuccess: (data) => {
       const a = document.createElement("a");
-      a.href = data.url;
-      a.download = `WPS_export.csv`;
+      a.href = data.downloadUrl;
+      a.download = data.fileName;
       a.click();
-      toast.success("WPS file downloaded");
+      toast.success(`WPS file ready — ${data.recordCount} records, checksum ${data.checksum}`);
+      refetchRuns();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const executeMonthly = trpc.payroll.executeMonthly.useMutation({
+    onSuccess: (data) => {
+      toast.success(
+        `Payroll executed — ${data.employeeCount} employees, ${fmt(data.totalAmount)} net` +
+          (data.warnings?.length ? ` (${data.warnings.length} warnings)` : "")
+      );
+      setCreateOpen(false);
+      setSelectedRunId(data.payrollRunId);
+      refetchRuns();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -284,6 +305,19 @@ function RunPayrollTab() {
 
                       {/* Compliance summary panel */}
                       {selectedRunId && <ComplianceSummaryPanel runId={selectedRunId} />}
+
+                      {reconciliation && reconciliation.warnings.length > 0 && (
+                        <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/15 p-3 space-y-2">
+                          <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                            <AlertCircle size={14} /> Reconciliation warnings ({reconciliation.warnings.length})
+                          </p>
+                          <ul className="text-[11px] text-amber-900/90 dark:text-amber-100/90 space-y-1 max-h-32 overflow-y-auto">
+                            {reconciliation.warnings.map((w, i) => (
+                              <li key={i}>Employee #{w.employeeId}: {w.message}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
                       {/* Line items table */}
                       {runDetailLoading ? (
@@ -373,17 +407,20 @@ function RunPayrollTab() {
                             </div>
                           );
                         })()}
-                        {run.status === "approved" && (
+                        {(run.status === "approved" || run.status === "wps_generated") && (
                           <Button size="sm" variant="outline" className="gap-2 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
                             onClick={() => setMarkPaidConfirm(run.id)}>
                             <Banknote size={14} /> Mark as Paid
                           </Button>
                         )}
-                        {(run.status === "approved" || run.status === "paid") && (
+                        {(run.status === "approved" ||
+                          run.status === "paid" ||
+                          run.status === "pending_execution" ||
+                          run.status === "wps_generated") && (
                           <Button size="sm" variant="outline" className="gap-2"
-                            onClick={() => generateWps.mutate({ runId: run.id })}
+                            onClick={() => generateWps.mutate({ payrollRunId: run.id, companyId: activeCompanyId ?? undefined })}
                             disabled={generateWps.isPending}>
-                            <Download size={14} /> Export WPS
+                            <Download size={14} /> Export WPS (.dat)
                           </Button>
                         )}
                       </div>
@@ -437,12 +474,29 @@ function RunPayrollTab() {
                 onChange={(e) => setCreateForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={() => createRun.mutate({ ...createForm, companyId: activeCompanyId ?? undefined })} disabled={createRun.isPending} className="gap-2">
-              {createRun.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
-              Run Payroll for {MONTHS[createForm.month - 1]}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:ml-auto">
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  executeMonthly.mutate({
+                    month: createForm.month,
+                    year: createForm.year,
+                    companyId: activeCompanyId ?? undefined,
+                  })
+                }
+                disabled={executeMonthly.isPending || !activeCompanyId}
+                className="gap-2"
+              >
+                {executeMonthly.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Calculator size={14} />}
+                Execute Payroll for {MONTHS[createForm.month - 1]} {createForm.year}
+              </Button>
+              <Button onClick={() => createRun.mutate({ ...createForm, companyId: activeCompanyId ?? undefined })} disabled={createRun.isPending} className="gap-2">
+                {createRun.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
+                Quick draft run
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

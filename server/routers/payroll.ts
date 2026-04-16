@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, gte, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
@@ -13,8 +13,17 @@ import {
   workPermits,
   employeeDocuments,
   kpiAchievements,
+  companies,
+  attendanceSessions,
   type User,
 } from "../../drizzle/schema";
+import {
+  roundOmr,
+  isValidOmaniCivilId,
+  bankCodeFromOmaniIban,
+  buildWpsDatPayload,
+} from "../lib/payrollExecution";
+import { executeMonthlyPayroll, monthYmdRange } from "../lib/payrollExecuteMonthly";
 import {
   recordPayrollRunApprovedAudit,
   recordPayrollRunMarkedPaidAudit,
@@ -132,21 +141,131 @@ function buildPayslipHtml(params: {
 </html>`;
 }
 
-/** Build WPS CSV content (Oman MoL format) */
-function buildWpsCsv(lines: Array<{
-  employeeName: string;
-  employeeId: number;
-  ibanNumber?: string | null;
-  bankName?: string | null;
-  netSalary: number;
-  month: number;
-  year: number;
-}>) {
-  const header = "Seq,Employee_ID,Employee_Name,Bank_Name,IBAN,Net_Salary_OMR,Month,Year";
-  const rows = lines.map((l, i) =>
-    [i + 1, l.employeeId, `"${l.employeeName}"`, l.bankName ?? "", l.ibanNumber ?? "", l.netSalary.toFixed(3), l.month, l.year].join(",")
-  );
-  return [header, ...rows].join("\n");
+type DbNonNull = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+async function generateWpsBankFileForRun(db: DbNonNull, m: { companyId: number }, runId: number) {
+  const [run] = await db
+    .select()
+    .from(payrollRuns)
+    .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.companyId, m.companyId)))
+    .limit(1);
+  if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+  const allowed = new Set(["pending_execution", "approved", "paid", "wps_generated", "ready_for_upload", "processing"]);
+  if (!allowed.has(run.status)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Run is not ready for WPS export" });
+  }
+
+  const [co] = await db.select().from(companies).where(eq(companies.id, m.companyId)).limit(1);
+  const cr = co?.crNumber ?? co?.registrationNumber ?? String(m.companyId);
+
+  const rows = await db
+    .select({
+      line: payrollLineItems,
+      emp: {
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        nationalId: employees.nationalId,
+        bankAccountNumber: employees.bankAccountNumber,
+      },
+    })
+    .from(payrollLineItems)
+    .leftJoin(employees, eq(payrollLineItems.employeeId, employees.id))
+    .where(and(eq(payrollLineItems.payrollRunId, runId), eq(payrollLineItems.companyId, m.companyId)));
+
+  const missingBank: string[] = [];
+  const zeroNet: string[] = [];
+  const civilSkipped: string[] = [];
+  const wpsRows: Array<{
+    civilId: string;
+    employeeName: string;
+    amountOmr: number;
+    accountNumber: string;
+    bankCode: string;
+  }> = [];
+
+  for (const r of rows) {
+    const { line, emp } = r;
+    const name = `${emp?.firstName ?? ""} ${emp?.lastName ?? ""}`.trim() || `Employee ${line.employeeId}`;
+    const net = Number(line.netSalary);
+    if (net <= 0) {
+      zeroNet.push(name);
+      continue;
+    }
+    const iban = (line.ibanNumber ?? "").trim();
+    const acct = (line.bankAccount ?? emp?.bankAccountNumber ?? "").replace(/\s+/g, "");
+    if (!iban && !acct) {
+      missingBank.push(name);
+      continue;
+    }
+    const civilId = (emp?.nationalId ?? "").trim();
+    if (!isValidOmaniCivilId(civilId)) {
+      civilSkipped.push(name);
+      continue;
+    }
+    const bankCode = bankCodeFromOmaniIban(iban || undefined);
+    const accountNumber = iban || acct;
+    wpsRows.push({
+      civilId,
+      employeeName: name,
+      amountOmr: roundOmr(net),
+      accountNumber,
+      bankCode: bankCode || "UNK",
+    });
+  }
+
+  if (missingBank.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Missing bank account for: ${missingBank.join(", ")}`,
+    });
+  }
+  if (zeroNet.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Net pay must be greater than zero for: ${zeroNet.join(", ")}`,
+    });
+  }
+  if (!wpsRows.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        civilSkipped.length > 0
+          ? `No valid civil IDs for WPS export. Skipped: ${civilSkipped.join(", ")}`
+          : "No valid WPS rows (check civil ID / bank details).",
+    });
+  }
+
+  const { buffer, checksum8, recordCount, totalAmount } = buildWpsDatPayload({
+    companyCr: cr,
+    periodYear: run.periodYear,
+    periodMonth: run.periodMonth,
+    rows: wpsRows,
+  });
+
+  const fileName = `WPS_${run.periodYear}_${String(run.periodMonth).padStart(2, "0")}_Company${m.companyId}.dat`;
+  const key = `wps/${m.companyId}/${run.periodYear}-${run.periodMonth}-wps-${runId}-${Date.now()}.dat`;
+  const { url } = await storagePut(key, buffer, "application/octet-stream");
+  await db
+    .update(payrollRuns)
+    .set({
+      wpsFileUrl: url,
+      wpsFileKey: key,
+      wpsSubmittedAt: new Date(),
+      status: "wps_generated",
+    })
+    .where(eq(payrollRuns.id, runId));
+
+  return {
+    fileName,
+    downloadUrl: url,
+    fileSize: buffer.length,
+    recordCount,
+    totalAmount,
+    checksum: checksum8,
+    status: "ready_for_upload" as const,
+    generatedAt: new Date().toISOString(),
+    skippedCivilIdWarnings: civilSkipped,
+  };
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -189,6 +308,107 @@ export const payrollRouter = router({
         .leftJoin(employees, eq(payrollLineItems.employeeId, employees.id))
         .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
       return { run, lines };
+    }),
+
+  /** Full monthly payroll execution (attendance-aware, PASI on gross, WPS-oriented). */
+  executeMonthly: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        month: z.number().min(1).max(12),
+        year: z.number().min(2020).max(2040),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      requireNotAuditor(m.role, "External Auditors cannot execute payroll.");
+      return executeMonthlyPayroll(db, {
+        companyId: m.companyId,
+        month: input.month,
+        year: input.year,
+        actorUserId: ctx.user.id,
+      });
+    }),
+
+  /** Reconciliation snapshot: totals, lines, and warnings before pay / WPS. */
+  reconciliation: protectedProcedure
+    .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      const [run] = await db
+        .select()
+        .from(payrollRuns)
+        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)))
+        .limit(1);
+      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
+      const lines = await db
+        .select({
+          line: payrollLineItems,
+          emp: { firstName: employees.firstName, lastName: employees.lastName, nationality: employees.nationality },
+        })
+        .from(payrollLineItems)
+        .leftJoin(employees, eq(payrollLineItems.employeeId, employees.id))
+        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
+      const warnings: Array<{ employeeId: number; message: string }> = [];
+      const empIds = lines.map((l) => l.line.employeeId);
+      if (empIds.length) {
+        const emps = await db.select().from(employees).where(inArray(employees.id, empIds));
+        const { start, end } = monthYmdRange(run.periodYear, run.periodMonth);
+        const attRows = await db
+          .select({
+            employeeId: attendanceSessions.employeeId,
+            c: sql<string>`COUNT(DISTINCT ${attendanceSessions.businessDate})`,
+          })
+          .from(attendanceSessions)
+          .where(
+            and(
+              eq(attendanceSessions.companyId, m.companyId),
+              eq(attendanceSessions.status, "closed"),
+              gte(attendanceSessions.businessDate, start),
+              lte(attendanceSessions.businessDate, end),
+              inArray(attendanceSessions.employeeId, empIds)
+            )
+          )
+          .groupBy(attendanceSessions.employeeId);
+        const attMap = new Map(attRows.map((r) => [r.employeeId, Number(r.c)]));
+        const horizon90 = new Date(Date.now() + 90 * 86400000);
+        for (const e of emps) {
+          if (e.workPermitExpiryDate) {
+            const d = new Date(e.workPermitExpiryDate);
+            if (d <= horizon90) {
+              warnings.push({
+                employeeId: e.id,
+                message: `Work permit expires ${String(e.workPermitExpiryDate).slice(0, 10)}`,
+              });
+            }
+          }
+          if (e.visaExpiryDate) {
+            const d = new Date(e.visaExpiryDate);
+            if (d <= horizon90) {
+              warnings.push({
+                employeeId: e.id,
+                message: `Visa expires ${String(e.visaExpiryDate).slice(0, 10)}`,
+              });
+            }
+          }
+          if ((attMap.get(e.id) ?? 0) === 0) {
+            warnings.push({ employeeId: e.id, message: "No attendance records this month" });
+          }
+        }
+      }
+      return {
+        run,
+        lines,
+        totalAmount: Number(run.totalNet ?? 0),
+        employeeCount: lines.length,
+        warnings,
+      };
     }),
 
   /** Create a new payroll run (draft) — auto-populates from employee records */
@@ -519,6 +739,7 @@ export const payrollRouter = router({
     }),
 
   /** Generate WPS file for a payroll run and store to S3 */
+  /** Legacy alias: returns download URL only (WPS payload is .dat via shared generator). */
   generateWpsFile: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
@@ -526,30 +747,20 @@ export const payrollRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
-      const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId))).limit(1);
-      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
-      if (run.status === "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Approve the payroll run before generating WPS file" });
-      const lines = await db
-        .select({
-          line: payrollLineItems,
-          emp: { firstName: employees.firstName, lastName: employees.lastName },
-        })
-        .from(payrollLineItems)
-        .leftJoin(employees, eq(payrollLineItems.employeeId, employees.id))
-        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
-      const csv = buildWpsCsv(lines.map(r => ({
-        employeeName: `${r.emp?.firstName ?? ""} ${r.emp?.lastName ?? ""}`.trim(),
-        employeeId: r.line.employeeId,
-        ibanNumber: r.line.ibanNumber,
-        bankName: r.line.bankName,
-        netSalary: Number(r.line.netSalary),
-        month: run.periodMonth,
-        year: run.periodYear,
-      })));
-      const key = `wps/${m.companyId}/${run.periodYear}-${run.periodMonth}-wps-${Date.now()}.csv`;
-      const { url } = await storagePut(key, Buffer.from(csv, "utf-8"), "text/csv");
-      await db.update(payrollRuns).set({ wpsFileUrl: url, wpsFileKey: key, wpsSubmittedAt: new Date() }).where(eq(payrollRuns.id, input.runId));
-      return { url };
+      const full = await generateWpsBankFileForRun(db, m, input.runId);
+      return { url: full.downloadUrl };
+    }),
+
+  /** Oman WPS bank file — fixed-width .dat, checksum, full metadata (Developer Brief #1). */
+  generateWPSFile: protectedProcedure
+    .input(z.object({ payrollRunId: z.number(), companyId: z.number().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      requireNotAuditor(m.role, "External Auditors cannot generate WPS files.");
+      return generateWpsBankFileForRun(db, m, input.payrollRunId);
     }),
 
   /** Get payroll summary stats */

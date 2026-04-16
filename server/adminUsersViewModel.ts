@@ -43,6 +43,9 @@ export type IdentityHealthSignal = {
   label: string;
 };
 
+/** Security posture for admin ops (2FA, step-up, privileged gaps). */
+export type SecurityHealthSignal = IdentityHealthSignal;
+
 export type AdminUserListItem = {
   id: number;
   displayName: string | null;
@@ -56,6 +59,8 @@ export type AdminUserListItem = {
   membershipSummary: { activeCount: number; topRolesLabel: string };
   authProviders: { provider: string; label: string }[];
   securityHealth: {
+    overallLevel: IdentityHealthLevel;
+    signals: SecurityHealthSignal[];
     twoFactorEnabled: boolean;
     twoFactorVerifiedAt: Date | null;
     requiresStepUp: boolean;
@@ -70,6 +75,12 @@ export type AdminUserListItem = {
 };
 
 const PRIVILEGED_GLOBAL = new Set(["super_admin", "platform_admin"]);
+
+const levelOrder: IdentityHealthLevel[] = ["healthy", "info", "warning", "critical"];
+
+function maxLevel(a: IdentityHealthLevel, b: IdentityHealthLevel): IdentityHealthLevel {
+  return levelOrder.indexOf(b) > levelOrder.indexOf(a) ? b : a;
+}
 
 function displayNameFromRow(r: {
   displayName: string | null;
@@ -92,7 +103,6 @@ export function buildIdentityHealthSignals(params: {
   duplicateEmail: boolean;
   activeMembershipCount: number;
   globalPlatformRoles: string[];
-  twoFactorEnabled: boolean;
   authIdentityCount: number;
   legacyUsersPlatformRole: string;
   mappedMembershipToPlatform: string | null;
@@ -114,10 +124,6 @@ export function buildIdentityHealthSignals(params: {
   if (params.activeMembershipCount === 0 && params.globalPlatformRoles.length === 0) {
     signals.push({ level: "info", code: "no_memberships", label: "No active company memberships" });
   }
-  const priv = params.globalPlatformRoles.some((r) => PRIVILEGED_GLOBAL.has(r));
-  if (priv && !params.twoFactorEnabled) {
-    signals.push({ level: "critical", code: "privileged_no_2fa", label: "Privileged platform role without 2FA" });
-  }
   if (params.authIdentityCount > 1) {
     signals.push({ level: "info", code: "multiple_identities", label: "Multiple auth providers linked" });
   }
@@ -137,14 +143,66 @@ export function buildIdentityHealthSignals(params: {
     });
   }
 
-  const levelOrder: IdentityHealthLevel[] = ["healthy", "info", "warning", "critical"];
+  if (GLOBAL_PLATFORM_ROLE_SLUGS.has(legacyPr) && legacyPr && !params.globalPlatformRoles.includes(legacyPr)) {
+    signals.push({
+      level: "warning",
+      code: "legacy_global_not_in_platform_table",
+      label: `Legacy cache lists global role "${legacyPr}" but platform_user_roles has no active grant`,
+    });
+  }
+
   const overallLevel =
     signals.length === 0
       ? "healthy"
-      : signals.reduce(
-          (acc, s) => (levelOrder.indexOf(s.level) > levelOrder.indexOf(acc) ? s.level : acc),
-          "healthy" as IdentityHealthLevel,
-        );
+      : signals.reduce((acc, s) => maxLevel(acc, s.level), "healthy" as IdentityHealthLevel);
+
+  return { overallLevel, signals };
+}
+
+export function buildSecurityHealthSignals(params: {
+  twoFactorEnabled: boolean;
+  twoFactorVerifiedAt: Date | null;
+  requiresStepUp: boolean;
+  globalPlatformRoles: string[];
+  recoveryCodesPresent: boolean;
+}): { overallLevel: IdentityHealthLevel; signals: SecurityHealthSignal[] } {
+  const signals: SecurityHealthSignal[] = [];
+  const privMissing =
+    params.globalPlatformRoles.some((r) => PRIVILEGED_GLOBAL.has(r)) && !params.twoFactorEnabled;
+
+  if (privMissing) {
+    signals.push({
+      level: "critical",
+      code: "privileged_no_2fa",
+      label: "Privileged platform role (super_admin / platform_admin) without 2FA",
+    });
+  }
+  if (params.requiresStepUp && !params.twoFactorEnabled) {
+    signals.push({
+      level: "warning",
+      code: "step_up_without_2fa",
+      label: "Step-up authentication flagged but 2FA is off",
+    });
+  }
+  if (params.twoFactorEnabled && !params.twoFactorVerifiedAt) {
+    signals.push({
+      level: "warning",
+      code: "two_factor_unverified",
+      label: "2FA enabled but not verified",
+    });
+  }
+  if (params.twoFactorEnabled && !params.recoveryCodesPresent) {
+    signals.push({
+      level: "info",
+      code: "no_recovery_codes",
+      label: "No backup / recovery codes on file",
+    });
+  }
+
+  const overallLevel =
+    signals.length === 0
+      ? "healthy"
+      : signals.reduce((acc, s) => maxLevel(acc, s.level), "healthy" as IdentityHealthLevel);
 
   return { overallLevel, signals };
 }
@@ -169,6 +227,8 @@ export type AdminUsersListInput = {
   createdAfter?: Date;
   createdBefore?: Date;
   staleAfterDays?: number;
+  /** Privileged missing 2FA or step-up without 2FA */
+  securityQuickFilter?: "any" | "needs_attention";
   limit: number;
   offset: number;
 };
@@ -236,7 +296,41 @@ export async function queryAdminUsersList(db: Db, input: AdminUsersListInput) {
   }
   if (input.staleAfterDays !== undefined && input.staleAfterDays >= 0) {
     const cutoff = new Date(Date.now() - input.staleAfterDays * 86400000);
-    conditions.push(lte(users.lastSignedIn, cutoff));
+    conditions.push(or(isNull(users.lastSignedIn), lte(users.lastSignedIn, cutoff))!);
+  }
+
+  if (input.securityQuickFilter === "needs_attention") {
+    conditions.push(
+      or(
+        and(
+          exists(
+            db
+              .select({ x: sql`1` })
+              .from(platformUserRoles)
+              .where(
+                and(
+                  eq(platformUserRoles.userId, users.id),
+                  isNull(platformUserRoles.revokedAt),
+                  inArray(platformUserRoles.role, ["super_admin", "platform_admin"]),
+                )!,
+              ),
+          ),
+          eq(users.twoFactorEnabled, false),
+        )!,
+        exists(
+          db
+            .select({ x: sql`1` })
+            .from(userSecuritySettings)
+            .where(
+              and(
+                eq(userSecuritySettings.userId, users.id),
+                eq(userSecuritySettings.requiresStepUpAuth, true),
+                sql`coalesce(${userSecuritySettings.twoFactorEnabled}, ${users.twoFactorEnabled}) = false`,
+              )!,
+            ),
+        ),
+      )!,
+    );
   }
 
   if (input.globalPlatformRole) {
@@ -353,6 +447,7 @@ export async function queryAdminUsersList(db: Db, input: AdminUsersListInput) {
       lastSignedIn: users.lastSignedIn,
       twoFactorEnabled: users.twoFactorEnabled,
       twoFactorVerifiedAt: users.twoFactorVerifiedAt,
+      twoFactorBackupCodesJson: users.twoFactorBackupCodesJson,
     })
     .from(users)
     .where(finalWhere)
@@ -448,6 +543,8 @@ export async function queryAdminUsersList(db: Db, input: AdminUsersListInput) {
     const stepUp = secRow?.requiresStepUpAuth ?? false;
     const privMissing = globalRoles.some((g) => PRIVILEGED_GLOBAL.has(g)) && !twoFa;
 
+    const recoveryPresent = Boolean(r.twoFactorBackupCodesJson || secRow?.recoveryCodesHash);
+
     const { overallLevel, signals } = buildIdentityHealthSignals({
       accountStatus: r.accountStatus ?? "active",
       emailNormalized: r.emailNormalized,
@@ -455,10 +552,17 @@ export async function queryAdminUsersList(db: Db, input: AdminUsersListInput) {
       duplicateEmail,
       activeMembershipCount: mrows.length,
       globalPlatformRoles: globalRoles,
-      twoFactorEnabled: twoFa,
       authIdentityCount: idrows.length,
       legacyUsersPlatformRole: r.platformRole ?? "client",
       mappedMembershipToPlatform: mapped,
+    });
+
+    const secHealth = buildSecurityHealthSignals({
+      twoFactorEnabled: twoFa,
+      twoFactorVerifiedAt: verifiedAt,
+      requiresStepUp: stepUp,
+      globalPlatformRoles: globalRoles,
+      recoveryCodesPresent: recoveryPresent,
     });
 
     const sum = membershipSummaryLabel(activeRoles);
@@ -475,6 +579,8 @@ export async function queryAdminUsersList(db: Db, input: AdminUsersListInput) {
       membershipSummary: sum,
       authProviders: providers,
       securityHealth: {
+        overallLevel: secHealth.overallLevel,
+        signals: secHealth.signals,
         twoFactorEnabled: twoFa,
         twoFactorVerifiedAt: verifiedAt,
         requiresStepUp: stepUp,
@@ -490,8 +596,20 @@ export async function queryAdminUsersList(db: Db, input: AdminUsersListInput) {
   return { items, total };
 }
 
+export type AdminAnomalySignal = IdentityHealthSignal & {
+  category: "identity" | "security";
+};
+
 export type AdminUserDetail = {
   listSlice: AdminUserListItem;
+  /** Canonical account when this row was merged away. */
+  mergedIntoUser: {
+    userId: number;
+    primaryEmail: string | null;
+    displayLabel: string | null;
+  } | null;
+  /** Combined identity + security signals for the anomalies panel. */
+  anomalies: AdminAnomalySignal[];
   identity: {
     userId: number;
     displayName: string | null;
@@ -616,6 +734,15 @@ export async function fetchAdminUserDetail(db: Db, userId: number): Promise<Admi
     .from(users)
     .where(eq(users.mergedIntoUserId, userId));
 
+  const [mergedIntoTarget] =
+    row.mergedIntoUserId != null
+      ? await db
+          .select({ id: users.id, email: users.email, primaryEmail: users.primaryEmail, displayName: users.displayName, name: users.name })
+          .from(users)
+          .where(eq(users.id, row.mergedIntoUserId))
+          .limit(1)
+      : [];
+
   const primaryEmail = primaryEmailFromRow(row);
   const display = displayNameFromRow(row);
   const activeRoles = mem.filter((m) => m.isActive).map((m) => m.role ?? "company_member");
@@ -626,6 +753,8 @@ export async function fetchAdminUserDetail(db: Db, userId: number): Promise<Admi
   const duplicateEmail = Boolean(en && dupEmails.has(en) && (row.accountStatus ?? "active") !== "merged");
 
   const twoFa = sec?.twoFactorEnabled ?? row.twoFactorEnabled ?? false;
+  const verifiedAt = sec?.twoFactorVerifiedAt ?? row.twoFactorVerifiedAt ?? null;
+  const recoveryPresent = Boolean(row.twoFactorBackupCodesJson || sec?.recoveryCodesHash);
 
   const { overallLevel, signals } = buildIdentityHealthSignals({
     accountStatus: row.accountStatus ?? "active",
@@ -634,10 +763,18 @@ export async function fetchAdminUserDetail(db: Db, userId: number): Promise<Admi
     duplicateEmail,
     activeMembershipCount: mem.filter((m) => m.isActive).length,
     globalPlatformRoles: activePur.map((p) => p.role),
-    twoFactorEnabled: twoFa,
     authIdentityCount: idents.length,
     legacyUsersPlatformRole: row.platformRole ?? "client",
     mappedMembershipToPlatform: mapped,
+  });
+
+  const activeGlobalRoles = activePur.map((p) => p.role);
+  const secHealth = buildSecurityHealthSignals({
+    twoFactorEnabled: twoFa,
+    twoFactorVerifiedAt: verifiedAt,
+    requiresStepUp: sec?.requiresStepUpAuth ?? false,
+    globalPlatformRoles: activeGlobalRoles,
+    recoveryCodesPresent: recoveryPresent,
   });
 
   const listSlice: AdminUserListItem = {
@@ -656,8 +793,10 @@ export async function fetchAdminUserDetail(db: Db, userId: number): Promise<Admi
       ).values(),
     ),
     securityHealth: {
+      overallLevel: secHealth.overallLevel,
+      signals: secHealth.signals,
       twoFactorEnabled: twoFa,
-      twoFactorVerifiedAt: sec?.twoFactorVerifiedAt ?? row.twoFactorVerifiedAt ?? null,
+      twoFactorVerifiedAt: verifiedAt,
       requiresStepUp: sec?.requiresStepUpAuth ?? false,
       privilegedMissing2fa: activePur.some((p) => PRIVILEGED_GLOBAL.has(p.role)) && !twoFa,
     },
@@ -705,8 +844,21 @@ export async function fetchAdminUserDetail(db: Db, userId: number): Promise<Admi
     .orderBy(desc(auditLogs.createdAt))
     .limit(10);
 
+  const anomalies: AdminAnomalySignal[] = [
+    ...listSlice.identityHealth.signals.map((s) => ({ ...s, category: "identity" as const })),
+    ...listSlice.securityHealth.signals.map((s) => ({ ...s, category: "security" as const })),
+  ];
+
   return {
     listSlice,
+    mergedIntoUser: mergedIntoTarget
+      ? {
+          userId: mergedIntoTarget.id,
+          primaryEmail: primaryEmailFromRow(mergedIntoTarget),
+          displayLabel: displayNameFromRow(mergedIntoTarget),
+        }
+      : null,
+    anomalies,
     identity: {
       userId: row.id,
       displayName: display,

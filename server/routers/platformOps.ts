@@ -920,6 +920,7 @@ export const platformOpsRouter = router({
           createdAfter: z.coerce.date().optional(),
           createdBefore: z.coerce.date().optional(),
           staleAfterDays: z.number().min(0).optional(),
+          securityQuickFilter: z.enum(["any", "needs_attention"]).optional(),
           limit: z.number().min(1).max(200).default(50),
           offset: z.number().min(0).default(0),
         })
@@ -941,6 +942,8 @@ export const platformOpsRouter = router({
         createdAfter: i.createdAfter,
         createdBefore: i.createdBefore,
         staleAfterDays: i.staleAfterDays,
+        securityQuickFilter:
+          i.securityQuickFilter === undefined || i.securityQuickFilter === "any" ? "any" : "needs_attention",
         limit: i.limit ?? 50,
         offset: i.offset ?? 0,
       });

@@ -89,6 +89,10 @@ export function AdminUsersConsole() {
   const [authProvider, setAuthProvider] = useState("");
   const [twoFactor, setTwoFactor] = useState<string>("any");
   const [identityQuick, setIdentityQuick] = useState<string>("any");
+  const [securityQuick, setSecurityQuick] = useState<string>("any");
+  const [createdAfter, setCreatedAfter] = useState<string>("");
+  const [createdBefore, setCreatedBefore] = useState<string>("");
+  const [staleDays, setStaleDays] = useState<string>("");
   const [page, setPage] = useState(0);
   const [detailUserId, setDetailUserId] = useState<number | null>(null);
 
@@ -99,8 +103,9 @@ export function AdminUsersConsole() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const listInput = useMemo(
-    () => ({
+  const listInput = useMemo(() => {
+    const staleN = staleDays.trim() === "" ? undefined : Number.parseInt(staleDays, 10);
+    return {
       search: debouncedSearch.trim() || undefined,
       accountStatuses:
         accountStatus === "any" ? undefined : ([accountStatus] as ("active" | "invited" | "suspended" | "merged" | "archived")[]),
@@ -110,11 +115,27 @@ export function AdminUsersConsole() {
       twoFactor: twoFactor === "any" ? "any" : (twoFactor as "enabled" | "missing"),
       identityQuickFilter:
         identityQuick === "any" ? "any" : (identityQuick as "duplicate" | "no_memberships" | "merged_inactive" | "privileged_no_2fa"),
+      securityQuickFilter: securityQuick === "any" ? "any" : "needs_attention",
+      createdAfter: createdAfter ? new Date(`${createdAfter}T00:00:00`) : undefined,
+      createdBefore: createdBefore ? new Date(`${createdBefore}T23:59:59.999`) : undefined,
+      staleAfterDays: staleN !== undefined && !Number.isNaN(staleN) && staleN >= 0 ? staleN : undefined,
       limit: PAGE_SIZE,
       offset,
-    }),
-    [debouncedSearch, accountStatus, globalPlatformRole, membershipRole, authProvider, twoFactor, identityQuick, offset],
-  );
+    };
+  }, [
+    debouncedSearch,
+    accountStatus,
+    globalPlatformRole,
+    membershipRole,
+    authProvider,
+    twoFactor,
+    identityQuick,
+    securityQuick,
+    createdAfter,
+    createdBefore,
+    staleDays,
+    offset,
+  ]);
 
   const utils = trpc.useUtils();
 
@@ -175,7 +196,7 @@ export function AdminUsersConsole() {
       <Card className="border-dashed">
         <CardContent className="py-3 px-4 space-y-3">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Filters</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-2">
             <Select value={accountStatus} onValueChange={(v) => { setAccountStatus(v); setPage(0); }}>
               <SelectTrigger className="h-9 text-xs">
                 <SelectValue placeholder="Account status" />
@@ -243,6 +264,57 @@ export function AdminUsersConsole() {
                 <SelectItem value="privileged_no_2fa">Privileged no 2FA</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={securityQuick} onValueChange={(v) => { setSecurityQuick(v); setPage(0); }}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Security: any</SelectItem>
+                <SelectItem value="needs_attention">Security needs attention</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 border-t border-dashed">
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Created after</label>
+              <Input
+                type="date"
+                className="h-9 text-xs"
+                value={createdAfter}
+                onChange={(e) => {
+                  setCreatedAfter(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Created before</label>
+              <Input
+                type="date"
+                className="h-9 text-xs"
+                value={createdBefore}
+                onChange={(e) => {
+                  setCreatedBefore(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                Stale (no sign-in ≥ N days)
+              </label>
+              <Input
+                type="number"
+                min={0}
+                className="h-9 text-xs"
+                placeholder="e.g. 90"
+                value={staleDays}
+                onChange={(e) => {
+                  setStaleDays(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -258,6 +330,7 @@ export function AdminUsersConsole() {
               <TableHead className="w-[100px]">Auth</TableHead>
               <TableHead className="w-[80px]">2FA</TableHead>
               <TableHead className="w-[110px]">Identity</TableHead>
+              <TableHead className="w-[110px]">Security</TableHead>
               <TableHead className="w-[120px]">Last sign-in</TableHead>
               <TableHead className="w-[100px]">Created</TableHead>
               <TableHead className="w-[90px] text-right">Actions</TableHead>
@@ -267,7 +340,7 @@ export function AdminUsersConsole() {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 10 }).map((__, j) => (
+                  {Array.from({ length: 11 }).map((__, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
@@ -276,7 +349,7 @@ export function AdminUsersConsole() {
               ))
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="h-32 text-center text-muted-foreground">
                   <div className="flex flex-col items-center gap-2 py-6">
                     <Shield className="h-8 w-8 opacity-30" />
                     <span>No users match these filters.</span>
@@ -358,6 +431,20 @@ export function AdminUsersConsole() {
                       {u.identityHealth.overallLevel}
                     </span>
                   </TableCell>
+                  <TableCell>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] capitalize ${healthBadgeClass(u.securityHealth.overallLevel)}`}
+                    >
+                      {u.securityHealth.overallLevel === "healthy" ? (
+                        <CheckCircle2 className="h-3 w-3" />
+                      ) : u.securityHealth.overallLevel === "info" ? (
+                        <Info className="h-3 w-3" />
+                      ) : (
+                        <AlertTriangle className="h-3 w-3" />
+                      )}
+                      {u.securityHealth.overallLevel}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                     {u.lastSignedInAt ? fmtDateTime(new Date(u.lastSignedInAt).getTime()) : "—"}
                   </TableCell>
@@ -406,7 +493,7 @@ export function AdminUsersConsole() {
       </div>
 
       <Sheet open={detailUserId != null} onOpenChange={(o) => !o && setDetailUserId(null)}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
           {detailLoading || !detail ? (
             <div className="space-y-3 py-4">
               <Skeleton className="h-8 w-3/4" />
@@ -428,8 +515,20 @@ export function AdminUsersConsole() {
                     <Copy className="h-4 w-4" />
                   </Button>
                 </SheetTitle>
-                <SheetDescription className="text-left">
-                  {detail.listSlice.primaryEmail || "No email"}
+                <SheetDescription className="text-left flex flex-wrap items-center gap-2">
+                  <span>{detail.listSlice.primaryEmail || "No email"}</span>
+                  {detail.listSlice.primaryEmail ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => copyText("Email", detail.listSlice.primaryEmail!)}
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copy email
+                    </Button>
+                  ) : null}
                 </SheetDescription>
               </SheetHeader>
 
@@ -465,7 +564,44 @@ export function AdminUsersConsole() {
                         ? fmtDateTime(new Date(detail.identity.lastSignedIn).getTime())
                         : "—"}
                     </li>
+                    {detail.mergedIntoUser && (
+                      <li>
+                        <span className="text-muted-foreground">Merged into:</span>{" "}
+                        <button
+                          type="button"
+                          className="text-primary underline-offset-2 hover:underline font-medium"
+                          onClick={() => setDetailUserId(detail.mergedIntoUser!.userId)}
+                        >
+                          #{detail.mergedIntoUser.userId}{" "}
+                          {detail.mergedIntoUser.displayLabel || detail.mergedIntoUser.primaryEmail || ""}
+                        </button>
+                      </li>
+                    )}
                   </ul>
+                </section>
+
+                <Separator />
+
+                <section>
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                    Anomalies & overlap
+                  </h4>
+                  {detail.anomalies.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No cross-cutting issues detected.</p>
+                  ) : (
+                    <ul className="flex flex-wrap gap-1.5">
+                      {detail.anomalies.map((s) => (
+                        <Badge
+                          key={`${s.category}-${s.code}`}
+                          variant="outline"
+                          className={`text-[10px] font-normal ${healthBadgeClass(s.level)}`}
+                        >
+                          <span className="opacity-70 mr-1 uppercase">{s.category}</span>
+                          {s.label}
+                        </Badge>
+                      ))}
+                    </ul>
+                  )}
                 </section>
 
                 <Separator />
@@ -557,7 +693,19 @@ export function AdminUsersConsole() {
                     <li>2FA: {detail.security.twoFactorEnabled ? "Enabled" : "Disabled"}</li>
                     <li>Verified at: {detail.security.twoFactorVerifiedAt ? fmtDateTime(new Date(detail.security.twoFactorVerifiedAt).getTime()) : "—"}</li>
                     <li>Step-up required: {detail.security.requiresStepUpAuth ? "Yes" : "No"}</li>
+                    <li>Recovery codes: {detail.security.recoveryCodesPresent ? "Present" : "None"}</li>
                   </ul>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {detail.listSlice.securityHealth.signals.length === 0 ? (
+                      <Badge className={healthBadgeClass("healthy")}>Healthy</Badge>
+                    ) : (
+                      detail.listSlice.securityHealth.signals.map((s) => (
+                        <Badge key={s.code} variant="outline" className={`text-[10px] font-normal ${healthBadgeClass(s.level)}`}>
+                          {s.label}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
                 </section>
 
                 <Separator />

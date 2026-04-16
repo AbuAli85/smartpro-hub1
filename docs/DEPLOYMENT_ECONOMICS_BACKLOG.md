@@ -20,6 +20,25 @@ This document turns the **deployment economics** operating model into an actiona
 
 **Integration rule for implementation:** Prefer **extending and linking** these tables before adding parallel “shadow” entities. New tables should FK to `company_id` (tenant) and reuse `attendance_sites.id`, `employees.id`, existing contract IDs where possible.
 
+### 1.1 Pre-implementation tightening (read before migration)
+
+**Canonical customer / party (resolve before writing SQL)**  
+The repo already has **`business_parties`** (`docs/AGREEMENT_PARTY_FOUNDATION.md`) as canonical counterparty identity (legal/display names, registration, links). **Do not** introduce a second freestanding customer identity.
+
+**Locked pattern for Phase 1:** `billing_customers` is **tenant-scoped AR extension**: `company_id` + optional **`party_id` → `business_parties.id`** (UUID) for the canonical identity, plus AR-only columns (payment terms, default VAT treatment, billing contact, etc.). Rows may exist **without** `party_id` during migration; new UIs should prefer linking or creating a party when possible.
+
+**Naming: avoid “deployment” alone**  
+Reserve the word **deployment** for product meaning, not DevOps. **Physical tables:** `customer_deployments`, `customer_deployment_assignments` (not bare `deployments`), to align with domain language and reduce clash with outsourcing “contract” language.
+
+**Billing rules stay relational**  
+Core structure: deployment header + **`billing_rate_rules`** (FK, columns for unit, amounts, effective dates). **No** large `billing_rule_json` on the header for core cases—optional **`rule_meta_json`** only for edge-case metadata.
+
+**Promoter assignments: no long-lived dual-write**  
+Do **not** keep two assignment sources in sync indefinitely. **Policy:** `customer_deployment_assignments` becomes canonical for new economics flows; **`promoter_assignments`** is either (a) one-time migrated then read-only legacy, or (b) extended in place **instead of** a second table—**pick one** before coding. Short bridge during migration only.
+
+**Tenant safety (explicit)**  
+Every new entity: **`company_id` on every row**, `requireWorkspaceMembership` / `requireActiveCompanyId` on every tRPC procedure, **mutation ownership checks** (row `company_id` matches membership), **indexed FKs**, and **audit events** for create/update/status/rate changes (see Phase 1 acceptance criteria).
+
 ---
 
 ## 2. Target module map
@@ -27,7 +46,7 @@ This document turns the **deployment economics** operating model into an actiona
 | Module | Responsibility | Suggested package / router |
 |--------|----------------|----------------------------|
 | **Customer master** | CRUD billing customer, contacts, tax/VAT fields, payment terms | `server/routers/billingCustomers.ts` (or extend `crm` if CRM becomes source of truth) |
-| **Deployment** | The spine: customer + site(s) + contract link + employee assignment + effective period + status | `server/routers/deployments.ts` |
+| **Customer deployments** | The spine: customer + site(s) + contract link + employee assignment + effective period + status | `server/routers/customerDeployments.ts` (or `deployments.ts` exporting `customerDeployments.*`) |
 | **Rate rules** | Billing rate rules (per deployment, per site, per period) | Part of deployments or `billingRateRules` sub-router |
 | **Cost allocation** | Rules + engine output (facts, not payroll itself) | `server/routers/costAllocation.ts` |
 | **Billable quantity** | Approved attendance → billable snapshot per deployment/period | Extend attendance pipeline or `server/routers/attendanceBilling.ts` |
@@ -44,14 +63,14 @@ This document turns the **deployment economics** operating model into an actiona
 
 | # | Work item | Schema / code | Notes |
 |---|-----------|---------------|--------|
-| 1.1 | **Billing customer master** | New: `billing_customers` (or `customer_accounts`) with `company_id`, legal name, display name, tax id, default terms, status | Optionally map to `business_parties` / CRM contact later |
-| 1.2 | **Link sites to customer** | `attendance_sites.billing_customer_id` nullable FK → `billing_customers.id` | Keep `client_name` for migration / display until backfill |
-| 1.3 | **Customer commercial contract stub** | New: `customer_contracts` with `company_id`, `billing_customer_id`, dates, status, `reference` | Distinct from `outsourcing_contracts` *or* bridge table “this outsourcing contract = commercial AR terms for this customer” — **decision required** |
-| 1.4 | **Deployment entity** | New: `deployments` (or rename to match product: `deployment_contracts`) with `company_id`, `billing_customer_id`, `primary_site_id`, optional `outsourcing_contract_id`, `effective_from`, `effective_to`, `status`, `billing_rule_json` or FK to rate table | Links revenue story to one row |
-| 1.5 | **Deployment assignment** | New: `deployment_assignments` with `deployment_id`, `employee_id` (or `employees.user_id` per existing pattern), `role`, `start`, `end`, `status` | Align with `promoter_assignments`: migrate or dual-write until cutover |
-| 1.6 | **Basic rate rules** | New: `billing_rate_rules` with `deployment_id`, `unit` (day/hour/month), `amount_omr`, `effective_from`, `effective_to` | Invoice gen reads from here instead of only `daily_rate_omr` on site |
+| 1.1 | **Billing customer master** | New: `billing_customers` with `company_id`, optional **`party_id` → `business_parties`**, display/legal names (denormalized or copied from party), tax/VAT fields, payment terms, `status`, timestamps | **Extension of canonical party**, not a parallel identity |
+| 1.2 | **Link sites to customer** | `attendance_sites.billing_customer_id` nullable FK → `billing_customers.id` | Keep `client_name` + `daily_rate_omr` for legacy; **null FK = legacy path unchanged** |
+| 1.3 | **Customer commercial contract stub** | New: `customer_contracts` with `company_id`, `billing_customer_id`, dates, status, reference | Commercial AR shell; **not** `outsourcing_contracts`—bridge in a later phase if needed |
+| 1.4 | **Customer deployment** | New: **`customer_deployments`** (not bare `deployments`): `company_id`, `billing_customer_id`, `primary_site_id` (nullable), optional `customer_contract_id`, optional `outsourcing_contract_id`, `effective_from`, `effective_to`, `status`, timestamps—**no** core billing JSON blob | Links revenue story to one row |
+| 1.5 | **Deployment assignment** | New: **`customer_deployment_assignments`**: `customer_deployment_id`, **`employee_id` → `employees.id`**, role, start/end, status | **Promoter migration policy:** single cutover or extend `promoter_assignments`—no long dual-write (see §1.1) |
+| 1.6 | **Basic rate rules** | New: `billing_rate_rules` with `customer_deployment_id`, `unit` (day/hour/month), `amount_omr`, `effective_from`, `effective_to`, optional **`rule_meta_json`** | Relational core; JSON only for extras |
 
-**APIs (tRPC):** `billingCustomers.*`, `deployments.*` (list, get, create, update, close), `billingRateRules.*`
+**APIs (tRPC):** `billingCustomers.*`, `customerDeployments.*` (list, get, create, update, close), `billingRateRules.*` (nested or separate)
 
 **Screens:** Customer list + detail; Deployment list + detail; Site edit: pick billing customer.
 
@@ -65,12 +84,12 @@ This document turns the **deployment economics** operating model into an actiona
 
 | # | Work item | Schema / code | Notes |
 |---|-----------|---------------|--------|
-| 2.1 | **Billable quantity snapshot** | New: `billable_quantity_snapshots` — `company_id`, `deployment_id` (or site + period), `period_year`, `period_month`, `quantity`, `source` (attendance), `status` (draft/locked), `approved_by`, `approved_at` | Idempotent per deployment + month |
+| 2.1 | **Billable quantity snapshot** | New: `billable_quantity_snapshots` — `company_id`, `customer_deployment_id` (or site + period), `period_year`, `period_month`, `quantity`, `source` (attendance), `status` (draft/locked), `approved_by`, `approved_at` | Idempotent per deployment + month |
 | 2.2 | **Attendance approval hook** | Job or procedure: aggregate closed `attendance_sessions` → snapshot | Reuse existing session rules; add exception queue later |
-| 2.3 | **Invoice generation** | Change `clientBilling.generateMonthlyInvoices` (or parallel path) to prefer **deployment + rate rules + snapshot** when present; fallback to legacy site name + daily rate | Feature flag per tenant |
-| 2.4 | **Reconciliation UI** | Screen: month, deployment, system count vs snapshot, approve/lock | “Uninvoiced approved attendance” alert source |
+| 2.3 | **Invoice generation** | Change `clientBilling.generateMonthlyInvoices` (or parallel path) to prefer **customer deployment + rate rules + snapshot** when present; fallback to legacy site name + daily rate | Feature flag per tenant |
+| 2.4 | **Reconciliation UI** | Screen: month, customer deployment, system count vs snapshot, approve/lock | “Uninvoiced approved attendance” alert source |
 
-**APIs:** `billableSnapshots.*`, extend `clientBilling.generate*` inputs with optional `deploymentId`.
+**APIs:** `billableSnapshots.*`, extend `clientBilling.generate*` inputs with optional `customerDeploymentId`.
 
 **Exit criteria:** For one pilot deployment, invoice line equals locked snapshot × rule; audit trail exists.
 
@@ -83,7 +102,7 @@ This document turns the **deployment economics** operating model into an actiona
 | # | Work item | Schema / code | Notes |
 |---|-----------|---------------|--------|
 | 3.1 | **Employee cost profile pointer** | Use existing payroll + salary configs; add optional `cost_allocation_profile_id` on employee or deployment assignment | Avoid duplicating payroll math |
-| 3.2 | **Allocation rules** | New: `cost_allocation_rules` — `deployment_id` or `company_id`, `method` (full_time_site, attendance_weighted, percent, schedule_based), `config` JSON | **Default:** attendance_weighted when deployment has assignments |
+| 3.2 | **Allocation rules** | New: `cost_allocation_rules` — `customer_deployment_id` or `company_id`, `method` (full_time_site, attendance_weighted, percent, schedule_based), `config` JSON | **Default:** attendance_weighted when deployment has assignments |
 | 3.3 | **Allocation engine (monthly)** | Batch: inputs = payroll line items + assignments + snapshots; outputs = `payroll_cost_allocation_facts` | Version column for reruns |
 | 3.4 | **Exceptions queue** | Table or status for rows with missing deployment, 0 allocation, negative margin | Feeds alerts |
 
@@ -99,8 +118,8 @@ This document turns the **deployment economics** operating model into an actiona
 
 | # | Work item | Schema / code | Notes |
 |---|-----------|---------------|--------|
-| 4.1 | **Facts tables** | New: `revenue_allocation_facts`, `deployment_margin_facts` (materialized monthly) — `company_id`, `deployment_id`, `period`, `revenue_omr`, `direct_labor_omr`, `loaded_labor_omr`, `gross_margin_omr`, `margin_pct` | Populate from AR + allocation facts |
-| 4.2 | **Dashboard APIs** | `deploymentEconomics.summary`, `byCustomer`, `byDeployment`, `alerts` | Queries only |
+| 4.1 | **Facts tables** | New: `revenue_allocation_facts`, `deployment_margin_facts` (materialized monthly) — `company_id`, `customer_deployment_id`, `period`, `revenue_omr`, `direct_labor_omr`, `loaded_labor_omr`, `gross_margin_omr`, `margin_pct` | Populate from AR + allocation facts |
+| 4.2 | **Dashboard APIs** | `deploymentEconomics.summary`, `byCustomer`, `byCustomerDeployment`, `alerts` | Queries only |
 | 4.3 | **UI** | Deployment economics dashboard + drill-down | Matches risk alerts list below |
 
 **Exit criteria:** Gross margin by customer/deployment/month matches spreadsheet for pilot period.
@@ -113,7 +132,7 @@ This document turns the **deployment economics** operating model into an actiona
 |-------|--------|
 | Attendance approved but not billed | Snapshot locked + no invoice line |
 | Billed quantity &gt; approved quantity | Invoice vs snapshot |
-| Employee assigned, no active deployment / contract | `deployment_assignments` + `deployments.status` |
+| Employee assigned, no active deployment / contract | `customer_deployment_assignments` + `customer_deployments.status` |
 | Payroll cost with no allocation | Allocation run + missing FK |
 | Negative margin deployment | `deployment_margin_facts` |
 | Expired rate card still billing | `billing_rate_rules.effective_to` vs invoice date |
@@ -124,16 +143,27 @@ This document turns the **deployment economics** operating model into an actiona
 
 **Suggested first PR (Phase 1 only):**
 
-- `billing_customers`
+- `billing_customers` (with optional `party_id` → `business_parties`)
 - `attendance_sites.billing_customer_id` (nullable FK)
 - `customer_contracts` (minimal)
-- `deployments`
-- `deployment_assignments`
-- `billing_rate_rules`
+- `customer_deployments`
+- `customer_deployment_assignments`
+- `billing_rate_rules` (FK to `customer_deployments`)
 
 Indexes: all scoped by `company_id +` natural keys; unique constraints where needed (e.g. one deployment per customer+site+period if that’s the rule — **product decision**).
 
 **Naming:** Use `snake_case` in DB, Drizzle `camelCase` in TS to match `drizzle/schema.ts` style.
+
+### 5.1 Phase 1 PR acceptance criteria (non-functional)
+
+- [ ] `company_id` on every new table; timestamps; `status` where the entity has a lifecycle.
+- [ ] All FKs indexed; tenant queries use `company_id` first.
+- [ ] Every tRPC mutation validates workspace membership and row ownership.
+- [ ] **Legacy:** `billing_customer_id` null on sites → existing client billing + attendance behavior **unchanged**.
+- [ ] Audit: create/update/close for billing customer, customer deployment, assignment, rate rule (via `audit_events` or dedicated table—see Phase 1 spec).
+- [ ] Seed/fixture: one pilot tenant path documented (optional script or `docs` recipe).
+
+**See:** `docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md` for the precise first PR scope.
 
 ---
 
@@ -159,9 +189,9 @@ Indexes: all scoped by `company_id +` natural keys; unique constraints where nee
 
 ## 7. Open decisions (log before build)
 
-1. **Single customer model:** Is `billing_customers` the same as CRM account / `business_parties`? Recommend: one canonical party, billing extends with AR fields.
+1. **Canonical customer:** **Recommended locked for Phase 1:** `billing_customers` extends **`business_parties`** via optional `party_id`; CRM contacts can link to the same party later.
 2. **Outsourcing contracts vs commercial AR:** Merge paths so `outsourcing_contracts` can reference `billing_customer_id` and drive default rate, or keep legal and billing loosely coupled.
-3. **Promoter assignments:** Deprecate in favor of `deployment_assignments`, or sync both during migration.
+3. **Promoter assignments:** **No long dual-write**—choose migration to `customer_deployment_assignments` or extend `promoter_assignments`—decide before assignment UI ships.
 4. **VAT:** Confirm Oman VAT fields on customer and invoice lines.
 
 ---
@@ -180,10 +210,12 @@ Indexes: all scoped by `company_id +` natural keys; unique constraints where nee
 
 ## 9. Related docs
 
+- `docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md` — **precise Phase 1 PR** (schema, routers, out-of-scope)
+- `docs/AGREEMENT_PARTY_FOUNDATION.md` — `business_parties`
 - `docs/ARCHITECTURE.md` — platform overview
 - `docs/PRODUCTION_READINESS_ASSESSMENT.md` — readiness checklist
 - `server/routers/clientBilling.ts` — current AR generation
-- `drizzle/schema.ts` — `outsourcing_contracts`, `promoter_assignments`, `attendance_sites`
+- `drizzle/schema.ts` — `outsourcing_contracts`, `promoter_assignments`, `attendance_sites`, `business_parties`
 
 ---
 

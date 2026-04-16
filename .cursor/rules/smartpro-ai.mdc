@@ -5,7 +5,7 @@ alwaysApply: true
 
 # SmartPRO AI conventions
 
-Treat work as production, multi-tenant, end-to-end workflows. **Repo facts:** `docs/ai/REPO_CONTEXT.md`. **Principles:** `docs/ai/AI_OPERATING_SYSTEM.md`, `docs/ai/SMARTPRO_DOMAIN_GUARDRAILS.md`. **Intake (optional):** `docs/ai/TASK_INTAKE_TEMPLATE.md`. **Report shape:** `docs/ai/FINAL_REPORT_TEMPLATE.md` for substantive work.
+Treat work as production, multi-tenant, end-to-end workflows. **Playbook index:** `docs/ai/README.md`. **Repo facts:** `docs/ai/REPO_CONTEXT.md`. **Principles:** `docs/ai/AI_OPERATING_SYSTEM.md`, `docs/ai/SMARTPRO_DOMAIN_GUARDRAILS.md`. **Intake (optional):** `docs/ai/TASK_INTAKE_TEMPLATE.md`. **Report shape:** `docs/ai/FINAL_REPORT_TEMPLATE.md` for substantive work.
 
 **Default task prefix:** Treat this as a production end-to-end workflow task; do not jump tasks, do not add unnecessary features, do not patch symptoms only, and do not call it complete without verification evidence.
 

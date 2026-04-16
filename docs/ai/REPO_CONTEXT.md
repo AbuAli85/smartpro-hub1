@@ -1,6 +1,6 @@
 # Repo Context (smartpro-hub)
 
-Concrete navigation and commands for this codebase. Pair with `AI_OPERATING_SYSTEM.md` and `SMARTPRO_DOMAIN_GUARDRAILS.md`.
+Concrete navigation and commands for this codebase. **Start-here index and order of use:** `README.md` in this folder. Pair with `AI_OPERATING_SYSTEM.md` and `SMARTPRO_DOMAIN_GUARDRAILS.md`.
 
 ## Package model
 

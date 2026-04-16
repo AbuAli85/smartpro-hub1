@@ -165,6 +165,8 @@ Indexes: all scoped by `company_id +` natural keys; unique constraints where nee
 
 **See:** `docs/DEPLOYMENT_ECONOMICS_PHASE1_SPEC.md` for the precise first PR scope.
 
+**GitHub:** Paste-ready issue text (title, labels, checklist) is in `docs/issues/PHASE1-deployment-economics-github-issue.md` if `gh` CLI is not available locally.
+
 ---
 
 ## 6. Workflows (sequence diagrams)

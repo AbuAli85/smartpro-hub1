@@ -10,11 +10,13 @@
 
 | Topic | Decision |
 |-------|----------|
-| Canonical party | **`business_parties`** is the canonical counterparty. `billing_customers` is a **tenant-scoped AR extension** with optional `party_id` FK. |
-| Table names | **`customer_deployments`**, **`customer_deployment_assignments`** (avoid bare `deployments` and long-lived confusion with outsourcing). |
-| Billing math in Phase 1 | **Out of scope.** Keep relational **`billing_rate_rules`** only; no changes to `clientBilling.generateMonthlyInvoices`. |
-| Promoter assignments | **No dual-write.** Phase 1 creates **`customer_deployment_assignments` only**. Wiring from `promoter_assignments` is a **separate one-time migration** task (script or Phase 1.5), not ongoing sync. |
-| Legacy billing | If `attendance_sites.billing_customer_id` is **NULL**, all existing **site text + daily rate + invoice** behavior remains **unchanged**. |
+| Canonical party | **`business_parties`** is the canonical counterparty. **`billing_customers`** is the **tenant-scoped AR extension** (AR-only columns), with optional **`party_id` → `business_parties.id`**. |
+| Uniqueness | **Enforce at most one billing row per party per tenant:** **`UNIQUE (company_id, party_id)`** on `billing_customers` (MySQL allows multiple rows with `party_id` NULL for migration/backfill—only non-null `party_id` rows must be unique per company). |
+| Table names | **`customer_deployments`**, **`customer_deployment_assignments`** (avoid bare `deployments` and collision with outsourcing / DevOps language). |
+| Billing math in Phase 1 | **Out of scope.** Relational **`billing_rate_rules`** only; **no** changes to `clientBilling.generateMonthlyInvoices`. |
+| Promoter assignments | **No dual-write.** Phase 1 creates **`customer_deployment_assignments` only**. One-time migration from `promoter_assignments` is a **separate** task—not ongoing sync. |
+| Legacy billing | If `attendance_sites.billing_customer_id` is **NULL**, existing **site text + daily rate + invoice** behavior remains **unchanged**. |
+| **Phase 1 delivery** | **API-only first** (schema + guarded tRPC). **No** customer-facing or nav-linked UI in the first PR unless an existing lightweight admin CRUD pattern is trivially reused—UI follows in a later issue once procedures are stable. |
 
 ---
 
@@ -36,7 +38,7 @@
 
 **Indexes:** `(company_id)`, `(company_id, status)`, `(party_id)` if FK exists.
 
-**Unique (optional product rule):** `(company_id, party_id)` WHERE `party_id` IS NOT NULL—prevent duplicate billing profile per party per tenant.
+**Unique (locked):** `UNIQUE (company_id, party_id)` — prevents duplicate billing profile for the same canonical party within a tenant. (Nullable `party_id` rows: multiple per company allowed until backfill; new flows should set `party_id` when linking a party.)
 
 ---
 
@@ -187,7 +189,7 @@ If `entityId` must be int and composite entities are awkward, store the primary 
 - **Payroll allocation** or cost facts.
 - **`deployment_margin_facts`** or economics dashboard UI.
 - **Dual-write** to `promoter_assignments`.
-- **Client UI pages** (optional: Phase 1 can be API-only; if UI is included, restrict to internal/admin route behind feature flag).
+- **Product UI** in nav (per **Decision: API-only first**—add UI in a follow-up issue after API review).
 
 ---
 

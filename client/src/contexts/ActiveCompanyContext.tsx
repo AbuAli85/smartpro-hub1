@@ -6,13 +6,15 @@
  * - When the user has only one company, that company is auto-selected.
  * - When the user switches company, all pages re-render with the new company's data.
  *
- * **Membership resolution:** `loading` reflects `trpc.companies.myCompanies` — until it is
- * false, consumers must not treat `companies.length === 0` as “user has no companies”
+ * **Membership resolution:** `loading` is true until auth is resolved and (when logged in)
+ * `trpc.companies.myCompanies` has finished. Until then, consumers must not treat
+ * `companies.length === 0` as “user has no companies”
  * (the list may still be loading). Pre-company dashboard / `isPreCompanyWorkspaceUser`
  * depend on this. See `docs/architecture/workspace-mode.md`.
  */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 
 const STORAGE_KEY = "smartpro_active_company_id";
@@ -36,7 +38,7 @@ interface ActiveCompanyContextValue {
   /** Switch to a different company */
   switchCompany: (companyId: number) => void;
   /**
-   * True while `trpc.companies.myCompanies` is loading (membership list not settled yet).
+   * True while auth or membership list is still loading (not settled yet).
    * Consumers should not infer “no company” from an empty list until this is false.
    */
   loading: boolean;
@@ -55,20 +57,28 @@ const ActiveCompanyContext = createContext<ActiveCompanyContextValue>({
 
 export function ActiveCompanyProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const { data: rawCompanies, isLoading } = trpc.companies.myCompanies.useQuery();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { data: rawCompanies, isLoading: companyListLoading } = trpc.companies.myCompanies.useQuery(
+    undefined,
+    { enabled: isAuthenticated },
+  );
+  const membershipLoading = isAuthenticated && companyListLoading;
+  const loading = authLoading || membershipLoading;
 
 
   const companies: CompanyOption[] = useMemo(
     () =>
-      (rawCompanies ?? []).map((r) => ({
-        id: r.company.id,
-        name: r.company.name,
-        nameAr: (r.company as any).nameAr ?? null,
-        country: r.company.country ?? null,
-        industry: (r.company as any).industry ?? null,
-        role: r.member.role ?? null,
-      })),
-    [rawCompanies]
+      !isAuthenticated
+        ? []
+        : (rawCompanies ?? []).map((r) => ({
+            id: r.company.id,
+            name: r.company.name,
+            nameAr: (r.company as any).nameAr ?? null,
+            country: r.company.country ?? null,
+            industry: (r.company as any).industry ?? null,
+            role: r.member.role ?? null,
+          })),
+    [isAuthenticated, rawCompanies]
   );
 
   // Internal state: may hold a stale localStorage value before companies are loaded
@@ -79,23 +89,23 @@ export function ActiveCompanyProvider({ children }: { children: React.ReactNode 
 
   // Auto-select: if saved ID is not in the list (or no saved ID), pick the first
   useEffect(() => {
-    if (isLoading || companies.length === 0) return;
+    if (membershipLoading || companies.length === 0) return;
     const valid = companies.find((c) => c.id === _savedId);
     if (!valid) {
       const first = companies[0];
       setSavedId(first.id);
       localStorage.setItem(STORAGE_KEY, String(first.id));
     }
-  }, [companies, isLoading, _savedId]);
+  }, [companies, membershipLoading, _savedId]);
 
   // Only expose a validated company ID — null while loading OR while the saved ID
   // hasn't been confirmed against the loaded companies list yet.
   // This prevents pages from firing queries with a stale/unvalidated ID.
   const activeCompanyId: number | null = useMemo(() => {
-    if (isLoading || companies.length === 0) return null;
+    if (membershipLoading || companies.length === 0) return null;
     const valid = companies.find((c) => c.id === _savedId);
     return valid ? valid.id : (companies[0]?.id ?? null);
-  }, [isLoading, companies, _savedId]);
+  }, [membershipLoading, companies, _savedId]);
 
   const activeCompany = useMemo(
     () => companies.find((c) => c.id === activeCompanyId) ?? null,
@@ -116,7 +126,7 @@ export function ActiveCompanyProvider({ children }: { children: React.ReactNode 
 
   return (
     <ActiveCompanyContext.Provider
-      value={{ companies, activeCompany, activeCompanyId, switchCompany, loading: isLoading, expiryWarningDays }}
+      value={{ companies, activeCompany, activeCompanyId, switchCompany, loading, expiryWarningDays }}
     >
       {children}
     </ActiveCompanyContext.Provider>

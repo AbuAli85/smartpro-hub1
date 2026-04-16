@@ -44,10 +44,17 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 /** Returns true for errors that are expected/intentional and should not appear in the console. */
 function isSilentError(error: unknown): boolean {
   if (!error) return false;
+  if (error instanceof TRPCClientError) {
+    const code = error.data?.code;
+    // FORBIDDEN: optional permissions (e.g. KPI leaderboard).
+    // UNAUTHORIZED / login message: redirectToLoginIfUnauthorized handles session expiry; logging is noise.
+    if (code === "FORBIDDEN") return true;
+    if (code === "UNAUTHORIZED") return true;
+    if (error.message === UNAUTHED_ERR_MSG) return true;
+    if (code === "BAD_REQUEST") return true;
+    return false;
+  }
   const code = (error as any)?.data?.code;
-  // FORBIDDEN errors are expected for users who lack optional permissions (e.g. KPI leaderboard).
-  // UNAUTHORIZED is handled separately by redirectToLoginIfUnauthorized.
-  // BAD_REQUEST with "Select a company workspace" is expected during initial load for multi-company users.
   if (code === "FORBIDDEN") return true;
   if (code === "BAD_REQUEST") return true;
   return false;

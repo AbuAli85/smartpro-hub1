@@ -8,6 +8,42 @@
 
 ---
 
+## Locked decisions (pre-implementation)
+
+These should be treated as **closed** for the first Phase 2 PRs unless a pilot explicitly forces otherwise.
+
+### Multi-site
+
+- **Phase 2 uses a single effective site:** `customer_deployments.primary_attendance_site_id` only (see Phase 1 column name in schema).
+- **`customer_deployment_sites` (or equivalent) is deferred** — do not add it in the first snapshot / billing PR unless a real pilot requires multi-site immediately.
+- **Rationale:** Keeps attendance aggregation, reconciliation, and invoice idempotency simpler and reviewable.
+
+### `client_key` (coexistence with legacy)
+
+- **`client_key` remains legacy compatibility** for existing invoices and the **site-name** generation path.
+- **The deployment path must not rely on new business rules keyed only on `client_key`.** Prefer:
+  - **`customer_deployment_id`** and **`billable_snapshot_id`** on the invoice row (when present),
+  - legacy generation **unchanged** when deployment-linked data is absent.
+- **Avoid** inventing blended logic that “upgrades” behavior through `client_key` alone — that obscures the migration gradient.
+
+### PR sequence (narrow; do not reorder)
+
+1. Snapshot schema + guarded APIs (draft lifecycle).
+2. Aggregation + **lock** flow (with immutability rules below).
+3. Invoice generation hook-in (locked snapshot only).
+4. Reconciliation APIs.
+5. Alerts as **query-backed reads** only.
+
+**Rationale:** Invoice writes come **after** snapshot truth is lockable.
+
+### Financial trust boundary: snapshot locking
+
+- **Draft** snapshots may be recomputed and adjusted (within policy).
+- **Locked** snapshots are **not** overwritten in place — they are the boundary of financial trust for billing and audit.
+- **Corrections** after lock should be **additive or versioned** (e.g. new row voiding prior, or explicit adjustment record with audit), **not** silent destructive edits to locked rows.
+
+---
+
 ## 1. Goals and non-goals
 
 | In scope (Phase 2) | Out of scope |
@@ -56,7 +92,7 @@ Month N
 | `locked_at` | timestamp NULL | Redundant with status; optional |
 | `created_at`, `updated_at` | timestamp | |
 
-**Unique:** `UNIQUE (company_id, customer_deployment_id, period_year, period_month)` where status ≠ void — **or** allow one active row per period and soft-void old (product choice). Recommended: **one row per deployment + period**; void superseded rows if re-opened.
+**Unique:** `UNIQUE (company_id, customer_deployment_id, period_year, period_month)` for the active lifecycle row — void superseded rows rather than mutating locked history (see **Locked decisions** → snapshot locking).
 
 **Index:** `(company_id, period_year, period_month, status)` for alerts and lists.
 
@@ -76,7 +112,7 @@ Enables: “invoice line was generated from this locked snapshot” and reconcil
 - Legacy: existing `uq_client_invoice_period` on `(company_id, client_key, period_year, period_month)`.
 - Deployment: add **`UNIQUE (company_id, customer_deployment_id, period_year, period_month)`** where `customer_deployment_id IS NOT NULL` — or separate table `deployment_invoices` — **prefer** extending `client_service_invoices` with nullable `customer_deployment_id` + new unique index that allows multiple NULL legacy rows (MySQL: multiple NULLs in unique columns).
 
-**client_key for deployment invoices:** Continue to populate `client_key` from stable slug (e.g. `bc-{billing_customer_id}` or existing `clientKeyFromName(billing_customer.display_name)`) so list screens and AR aging keep working without a full rewrite.
+**client_key for deployment invoices (display / legacy lists only):** May still be populated for AR screens that key on `client_key` today (e.g. stable slug from billing customer display name). **Idempotency and reconciliation for the deployment path must use `customer_deployment_id` + period (+ snapshot), not `client_key` semantics.**
 
 ---
 
@@ -91,17 +127,12 @@ Enables: “invoice line was generated from this locked snapshot” and reconcil
 
 **Quantity unit:** For Phase 2 default, match `billing_rate_rules.unit`:
 
-- `day` → `COUNT(DISTINCT business_date)` per deployment (aggregated across covered sites).
+- `day` → `COUNT(DISTINCT business_date)` for **primary site only** in Phase 2 (see **Locked decisions** → multi-site).
 - `hour` / `month` → define in Phase 2.1 spec detail (may need session duration columns); if not ready, **scope Phase 2 to `day` only** and guard `generate` when unit ≠ day.
 
 ### 4.1 Which sites belong to a deployment?
 
-**Minimum viable:**
-
-- `customer_deployments.primary_attendance_site_id` only, **or**
-- New table `customer_deployment_sites` (`customer_deployment_id`, `attendance_site_id`) for multi-site deployments.
-
-If only primary site in Phase 2, document clearly; add `customer_deployment_sites` when multi-site billing is required.
+**Phase 2 (locked):** `customer_deployments.primary_attendance_site_id` only. Multi-site via `customer_deployment_sites` is **explicitly deferred** unless a pilot blocks on it (see **Locked decisions**).
 
 ---
 
@@ -205,20 +236,22 @@ Store **no** new tables for alerts in Phase 2 unless product requires snooze; us
 
 ## 12. Suggested implementation order (PRs)
 
-1. **Schema + snapshot CRUD** (draft only, compute from attendance).
-2. **Lock + audit** + unique constraints hardened.
-3. **Invoice branch** + FK columns on invoices + idempotency tests.
+Aligned with **Locked decisions** → PR sequence:
+
+1. **Schema + snapshot CRUD** (draft only; compute from attendance for primary site).
+2. **Lock + audit** + immutability rules for locked rows + unique constraints hardened.
+3. **Invoice branch** + FK columns on invoices + idempotency keyed on deployment + period (+ snapshot).
 4. **Reconciliation API** + thin UI or internal tool.
-5. **Alerts** as read-only endpoints + doc.
+5. **Alerts** as query-backed reads + doc.
 
 ---
 
 ## 13. Open decisions (before coding)
 
-1. **Multi-site per deployment:** primary site only vs `customer_deployment_sites` table in Phase 2.
-2. **Hour/month units:** in Phase 2 or defer to 2.1.
+1. **Multi-site:** **Deferred** for Phase 2 unless pilot requires it; use primary site only (see **Locked decisions**).
+2. **Hour/month units:** in Phase 2 or defer to 2.1 (day-only guard acceptable for first ship).
 3. **Invoice uniqueness:** confirm unique index strategy with MySQL NULL behavior for legacy rows.
-4. **client_key** format for deployment invoices — stable and collision-free with legacy name-based keys.
+4. **`client_key` for deployment rows:** display/compat only; **do not** make deployment idempotency depend on `client_key` format alone (see **Locked decisions**).
 
 ---
 

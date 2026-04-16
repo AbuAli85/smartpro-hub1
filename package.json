@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch server/_core/index.ts",
-    "build": "cross-env NODE_ENV=production vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --define:process.env.NODE_ENV=\\\"production\\\"",
+    "build": "cross-env NODE_ENV=production vite build && node scripts/bundle-server.mjs",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "check": "cross-env NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit --pretty false",
     "format": "prettier --write .",

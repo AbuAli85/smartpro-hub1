@@ -759,6 +759,8 @@ export const employees = mysqlTable(
     pasiNumber: varchar("pasiNumber", { length: 50 }),
     bankName: varchar("bankName", { length: 255 }),
     bankAccountNumber: varchar("bankAccountNumber", { length: 100 }),
+    /** Oman IBAN (23 chars incl. OM); used for WPS when line-level IBAN is absent. */
+    ibanNumber: varchar("iban_number", { length: 34 }),
     emergencyContactName: varchar("emergencyContactName", { length: 255 }),
     emergencyContactPhone: varchar("emergencyContactPhone", { length: 32 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -5,6 +5,7 @@ import {
   estimateGratuityArticle39,
   calculateInvoice,
   applyPayment,
+  applyRefund,
   buildAgingSummary,
   projectCashFlow,
 } from "./billingEngine";
@@ -216,5 +217,23 @@ describe("estimateGratuityArticle39 caps", () => {
     const r = estimateGratuityArticle39({ basicSalaryOmr: 100, yearsOfService: 200 });
     expect(r.gratuityOmr).toBeGreaterThan(0);
     expect(Number.isFinite(r.equivalentDays)).toBe(true);
+  });
+});
+
+describe("applyRefund", () => {
+  it("reduces paid and increases balance", () => {
+    const r = applyRefund(
+      { totalOmr: 100, amountPaidOmr: 100, balanceOmr: 0, status: "paid" },
+      30
+    );
+    expect(r.amountPaidOmr).toBe(70);
+    expect(r.balanceOmr).toBe(30);
+    expect(r.status).toBe("partial");
+  });
+
+  it("throws if refund exceeds recorded payments", () => {
+    expect(() =>
+      applyRefund({ totalOmr: 100, amountPaidOmr: 50, balanceOmr: 50, status: "partial" }, 60)
+    ).toThrow(/exceeds/);
   });
 });

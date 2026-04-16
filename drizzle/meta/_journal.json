@@ -232,6 +232,13 @@
       "when": 1776118139398,
       "tag": "0057_payment_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1776118139399,
+      "tag": "0058_wps_employee_bank_fields",
+      "breakpoints": true
     }
   ]
 }

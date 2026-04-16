@@ -17,12 +17,7 @@ import {
   attendanceSessions,
   type User,
 } from "../../drizzle/schema";
-import {
-  roundOmr,
-  isValidOmaniCivilId,
-  bankCodeFromOmaniIban,
-  buildWpsDatPayload,
-} from "../lib/payrollExecution";
+import { collectWpsRowsForExport, buildSifCompliantWpsPayload } from "../lib/wpsService";
 import { executeMonthlyPayroll, monthYmdRange } from "../lib/payrollExecuteMonthly";
 import { estimateGratuityArticle39, omr as omrBilling } from "../lib/billingEngine";
 import {
@@ -167,76 +162,59 @@ async function generateWpsBankFileForRun(db: DbNonNull, m: { companyId: number }
         lastName: employees.lastName,
         nationalId: employees.nationalId,
         bankAccountNumber: employees.bankAccountNumber,
+        ibanNumber: employees.ibanNumber,
       },
     })
     .from(payrollLineItems)
     .leftJoin(employees, eq(payrollLineItems.employeeId, employees.id))
     .where(and(eq(payrollLineItems.payrollRunId, runId), eq(payrollLineItems.companyId, m.companyId)));
 
-  const missingBank: string[] = [];
-  const zeroNet: string[] = [];
-  const civilSkipped: string[] = [];
-  const wpsRows: Array<{
-    civilId: string;
-    employeeName: string;
-    amountOmr: number;
-    accountNumber: string;
-    bankCode: string;
-  }> = [];
-
-  for (const r of rows) {
+  const items = rows.map((r) => {
     const { line, emp } = r;
-    const name = `${emp?.firstName ?? ""} ${emp?.lastName ?? ""}`.trim() || `Employee ${line.employeeId}`;
-    const net = Number(line.netSalary);
-    if (net <= 0) {
-      zeroNet.push(name);
-      continue;
-    }
-    const iban = (line.ibanNumber ?? "").trim();
-    const acct = (line.bankAccount ?? emp?.bankAccountNumber ?? "").replace(/\s+/g, "");
-    if (!iban && !acct) {
-      missingBank.push(name);
-      continue;
-    }
-    const civilId = (emp?.nationalId ?? "").trim();
-    if (!isValidOmaniCivilId(civilId)) {
-      civilSkipped.push(name);
-      continue;
-    }
-    const bankCode = bankCodeFromOmaniIban(iban || undefined);
-    const accountNumber = iban || acct;
-    wpsRows.push({
-      civilId,
-      employeeName: name,
-      amountOmr: roundOmr(net),
-      accountNumber,
-      bankCode: bankCode || "UNK",
-    });
-  }
+    const employeeName =
+      `${emp?.firstName ?? ""} ${emp?.lastName ?? ""}`.trim() || `Employee ${line.employeeId}`;
+    return {
+      employeeName,
+      nationalId: emp?.nationalId,
+      netSalary: Number(line.netSalary),
+      ibanLine: line.ibanNumber,
+      ibanEmployee: emp?.ibanNumber,
+      bankAccountLine: line.bankAccount,
+      bankAccountEmployee: emp?.bankAccountNumber,
+    };
+  });
 
-  if (missingBank.length) {
+  const {
+    rows: wpsRows,
+    warnings: wpsWarnings,
+    blockingErrors,
+    civilSkippedNames,
+    zeroNetNames,
+  } = collectWpsRowsForExport(items);
+
+  if (blockingErrors.length) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: `Missing bank account for: ${missingBank.join(", ")}`,
+      message: blockingErrors.join("; "),
     });
   }
-  if (zeroNet.length) {
+  if (zeroNetNames.length) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: `Net pay must be greater than zero for: ${zeroNet.join(", ")}`,
+      message: `Net pay must be greater than zero for: ${zeroNetNames.join(", ")}`,
     });
   }
   if (!wpsRows.length) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message:
-        civilSkipped.length > 0
-          ? `No valid civil IDs for WPS export. Skipped: ${civilSkipped.join(", ")}`
+        civilSkippedNames.length > 0
+          ? `No valid civil IDs for WPS export. Skipped: ${civilSkippedNames.join(", ")}`
           : "No valid WPS rows (check civil ID / bank details).",
     });
   }
 
-  const { buffer, checksum8, recordCount, totalAmount } = buildWpsDatPayload({
+  const { buffer, checksum8, recordCount, totalAmount } = buildSifCompliantWpsPayload({
     companyCr: cr,
     periodYear: run.periodYear,
     periodMonth: run.periodMonth,
@@ -265,7 +243,8 @@ async function generateWpsBankFileForRun(db: DbNonNull, m: { companyId: number }
     checksum: checksum8,
     status: "ready_for_upload" as const,
     generatedAt: new Date().toISOString(),
-    skippedCivilIdWarnings: civilSkipped,
+    skippedCivilIdWarnings: civilSkippedNames,
+    wpsWarnings,
   };
 }
 

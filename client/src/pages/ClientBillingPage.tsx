@@ -112,7 +112,7 @@ function RecordPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{t("clientBilling.invoiceList.recordPaymentDialog.title")}</DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">
@@ -222,7 +222,7 @@ function GenerateMonthlyDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{t("clientBilling.invoiceList.generateDialog.title")}</DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">
@@ -563,10 +563,26 @@ interface ProjectionRow {
   closingBalanceOmr: number;
 }
 
-interface CashFlowData {
-  openingBalanceOmr: number;
-  assumedMonthlyInflowOmr: number;
-  projection: ProjectionRow[];
+/** Server `projectCashFlow` returns `monthIndex` + `closingOmr`; normalize for the UI. */
+function cashFlowMonthLabel(monthIndex: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + monthIndex);
+  return d.toISOString().slice(0, 7);
+}
+
+function normalizeCashFlowProjection(raw: unknown): ProjectionRow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((row, i) => {
+    const r = row as Record<string, unknown>;
+    const monthIndex = typeof r.monthIndex === "number" ? r.monthIndex : i;
+    const month =
+      typeof r.month === "string" && r.month.length > 0 ? r.month : cashFlowMonthLabel(monthIndex);
+    const inflowOmr = Number(r.inflowOmr ?? 0);
+    const closingBalanceOmr = Number(
+      r.closingBalanceOmr != null ? r.closingBalanceOmr : r.closingOmr != null ? r.closingOmr : 0
+    );
+    return { month, inflowOmr, closingBalanceOmr };
+  });
 }
 
 function CashFlowTab({ companyId, t }: { companyId?: number; t: (k: string) => string }) {
@@ -576,12 +592,16 @@ function CashFlowTab({ companyId, t }: { companyId?: number; t: (k: string) => s
     { companyId, horizonMonths: horizon },
     { enabled: true }
   );
-  const cf = data as CashFlowData | undefined;
-  const projection = cf?.projection ?? [];
+  const projection = useMemo(() => normalizeCashFlowProjection(data?.projection), [data?.projection]);
 
   const maxBalance = useMemo(
-    () => Math.max(...projection.map((r) => r.closingBalanceOmr), cf?.openingBalanceOmr ?? 0, 1),
-    [projection, cf]
+    () =>
+      Math.max(
+        ...projection.map((r) => r.closingBalanceOmr),
+        typeof data?.openingBalanceOmr === "number" ? data.openingBalanceOmr : Number(data?.openingBalanceOmr ?? 0),
+        1
+      ),
+    [projection, data?.openingBalanceOmr]
   );
 
   return (
@@ -625,14 +645,14 @@ function CashFlowTab({ companyId, t }: { companyId?: number; t: (k: string) => s
             <div className="rounded-xl border border-border bg-card p-5">
               <p className="text-xs text-muted-foreground">{t("clientBilling.cashFlow.openingBalance")}</p>
               <p className="text-2xl font-bold mt-1">
-                {(cf?.openingBalanceOmr ?? 0).toFixed(3)}{" "}
+                {Number(data?.openingBalanceOmr ?? 0).toFixed(3)}{" "}
                 <span className="text-sm font-normal text-muted-foreground">OMR</span>
               </p>
             </div>
             <div className="rounded-xl border border-border bg-card p-5">
               <p className="text-xs text-muted-foreground">{t("clientBilling.cashFlow.assumedMonthlyInflow")}</p>
               <p className="text-2xl font-bold mt-1 text-emerald-600">
-                {(cf?.assumedMonthlyInflowOmr ?? 0).toFixed(3)}{" "}
+                {Number(data?.assumedMonthlyInflowOmr ?? 0).toFixed(3)}{" "}
                 <span className="text-sm font-normal text-muted-foreground">OMR</span>
               </p>
             </div>

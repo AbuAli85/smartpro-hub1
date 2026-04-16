@@ -138,6 +138,10 @@ export default function PromoterAssignmentStagingPage() {
             <Link href="/hr/promoter-assignment-ops" className="text-primary underline">
               operations
             </Link>
+            . Phase 3 finance:{" "}
+            <Link href="/hr/promoter-finance" className="text-primary underline">
+              payroll &amp; invoices
+            </Link>
             .
           </p>
         </div>

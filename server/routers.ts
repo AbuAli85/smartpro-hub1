@@ -50,6 +50,7 @@ import { automationSlaRouter } from "./routers/automationSla";
 import { documentGenerationRouter } from "./routers/documentGeneration";
 import { promoterAssignmentsRouter } from "./routers/promoterAssignments";
 import { promoterAssignmentOpsRouter } from "./routers/promoterAssignmentOps";
+import { promoterFinancialOpsRouter } from "./routers/promoterFinancialOps";
 import { contractManagementRouter } from "./routers/contractManagement";
 import { accountabilityPerformanceRouter } from "./routers/accountabilityPerformance";
 import { workspaceRouter } from "./routers/workspace";
@@ -153,6 +154,8 @@ export const appRouter = router({
   promoterAssignments: promoterAssignmentsRouter,
   /** Phase 2: execution summary, payroll/billing staging (assignment-centered). */
   promoterAssignmentOps: promoterAssignmentOpsRouter,
+  /** Phase 3: payroll runs, invoices, profitability from promoter staging. */
+  promoterFinancialOps: promoterFinancialOpsRouter,
   contractManagement: contractManagementRouter,
   accountabilityPerformance: accountabilityPerformanceRouter,
   workspace: workspaceRouter,

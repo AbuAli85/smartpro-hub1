@@ -88,6 +88,7 @@ const ContractManagementPage = lazy(() => import("./pages/ContractManagementPage
 const PromoterAssignmentsPage = lazy(() => import("./pages/PromoterAssignmentsPage"));
 const PromoterAssignmentOperationsPage = lazy(() => import("./pages/PromoterAssignmentOperationsPage"));
 const PromoterAssignmentStagingPage = lazy(() => import("./pages/PromoterAssignmentStagingPage"));
+const PromoterFinanceHubPage = lazy(() => import("./pages/PromoterFinanceHubPage"));
 const ContractDetailPage = lazy(() => import("./pages/ContractDetailPage"));
 const DocumentExpiryDashboard = lazy(() => import("./pages/DocumentExpiryDashboard"));
 const HRLettersPage = lazy(() => import("./pages/HRLettersPage"));
@@ -267,6 +268,7 @@ function AppRoutes() {
         <Route path="/hr/contracts/:id" component={ContractDetailPage} />
         <Route path="/hr/promoter-assignment-ops" component={PromoterAssignmentOperationsPage} />
         <Route path="/hr/promoter-staging" component={PromoterAssignmentStagingPage} />
+        <Route path="/hr/promoter-finance" component={PromoterFinanceHubPage} />
         {/* Legacy aliases — kept for backward compatibility; will be removed in a future release */}
         <Route path="/hr/promoter-assignments" component={ContractManagementPage} />
         <Route path="/hr/promoter-assignments/:id" component={ContractDetailPage} />

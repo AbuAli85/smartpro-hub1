@@ -3335,6 +3335,157 @@ export const promoterAssignments = mysqlTable(
 export type PromoterAssignment = typeof promoterAssignments.$inferSelect;
 export type InsertPromoterAssignment = typeof promoterAssignments.$inferInsert;
 
+/** Phase 3: frozen payroll run from promoter staging (assignment-centered). */
+export const promoterPayrollRuns = mysqlTable(
+  "promoter_payroll_runs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    periodStartYmd: date("period_start_ymd", { mode: "string" }).notNull(),
+    periodEndYmd: date("period_end_ymd", { mode: "string" }).notNull(),
+    status: mysqlEnum("status", [
+      "draft",
+      "review_ready",
+      "approved",
+      "exported",
+      "paid",
+      "cancelled",
+    ] as const)
+      .notNull()
+      .default("draft"),
+    totalAccruedOmr: decimal("total_accrued_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    lineCount: int("line_count").notNull().default(0),
+    stagingSnapshotJson: json("staging_snapshot_json").$type<Record<string, unknown> | null>(),
+    warningAckJson: json("warning_ack_json").$type<Record<string, unknown> | null>(),
+    exportCsvKey: varchar("export_csv_key", { length: 512 }),
+    exportCsvUrl: varchar("export_csv_url", { length: 1024 }),
+    exportedAt: timestamp("exported_at"),
+    exportedByUserId: int("exported_by_user_id"),
+    createdByUserId: int("created_by_user_id"),
+    approvedByUserId: int("approved_by_user_id"),
+    approvedAt: timestamp("approved_at"),
+    paidAt: timestamp("paid_at"),
+    paidByUserId: int("paid_by_user_id"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_ppr_company").on(t.companyId),
+    index("idx_ppr_period").on(t.companyId, t.periodStartYmd, t.periodEndYmd),
+    index("idx_ppr_status").on(t.companyId, t.status),
+  ],
+);
+export type PromoterPayrollRun = typeof promoterPayrollRuns.$inferSelect;
+
+export const promoterPayrollRunLines = mysqlTable(
+  "promoter_payroll_run_lines",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    runId: int("run_id").notNull(),
+    assignmentId: char("assignment_id", { length: 36 }).notNull(),
+    employeeId: int("employee_id").notNull(),
+    brandCompanyId: int("brand_company_id").notNull(),
+    clientSiteId: int("client_site_id"),
+    readinessSnapshot: varchar("readiness_snapshot", { length: 32 }).notNull(),
+    blockersJson: json("blockers_json").$type<string[]>().notNull(),
+    warningsJson: json("warnings_json").$type<string[]>().notNull(),
+    payrollNote: text("payroll_note"),
+    monthlySalaryBasisOmr: decimal("monthly_salary_basis_omr", { precision: 14, scale: 3 }),
+    periodCalendarDays: int("period_calendar_days").notNull(),
+    overlapDays: int("overlap_days").notNull(),
+    accruedPayOmr: decimal("accrued_pay_omr", { precision: 14, scale: 3 }).notNull(),
+    stagingRowSnapshotJson: json("staging_row_snapshot_json").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_pprl_run").on(t.runId),
+    index("idx_pprl_assignment").on(t.assignmentId),
+    index("idx_pprl_company").on(t.companyId),
+  ],
+);
+export type PromoterPayrollRunLine = typeof promoterPayrollRunLines.$inferSelect;
+
+export const promoterInvoices = mysqlTable(
+  "promoter_invoices",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    invoiceNumber: varchar("invoice_number", { length: 64 }).notNull().unique(),
+    clientCompanyId: int("client_company_id").notNull(),
+    periodStartYmd: date("period_start_ymd", { mode: "string" }).notNull(),
+    periodEndYmd: date("period_end_ymd", { mode: "string" }).notNull(),
+    currencyCode: varchar("currency_code", { length: 3 }).notNull().default("OMR"),
+    subtotalOmr: decimal("subtotal_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    totalOmr: decimal("total_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    status: mysqlEnum("status", [
+      "draft",
+      "review_ready",
+      "issued",
+      "sent",
+      "partially_paid",
+      "paid",
+      "cancelled",
+    ] as const)
+      .notNull()
+      .default("draft"),
+    monthlyBillingMode: varchar("monthly_billing_mode", { length: 32 }),
+    warningAckJson: json("warning_ack_json").$type<Record<string, unknown> | null>(),
+    htmlArtifactKey: varchar("html_artifact_key", { length: 512 }),
+    htmlArtifactUrl: varchar("html_artifact_url", { length: 1024 }),
+    pdfArtifactKey: varchar("pdf_artifact_key", { length: 512 }),
+    pdfArtifactUrl: varchar("pdf_artifact_url", { length: 1024 }),
+    issuedAt: timestamp("issued_at"),
+    issuedByUserId: int("issued_by_user_id"),
+    createdByUserId: int("created_by_user_id"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_promoter_inv_period_client").on(
+      t.companyId,
+      t.clientCompanyId,
+      t.periodStartYmd,
+      t.periodEndYmd,
+    ),
+    index("idx_pi_company").on(t.companyId),
+    index("idx_pi_status").on(t.companyId, t.status),
+  ],
+);
+export type PromoterInvoice = typeof promoterInvoices.$inferSelect;
+
+export const promoterInvoiceLines = mysqlTable(
+  "promoter_invoice_lines",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    invoiceId: int("invoice_id").notNull(),
+    assignmentId: char("assignment_id", { length: 36 }).notNull(),
+    employeeId: int("employee_id").notNull(),
+    brandCompanyId: int("brand_company_id").notNull(),
+    clientSiteId: int("client_site_id"),
+    billingModel: varchar("billing_model", { length: 32 }),
+    billableUnits: decimal("billable_units", { precision: 18, scale: 6 }),
+    unitRateOmr: decimal("unit_rate_omr", { precision: 14, scale: 3 }),
+    lineTotalOmr: decimal("line_total_omr", { precision: 14, scale: 3 }).notNull(),
+    monthlyBillingMode: varchar("monthly_billing_mode", { length: 32 }),
+    monthlyProrationSensitive: boolean("monthly_proration_sensitive").notNull().default(false),
+    monthlyEstimateOnly: boolean("monthly_estimate_only").notNull().default(false),
+    readinessSnapshot: varchar("readiness_snapshot", { length: 32 }).notNull(),
+    blockersJson: json("blockers_json").$type<string[]>().notNull(),
+    warningsJson: json("warnings_json").$type<string[]>().notNull(),
+    stagingRowSnapshotJson: json("staging_row_snapshot_json").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_pil_invoice").on(t.invoiceId),
+    index("idx_pil_assignment").on(t.assignmentId),
+  ],
+);
+export type PromoterInvoiceLine = typeof promoterInvoiceLines.$inferSelect;
+
 // ─── DOCUMENT GENERATION (Google Docs templates & outputs) ────────────────────
 export const documentTemplates = mysqlTable(
   "document_templates",

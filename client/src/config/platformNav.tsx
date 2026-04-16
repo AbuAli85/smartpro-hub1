@@ -388,6 +388,14 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
           leaf("people.promoterAgreements", "promoterAgreements", "Promoter agreements", "/hr/contracts", UserSquare2, {
             intent: "workspace",
           }),
+          leaf(
+            "people.promoterAssignmentOps",
+            "promoterAssignmentOps",
+            "Assignment operations",
+            "/hr/promoter-assignment-ops",
+            Users,
+            { intent: "workspace" },
+          ),
         ],
       ),
       leaf(

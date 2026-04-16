@@ -3264,11 +3264,35 @@ export const promoterAssignments = mysqlTable(
     /** Optional link to client (first party) attendance site — work location is always client-scoped */
     clientSiteId: int("client_site_id").references(() => attendanceSites.id),
     promoterEmployeeId: int("promoter_employee_id").notNull(),
+    assignmentStatus: mysqlEnum("assignment_status", [
+      "draft",
+      "active",
+      "suspended",
+      "completed",
+      "terminated",
+    ] as const)
+      .notNull()
+      .default("draft"),
     locationAr: varchar("location_ar", { length: 500 }),
     locationEn: varchar("location_en", { length: 500 }),
     startDate: date("start_date").notNull(),
-    endDate: date("end_date").notNull(),
-    status: varchar("status", { length: 50 }).notNull().default("active"),
+    /** Nullable for draft / open-ended active deployments (Phase 1). */
+    endDate: date("end_date"),
+    expectedMonthlyHours: int("expected_monthly_hours"),
+    shiftType: varchar("shift_type", { length: 32 }),
+    supervisorUserId: int("supervisor_user_id").references(() => users.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    suspensionReason: text("suspension_reason"),
+    terminationReason: text("termination_reason"),
+    notes: text("notes"),
+    billingModel: mysqlEnum("billing_model", ["per_month", "per_day", "per_hour", "fixed_term"] as const),
+    billingRate: decimal("billing_rate", { precision: 15, scale: 4 }),
+    currencyCode: varchar("currency_code", { length: 3 }).notNull().default("OMR"),
+    rateSource: mysqlEnum("rate_source", ["assignment_override", "contract_default", "client_default"] as const)
+      .notNull()
+      .default("assignment_override"),
     contractReferenceNumber: varchar("contract_reference_number", { length: 100 }),
     issueDate: date("issue_date"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -3280,6 +3304,11 @@ export const promoterAssignments = mysqlTable(
     index("idx_pa_second_party").on(t.secondPartyCompanyId),
     index("idx_pa_employee").on(t.promoterEmployeeId),
     index("idx_pa_client_site").on(t.clientSiteId),
+    index("idx_pa_company_status").on(t.companyId, t.assignmentStatus),
+    index("idx_pa_company_second").on(t.companyId, t.secondPartyCompanyId),
+    index("idx_pa_company_site").on(t.companyId, t.clientSiteId),
+    index("idx_pa_employee_status").on(t.promoterEmployeeId, t.assignmentStatus),
+    index("idx_pa_dates").on(t.startDate, t.endDate),
   ]
 );
 export type PromoterAssignment = typeof promoterAssignments.$inferSelect;

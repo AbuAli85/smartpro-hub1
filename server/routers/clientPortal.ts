@@ -224,7 +224,7 @@ export const clientPortalRouter = router({
           and(
             eq(promoterAssignments.secondPartyCompanyId, portalCompanyId),
             isNotNull(promoterAssignments.clientSiteId),
-            eq(promoterAssignments.status, "active"),
+            eq(promoterAssignments.assignmentStatus, "active"),
           ),
         );
 

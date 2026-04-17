@@ -8,6 +8,15 @@ function trimEnv(key: string): string {
   return (process.env[key] ?? "").trim();
 }
 
+/**
+ * Meta `hub.challenge` must be echoed verbatim for webhook setup, but only if it
+ * looks like an opaque token (CodeQL js/reflected-xss on res.send(challenge)).
+ */
+function isValidHubChallenge(s: string): boolean {
+  if (s.length === 0 || s.length > 4096) return false;
+  return /^[A-Za-z0-9+/=_-]+$/.test(s);
+}
+
 function graphBaseUrl(): string {
   const v = trimEnv("WHATSAPP_CLOUD_GRAPH_VERSION") || "v21.0";
   return `https://graph.facebook.com/${v}`;
@@ -265,9 +274,10 @@ export function registerWhatsAppWebhookRoutes(app: Express): void {
       typeof token === "string" &&
       typeof challenge === "string" &&
       verifyToken &&
-      token === verifyToken
+      token === verifyToken &&
+      isValidHubChallenge(challenge)
     ) {
-      res.status(200).send(challenge);
+      res.status(200).type("text/plain; charset=utf-8").send(challenge);
       return;
     }
     res.sendStatus(403);

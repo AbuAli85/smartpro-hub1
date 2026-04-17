@@ -53,8 +53,21 @@ function validatedSameOriginRedirectHref(baseUrl: string, returnPath: string): s
 }
 
 /**
+ * Apex vs `www` (same site): OAuth callback may hit the bare domain while state
+ * encodes `www` (or the reverse) behind the same load balancer.
+ */
+function oauthStateHostMatchesRequest(stateHost: string, requestHost: string): boolean {
+  const a = stateHost.toLowerCase();
+  const b = requestHost.toLowerCase();
+  if (a === b) return true;
+  const stripWww = (h: string) => (h.startsWith("www.") ? h.slice(4) : h);
+  return stripWww(a) === stripWww(b);
+}
+
+/**
  * Recover app origin from OAuth state (base64 of "origin" or "origin|returnPath").
- * Must match the Host of this callback request to avoid open redirects.
+ * Must align with the callback request Host (same registrable host; www/apex OK)
+ * to avoid open redirects.
  */
 function appBaseUrlFromState(state: string | undefined, req: Request): string | null {
   if (!state) return null;
@@ -68,7 +81,7 @@ function appBaseUrlFromState(state: string | undefined, req: Request): string | 
       .split(",")[0]
       .trim()
       .toLowerCase();
-    if (!hostHeader || u.host.toLowerCase() !== hostHeader) return null;
+    if (!hostHeader || !oauthStateHostMatchesRequest(u.host, hostHeader)) return null;
     return `${u.protocol}//${u.host}`;
   } catch {
     return null;

@@ -49,9 +49,9 @@ const helmetCspProduction = {
   directives: {
     defaultSrc: ["'self'"],
     scriptSrc: ["'self'"],
-    styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind CSS requires inline styles
+    styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     imgSrc: ["'self'", "data:", "blob:", "https:"],
-    fontSrc: ["'self'", "data:"],
+    fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
     connectSrc: [
       "'self'",
       // Sentry error reporting

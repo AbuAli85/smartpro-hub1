@@ -142,7 +142,7 @@ describe("HRPerformancePage overview dashboard", () => {
     render(<HRPerformancePage />);
     expect(screen.getByTestId("hr-dashboard-metrics")).toBeInTheDocument();
     expect(screen.getByText("72.3%")).toBeInTheDocument();
-    expect(screen.getByText(/Training completed \(all-time\)/)).toBeInTheDocument();
+    expect(screen.getByText("performance.dashboard.trainingCompleted")).toBeInTheDocument();
   });
 
   it("shows an error alert when the dashboard query fails", () => {

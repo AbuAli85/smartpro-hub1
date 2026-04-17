@@ -3,6 +3,7 @@ import type { TrpcContext } from "./_core/context";
 import { attendanceRouter } from "./routers/attendance";
 import * as attendanceAudit from "./attendanceAudit";
 import * as db from "./db";
+import * as companiesRepo from "./repositories/companies.repository";
 import {
   ATTENDANCE_AUDIT_ACTION,
   ATTENDANCE_AUDIT_ENTITY,
@@ -14,9 +15,12 @@ vi.mock("./db", async (importOriginal) => {
   return {
     ...actual,
     getDb: vi.fn(),
-    getUserCompanyById: vi.fn(),
   };
 });
+
+vi.mock("./repositories/companies.repository", () => ({
+  getUserCompanyById: vi.fn(),
+}));
 
 function makeHrCtx(): TrpcContext {
   return {
@@ -39,7 +43,7 @@ function makeHrCtx(): TrpcContext {
 
 describe("attendance operational flows (router + audit emission)", () => {
   beforeEach(() => {
-    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+    vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue({
       company: { id: 10 },
       member: { role: "hr_admin" },
     } as never);

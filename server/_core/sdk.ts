@@ -221,7 +221,13 @@ class SDKServer {
         name,
       };
     } catch (error) {
-      console.warn("[Auth] Session verification failed", String(error));
+      // TEMPORARY DIAGNOSTIC — remove after production login is confirmed working
+      console.warn("[Auth] JWT verify failed", {
+        error: String(error),
+        cookieLen: cookieValue.length,
+        secretLen: (process.env.JWT_SECRET ?? "").length,
+        instanceId: process.env.HOSTNAME ?? process.env.INSTANCE_ID ?? "unknown",
+      });
       return null;
     }
   }

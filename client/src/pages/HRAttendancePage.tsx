@@ -9,7 +9,7 @@ import {
   TrendingUp, Download, Pencil, Trash2, CheckCircle, RefreshCw,
   ClipboardList, CalendarDays, ScrollText, MapPin,
 } from "lucide-react";
-import ExcelJS from "exceljs";
+import * as ExcelJS from "exceljs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DialogFooter } from "@/components/ui/dialog";

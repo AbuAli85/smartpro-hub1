@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import ExcelJS from "exceljs";
+import * as ExcelJS from "exceljs";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";

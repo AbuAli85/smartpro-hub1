@@ -54,7 +54,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import ExcelJS from "exceljs";
+import * as ExcelJS from "exceljs";
 
 type StatusFilter = "all" | "in_progress" | "completed" | "abandoned";
 

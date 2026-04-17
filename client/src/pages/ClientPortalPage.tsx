@@ -17,9 +17,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { useTranslation } from "react-i18next";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -259,13 +267,54 @@ function MyDocumentsTab() {
 }
 
 function UpcomingRenewalsTab() {
-  const { data: renewals, isLoading } = trpc.clientPortal.getUpcomingRenewals.useQuery();
+  const [, navigate] = useLocation();
+  const { data: renewals, isLoading, refetch } = trpc.clientPortal.getUpcomingRenewals.useQuery();
+  const [renewTarget, setRenewTarget] = useState<{ id: number; label: string } | null>(null);
+  const [renewNotes, setRenewNotes] = useState("");
+  const requestRenewal = trpc.engagements.requestRenewal.useMutation({
+    onSuccess: (r) => {
+      toast.success("Renewal request submitted");
+      setRenewTarget(null);
+      setRenewNotes("");
+      refetch();
+      navigate(`/engagements/${r.engagementId}`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold">Upcoming Renewals</h3>
         <Badge variant="secondary">{renewals?.length ?? 0} items</Badge>
       </div>
+      <Dialog open={renewTarget != null} onOpenChange={(o) => !o && setRenewTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request renewal</DialogTitle>
+            <DialogDescription>
+              {renewTarget?.label ?? ""} — SmartPRO will open a tracked engagement and follow up.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            rows={4}
+            placeholder="Notes for our team (required)…"
+            value={renewNotes}
+            onChange={(e) => setRenewNotes(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenewTarget(null)}>Cancel</Button>
+            <Button
+              disabled={!renewNotes.trim() || requestRenewal.isPending || !renewTarget}
+              onClick={() => {
+                if (!renewTarget) return;
+                requestRenewal.mutate({ workPermitId: renewTarget.id, notes: renewNotes.trim() });
+              }}
+            >
+              {requestRenewal.isPending ? "Submitting…" : "Submit request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}</div>
       ) : !renewals?.length ? (
@@ -303,7 +352,14 @@ function UpcomingRenewalsTab() {
                     }`}>
                       {r.daysRemaining != null ? `${r.daysRemaining}d left` : "Expiring"}
                     </Badge>
-                    <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => toast.info("Contact SmartPRO team to initiate renewal")}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-xs"
+                      onClick={() => {
+                        setRenewNotes("");
+                        setRenewTarget({ id: r.id, label: `${r.type} — ${r.reference}` });
+                      }}
                     >
                       <Send className="w-3 h-3" />
                       Request Renewal
@@ -509,6 +565,8 @@ function StaffingInvoiceTab({
 
 export default function ClientPortalPage() {
   const { t } = useTranslation("clientPortal");
+  const { t: te } = useTranslation("engagements");
+  const utils = trpc.useUtils();
   const { user } = useAuth();
   const [location, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -527,6 +585,7 @@ export default function ClientPortalPage() {
   const [msgSubject, setMsgSubject] = useState("");
   const [msgBody, setMsgBody] = useState("");
   const [msgCategory, setMsgCategory] = useState<"general" | "billing" | "contract" | "pro_service" | "government_case" | "technical">("general");
+  const [paymentFocus, setPaymentFocus] = useState<RouterOutputs["clientPortal"]["listInvoices"]["items"][number] | null>(null);
 
   const { data: dashboard, isLoading: dashLoading } = trpc.clientPortal.getDashboard.useQuery();
   const { data: contractsData } = trpc.clientPortal.listContracts.useQuery({ pageSize: 50 });
@@ -551,19 +610,33 @@ export default function ClientPortalPage() {
     onError: (e) => toast.error(e.message),
   });
   const { data: alertsData } = trpc.clientPortal.getExpiryAlerts.useQuery({ daysAhead: 90 });
-  const { data: messagesData, refetch: refetchMessages } = trpc.clientPortal.listMessages.useQuery({ pageSize: 50 });
+  const { data: unifiedMessages, refetch: refetchUnifiedMessages } = trpc.engagements.listUnifiedMessages.useQuery(
+    undefined,
+    { retry: false },
+  );
+  const { data: engWidget } = trpc.engagements.list.useQuery({ page: 1, pageSize: 5 });
 
-  const sendMessage = trpc.clientPortal.sendMessage.useMutation({
+  const sendMessage = trpc.engagements.sendMessage.useMutation({
     onSuccess: () => {
       toast.success("Message sent to SmartPRO team");
       setMsgSubject(""); setMsgBody("");
-      refetchMessages();
+      refetchUnifiedMessages();
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const markRead = trpc.clientPortal.markMessageRead.useMutation({
-    onSuccess: () => refetchMessages(),
+  const markRead = trpc.engagements.markMessageRead.useMutation({
+    onSuccess: () => refetchUnifiedMessages(),
+  });
+
+  const linkInvoiceEngagement = trpc.engagements.createFromSource.useMutation({
+    onSuccess: async (r) => {
+      toast.success("Engagement linked to this invoice");
+      setPaymentFocus(null);
+      await utils.engagements.list.invalidate();
+      navigate(`/engagements/${r.engagementId}`);
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   const kpis = dashboard?.kpis;
@@ -571,7 +644,9 @@ export default function ClientPortalPage() {
   const criticalAlerts = (alertsData?.items ?? []).filter(a => a.severity === "critical").length;
   const overdueInvoices = (invoicesData?.items ?? []).filter(i => i.effectiveStatus === "overdue").length;
   const pendingSig = (contractsData?.items ?? []).filter(c => c.status === "pending_signature").length;
-  const unreadMsgs = (messagesData?.items ?? []).filter(m => !m.isRead).length;
+  const unreadMsgs = (unifiedMessages?.items ?? []).filter((m) =>
+    m.source === "legacy_notification" ? !m.isRead : m.author === "platform" ? m.readAt == null : false,
+  ).length;
 
   const navItems = [
     { id: "dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
@@ -688,6 +763,31 @@ export default function ClientPortalPage() {
                   </CardContent>
                 </Card>
 
+                <Card className="border-0 shadow-sm">
+                  <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                    <CardTitle className="text-base">{te("portalWidgetTitle")}</CardTitle>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/engagements">{te("portalWidgetCta")}</Link>
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    {(engWidget?.items ?? []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">{te("portalWidgetEmpty")}</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {(engWidget?.items ?? []).slice(0, 5).map((e) => (
+                          <li key={e.id}>
+                            <Link href={`/engagements/${e.id}`} className="text-sm font-medium text-primary hover:underline">
+                              {e.title}
+                            </Link>
+                            <p className="text-xs text-muted-foreground capitalize">{e.status.replace(/_/g, " ")}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+
                 {/* Expiry preview */}
                 {(alertsData?.items ?? []).length > 0 && (
                   <Card className="border-0 shadow-sm">
@@ -763,9 +863,8 @@ export default function ClientPortalPage() {
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {c.status === "pending_signature" && (
-                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
-                              onClick={() => toast.info("E-signature flow — coming in Step 10")}>
-                              Sign Now
+                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs" asChild>
+                              <Link href={`/contracts/${c.id}/sign`}>Sign now</Link>
                             </Button>
                           )}
                           {c.pdfUrl && (
@@ -819,9 +918,12 @@ export default function ClientPortalPage() {
                         <div className="text-right">
                           <p className="text-xl font-bold text-foreground">{fmtOMR(inv.amountOmr)}</p>
                           {["pending", "overdue"].includes(inv.effectiveStatus) && (
-                            <Button size="sm" className="mt-2 bg-primary text-primary-foreground text-xs"
-                              onClick={() => toast.info("Online payment integration coming soon. Please contact your account manager.")}>
-                              Pay Now
+                            <Button
+                              size="sm"
+                              className="mt-2 bg-primary text-primary-foreground text-xs"
+                              onClick={() => setPaymentFocus(inv)}
+                            >
+                              Payment options
                             </Button>
                           )}
                         </div>
@@ -1011,7 +1113,9 @@ export default function ClientPortalPage() {
                 <CardContent className="py-12 text-center text-muted-foreground">
                   <ShoppingBag className="w-10 h-10 mx-auto mb-3 opacity-30" />
                   <p>No bookings found</p>
-                  <Button className="mt-4 text-sm" onClick={() => navigate("/marketplace")}>Browse Marketplace</Button>
+                  <Button className="mt-4 text-sm" asChild>
+                    <Link href="/marketplace">Browse Marketplace</Link>
+                  </Button>
                 </CardContent>
               </Card>
             ) : (
@@ -1135,7 +1239,12 @@ export default function ClientPortalPage() {
                 <Textarea placeholder="Describe your question or issue..." value={msgBody} onChange={e => setMsgBody(e.target.value)} rows={4} />
                 <Button
                   disabled={!msgSubject.trim() || !msgBody.trim() || sendMessage.isPending}
-                  onClick={() => sendMessage.mutate({ subject: msgSubject, message: msgBody, category: msgCategory })}
+                  onClick={() =>
+                    sendMessage.mutate({
+                      subject: `[${msgCategory}] ${msgSubject.trim()}`,
+                      body: msgBody.trim(),
+                    })
+                  }
                   className="gap-2"
                 >
                   <Send className="w-4 h-4" />
@@ -1146,7 +1255,7 @@ export default function ClientPortalPage() {
 
             {/* History */}
             <div className="space-y-3">
-              {(messagesData?.items ?? []).length === 0 ? (
+              {(unifiedMessages?.items ?? []).length === 0 ? (
                 <Card className="border-0 shadow-sm">
                   <CardContent className="py-8 text-center text-muted-foreground">
                     <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -1154,27 +1263,43 @@ export default function ClientPortalPage() {
                   </CardContent>
                 </Card>
               ) : (
-                (messagesData?.items ?? []).map(msg => (
-                  <Card key={msg.id} className={`border-0 shadow-sm ${!msg.isRead ? "border-l-4 border-l-blue-500" : ""}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-medium text-sm">{msg.title}</p>
-                            {!msg.isRead && <Badge className="bg-blue-100 text-blue-700 text-xs">New</Badge>}
+                (unifiedMessages?.items ?? []).map((msg) => {
+                  const isLegacy = msg.source === "legacy_notification";
+                  const unread = isLegacy ? !msg.isRead : msg.author === "platform" && msg.readAt == null;
+                  const key = `${msg.source}-${msg.id}`;
+                  const title = isLegacy ? msg.subject : msg.subject ?? (msg.author === "platform" ? "SmartPRO" : "You");
+                  const body = isLegacy ? msg.body : msg.body;
+                  return (
+                    <Card key={key} className={`border-0 shadow-sm ${unread ? "border-l-4 border-l-blue-500" : ""}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <Badge variant="outline" className="text-[10px] capitalize">
+                                {isLegacy ? "History" : msg.author}
+                              </Badge>
+                              <p className="font-medium text-sm">{title}</p>
+                              {unread && <Badge className="bg-blue-100 text-blue-700 text-xs">New</Badge>}
+                            </div>
+                            <p className="text-sm text-muted-foreground line-clamp-4 whitespace-pre-wrap">{body}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{fmtDate(msg.createdAt)}</p>
                           </div>
-                          <p className="text-sm text-muted-foreground line-clamp-2">{msg.message}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{fmtDate(msg.createdAt)}</p>
+                          {unread && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                markRead.mutate({ messageId: msg.id, legacyNotification: isLegacy })
+                              }
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
-                        {!msg.isRead && (
-                          <Button variant="ghost" size="sm" onClick={() => markRead.mutate({ messageId: msg.id })}>
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
           </TabsContent>
@@ -1195,6 +1320,61 @@ export default function ClientPortalPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={paymentFocus != null} onOpenChange={(open) => !open && setPaymentFocus(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Payment — {paymentFocus?.invoiceLabel}</DialogTitle>
+            <DialogDescription>
+              Amount {fmtOMR(paymentFocus?.amountOmr)} · Period {paymentFocus?.billingMonth}/{paymentFocus?.billingYear}
+              {paymentFocus?.effectiveStatus === "overdue" ? " · Overdue" : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              In-app card checkout is only available when your workspace has a linked client-service invoice and
+              payment gateway. PRO billing cycles are normally settled per your contract (bank transfer, cheque, or
+              agreed channel).
+            </p>
+            <p>Use your invoice reference when remitting, then send proof or questions via Messages.</p>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!paymentFocus) return;
+                void navigator.clipboard.writeText(
+                  `${paymentFocus.invoiceLabel} · ${fmtOMR(paymentFocus.amountOmr)} · ${paymentFocus.billingMonth}/${paymentFocus.billingYear}`,
+                );
+                toast.success("Copied to clipboard");
+              }}
+            >
+              Copy invoice details
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!paymentFocus) return;
+                setActiveTab("messages");
+                setMsgSubject(`Payment: ${paymentFocus.invoiceLabel}`);
+                setPaymentFocus(null);
+              }}
+            >
+              Message billing team
+            </Button>
+            <Button
+              variant="default"
+              disabled={!paymentFocus || linkInvoiceEngagement.isPending}
+              onClick={() => {
+                if (!paymentFocus) return;
+                linkInvoiceEngagement.mutate({ sourceType: "pro_billing_cycle", sourceId: paymentFocus.id });
+              }}
+            >
+              Track in engagements
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── Rating Dialog ─── */}
       {ratingBooking && (

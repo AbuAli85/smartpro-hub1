@@ -117,6 +117,8 @@ export const FIELD_EMPLOYEE_HREFS = new Set<string>([
 export const PORTAL_CLIENT_HREFS = new Set<string>([
   "/dashboard",
   "/client-portal",
+  "/engagements",
+  "/marketplace",
   "/subscriptions",
   "/alerts",
   "/contracts",
@@ -289,6 +291,7 @@ const EXTERNAL_AUDITOR_SURFACE_HREFS = new Set<string>([
 
 function hrManagerSurfaceAllowed(href: string): boolean {
   if (isHrModuleHref(href)) return true;
+  if (href.startsWith("/engagements")) return true;
   if (HR_MANAGER_SURFACE_HREFS.has(href)) return true;
   if (href.startsWith("/my-portal")) return true;
   if (href.startsWith("/preferences")) return true;
@@ -305,6 +308,7 @@ function hrManagerSurfaceAllowed(href: string): boolean {
 
 function financeManagerSurfaceAllowed(href: string): boolean {
   if (FINANCE_MANAGER_SURFACE_HREFS.has(href)) return true;
+  if (href.startsWith("/engagements")) return true;
   if (href.startsWith("/my-portal")) return true;
   if (href.startsWith("/preferences")) return true;
   if (href.startsWith("/payroll")) return true;
@@ -322,6 +326,7 @@ function financeManagerSurfaceAllowed(href: string): boolean {
 
 function reviewerSurfaceAllowed(href: string): boolean {
   if (REVIEWER_SURFACE_HREFS.has(href)) return true;
+  if (href.startsWith("/engagements")) return true;
   if (href.startsWith("/my-portal")) return true;
   if (href.startsWith("/preferences")) return true;
   if (href.startsWith("/company/profile")) return true;
@@ -339,6 +344,7 @@ function reviewerSurfaceAllowed(href: string): boolean {
 
 function externalAuditorSurfaceAllowed(href: string): boolean {
   if (isHrModuleHref(href)) return true;
+  if (href.startsWith("/engagements")) return true;
   if (href === "/workforce" || href.startsWith("/workforce/")) return true;
   if (EXTERNAL_AUDITOR_SURFACE_HREFS.has(href)) return true;
   if (href.startsWith("/my-portal")) return true;
@@ -535,7 +541,9 @@ export function companyNavExtensionAllows(
       path.startsWith("/hr/tasks") ||
       path.startsWith("/hr/announcements") ||
       path.startsWith("/my-portal") ||
-      path.startsWith("/employee");
+      path.startsWith("/employee") ||
+      path.startsWith("/engagements") ||
+      path.startsWith("/marketplace");
     if (!portalOk) return false;
   }
   if (shouldUsePreRegistrationShell(user, options)) {
@@ -736,6 +744,8 @@ function pathMatchesRestrictedPrefix(path: string, baseHref: string): boolean {
 /** Portal-only users (no company): allowed path prefixes / exact entries. */
 function portalShellPathAllowed(path: string): boolean {
   if (PORTAL_CLIENT_HREFS.has(path)) return true;
+  if (path.startsWith("/engagements")) return true;
+  if (path.startsWith("/marketplace")) return true;
   if (path.startsWith("/contracts")) return true;
   if (path.startsWith("/company/documents")) return true;
   if (path.startsWith("/company/team-access")) return true;

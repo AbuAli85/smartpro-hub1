@@ -4729,3 +4729,215 @@ export const surveySanadOfficeOutreach = mysqlTable(
   ],
 );
 export type SurveySanadOfficeOutreach = typeof surveySanadOfficeOutreach.$inferSelect;
+
+// ─── CLIENT ENGAGEMENTS (unified workspace over existing domain tables) ─────
+
+export const engagementTypeEnum = mysqlEnum("engagement_type", [
+  "workspace",
+  "pro_service",
+  "government_case",
+  "marketplace_booking",
+  "contract",
+  "pro_billing_cycle",
+  "client_service_invoice",
+  "staffing_month",
+  "work_permit_renewal",
+  "service_request",
+]);
+
+export const engagementStatusEnum = mysqlEnum("engagement_status", [
+  "draft",
+  "active",
+  "waiting_client",
+  "waiting_platform",
+  "blocked",
+  "completed",
+  "archived",
+]);
+
+export const engagementHealthEnum = mysqlEnum("engagement_health", [
+  "on_track",
+  "at_risk",
+  "blocked",
+  "unknown",
+]);
+
+export const engagementLinkTypeEnum = mysqlEnum("engagement_link_type", [
+  "pro_service",
+  "government_case",
+  "marketplace_booking",
+  "contract",
+  "pro_billing_cycle",
+  "client_service_invoice",
+  "staffing_month",
+  "work_permit",
+  "employee_document",
+  "service_request",
+]);
+
+export const engagementTaskStatusEnum = mysqlEnum("engagement_task_status", [
+  "pending",
+  "in_progress",
+  "done",
+  "cancelled",
+]);
+
+export const engagementMessageAuthorEnum = mysqlEnum("engagement_message_author", [
+  "client",
+  "platform",
+  "system",
+]);
+
+export const engagementDocumentStatusEnum = mysqlEnum("engagement_document_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
+
+export const engagements = mysqlTable(
+  "engagements",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 512 }).notNull(),
+    engagementType: engagementTypeEnum.notNull(),
+    status: engagementStatusEnum.notNull().default("active"),
+    health: engagementHealthEnum.notNull().default("unknown"),
+    dueDate: timestamp("due_date"),
+    currentStage: varchar("current_stage", { length: 255 }),
+    summary: text("summary"),
+    metadata: json("metadata").$type<Record<string, unknown>>().default({}),
+    createdByUserId: int("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_engagements_company").on(t.companyId),
+    index("idx_engagements_company_type").on(t.companyId, t.engagementType),
+    index("idx_engagements_company_status").on(t.companyId, t.status),
+  ],
+);
+export type Engagement = typeof engagements.$inferSelect;
+export type InsertEngagement = typeof engagements.$inferInsert;
+
+export const engagementLinks = mysqlTable(
+  "engagement_links",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    engagementId: int("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    companyId: int("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    linkType: engagementLinkTypeEnum.notNull(),
+    entityId: int("entity_id"),
+    entityKey: varchar("entity_key", { length: 128 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_engagement_links_engagement").on(t.engagementId),
+    index("idx_engagement_links_company").on(t.companyId),
+    index("idx_engagement_links_lookup").on(t.companyId, t.linkType, t.entityId),
+  ],
+);
+export type EngagementLink = typeof engagementLinks.$inferSelect;
+
+export const engagementTasks = mysqlTable(
+  "engagement_tasks",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    engagementId: int("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    companyId: int("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 512 }).notNull(),
+    status: engagementTaskStatusEnum.notNull().default("pending"),
+    dueDate: timestamp("due_date"),
+    sortOrder: int("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_engagement_tasks_engagement").on(t.engagementId),
+    index("idx_engagement_tasks_company").on(t.companyId),
+  ],
+);
+export type EngagementTask = typeof engagementTasks.$inferSelect;
+
+export const engagementMessages = mysqlTable(
+  "engagement_messages",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    engagementId: int("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    companyId: int("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    author: engagementMessageAuthorEnum.notNull(),
+    authorUserId: int("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    subject: varchar("subject", { length: 255 }),
+    body: text("body").notNull(),
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_engagement_messages_engagement").on(t.engagementId),
+    index("idx_engagement_messages_company").on(t.companyId),
+    index("idx_engagement_messages_created").on(t.createdAt),
+  ],
+);
+export type EngagementMessage = typeof engagementMessages.$inferSelect;
+
+export const engagementDocuments = mysqlTable(
+  "engagement_documents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    engagementId: int("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    companyId: int("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 512 }).notNull(),
+    fileUrl: varchar("file_url", { length: 2048 }),
+    status: engagementDocumentStatusEnum.notNull().default("pending"),
+    uploadedByUserId: int("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    reviewedByUserId: int("reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewNote: text("review_note"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_engagement_documents_engagement").on(t.engagementId),
+    index("idx_engagement_documents_company").on(t.companyId),
+  ],
+);
+export type EngagementDocument = typeof engagementDocuments.$inferSelect;
+
+export const engagementActivityLog = mysqlTable(
+  "engagement_activity_log",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    engagementId: int("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    companyId: int("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    actorUserId: int("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    action: varchar("action", { length: 128 }).notNull(),
+    payload: json("payload").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_engagement_activity_engagement").on(t.engagementId),
+    index("idx_engagement_activity_company").on(t.companyId),
+  ],
+);
+export type EngagementActivityLogRow = typeof engagementActivityLog.$inferSelect;

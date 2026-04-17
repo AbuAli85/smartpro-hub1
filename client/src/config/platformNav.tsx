@@ -25,6 +25,7 @@ import {
   Home,
   LayoutDashboard,
   LayoutGrid,
+  Layers,
   ListTodo,
   Mail,
   Megaphone,
@@ -265,6 +266,10 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     items: [
       leaf("cw.clientPortal", "clientPortal", "My workspace", "/client-portal", UserCircle, {
         intent: "workspace",
+      }),
+      leaf("cw.engagements", "engagements", "Engagements", "/engagements", Layers, {
+        intent: "workspace",
+        activePathPrefixes: ["/engagements"],
       }),
     ],
   },

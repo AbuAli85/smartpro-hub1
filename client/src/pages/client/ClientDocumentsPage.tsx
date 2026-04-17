@@ -13,11 +13,16 @@ import {
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
 import { fmtDateTimeShort } from "@/lib/dateUtils";
+import { useWorkspaceCompanyTrpc } from "@/hooks/useWorkspaceCompanyTrpc";
 
 export default function ClientDocumentsPage() {
   const { t } = useTranslation("engagements");
   const [filter, setFilter] = useState<"all" | "pending" | "rejected" | "expiring_soon">("all");
-  const { data, isLoading } = trpc.clientWorkspace.listDocuments.useQuery({ filter, page: 1, pageSize: 100 });
+  const { workspaceReady, companyId } = useWorkspaceCompanyTrpc();
+  const { data, isLoading } = trpc.clientWorkspace.listDocuments.useQuery(
+    { filter, page: 1, pageSize: 100, companyId: companyId! },
+    { enabled: workspaceReady },
+  );
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">

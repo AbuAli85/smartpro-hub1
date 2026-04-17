@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronRight } from "lucide-react";
 import { fmtDateTimeShort } from "@/lib/dateUtils";
 import { toast } from "sonner";
+import { useWorkspaceCompanyTrpc } from "@/hooks/useWorkspaceCompanyTrpc";
 
 const CLIENT_FILTERS = [
   "all",
@@ -48,6 +49,7 @@ function parseFilterFromSearch(search: string): (typeof CLIENT_FILTERS)[number] 
 
 export function EngagementsListView({ detailBasePath, clientShell, showOpsAndBackfill }: EngagementsListViewProps) {
   const { t } = useTranslation("engagements");
+  const { workspaceReady, companyId } = useWorkspaceCompanyTrpc();
   const urlSearch = useSearch();
   const [filter, setFilter] = useState<(typeof CLIENT_FILTERS)[number]>("all");
   const [sort, setSort] = useState<(typeof CLIENT_SORTS)[number]>("recently_updated");
@@ -59,12 +61,12 @@ export function EngagementsListView({ detailBasePath, clientShell, showOpsAndBac
   }, [urlSearch, clientShell]);
 
   const legacyList = trpc.engagements.list.useQuery(
-    { page: 1, pageSize: 50 },
-    { enabled: !clientShell },
+    { page: 1, pageSize: 50, companyId: companyId ?? undefined },
+    { enabled: !clientShell && workspaceReady },
   );
   const clientList = trpc.clientWorkspace.listEngagements.useQuery(
-    { page: 1, pageSize: 50, filter, sort },
-    { enabled: clientShell },
+    { page: 1, pageSize: 50, filter, sort, companyId: companyId! },
+    { enabled: clientShell && workspaceReady },
   );
 
   const list = clientShell ? clientList : legacyList;

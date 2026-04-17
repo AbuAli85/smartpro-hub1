@@ -24,10 +24,11 @@ export type EngagementDetailViewProps = {
 export function EngagementDetailView({ engagementId, listPath, clientMode }: EngagementDetailViewProps) {
   const { t } = useTranslation("engagements");
   const valid = Number.isFinite(engagementId) && engagementId > 0;
-  const { activeCompanyId } = useActiveCompany();
+  const { activeCompanyId, loading: companyListLoading } = useActiveCompany();
+  const workspaceReady = !companyListLoading && activeCompanyId != null;
   const { data: myCompany } = trpc.companies.myCompany.useQuery(
     { companyId: activeCompanyId ?? undefined },
-    { enabled: activeCompanyId != null },
+    { enabled: workspaceReady },
   );
   const memberRole = myCompany?.member?.role ?? null;
   const showStaffReply =
@@ -37,7 +38,10 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
     memberRole !== "company_member" &&
     memberRole !== "external_auditor";
 
-  const detail = trpc.engagements.getById.useQuery({ engagementId }, { enabled: valid, retry: false });
+  const detail = trpc.engagements.getById.useQuery(
+    { engagementId, companyId: activeCompanyId! },
+    { enabled: valid && workspaceReady, retry: false },
+  );
 
   const [msgSubject, setMsgSubject] = useState("");
   const [msgBody, setMsgBody] = useState("");
@@ -77,8 +81,8 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
   });
 
   const internalNotes = trpc.engagements.listInternalNotes.useQuery(
-    { engagementId, companyId: activeCompanyId ?? undefined },
-    { enabled: valid && showStaffReply && activeCompanyId != null },
+    { engagementId, companyId: activeCompanyId! },
+    { enabled: valid && showStaffReply && workspaceReady },
   );
   const addNote = trpc.engagements.addInternalNote.useMutation({
     onSuccess: () => {
@@ -321,8 +325,15 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
           <Button
             size="sm"
             variant="outline"
-            disabled={!docTitle.trim() || !docUrl.trim() || uploadDoc.isPending}
-            onClick={() => uploadDoc.mutate({ engagementId, title: docTitle.trim(), fileUrl: docUrl.trim() })}
+            disabled={!workspaceReady || !docTitle.trim() || !docUrl.trim() || uploadDoc.isPending}
+            onClick={() =>
+              uploadDoc.mutate({
+                engagementId,
+                title: docTitle.trim(),
+                fileUrl: docUrl.trim(),
+                companyId: activeCompanyId!,
+              })
+            }
           >
             {t("addDocument")}
           </Button>
@@ -368,8 +379,15 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
           <Button
             size="sm"
             className="gap-2"
-            disabled={!msgSubject.trim() || !msgBody.trim() || sendClient.isPending}
-            onClick={() => sendClient.mutate({ engagementId, subject: msgSubject.trim(), body: msgBody.trim() })}
+            disabled={!workspaceReady || !msgSubject.trim() || !msgBody.trim() || sendClient.isPending}
+            onClick={() =>
+              sendClient.mutate({
+                engagementId,
+                subject: msgSubject.trim(),
+                body: msgBody.trim(),
+                companyId: activeCompanyId!,
+              })
+            }
           >
             <Send className="w-3.5 h-3.5" /> {t("send")}
           </Button>
@@ -382,8 +400,15 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
             <Button
               size="sm"
               variant="secondary"
-              disabled={!staffSubject.trim() || !staffBody.trim() || sendStaff.isPending}
-              onClick={() => sendStaff.mutate({ engagementId, subject: staffSubject.trim(), body: staffBody.trim() })}
+              disabled={!workspaceReady || !staffSubject.trim() || !staffBody.trim() || sendStaff.isPending}
+              onClick={() =>
+                sendStaff.mutate({
+                  engagementId,
+                  subject: staffSubject.trim(),
+                  body: staffBody.trim(),
+                  companyId: activeCompanyId!,
+                })
+              }
             >
               {t("postStaffReply")}
             </Button>
@@ -413,12 +438,12 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
             <Button
               size="sm"
               variant="outline"
-              disabled={!payInstr.trim() || requestInstr.isPending}
+              disabled={!workspaceReady || !payInstr.trim() || requestInstr.isPending}
               onClick={() =>
                 requestInstr.mutate({
                   engagementId,
                   instructionsText: payInstr.trim(),
-                  companyId: activeCompanyId ?? undefined,
+                  companyId: activeCompanyId!,
                 })
               }
             >
@@ -429,7 +454,7 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
                 <Button
                   size="sm"
                   onClick={() =>
-                    verifyProof.mutate({ engagementId, accept: true, companyId: activeCompanyId ?? undefined })
+                    verifyProof.mutate({ engagementId, accept: true, companyId: activeCompanyId! })
                   }
                 >
                   {t("verifyProof")} (accept)
@@ -438,7 +463,7 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
                   size="sm"
                   variant="destructive"
                   onClick={() =>
-                    verifyProof.mutate({ engagementId, accept: false, companyId: activeCompanyId ?? undefined })
+                    verifyProof.mutate({ engagementId, accept: false, companyId: activeCompanyId! })
                   }
                 >
                   Reject
@@ -448,7 +473,7 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => markPaid.mutate({ engagementId, companyId: activeCompanyId ?? undefined })}
+              onClick={() => markPaid.mutate({ engagementId, companyId: activeCompanyId! })}
             >
               {t("markReconciled")}
             </Button>
@@ -460,13 +485,13 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
             <Input placeholder="Reference" value={proofRef} onChange={(e) => setProofRef(e.target.value)} />
             <Button
               size="sm"
-              disabled={!proofUrl.trim() || submitProof.isPending}
+              disabled={!workspaceReady || !proofUrl.trim() || submitProof.isPending}
               onClick={() =>
                 submitProof.mutate({
                   engagementId,
                   proofUrl: proofUrl.trim(),
                   proofReference: proofRef.trim() || undefined,
-                  companyId: activeCompanyId ?? undefined,
+                  companyId: activeCompanyId!,
                 })
               }
             >
@@ -579,8 +604,8 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
         <Button
           size="sm"
           variant="secondary"
-          disabled={!noteBody.trim() || addNote.isPending}
-          onClick={() => addNote.mutate({ engagementId, body: noteBody.trim(), companyId: activeCompanyId ?? undefined })}
+          disabled={!workspaceReady || !noteBody.trim() || addNote.isPending}
+          onClick={() => addNote.mutate({ engagementId, body: noteBody.trim(), companyId: activeCompanyId! })}
         >
           {t("addNote")}
         </Button>
@@ -618,7 +643,7 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
         </Button>
       </div>
 
-      {detail.isLoading && (
+      {(detail.isLoading || (valid && !workspaceReady)) && (
         <div className="space-y-3">
           <Skeleton className="h-28 w-full" />
           <Skeleton className="h-48 w-full" />

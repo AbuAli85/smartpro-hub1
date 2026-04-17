@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTranslation } from "react-i18next";
 import { fmtDateTimeShort } from "@/lib/dateUtils";
+import { useWorkspaceCompanyTrpc } from "@/hooks/useWorkspaceCompanyTrpc";
 
 function kpiHref(kind: string): string {
   switch (kind) {
@@ -25,7 +26,11 @@ function kpiHref(kind: string): string {
 
 export default function ClientDashboardPage() {
   const { t } = useTranslation("engagements");
-  const { data, isLoading } = trpc.clientWorkspace.getHomeSummary.useQuery();
+  const { workspaceReady, companyId } = useWorkspaceCompanyTrpc();
+  const { data, isLoading } = trpc.clientWorkspace.getHomeSummary.useQuery(
+    { companyId: companyId! },
+    { enabled: workspaceReady },
+  );
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-8">

@@ -7,3 +7,11 @@ import { z } from "zod";
 export const optionalActiveWorkspace = z.object({
   companyId: z.number().int().positive().optional(),
 });
+
+/**
+ * Required workspace id — use for `clientWorkspace` tRPC procedures and any handler that must
+ * never infer company from “first membership” at the API boundary.
+ */
+export const requiredActiveWorkspace = z.object({
+  companyId: z.number().int().positive(),
+});

@@ -5,10 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTranslation } from "react-i18next";
 import { fmtDateTimeShort } from "@/lib/dateUtils";
+import { useWorkspaceCompanyTrpc } from "@/hooks/useWorkspaceCompanyTrpc";
 
 export default function ClientMessagesPage() {
   const { t } = useTranslation("engagements");
-  const { data, isLoading } = trpc.clientWorkspace.listThreads.useQuery();
+  const { workspaceReady, companyId } = useWorkspaceCompanyTrpc();
+  const { data, isLoading } = trpc.clientWorkspace.listThreads.useQuery(
+    { companyId: companyId! },
+    { enabled: workspaceReady },
+  );
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">

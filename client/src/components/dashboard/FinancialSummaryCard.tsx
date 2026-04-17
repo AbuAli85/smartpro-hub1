@@ -30,6 +30,34 @@ function qualityLabel(status: PnlSummary extends null ? never : NonNullable<PnlS
   return "Needs review";
 }
 
+function wpsScopeLabel(
+  scope: PnlSummary extends null ? never : NonNullable<PnlSummary>["wpsQualityScope"],
+) {
+  if (scope === "period") return "Period-verified";
+  if (scope === "company_fallback") return "Company fallback";
+  return "No WPS evidence";
+}
+
+function wpsScopeTone(
+  scope: PnlSummary extends null ? never : NonNullable<PnlSummary>["wpsQualityScope"],
+) {
+  if (scope === "period") return "bg-emerald-50 text-emerald-800 border-emerald-200";
+  if (scope === "company_fallback") return "bg-amber-50 text-amber-800 border-amber-200";
+  return "bg-slate-100 text-slate-700 border-slate-300";
+}
+
+function wpsScopeHelperText(
+  scope: PnlSummary extends null ? never : NonNullable<PnlSummary>["wpsQualityScope"],
+): string | null {
+  if (scope === "company_fallback") {
+    return "Uses company-level WPS validation, not this period specifically.";
+  }
+  if (scope === "none") {
+    return "No period-relevant WPS validation was found.";
+  }
+  return null;
+}
+
 function Metric({ label, value, emphasize = false }: { label: string; value: string; emphasize?: boolean }) {
   return (
     <div className="rounded-lg border border-border/70 px-3 py-2">
@@ -182,6 +210,9 @@ export function FinancialSummaryCard({
   const qualityClass = qualityTone(summary.dataQualityStatus);
   const warnings = summary.dataQualityMessages.slice(0, 2);
   const hasTrend = trend.length > 1;
+  const wpsScope = summary.wpsQualityScope ?? "none";
+  const wpsScopeClass = wpsScopeTone(wpsScope);
+  const wpsHelperText = wpsScopeHelperText(wpsScope);
 
   return (
     <Card className="border-border/70" data-testid="financial-summary-card">
@@ -223,9 +254,17 @@ export function FinancialSummaryCard({
         <div className="rounded-lg border border-border/70 p-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Data quality</p>
-            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${qualityClass}`}>
-              {qualityLabel(summary.dataQualityStatus)}
-            </span>
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${qualityClass}`}>
+                {qualityLabel(summary.dataQualityStatus)}
+              </span>
+              <span
+                data-testid="financial-summary-wps-scope"
+                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${wpsScopeClass}`}
+              >
+                {wpsScopeLabel(wpsScope)}
+              </span>
+            </div>
           </div>
           {warnings.length > 0 ? (
             <ul className="mt-2 space-y-1">
@@ -237,6 +276,9 @@ export function FinancialSummaryCard({
             </ul>
           ) : (
             <p className="mt-2 text-xs text-muted-foreground">Data is complete for this period.</p>
+          )}
+          {wpsHelperText && (
+            <p className="mt-1 text-[11px] text-muted-foreground">{wpsHelperText}</p>
           )}
         </div>
       </CardContent>

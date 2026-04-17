@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FinancialSummaryCard } from "./FinancialSummaryCard";
 
@@ -74,6 +74,7 @@ describe("FinancialSummaryCard", () => {
           periodLabel: "Apr 2026",
           dataQualityStatus: "complete",
           dataQualityMessages: [],
+          wpsQualityScope: "period",
           hasAnyData: true,
         },
       }),
@@ -92,11 +93,14 @@ describe("FinancialSummaryCard", () => {
     );
 
     render(<FinancialSummaryCard companyId={1} canOpenFinanceOverview />);
-    expect(screen.getByTestId("financial-summary-card")).toBeInTheDocument();
+    const cards = screen.getAllByTestId("financial-summary-card");
+    const card = cards[cards.length - 1];
+    expect(card).toBeInTheDocument();
     expect(screen.getAllByText("Financial Summary").length).toBeGreaterThan(0);
     expect(screen.getByText("Apr 2026")).toBeInTheDocument();
     expect(screen.getByText("OMR 2,000.000")).toBeInTheDocument();
     expect(screen.getByText("32.50%")).toBeInTheDocument();
+    expect(within(card).getByTestId("financial-summary-wps-scope")).toHaveTextContent("Period-verified");
     expect(screen.getByTestId("financial-trend-sparkline")).toBeInTheDocument();
   });
 
@@ -115,15 +119,45 @@ describe("FinancialSummaryCard", () => {
             "Employee cost entries are missing for this period.",
             "No overhead allocation is included in this period.",
           ],
+          wpsQualityScope: "company_fallback",
           hasAnyData: true,
         },
       }),
     );
 
     render(<FinancialSummaryCard companyId={1} canOpenFinanceOverview={false} />);
+    const cards = screen.getAllByTestId("financial-summary-card");
+    const card = cards[cards.length - 1];
     expect(screen.getByText("Partial data")).toBeInTheDocument();
+    expect(within(card).getByTestId("financial-summary-wps-scope")).toHaveTextContent("Company fallback");
+    expect(screen.getByText(/Uses company-level WPS validation/)).toBeInTheDocument();
     expect(screen.getByText(/Employee cost entries are missing/)).toBeInTheDocument();
     expect(screen.getByText(/No overhead allocation is included/)).toBeInTheDocument();
+  });
+
+  it("renders no WPS evidence scope label when scope is none", () => {
+    mockSummaryUseQuery.mockReturnValue(
+      makeQueryResult({
+        data: {
+          revenueOmr: 1200,
+          employeeCostOmr: 700,
+          platformOverheadOmr: 120,
+          netMarginOmr: 380,
+          netMarginPercent: 31.67,
+          periodLabel: "Apr 2026",
+          dataQualityStatus: "partial",
+          dataQualityMessages: ["No WPS validation records were found for this period."],
+          wpsQualityScope: "none",
+          hasAnyData: true,
+        },
+      }),
+    );
+
+    render(<FinancialSummaryCard companyId={1} canOpenFinanceOverview={false} />);
+    const cards = screen.getAllByTestId("financial-summary-card");
+    const card = cards[cards.length - 1];
+    expect(within(card).getByTestId("financial-summary-wps-scope")).toHaveTextContent("No WPS evidence");
+    expect(screen.getByText(/No period-relevant WPS validation was found/)).toBeInTheDocument();
   });
 
   it("renders error state and retries both queries", () => {

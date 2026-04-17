@@ -8,9 +8,12 @@ import {
   json,
   mysqlEnum,
   mysqlTable,
+  smallint,
   text,
   timestamp,
+  tinyint,
   unique,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/mysql-core";
 
@@ -205,6 +208,31 @@ export const companies = mysqlTable("companies", {
   roleNavExtensions: json("roleNavExtensions").$type<Record<string, string[]>>().default({}),
   /** Optional annual/sick/emergency caps for portal + HR leave balances; null = Oman portal defaults in shared code. */
   leavePolicyCaps: json("leavePolicyCaps").$type<Partial<Record<"annual" | "sick" | "emergency", number>> | null>(),
+  // ── Migration 0066: Identity, Compliance & Commercial Layer ──────────────────
+  /** Headcount band (used for Omanization tier rules) */
+  companySize: int("company_size"),
+  /** Official incorporation / establishment date */
+  establishedAt: date("established_at"),
+  /** Legal entity type */
+  companyType: mysqlEnum("company_type", ["llc", "sole_prop", "branch", "joint_venture", "government", "ngo", "other"]).default("llc"),
+  /** Whether Omanization quota applies */
+  omanizationRequired: boolean("omanization_required").default(true).notNull(),
+  /** Required Omani national ratio (0–100) */
+  omanizationRatio: decimal("omanization_ratio", { precision: 5, scale: 2 }),
+  /** Ministry of Labour compliance status */
+  molComplianceStatus: mysqlEnum("mol_compliance_status", ["compliant", "warning", "non_compliant", "unknown"]).default("unknown").notNull(),
+  /** Last time MoL compliance was verified */
+  molLastCheckedAt: timestamp("mol_last_checked_at"),
+  /** How SmartPRO charges this company */
+  billingModel: mysqlEnum("billing_model", ["subscription", "per_transaction", "hybrid", "custom"]).default("subscription"),
+  /** Monthly subscription fee in OMR */
+  subscriptionFee: decimal("subscription_fee", { precision: 10, scale: 3 }),
+  /** Service contract start date */
+  contractStart: date("contract_start"),
+  /** Service contract end date */
+  contractEnd: date("contract_end"),
+  /** SmartPRO account manager (FK → users.id) */
+  accountManagerId: int("account_manager_id"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -878,6 +906,39 @@ export const employees = mysqlTable(
     ibanNumber: varchar("iban_number", { length: 34 }),
     emergencyContactName: varchar("emergencyContactName", { length: 255 }),
     emergencyContactPhone: varchar("emergencyContactPhone", { length: 32 }),
+    // ── Migration 0067: Payroll Structure, WPS, Lifecycle & Deployment Economics ──
+    /** Current basic salary snapshot (authoritative source: employee_salary_configs) */
+    basicSalary: decimal("basic_salary", { precision: 12, scale: 3 }),
+    /** Monthly housing allowance */
+    housingAllowance: decimal("housing_allowance", { precision: 12, scale: 3 }).default("0"),
+    /** Monthly transport allowance */
+    transportAllowance: decimal("transport_allowance", { precision: 12, scale: 3 }).default("0"),
+    /** Other monthly allowances */
+    otherAllowances: decimal("other_allowances", { precision: 12, scale: 3 }).default("0"),
+    /** Denormalised total: basic + housing + transport + other */
+    totalSalary: decimal("total_salary", { precision: 12, scale: 3 }),
+    /** Wage Protection System readiness */
+    wpsStatus: mysqlEnum("wps_status", ["ready", "invalid", "missing", "exempt"]).default("missing").notNull(),
+    /** Last time WPS fields were validated */
+    wpsLastValidatedAt: timestamp("wps_last_validated_at"),
+    /** End of probation period */
+    probationEndDate: date("probation_end_date"),
+    /** Oman Labour Law contract classification */
+    contractType: mysqlEnum("contract_type", ["limited", "unlimited", "part_time", "secondment"]).default("unlimited"),
+    /** Notice period in calendar days */
+    noticePeriodDays: int("notice_period_days").default(30),
+    /** Actual last day worked (populated on termination/resignation) */
+    lastWorkingDay: date("last_working_day"),
+    /** How this employee is deployed across companies */
+    deploymentType: mysqlEnum("deployment_type", ["dedicated", "shared", "internal"]).default("internal"),
+    /** Total monthly cost SmartPRO bears for this employee */
+    costToCompany: decimal("cost_to_company", { precision: 12, scale: 3 }),
+    /** Direct salary cost component */
+    salaryCost: decimal("salary_cost", { precision: 12, scale: 3 }),
+    /** Monthly margin: revenue billed − cost_to_company */
+    marginOmr: decimal("margin_omr", { precision: 12, scale: 3 }),
+    /** Whether employee is an Omani national (for Omanization calculations) */
+    isOmani: boolean("is_omani").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -885,10 +946,114 @@ export const employees = mysqlTable(
     index("idx_emp_company").on(t.companyId),
     index("idx_emp_status").on(t.status),
     index("idx_emp_dept").on(t.department),
+    index("idx_emp_wps_status").on(t.companyId, t.wpsStatus),
+    index("idx_emp_deployment_type").on(t.deploymentType),
+    index("idx_emp_is_omani").on(t.companyId, t.isOmani),
+    index("idx_emp_contract_type").on(t.companyId, t.contractType),
   ]
 );
 
 export type Employee = typeof employees.$inferSelect;
+
+// ── Migration 0068: Normalized Compliance & Finance Tables ─────────────────────────
+
+/** Monthly Omanization compliance snapshot per company */
+export const companyOmanizationSnapshots = mysqlTable(
+  "company_omanization_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    snapshotMonth: tinyint("snapshot_month").notNull(),
+    snapshotYear: smallint("snapshot_year").notNull(),
+    totalEmployees: int("total_employees").default(0).notNull(),
+    omaniEmployees: int("omani_employees").default(0).notNull(),
+    omaniRatio: decimal("omani_ratio", { precision: 5, scale: 2 }).default("0.00").notNull(),
+    requiredRatio: decimal("required_ratio", { precision: 5, scale: 2 }),
+    complianceStatus: mysqlEnum("compliance_status", ["compliant", "warning", "non_compliant"]).default("non_compliant").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_cos_company_period").on(t.companyId, t.snapshotYear, t.snapshotMonth),
+    index("idx_cos_status").on(t.complianceStatus),
+  ]
+);
+export type CompanyOmanizationSnapshot = typeof companyOmanizationSnapshots.$inferSelect;
+
+/** Audit trail of WPS field validation checks per employee */
+export const employeeWpsValidations = mysqlTable(
+  "employee_wps_validations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    employeeId: int("employee_id").notNull(),
+    validatedAt: timestamp("validated_at").defaultNow().notNull(),
+    validatedByUserId: int("validated_by_user_id"),
+    ibanPresent: boolean("iban_present").default(false).notNull(),
+    ibanValidFormat: boolean("iban_valid_format").default(false).notNull(),
+    bankNamePresent: boolean("bank_name_present").default(false).notNull(),
+    salaryPresent: boolean("salary_present").default(false).notNull(),
+    result: mysqlEnum("result", ["ready", "invalid", "missing"]).notNull(),
+    failureReasons: json("failure_reasons").$type<string[]>(),
+  },
+  (t) => [
+    index("idx_ewv_employee").on(t.employeeId),
+    index("idx_ewv_company_result").on(t.companyId, t.result),
+  ]
+);
+export type EmployeeWpsValidation = typeof employeeWpsValidations.$inferSelect;
+
+/** Monthly revenue recognised per company (SmartPRO side) */
+export const companyRevenueRecords = mysqlTable(
+  "company_revenue_records",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    periodMonth: tinyint("period_month").notNull(),
+    periodYear: smallint("period_year").notNull(),
+    revenueType: mysqlEnum("revenue_type", ["subscription", "deployment_fee", "per_transaction", "setup_fee", "other"]).default("subscription").notNull(),
+    amountOmr: decimal("amount_omr", { precision: 12, scale: 3 }).default("0.000").notNull(),
+    currency: varchar("currency", { length: 10 }).default("OMR").notNull(),
+    sourceRef: varchar("source_ref", { length: 255 }),
+    notes: text("notes"),
+    recordedByUserId: int("recorded_by_user_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_crr_company_period").on(t.companyId, t.periodYear, t.periodMonth),
+    index("idx_crr_revenue_type").on(t.revenueType),
+  ]
+);
+export type CompanyRevenueRecord = typeof companyRevenueRecords.$inferSelect;
+
+/** Monthly cost snapshot per employee (salary + overhead) */
+export const employeeCostRecords = mysqlTable(
+  "employee_cost_records",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    employeeId: int("employee_id").notNull(),
+    periodMonth: tinyint("period_month").notNull(),
+    periodYear: smallint("period_year").notNull(),
+    basicSalary: decimal("basic_salary", { precision: 12, scale: 3 }).default("0.000").notNull(),
+    housingAllowance: decimal("housing_allowance", { precision: 12, scale: 3 }).default("0.000").notNull(),
+    transportAllowance: decimal("transport_allowance", { precision: 12, scale: 3 }).default("0.000").notNull(),
+    otherAllowances: decimal("other_allowances", { precision: 12, scale: 3 }).default("0.000").notNull(),
+    pasiContribution: decimal("pasi_contribution", { precision: 12, scale: 3 }).default("0.000").notNull(),
+    overheadAllocation: decimal("overhead_allocation", { precision: 12, scale: 3 }).default("0.000").notNull(),
+    totalCost: decimal("total_cost", { precision: 12, scale: 3 }).default("0.000").notNull(),
+    currency: varchar("currency", { length: 10 }).default("OMR").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("uq_ecr_emp_period").on(t.employeeId, t.periodYear, t.periodMonth),
+    index("idx_ecr_company_period").on(t.companyId, t.periodYear, t.periodMonth),
+  ]
+);
+export type EmployeeCostRecord = typeof employeeCostRecords.$inferSelect;
 
 /** Employee self-service requests for HR-managed profile field corrections (system of record, not notifications-only). */
 export const profileChangeRequests = mysqlTable(

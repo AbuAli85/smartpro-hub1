@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { mergeLeavePolicyCaps } from "../../shared/leavePolicyCaps";
+import { validateEmployeeWpsReadiness } from "../../shared/employeeWps";
 import { eq, and, desc, gte, lte, count, sum, or, isNull, isNotNull, inArray } from "drizzle-orm";
 import {
   companies,
@@ -22,6 +23,7 @@ import {
   users,
   attendanceSites,
   companyMembers,
+  employeeWpsValidations,
 } from "../../drizzle/schema";
 import { hasReportPermission } from "@shared/reportPermissions";
 import { seedSuggestedDepartmentRows } from "../departments/seedSuggestedDepartmentRows";
@@ -2063,5 +2065,123 @@ export const hrRouter = router({
         incompleteEmployees: incompleteEmployees.slice(0, 5),
         overallScore,
       };
+    }),
+
+  // ── WPS Validation ──────────────────────────────────────────────────────────
+
+  /**
+   * Run WPS readiness check for a single employee.
+   * Persists the result to employee_wps_validations and updates wps_status on the employee row.
+   */
+  validateWps: protectedProcedure
+    .input(z.object({ employeeId: z.number().int().positive(), companyId: z.number().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const [emp] = await db
+        .select()
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, cid)))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+
+      const result = validateEmployeeWpsReadiness({
+        status: emp.status,
+        employmentType: emp.employmentType,
+        hireDate: emp.hireDate,
+        ibanNumber: emp.ibanNumber,
+        basicSalary: emp.basicSalary,
+      });
+
+      await db.insert(employeeWpsValidations).values({
+        companyId: cid,
+        employeeId: emp.id,
+        validatedByUserId: ctx.user.id,
+        ibanPresent: Boolean(emp.ibanNumber),
+        ibanValidFormat: !result.issues.includes("invalid_iban_format") && Boolean(emp.ibanNumber),
+        bankNamePresent: Boolean(emp.bankName),
+        salaryPresent: result.parsedBasicSalary !== null,
+        result: result.status === "ready" ? "ready" : result.status === "missing" ? "missing" : "invalid",
+        failureReasons: result.issues,
+      });
+
+      await db
+        .update(employees)
+        .set({ wpsStatus: result.status, wpsLastValidatedAt: new Date() })
+        .where(eq(employees.id, emp.id));
+
+      return {
+        employeeId: emp.id,
+        status: result.status,
+        isReady: result.isReady,
+        issues: result.issues,
+        normalizedIban: result.normalizedIban,
+      };
+    }),
+
+  /**
+   * Fetch WPS validation history for a single employee (latest 20 records).
+   */
+  wpsHistory: protectedProcedure
+    .input(z.object({ employeeId: z.number().int().positive(), companyId: z.number().optional() }))
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select()
+        .from(employeeWpsValidations)
+        .where(and(eq(employeeWpsValidations.employeeId, input.employeeId), eq(employeeWpsValidations.companyId, cid)))
+        .orderBy(desc(employeeWpsValidations.validatedAt))
+        .limit(20);
+    }),
+
+  /**
+   * Bulk WPS validation — run for all active employees in the company.
+   */
+  bulkValidateWps: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const activeEmps = await db
+        .select()
+        .from(employees)
+        .where(and(eq(employees.companyId, cid), eq(employees.status, "active")));
+
+      let ready = 0, invalid = 0, missing = 0;
+      for (const emp of activeEmps) {
+        const result = validateEmployeeWpsReadiness({
+          status: emp.status,
+          employmentType: emp.employmentType,
+          hireDate: emp.hireDate,
+          ibanNumber: emp.ibanNumber,
+          basicSalary: emp.basicSalary,
+        });
+        await db.insert(employeeWpsValidations).values({
+          companyId: cid,
+          employeeId: emp.id,
+          validatedByUserId: ctx.user.id,
+          ibanPresent: Boolean(emp.ibanNumber),
+          ibanValidFormat: !result.issues.includes("invalid_iban_format") && Boolean(emp.ibanNumber),
+          bankNamePresent: Boolean(emp.bankName),
+          salaryPresent: result.parsedBasicSalary !== null,
+          result: result.status === "ready" ? "ready" : result.status === "missing" ? "missing" : "invalid",
+          failureReasons: result.issues,
+        });
+        await db
+          .update(employees)
+          .set({ wpsStatus: result.status, wpsLastValidatedAt: new Date() })
+          .where(eq(employees.id, emp.id));
+        if (result.status === "ready") ready++;
+        else if (result.status === "missing") missing++;
+        else invalid++;
+      }
+
+      return { total: activeEmps.length, ready, invalid, missing };
     }),
 });

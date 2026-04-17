@@ -943,8 +943,8 @@ export const platformOpsRouter = router({
         staleAfterDays: input?.staleAfterDays,
         securityQuickFilter:
           input?.securityQuickFilter === undefined || input?.securityQuickFilter === "any" ? "any" : "needs_attention",
-        limit: input?.limit ?? 50,
-        offset: input?.offset ?? 0,
+        limit: input?.limit !== undefined ? input.limit : 50,
+        offset: input?.offset !== undefined ? input.offset : 0,
       });
     }),
 

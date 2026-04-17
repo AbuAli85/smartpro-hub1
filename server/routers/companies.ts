@@ -17,7 +17,8 @@ import {
   updateCompany,
   getDb,
 } from "../db";
-import { companyInvites, companyMembers, users, employees, companies } from "../../drizzle/schema";
+import { companyInvites, companyMembers, users, employees, companies, companyOmanizationSnapshots } from "../../drizzle/schema";
+import { computeOmanizationRate, isOmaniNationality } from "../../shared/omanization";
 import { requireWorkspaceMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
 import type { User } from "../../drizzle/schema";
@@ -1755,5 +1756,74 @@ export const companiesRouter = router({
           expiresAt,
         });
       }
+    }),
+
+  // ── Omanization Snapshots ─────────────────────────────────────────────────────────
+
+  /**
+   * Get live Omanization compliance status for the company (no DB write).
+   */
+  getOmanizationStatus: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) return null;
+      const allEmps = await db
+        .select({ nationality: employees.nationality })
+        .from(employees)
+        .where(and(eq(employees.companyId, cid), eq(employees.status, "active")));
+      const totalActive = allEmps.length;
+      const omaniCount = allEmps.filter((e) => isOmaniNationality(e.nationality)).length;
+      return computeOmanizationRate({ totalActive, omaniCount });
+    }),
+
+  /**
+   * Take a live Omanization snapshot and persist it to company_omanization_snapshots.
+   */
+  takeOmanizationSnapshot: protectedProcedure
+    .input(z.object({ companyId: z.number().optional(), targetPercent: z.number().min(0).max(100).optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const allEmps = await db
+        .select({ nationality: employees.nationality })
+        .from(employees)
+        .where(and(eq(employees.companyId, cid), eq(employees.status, "active")));
+      const totalActive = allEmps.length;
+      const omaniCount = allEmps.filter((e) => isOmaniNationality(e.nationality)).length;
+      const result = computeOmanizationRate({ totalActive, omaniCount }, input.targetPercent);
+      const today = new Date().toISOString().slice(0, 10);
+      await db.insert(companyOmanizationSnapshots).values({
+        companyId: cid,
+        snapshotDate: today,
+        totalActive,
+        omaniCount,
+        nonOmaniCount: result.nonOmaniCount,
+        ratePercent: String(result.ratePercent),
+        targetPercent: String(result.targetPercent),
+        meetsTarget: result.meetsTarget,
+        shortfallHeadcount: result.shortfallHeadcount,
+        takenByUserId: ctx.user.id,
+      });
+      return result;
+    }),
+
+  /**
+   * Get Omanization snapshot history for the company (latest 12 months).
+   */
+  omanizationHistory: protectedProcedure
+    .input(z.object({ companyId: z.number().optional(), limit: z.number().min(1).max(36).default(12) }))
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select()
+        .from(companyOmanizationSnapshots)
+        .where(eq(companyOmanizationSnapshots.companyId, cid))
+        .orderBy(desc(companyOmanizationSnapshots.snapshotDate))
+        .limit(input.limit);
     }),
 });

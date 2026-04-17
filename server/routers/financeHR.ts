@@ -6,7 +6,9 @@ import { getDb } from "../db";
 import {
   expenseClaims, trainingRecords, employeeSelfReviews,
   employees, payrollRuns, payrollLineItems, companyMembers,
+  companyRevenueRecords, employeeCostRecords,
 } from "../../drizzle/schema";
+import { computeMargin, type FinancialEngineResult } from "../../shared/financialEngine";
 import type { User } from "../../drizzle/schema";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { requireActiveCompanyId } from "../_core/tenant";
@@ -658,5 +660,151 @@ export const financeHRRouter = router({
       const year = input?.year ?? new Date().getFullYear();
       const month = input?.month ?? new Date().getMonth() + 1;
       return fetchHrPerformanceDashboard(db, companyId, { year, month });
+    }),
+
+  // ── Financial Engine v1 ─────────────────────────────────────────────────────────
+
+  /** Record a revenue entry for the company. */
+  recordRevenue: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      periodYear: z.number().int().min(2020).max(2100),
+      periodMonth: z.number().int().min(1).max(12),
+      amountOmr: z.number().min(0),
+      revenueType: z.enum(["subscription", "deployment_fee", "per_transaction", "setup_fee", "other"]).default("deployment_fee"),
+      notes: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await db.insert(companyRevenueRecords).values({
+        companyId: cid,
+        periodYear: input.periodYear,
+        periodMonth: input.periodMonth,
+        amountOmr: String(input.amountOmr),
+        revenueType: input.revenueType,
+        notes: input.notes ?? null,
+        recordedByUserId: ctx.user.id,
+      });
+      return { ok: true };
+    }),
+
+  /** Record an employee cost entry. */
+  recordEmployeeCost: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      employeeId: z.number(),
+      periodYear: z.number().int().min(2020).max(2100),
+      periodMonth: z.number().int().min(1).max(12),
+      basicSalary: z.number().min(0),
+      housingAllowance: z.number().min(0).default(0),
+      transportAllowance: z.number().min(0).default(0),
+      otherAllowances: z.number().min(0).default(0),
+      pasiContribution: z.number().min(0).default(0),
+      overheadAllocation: z.number().min(0).default(0),
+      notes: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const totalCost = input.basicSalary + input.housingAllowance + input.transportAllowance +
+        input.otherAllowances + input.pasiContribution + input.overheadAllocation;
+      await db.insert(employeeCostRecords).values({
+        companyId: cid,
+        employeeId: input.employeeId,
+        periodYear: input.periodYear,
+        periodMonth: input.periodMonth,
+        basicSalary: String(input.basicSalary),
+        housingAllowance: String(input.housingAllowance),
+        transportAllowance: String(input.transportAllowance),
+        otherAllowances: String(input.otherAllowances),
+        pasiContribution: String(input.pasiContribution),
+        overheadAllocation: String(input.overheadAllocation),
+        totalCost: String(totalCost),
+        notes: input.notes ?? null,
+      });
+      return { ok: true };
+    }),
+
+  /** Get the P&L summary for a company for a given period (year + month). */
+  getPnlSummary: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      periodYear: z.number().int().optional(),
+      periodMonth: z.number().int().min(1).max(12).optional(),
+      platformOverheadOmr: z.number().min(0).default(0),
+    }))
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) return null;
+      const revConditions = [eq(companyRevenueRecords.companyId, cid)];
+      const costConditions = [eq(employeeCostRecords.companyId, cid)];
+      if (input.periodYear) {
+        revConditions.push(eq(companyRevenueRecords.periodYear, input.periodYear));
+        costConditions.push(eq(employeeCostRecords.periodYear, input.periodYear));
+      }
+      if (input.periodMonth) {
+        revConditions.push(eq(companyRevenueRecords.periodMonth, input.periodMonth));
+        costConditions.push(eq(employeeCostRecords.periodMonth, input.periodMonth));
+      }
+      const [revRow] = await db
+        .select({ total: sum(companyRevenueRecords.amountOmr) })
+        .from(companyRevenueRecords)
+        .where(and(...revConditions));
+      const [costRow] = await db
+        .select({ total: sum(employeeCostRecords.totalCost) })
+        .from(employeeCostRecords)
+        .where(and(...costConditions));
+      return computeMargin({
+        revenueOmr: Number(revRow?.total ?? 0),
+        employeeCostOmr: Number(costRow?.total ?? 0),
+        platformOverheadOmr: input.platformOverheadOmr,
+      });
+    }),
+
+  /** Get monthly P&L trend for the last N months. */
+  getPnlTrend: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      months: z.number().min(1).max(24).default(6),
+      platformOverheadOmrPerMonth: z.number().min(0).default(0),
+    }))
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) return [];
+      const now = new Date();
+      const results: Array<{ periodYm: string } & FinancialEngineResult> = [];
+      for (let i = input.months - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const periodYm = `${year}-${String(month).padStart(2, "0")}`;
+        const [revRow] = await db
+          .select({ total: sum(companyRevenueRecords.amountOmr) })
+          .from(companyRevenueRecords)
+          .where(and(
+            eq(companyRevenueRecords.companyId, cid),
+            eq(companyRevenueRecords.periodYear, year),
+            eq(companyRevenueRecords.periodMonth, month),
+          ));
+        const [costRow] = await db
+          .select({ total: sum(employeeCostRecords.totalCost) })
+          .from(employeeCostRecords)
+          .where(and(
+            eq(employeeCostRecords.companyId, cid),
+            eq(employeeCostRecords.periodYear, year),
+            eq(employeeCostRecords.periodMonth, month),
+          ));
+        results.push({ periodYm, ...computeMargin({
+          revenueOmr: Number(revRow?.total ?? 0),
+          employeeCostOmr: Number(costRow?.total ?? 0),
+          platformOverheadOmr: input.platformOverheadOmrPerMonth,
+        }) });
+      }
+      return results;
     }),
 });

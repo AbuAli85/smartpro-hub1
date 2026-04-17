@@ -238,6 +238,42 @@ export function trpcSecurityHeaders(_req: Request, res: Response, next: NextFunc
 }
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
+function headerFirstString(v: string | string[] | undefined): string | undefined {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v) && v.length > 0 && typeof v[0] === "string") return v[0];
+  return undefined;
+}
+
+/** Normalised origin for allowlist comparison (scheme + host, host lowercased). */
+function normalizeHttpOrigin(origin: string): string | null {
+  try {
+    const u = new URL(origin);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return `${u.protocol}//${u.host}`.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/** Origins that may receive credentialed CORS responses — never reflect arbitrary Origin. */
+function corsAllowedOriginSet(req: Request): Set<string> {
+  if (process.env.ALLOWED_ORIGINS) {
+    const set = new Set<string>();
+    for (const part of process.env.ALLOWED_ORIGINS.split(",")) {
+      const o = part.trim();
+      if (!o) continue;
+      const n = normalizeHttpOrigin(o);
+      if (n) set.add(n);
+    }
+    return set;
+  }
+  const host = (req.get("host") ?? "").split(",")[0].trim();
+  if (!host) return new Set();
+  const fallback = `${req.protocol}//${host}`;
+  const n = normalizeHttpOrigin(fallback);
+  return new Set(n ? [n] : []);
+}
+
 /**
  * Explicit CORS middleware.
  *
@@ -247,21 +283,16 @@ export function trpcSecurityHeaders(_req: Request, res: Response, next: NextFunc
  * sub-domain, or if third-party clients need to call the API directly.
  *
  * Allowed origins are read from the ALLOWED_ORIGINS env var (comma-separated).
- * If unset, only the request's own Host origin is allowed (same-origin policy).
+ * If unset, only this server's own origin (from Host + protocol) is allowed —
+ * never echo a client Origin unless it is on that allowlist (CodeQL
+ * js/cors-misconfiguration-for-credentials).
  */
 export function corsMiddleware(req: Request, res: Response, next: NextFunction) {
-  const origin = req.headers["origin"];
-
-  let allowedOrigins: Set<string> | null = null;
-  if (process.env.ALLOWED_ORIGINS) {
-    allowedOrigins = new Set(
-      process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
-    );
-  }
-
+  const origin = headerFirstString(req.headers.origin);
   if (origin) {
-    const isAllowed = !allowedOrigins || allowedOrigins.has(origin);
-    if (isAllowed) {
+    const allowed = corsAllowedOriginSet(req);
+    const normalized = normalizeHttpOrigin(origin);
+    if (normalized && allowed.has(normalized)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
       res.setHeader("Access-Control-Allow-Credentials", "true");

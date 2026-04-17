@@ -122,36 +122,24 @@ function dueSlaHint(priority: Priority): string {
   return PRIORITY_CONFIG[priority].hint;
 }
 
-function recentStorageKey(companyId: number | null | undefined): string {
-  return `smartpro.tasks.recentAssignees.${companyId ?? "none"}`;
+/** Per-tab session cache — avoids persisting employee identifiers to disk (CodeQL js/clear-text-storage-of-sensitive-data). */
+function assigneeRecencyScopeKey(companyId: number | null | undefined): string {
+  return String(companyId ?? "none");
 }
 
-function lastAssigneeKey(companyId: number | null | undefined): string {
-  return `smartpro.tasks.lastAssignee.${companyId ?? "none"}`;
-}
+const recentAssigneeIdsByCompany = new Map<string, number[]>();
+const lastAssigneeIdByCompany = new Map<string, number>();
 
 function readRecentIds(companyId: number | null | undefined): number[] {
-  try {
-    const raw = localStorage.getItem(recentStorageKey(companyId));
-    if (!raw) return [];
-    const arr = JSON.parse(raw) as unknown;
-    if (!Array.isArray(arr)) return [];
-    return arr.filter((x): x is number => typeof x === "number" && Number.isFinite(x)).slice(0, 8);
-  } catch {
-    return [];
-  }
+  return recentAssigneeIdsByCompany.get(assigneeRecencyScopeKey(companyId)) ?? [];
 }
 
 function pushRecentAssignee(companyId: number | null | undefined, employeeId: number) {
-  const key = recentStorageKey(companyId);
+  const key = assigneeRecencyScopeKey(companyId);
   const prev = readRecentIds(companyId).filter((id) => id !== employeeId);
   const next = [employeeId, ...prev].slice(0, 8);
-  try {
-    localStorage.setItem(key, JSON.stringify(next));
-    localStorage.setItem(lastAssigneeKey(companyId), String(employeeId));
-  } catch {
-    /* ignore */
-  }
+  recentAssigneeIdsByCompany.set(key, next);
+  lastAssigneeIdByCompany.set(key, employeeId);
 }
 
 function initials(e: TaskAssignEmployee): string {
@@ -280,14 +268,9 @@ export function TaskAssignDialog({
       setEstimatedMinutes("");
       setChecklist([]);
       setLinks([]);
-      const last = (() => {
-        try {
-          return localStorage.getItem(lastAssigneeKey(companyId));
-        } catch {
-          return null;
-        }
-      })();
-      const lastId = last && employees.some((e) => e.id === Number(last)) ? last : "";
+      const lastNum = lastAssigneeIdByCompany.get(assigneeRecencyScopeKey(companyId));
+      const lastId =
+        lastNum != null && employees.some((e) => e.id === lastNum) ? String(lastNum) : "";
       setAssignedTo(lastId);
     }
     setErrors({});

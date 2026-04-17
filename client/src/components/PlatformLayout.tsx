@@ -53,6 +53,8 @@ import { useOnboardingAutoComplete } from "@/hooks/useOnboardingAutoComplete";
 import { filterVisibleNavGroups } from "@/config/platformNav";
 import { PlatformSidebarNav } from "@/components/PlatformSidebarNav";
 import type { ClientNavOptions } from "@shared/clientNav";
+import { isPortalPreCompanyMinimalPath } from "@shared/clientWorkspaceChrome";
+import { ClientPreCompanyMinimalLayout } from "@/features/clientWorkspace/ClientPreCompanyMinimalLayout";
 import { resolveSidebarBadgeMap } from "@/lib/sidebarBadgeResolver";
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const { user, logout } = useAuth();
@@ -376,9 +378,10 @@ function NotificationBell() {
 }
 
 export default function PlatformLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [location] = useLocation();
+  const { companies, loading: companiesListLoading, activeCompanyId, activeCompany } = useActiveCompany();
   // Auto-complete onboarding steps when user visits relevant pages
   useOnboardingAutoComplete();
 
@@ -396,9 +399,9 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     }
     return () => { document.body.style.overflow = ''; };
   }, [sidebarOpen]);
-  const { data: layoutCompany } = trpc.companies.myCompany.useQuery(
-    undefined,
-    { enabled: isAuthenticated },
+  const { data: layoutCompany, isLoading: layoutCompanyLoading } = trpc.companies.myCompany.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const isAuditor = layoutCompany?.member?.role === "external_auditor";
 
@@ -448,6 +451,23 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
         </div>
       </div>
     );
+  }
+
+  const effectiveMemberRole = layoutCompany?.member?.role ?? activeCompany?.role ?? null;
+  const portalShell = shouldUsePortalOnlyShell(user, {
+    hasCompanyWorkspace: Boolean(layoutCompany?.company?.id),
+    companyWorkspaceLoading:
+      companiesListLoading || (Boolean(activeCompanyId) && layoutCompanyLoading),
+    memberRole: effectiveMemberRole,
+  });
+  const preCompanyClientChrome =
+    Boolean(user) &&
+    portalShell &&
+    isPortalPreCompanyMinimalPath(location) &&
+    (companiesListLoading || companies.length === 0);
+
+  if (preCompanyClientChrome) {
+    return <ClientPreCompanyMinimalLayout>{children}</ClientPreCompanyMinimalLayout>;
   }
 
   return (

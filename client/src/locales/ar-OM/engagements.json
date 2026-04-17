@@ -46,6 +46,12 @@
     "kpiAwaitingYou": "بانتظارك",
     "kpiInvoices": "الفواتير",
     "kpiToSign": "للتوقيع",
+    "minimalPreferences": "التفضيلات",
+    "minimalSignOut": "تسجيل الخروج",
+    "welcomeTitle": "المساحة جاهزة",
+    "welcomeBody": "الخطوة التالية: ادعُ فريقك من صفحة الفريق (اختياري)، أو افتح المشاريع عندما يشارك SmartPRO العمل معك.",
+    "welcomeDismiss": "حسناً",
+    "welcomeTeamCta": "فتح الفريق",
     "onboarding": {
       "title": "إعداد مساحتك",
       "subtitle": "أنشئ شركة لاستخدام مساحة عميل SmartPRO. ستظهر المشاريع والمستندات والفواتير هنا بعد إنشاء مساحة العمل.",

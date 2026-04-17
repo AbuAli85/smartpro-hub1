@@ -1,11 +1,14 @@
-import { Link } from "wouter";
+import { useMemo, useCallback } from "react";
+import { Link, useSearch, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useTranslation } from "react-i18next";
 import { fmtDateTimeShort } from "@/lib/dateUtils";
 import { useWorkspaceCompanyTrpc } from "@/hooks/useWorkspaceCompanyTrpc";
+import { Sparkles } from "lucide-react";
 
 function kpiHref(kind: string): string {
   switch (kind) {
@@ -26,6 +29,16 @@ function kpiHref(kind: string): string {
 
 export default function ClientDashboardPage() {
   const { t } = useTranslation("engagements");
+  const search = useSearch();
+  const [, setLocation] = useLocation();
+  const showWelcome = useMemo(() => {
+    const raw = search.startsWith("?") ? search.slice(1) : search;
+    return new URLSearchParams(raw).get("welcome") === "1";
+  }, [search]);
+  const clearWelcome = useCallback(() => {
+    setLocation("/client");
+  }, [setLocation]);
+
   const { workspaceReady, companyId } = useWorkspaceCompanyTrpc();
   const { data, isLoading } = trpc.clientWorkspace.getHomeSummary.useQuery(
     { companyId: companyId! },
@@ -38,6 +51,24 @@ export default function ClientDashboardPage() {
         <h1 className="text-xl font-bold tracking-tight">{t("clientWorkspace.dashboardTitle")}</h1>
         <p className="text-sm text-muted-foreground mt-1">{t("clientWorkspace.dashboardSubtitle")}</p>
       </div>
+
+      {workspaceReady && showWelcome && (
+        <Alert variant="warning" className="relative">
+          <Sparkles className="h-4 w-4 text-amber-700" aria-hidden />
+          <AlertTitle>{t("clientWorkspace.welcomeTitle")}</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>{t("clientWorkspace.welcomeBody")}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" asChild>
+                <Link href="/client/team">{t("clientWorkspace.welcomeTeamCta")}</Link>
+              </Button>
+              <Button size="sm" onClick={clearWelcome}>
+                {t("clientWorkspace.welcomeDismiss")}
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {data?.yourWork?.[0] && (
         <Card className="border-primary/35 bg-gradient-to-br from-primary/10 to-background shadow-sm">

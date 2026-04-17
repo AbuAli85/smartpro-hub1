@@ -46,6 +46,12 @@
     "kpiAwaitingYou": "Awaiting you",
     "kpiInvoices": "Invoices",
     "kpiToSign": "To sign",
+    "minimalPreferences": "Preferences",
+    "minimalSignOut": "Sign out",
+    "welcomeTitle": "Workspace ready",
+    "welcomeBody": "Next: invite your team from Team (optional), or open Engagements when SmartPRO shares work with you.",
+    "welcomeDismiss": "Got it",
+    "welcomeTeamCta": "Open Team",
     "onboarding": {
       "title": "Set up your workspace",
       "subtitle": "Create a company to use your SmartPRO client workspace. Engagements, documents, and billing will appear here once your workspace exists.",

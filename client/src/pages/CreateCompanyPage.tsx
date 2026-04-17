@@ -209,7 +209,9 @@ export default function CreateCompanyPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => navigate(returnToClient ?? "/dashboard")}
+                onClick={() =>
+                  navigate(returnToClient ? `${returnToClient}${returnToClient.includes("?") ? "&" : "?"}welcome=1` : "/dashboard")
+                }
               >
                 {returnToClient ? "Go to workspace" : "Go to Dashboard"}
               </Button>

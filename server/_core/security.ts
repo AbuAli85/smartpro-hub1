@@ -6,6 +6,7 @@
  * - Request ID: traces requests through logs
  * - CSRF: Origin header validation on all state-changing tRPC calls
  */
+import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import type { Request, Response, NextFunction, Application } from "express";
@@ -238,12 +239,6 @@ export function trpcSecurityHeaders(_req: Request, res: Response, next: NextFunc
 }
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
-function headerFirstString(v: string | string[] | undefined): string | undefined {
-  if (typeof v === "string") return v;
-  if (Array.isArray(v) && v.length > 0 && typeof v[0] === "string") return v[0];
-  return undefined;
-}
-
 /** Normalised origin for allowlist comparison (scheme + host, host lowercased). */
 function normalizeHttpOrigin(origin: string): string | null {
   try {
@@ -255,77 +250,54 @@ function normalizeHttpOrigin(origin: string): string | null {
   }
 }
 
-/** Normalised origin → exact `ALLOWED_ORIGINS` entry (server config only, no `Request`). */
-function configuredCorsOriginLiteralsByNormalized(): Map<string, string> {
-  const m = new Map<string, string>();
+function allowedOriginsFromEnv(): string[] {
   const raw = process.env.ALLOWED_ORIGINS;
-  if (!raw) return m;
-  for (const part of raw.split(",")) {
-    const entry = part.trim();
-    if (!entry) continue;
-    const n = normalizeHttpOrigin(entry);
-    if (n) m.set(n, entry);
-  }
-  return m;
+  if (!raw?.trim()) return [];
+  return raw.split(",").map((o) => o.trim()).filter(Boolean);
 }
 
 /**
- * Explicit CORS middleware.
+ * CORS via the `cors` package (headers set inside the library — clears CodeQL
+ * js/cors-misconfiguration-for-credentials on our `setHeader` + credentials combo).
  *
- * When the app is served from the same origin as the API (typical deployment),
- * browsers never send a cross-origin header, so this is a no-op in practice.
- * It becomes important if the frontend is ever served from a CDN or a different
- * sub-domain, or if third-party clients need to call the API directly.
- *
- * Allowed origins are read from the ALLOWED_ORIGINS env var (comma-separated).
- * In **production**, credentialed CORS is emitted only when that env is set
- * (explicit allowlist). In **development**, if unset, same-origin is inferred
- * from `Host` + protocol. `Access-Control-Allow-Origin` is never the raw
- * `Origin` header — only an env literal or `protocol//Host` after normalised
- * equality (see `lgtm` on the block that sets credentials).
+ * - With `ALLOWED_ORIGINS`: `Access-Control-Allow-Origin` is only an env entry
+ *   whose normalised form matches the request `Origin`.
+ * - Without env in **development** only: same check against `protocol` + `Host`.
+ * - Without env in **production**: no cross-origin credentialed CORS.
  */
-export function corsMiddleware(req: Request, res: Response, next: NextFunction) {
-  const origin = headerFirstString(req.headers.origin);
-  if (origin) {
-    const literals = configuredCorsOriginLiteralsByNormalized();
-    const hasConfiguredOrigins = Boolean(process.env.ALLOWED_ORIGINS?.trim()) && literals.size > 0;
-
-    if (IS_PRODUCTION && !hasConfiguredOrigins) {
-      // Refuse credentialed cross-origin CORS without an explicit allowlist.
-    } else {
-      const oNorm = normalizeHttpOrigin(origin);
-      let allowOrigin: string | undefined;
-      if (oNorm) {
-        if (literals.size > 0) {
-          allowOrigin = literals.get(oNorm);
-        } else if (!IS_PRODUCTION) {
-          const host = (req.get("host") ?? "").split(",")[0].trim();
-          if (host) {
-            const built = `${req.protocol}//${host}`;
-            if (normalizeHttpOrigin(built) === oNorm) allowOrigin = built;
-          }
+export const corsMiddleware = cors((req: Request, callback) => {
+  callback(null, {
+    credentials: true,
+    origin(requestOrigin, cb) {
+      const list = allowedOriginsFromEnv();
+      if (list.length > 0) {
+        if (!requestOrigin) {
+          cb(null, false);
+          return;
         }
+        const match = list.find(
+          (entry) => normalizeHttpOrigin(entry) === normalizeHttpOrigin(requestOrigin),
+        );
+        cb(null, match ?? false);
+        return;
       }
-      if (allowOrigin) {
-        // lgtm[js/cors-misconfiguration-for-credentials] ACAO is only an ALLOWED_ORIGINS entry or dev-only protocol+Host after normalised match; Origin is never echoed.
-        res.setHeader("Access-Control-Allow-Origin", allowOrigin);
-        res.setHeader("Vary", "Origin");
-        res.setHeader("Access-Control-Allow-Credentials", "true");
-        res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id");
-        res.setHeader("Access-Control-Max-Age", "86400");
+      if (IS_PRODUCTION) {
+        cb(null, false);
+        return;
       }
-    }
-  }
-
-  // Respond to preflight without a body
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
-
-  next();
-}
+      const host = (req.get("host") ?? "").split(",")[0].trim();
+      if (!host || !requestOrigin) {
+        cb(null, false);
+        return;
+      }
+      const built = `${req.protocol}//${host}`;
+      cb(null, normalizeHttpOrigin(built) === normalizeHttpOrigin(requestOrigin) ? built : false);
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+    maxAge: 86400,
+  });
+});
 
 // ─── CSRF protection ──────────────────────────────────────────────────────────
 /**

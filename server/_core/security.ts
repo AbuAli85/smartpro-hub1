@@ -45,6 +45,35 @@ const helmetCspDevelopment = {
   },
 };
 
+/**
+ * Build the production connect-src list dynamically so that ALLOWED_ORIGINS
+ * (e.g. https://www.thesmartpro.io) and the Manus-hosted preview domain are
+ * always included. Without these, tRPC fetch calls from the custom domain are
+ * blocked by the browser's CSP engine even though the cookie was set correctly.
+ */
+function buildProductionConnectSrc(): string[] {
+  const base = [
+    "'self'",
+    // Sentry error reporting
+    "https://*.sentry.io",
+    "https://*.ingest.sentry.io",
+    // Manus-hosted preview / deployment domains
+    "https://*.manus.space",
+    "https://*.manus.computer",
+    "https://*.manuspre.computer",
+    "https://*.manus-asia.computer",
+    "https://*.manuscomputer.ai",
+    "https://*.manusvm.computer",
+  ];
+  // Add every origin from ALLOWED_ORIGINS so custom domains (e.g. www.thesmartpro.io)
+  // can make fetch/XHR calls back to the same server without CSP violations.
+  const extra = (process.env.ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  return [...base, ...extra];
+}
+
 const helmetCspProduction = {
   directives: {
     defaultSrc: ["'self'"],
@@ -52,12 +81,7 @@ const helmetCspProduction = {
     styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     imgSrc: ["'self'", "data:", "blob:", "https:"],
     fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-    connectSrc: [
-      "'self'",
-      // Sentry error reporting
-      "https://*.sentry.io",
-      "https://*.ingest.sentry.io",
-    ],
+    connectSrc: buildProductionConnectSrc(),
     frameSrc: ["'none'"],
     objectSrc: ["'none'"],
     baseUri: ["'self'"],

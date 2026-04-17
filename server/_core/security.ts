@@ -12,32 +12,63 @@ import type { Request, Response, NextFunction, Application } from "express";
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
+/** CSP in dev: still enforced (CodeQL js/insecure-helmet-configuration) but loose enough for Vite + HMR + tunnel previews. */
+const helmetCspDevelopment = {
+  directives: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    imgSrc: ["'self'", "data:", "blob:", "https:"],
+    fontSrc: ["'self'", "data:"],
+    connectSrc: [
+      "'self'",
+      "ws:",
+      "wss:",
+      "http://127.0.0.1:*",
+      "http://localhost:*",
+      "https://127.0.0.1:*",
+      "https://localhost:*",
+      "https://*.sentry.io",
+      "https://*.ingest.sentry.io",
+      // Vite `server.allowedHosts` tunnel / preview domains
+      "https://*.manuspre.computer",
+      "https://*.manus.computer",
+      "https://*.manus-asia.computer",
+      "https://*.manuscomputer.ai",
+      "https://*.manusvm.computer",
+    ],
+    frameSrc: ["'none'"],
+    objectSrc: ["'none'"],
+    baseUri: ["'self'"],
+    formAction: ["'self'"],
+  },
+};
+
+const helmetCspProduction = {
+  directives: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'"],
+    styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind CSS requires inline styles
+    imgSrc: ["'self'", "data:", "blob:", "https:"],
+    fontSrc: ["'self'", "data:"],
+    connectSrc: [
+      "'self'",
+      // Sentry error reporting
+      "https://*.sentry.io",
+      "https://*.ingest.sentry.io",
+    ],
+    frameSrc: ["'none'"],
+    objectSrc: ["'none'"],
+    baseUri: ["'self'"],
+    formAction: ["'self'"],
+    upgradeInsecureRequests: [],
+  },
+};
+
 // ─── Helmet (HTTP security headers) ──────────────────────────────────────────
-// In development, CSP is disabled because Vite injects inline scripts and uses
-// HMR websockets that are hard to whitelist. In production we enable a strict CSP.
+// CSP is always enabled; development uses a relaxed policy for Vite/HMR/tunnels.
 export const helmetMiddleware = helmet({
-  contentSecurityPolicy: IS_PRODUCTION
-    ? {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind CSS requires inline styles
-          imgSrc: ["'self'", "data:", "blob:", "https:"],
-          fontSrc: ["'self'", "data:"],
-          connectSrc: [
-            "'self'",
-            // Sentry error reporting
-            "https://*.sentry.io",
-            "https://*.ingest.sentry.io",
-          ],
-          frameSrc: ["'none'"],
-          objectSrc: ["'none'"],
-          baseUri: ["'self'"],
-          formAction: ["'self'"],
-          upgradeInsecureRequests: [],
-        },
-      }
-    : false,
+  contentSecurityPolicy: IS_PRODUCTION ? helmetCspProduction : helmetCspDevelopment,
   crossOriginEmbedderPolicy: false,
   hsts: {
     maxAge: 31536000,

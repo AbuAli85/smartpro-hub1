@@ -214,6 +214,11 @@ export async function sendAttendanceAbsentAlert(params: {
   });
 }
 
+/** Strip CR/LF and C0 controls so inbound webhook fields cannot forge log lines (CodeQL js/log-injection). */
+function sanitizeForLogLine(s: string, maxLen = 512): string {
+  return s.replace(/[\r\n\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").slice(0, maxLen);
+}
+
 function verifyWebhookSignature(rawBody: Buffer, signatureHeader: string | undefined): boolean {
   const secret = trimEnv("WHATSAPP_CLOUD_APP_SECRET");
   if (!secret) return true;
@@ -239,7 +244,8 @@ function logInboundWebhookPayload(body: unknown): void {
 
   const entries = (body as { entry?: Entry[] })?.entry;
   if (!Array.isArray(entries)) {
-    console.log("[whatsapp-webhook] payload (no entry):", JSON.stringify(body).slice(0, 2000));
+    const raw = sanitizeForLogLine(JSON.stringify(body), 2000);
+    console.log("[whatsapp-webhook] payload (no entry):", raw);
     return;
   }
   for (const ent of entries) {
@@ -247,12 +253,13 @@ function logInboundWebhookPayload(body: unknown): void {
       const messages = ch.value?.messages;
       if (!messages?.length) continue;
       for (const m of messages) {
+        const from = sanitizeForLogLine(String(m.from ?? "?"), 64);
         if (m.type === "text" && m.text?.body != null) {
-          console.log(
-            `[whatsapp-webhook] inbound text from=${m.from ?? "?"} body=${JSON.stringify(m.text.body)}`,
-          );
+          const bodyPart = sanitizeForLogLine(JSON.stringify(m.text.body), 1024);
+          console.log(`[whatsapp-webhook] inbound text from=${from} body=${bodyPart}`);
         } else {
-          console.log(`[whatsapp-webhook] inbound type=${m.type ?? "?"} from=${m.from ?? "?"}`);
+          const typ = sanitizeForLogLine(String(m.type ?? "?"), 64);
+          console.log(`[whatsapp-webhook] inbound type=${typ} from=${from}`);
         }
       }
     }

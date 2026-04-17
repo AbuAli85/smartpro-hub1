@@ -194,10 +194,7 @@ class SDKServer {
   async verifySession(
     cookieValue: string | undefined | null
   ): Promise<{ openId: string; appId: string; name: string } | null> {
-    if (!cookieValue) {
-      console.warn("[Auth] Missing session cookie");
-      return null;
-    }
+    if (!cookieValue) return null;
 
     try {
       const secretKey = this.getSessionSecret();
@@ -220,14 +217,7 @@ class SDKServer {
         appId,
         name,
       };
-    } catch (error) {
-      // TEMPORARY DIAGNOSTIC — remove after production login is confirmed working
-      console.warn("[Auth] JWT verify failed", {
-        error: String(error),
-        cookieLen: cookieValue.length,
-        secretLen: (process.env.JWT_SECRET ?? "").length,
-        instanceId: process.env.HOSTNAME ?? process.env.INSTANCE_ID ?? "unknown",
-      });
+    } catch {
       return null;
     }
   }

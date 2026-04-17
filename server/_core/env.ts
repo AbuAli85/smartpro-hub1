@@ -36,6 +36,7 @@ export function isGoogleDocsServiceAccountConfigured(): boolean {
 
 /**
  * Fail fast in production when critical configuration is missing.
+ * Logs the missing keys and calls `process.exit(1)` — does not throw.
  * Forge/storage keys remain optional until all deployments use the same storage path.
  */
 export function validateProductionEnvironment(): void {

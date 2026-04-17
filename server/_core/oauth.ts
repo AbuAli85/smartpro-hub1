@@ -437,27 +437,11 @@ export function registerOAuthRoutes(app: Express) {
 
       const cookieOptions = getSessionCookieOptions(req, { crossSite: true });
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_EXPIRY_MS });
-      // TEMPORARY DIAGNOSTIC — remove after production login is confirmed working
-      console.log("[OAuth] Setting session cookie", {
-        cookieName: COOKIE_NAME,
-        tokenLen: sessionToken.length,
-        sameSite: cookieOptions.sameSite,
-        secure: cookieOptions.secure,
-        domain: cookieOptions.domain ?? "(none)",
-        httpOnly: cookieOptions.httpOnly,
-        reqProtocol: req.protocol,
-        reqHostname: req.hostname,
-        xForwardedProto: req.headers["x-forwarded-proto"] ?? "(none)",
-        cfVisitor: req.headers["cf-visitor"] ?? "(none)",
-        trustedBase,
-      });
-
       const successHref = validatedSameOriginRedirectHref(trustedBase, safeReturnPath);
       if (!successHref) {
         res.status(500).send("Invalid post-login redirect");
         return;
       }
-      console.log("[OAuth] Redirecting to", successHref);
       res.redirect(302, successHref);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);

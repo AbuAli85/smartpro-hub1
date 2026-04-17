@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { fmtDate, fmtDateTime } from "@/lib/dateUtils";
 import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
+import { OmanizationStatusCell, type OmanizationSnapshotSummary } from "@/components/admin/OmanizationStatusCell";
 
 function NewCompanyDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
@@ -250,6 +251,7 @@ export default function AdminPage() {
                     <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Country</th>
                     <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Industry</th>
                     <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Omanization</th>
                     <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Created</th>
                     <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
                   </tr>
@@ -257,7 +259,7 @@ export default function AdminPage() {
                 <tbody>
                   {filteredCompanies?.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="text-center py-12 text-muted-foreground">
+                      <td colSpan={7} className="text-center py-12 text-muted-foreground">
                         <Building2 size={32} className="mx-auto mb-2 opacity-30" />
                         No companies found
                       </td>
@@ -275,6 +277,13 @@ export default function AdminPage() {
                         <Badge className={`text-xs ${company.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`} variant="outline">
                           {company.status}
                         </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <OmanizationStatusCell
+                          companyId={company.id}
+                          latestSnapshot={(company as { omanizationLatest?: OmanizationSnapshotSummary | null }).omanizationLatest}
+                          onRefreshed={refetchCompanies}
+                        />
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
                         {fmtDate(company.createdAt)}

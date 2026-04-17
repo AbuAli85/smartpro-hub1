@@ -163,6 +163,43 @@ async function assertCompanyAdmin(userId: number, companyId: number) {
   }
 }
 
+async function captureOmanizationSnapshotForCompany(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  companyId: number,
+  targetPercent?: number,
+) {
+  const allEmps = await db
+    .select({ nationality: employees.nationality })
+    .from(employees)
+    .where(and(eq(employees.companyId, companyId), eq(employees.status, "active")));
+
+  const totalActive = allEmps.length;
+  const omaniCount = allEmps.filter((e) => isOmaniNationality(e.nationality)).length;
+  const result = computeOmanizationRate({ totalActive, omaniCount }, targetPercent);
+  const now = new Date();
+  const snapshotMonth = now.getMonth() + 1;
+  const snapshotYear = now.getFullYear();
+  const complianceStatus: "compliant" | "warning" | "non_compliant" = result.meetsTarget
+    ? "compliant"
+    : result.ratePercent >= (result.targetPercent ?? 0) * 0.9
+      ? "warning"
+      : "non_compliant";
+
+  await db.insert(companyOmanizationSnapshots).values({
+    companyId,
+    snapshotMonth,
+    snapshotYear,
+    totalEmployees: totalActive,
+    omaniEmployees: omaniCount,
+    omaniRatio: String(result.ratePercent),
+    requiredRatio: result.targetPercent != null ? String(result.targetPercent) : null,
+    complianceStatus,
+    notes: result.shortfallHeadcount > 0 ? `Shortfall: ${result.shortfallHeadcount} headcount` : null,
+  });
+
+  return result;
+}
+
 type CompaniesDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
 /**
@@ -212,11 +249,42 @@ export async function syncPlatformRoleForCompanyMembership(
 
 export const companiesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
-    if (!canAccessGlobalAdminProcedures(ctx.user)) {
-      const rows = await getUserCompanies(ctx.user.id);
-      return rows.map((r) => r.company);
+    const companiesList = canAccessGlobalAdminProcedures(ctx.user)
+      ? await getCompanies()
+      : (await getUserCompanies(ctx.user.id)).map((r) => r.company);
+
+    const db = await getDb();
+    if (!db || companiesList.length === 0) {
+      return companiesList.map((company) => ({ ...company, omanizationLatest: null }));
     }
-    return getCompanies();
+
+    const companyIds = companiesList.map((c) => c.id);
+    const idFilter =
+      companyIds.length === 1
+        ? eq(companyOmanizationSnapshots.companyId, companyIds[0]!)
+        : or(...companyIds.map((id) => eq(companyOmanizationSnapshots.companyId, id)));
+
+    const snapshots = await db
+      .select()
+      .from(companyOmanizationSnapshots)
+      .where(idFilter!)
+      .orderBy(
+        desc(companyOmanizationSnapshots.snapshotYear),
+        desc(companyOmanizationSnapshots.snapshotMonth),
+        desc(companyOmanizationSnapshots.createdAt),
+      );
+
+    const latestByCompany = new Map<number, (typeof snapshots)[number]>();
+    for (const row of snapshots) {
+      if (!latestByCompany.has(row.companyId)) {
+        latestByCompany.set(row.companyId, row);
+      }
+    }
+
+    return companiesList.map((company) => ({
+      ...company,
+      omanizationLatest: latestByCompany.get(company.id) ?? null,
+    }));
   }),
 
   getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
@@ -1787,34 +1855,19 @@ export const companiesRouter = router({
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const allEmps = await db
-        .select({ nationality: employees.nationality })
-        .from(employees)
-        .where(and(eq(employees.companyId, cid), eq(employees.status, "active")));
-      const totalActive = allEmps.length;
-      const omaniCount = allEmps.filter((e) => isOmaniNationality(e.nationality)).length;
-      const result = computeOmanizationRate({ totalActive, omaniCount }, input.targetPercent);
-      const now = new Date();
-      const snapshotMonth = now.getMonth() + 1; // 1-12
-      const snapshotYear = now.getFullYear();
-      // Determine compliance status from result
-      const complianceStatus: "compliant" | "warning" | "non_compliant" = result.meetsTarget
-        ? "compliant"
-        : result.ratePercent >= (result.targetPercent ?? 0) * 0.9
-        ? "warning"
-        : "non_compliant";
-      await db.insert(companyOmanizationSnapshots).values({
-        companyId: cid,
-        snapshotMonth,
-        snapshotYear,
-        totalEmployees: totalActive,
-        omaniEmployees: omaniCount,
-        omaniRatio: String(result.ratePercent),
-        requiredRatio: result.targetPercent != null ? String(result.targetPercent) : null,
-        complianceStatus,
-        notes: result.shortfallHeadcount > 0 ? `Shortfall: ${result.shortfallHeadcount} headcount` : null,
-      });
-      return result;
+      return captureOmanizationSnapshotForCompany(db, cid, input.targetPercent);
+    }),
+
+  /**
+   * Alias kept for clearer procedure naming on UI integrations.
+   */
+  captureOmanizationSnapshot: protectedProcedure
+    .input(z.object({ companyId: z.number().optional(), targetPercent: z.number().min(0).max(100).optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      return captureOmanizationSnapshotForCompany(db, cid, input.targetPercent);
     }),
 
   /**

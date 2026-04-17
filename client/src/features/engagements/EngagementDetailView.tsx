@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { fmtDateTimeShort } from "@/lib/dateUtils";
 import { toast } from "sonner";
 import { ChevronLeft, Send } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type EngagementDetailViewProps = {
   engagementId: number;
@@ -193,9 +194,18 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
       </CardHeader>
       <CardContent className="space-y-4">
         {detail.data.engagement.topActionLabel && (
-          <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
+          <div
+            className={cn(
+              "rounded-xl border",
+              clientMode
+                ? "border-primary/45 bg-primary/10 p-4 shadow-sm ring-1 ring-primary/15"
+                : "border-primary/25 bg-primary/5 p-3",
+            )}
+          >
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("topAction")}</p>
-            <p className="text-sm font-medium mt-1">{detail.data.engagement.topActionLabel}</p>
+            <p className={cn("mt-1 font-semibold leading-snug", clientMode ? "text-base" : "text-sm font-medium")}>
+              {detail.data.engagement.topActionLabel}
+            </p>
           </div>
         )}
         {!clientMode && (
@@ -204,7 +214,7 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
             <p className="text-sm mt-1">{nextStep}</p>
           </div>
         )}
-        {detail.data.engagement.healthReason && (
+        {!clientMode && detail.data.engagement.healthReason && (
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("healthReason")}</p>
             <p className="text-sm mt-1 text-amber-800 dark:text-amber-300">{detail.data.engagement.healthReason}</p>
@@ -304,7 +314,7 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
                   <p className="font-medium">{d.title}</p>
                   <p className="text-xs text-muted-foreground capitalize">
                     {d.status}
-                    {d.scanStatus ? ` · scan: ${d.scanStatus.replace(/_/g, " ")}` : ""}
+                    {!clientMode && d.scanStatus ? ` · scan: ${d.scanStatus.replace(/_/g, " ")}` : ""}
                   </p>
                 </div>
                 {d.fileUrl && (
@@ -424,9 +434,11 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
         <CardTitle className="text-sm font-semibold">{clientMode ? "Payment" : t("paymentTransfer")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p className="text-xs text-muted-foreground">
-          {t("paymentPhase")}: {detail.data.paymentTransfer?.phase?.replace(/_/g, " ") ?? "idle"}
-        </p>
+        {!(clientMode && (detail.data.paymentTransfer?.phase ?? "idle") === "idle") && (
+          <p className="text-xs text-muted-foreground">
+            {t("paymentPhase")}: {detail.data.paymentTransfer?.phase?.replace(/_/g, " ") ?? "idle"}
+          </p>
+        )}
         {detail.data.paymentTransfer?.instructionsText && (
           <div className="rounded-md bg-muted/50 p-3 text-sm whitespace-pre-wrap">
             {detail.data.paymentTransfer.instructionsText}

@@ -22,6 +22,30 @@
     "goMessages": "إرسال رسالة",
     "goInvoices": "دفع فاتورة",
     "goEngagements": "عرض المشاريع",
+    "shellAsideLabel": "المساحة",
+    "dashboardDoThisNow": "الخطوة التالية",
+    "openThisEngagement": "فتح هذا المشروع",
+    "engagementsEmptyClient": "لا توجد مشاريع ضمن هذا التصفّح. جرّب مرشّحاً آخر أو عد لاحقاً عند توفر عمل جديد.",
+    "filterLabels": {
+      "all": "الكل",
+      "awaiting_your_action": "بانتظار إجراءك",
+      "in_progress": "قيد التنفيذ",
+      "completed": "مكتمل",
+      "overdue": "متأخر",
+      "at_risk": "معرّض للخطر",
+      "awaiting_payment": "بانتظار الدفع",
+      "awaiting_signature": "بانتظار التوقيع"
+    },
+    "sortLabels": {
+      "due_date": "تاريخ الاستحقاق",
+      "recently_updated": "آخر التحديثات",
+      "priority": "الأولوية"
+    },
+    "kpiOverdue": "متأخر",
+    "kpiAtRisk": "معرّض للخطر",
+    "kpiAwaitingYou": "بانتظارك",
+    "kpiInvoices": "الفواتير",
+    "kpiToSign": "للتوقيع",
     "nav": {
       "dashboard": "لوحة التحكم",
       "engagements": "المشاريع",

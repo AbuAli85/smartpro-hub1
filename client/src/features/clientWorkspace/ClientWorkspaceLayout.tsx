@@ -20,7 +20,9 @@ export function ClientWorkspaceLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background">
       <aside className="w-full md:w-56 border-b md:border-b-0 md:border-r border-border shrink-0 md:min-h-screen p-3 md:sticky md:top-0 md:self-start">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-2 mb-2">Client</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-2 mb-2">
+          {t("clientWorkspace.shellAsideLabel")}
+        </p>
         <nav className="flex md:flex-col gap-1 overflow-x-auto pb-1 md:pb-0">
           {NAV.map(({ href, key, icon: Icon }) => {
             const active = loc === href || (href !== "/client" && loc.startsWith(href + "/"));

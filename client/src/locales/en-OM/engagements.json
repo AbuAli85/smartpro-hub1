@@ -22,6 +22,30 @@
     "goMessages": "Send a message",
     "goInvoices": "Pay an invoice",
     "goEngagements": "View engagements",
+    "shellAsideLabel": "Workspace",
+    "dashboardDoThisNow": "Do this next",
+    "openThisEngagement": "Open this engagement",
+    "engagementsEmptyClient": "No engagements match this view yet. Try another filter or check back when there is new work.",
+    "filterLabels": {
+      "all": "All",
+      "awaiting_your_action": "Awaiting your action",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "overdue": "Overdue",
+      "at_risk": "At risk",
+      "awaiting_payment": "Awaiting payment",
+      "awaiting_signature": "Awaiting signature"
+    },
+    "sortLabels": {
+      "due_date": "Due date",
+      "recently_updated": "Recently updated",
+      "priority": "Priority"
+    },
+    "kpiOverdue": "Overdue",
+    "kpiAtRisk": "At risk",
+    "kpiAwaitingYou": "Awaiting you",
+    "kpiInvoices": "Invoices",
+    "kpiToSign": "To sign",
     "nav": {
       "dashboard": "Dashboard",
       "engagements": "Engagements",

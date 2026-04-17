@@ -129,7 +129,7 @@ export function EngagementsListView({ detailBasePath, clientShell, showOpsAndBac
               <SelectContent>
                 {CLIENT_FILTERS.map((f) => (
                   <SelectItem key={f} value={f}>
-                    {f.replace(/_/g, " ")}
+                    {t(`clientWorkspace.filterLabels.${f}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -142,9 +142,9 @@ export function EngagementsListView({ detailBasePath, clientShell, showOpsAndBac
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="due_date">Due date</SelectItem>
-                <SelectItem value="recently_updated">Recently updated</SelectItem>
-                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="due_date">{t("clientWorkspace.sortLabels.due_date")}</SelectItem>
+                <SelectItem value="recently_updated">{t("clientWorkspace.sortLabels.recently_updated")}</SelectItem>
+                <SelectItem value="priority">{t("clientWorkspace.sortLabels.priority")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -167,7 +167,9 @@ export function EngagementsListView({ detailBasePath, clientShell, showOpsAndBac
 
       {list.data && items.length === 0 && (
         <Card>
-          <CardContent className="py-10 text-center text-muted-foreground text-sm">{t("empty")}</CardContent>
+          <CardContent className="py-10 text-center text-muted-foreground text-sm">
+            {clientShell ? t("clientWorkspace.engagementsEmptyClient") : t("empty")}
+          </CardContent>
         </Card>
       )}
 

@@ -39,6 +39,23 @@ export default function ClientDashboardPage() {
         <p className="text-sm text-muted-foreground mt-1">{t("clientWorkspace.dashboardSubtitle")}</p>
       </div>
 
+      {data?.yourWork?.[0] && (
+        <Card className="border-primary/35 bg-gradient-to-br from-primary/10 to-background shadow-sm">
+          <CardHeader className="py-3 pb-2">
+            <CardTitle className="text-sm font-semibold text-primary">{t("clientWorkspace.dashboardDoThisNow")}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-2">
+            <p className="font-medium leading-snug">{data.yourWork[0].title}</p>
+            {data.yourWork[0].topActionLabel && (
+              <p className="text-sm text-muted-foreground">{data.yourWork[0].topActionLabel}</p>
+            )}
+            <Button size="sm" className="mt-1 w-full sm:w-auto" asChild>
+              <Link href={`/client/engagements/${data.yourWork[0].id}`}>{t("clientWorkspace.openThisEngagement")}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {isLoading && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[1, 2, 3, 4, 5].map((i) => (
@@ -52,11 +69,11 @@ export default function ClientDashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {(
               [
-                { k: "overdue", label: "Overdue", n: data.kpis.overdue },
-                { k: "at_risk", label: "At risk", n: data.kpis.at_risk },
-                { k: "awaiting_your_action", label: "Awaiting you", n: data.kpis.awaiting_your_action },
-                { k: "pending_invoices", label: "Invoices", n: data.kpis.pending_invoices },
-                { k: "contracts_to_sign", label: "To sign", n: data.kpis.contracts_to_sign },
+                { k: "overdue", labelKey: "clientWorkspace.kpiOverdue" as const, n: data.kpis.overdue },
+                { k: "at_risk", labelKey: "clientWorkspace.kpiAtRisk" as const, n: data.kpis.at_risk },
+                { k: "awaiting_your_action", labelKey: "clientWorkspace.kpiAwaitingYou" as const, n: data.kpis.awaiting_your_action },
+                { k: "pending_invoices", labelKey: "clientWorkspace.kpiInvoices" as const, n: data.kpis.pending_invoices },
+                { k: "contracts_to_sign", labelKey: "clientWorkspace.kpiToSign" as const, n: data.kpis.contracts_to_sign },
               ] as const
             ).map((tile) => (
               <Link
@@ -64,7 +81,7 @@ export default function ClientDashboardPage() {
                 href={kpiHref(tile.k)}
                 className="rounded-lg border bg-muted/30 px-3 py-3 text-center hover:bg-muted/55 transition-colors"
               >
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{tile.label}</p>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{t(tile.labelKey)}</p>
                 <p className="text-xl font-bold tabular-nums mt-1">{tile.n}</p>
               </Link>
             ))}

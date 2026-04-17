@@ -445,7 +445,11 @@ export function registerOAuthRoutes(app: Express) {
       }
       res.redirect(302, successHref);
     } catch (error) {
-      console.error("[OAuth] Callback failed", error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const errStatus = (error as any)?.response?.status ?? (error as any)?.status ?? 'unknown';
+      const errData = JSON.stringify((error as any)?.response?.data ?? (error as any)?.data ?? null);
+      const builtRedirectUri = trustedBase ? new URL('/api/oauth/callback', trustedBase).href : 'NO_TRUSTED_BASE';
+      console.error(`[OAuth] Callback failed — status:${errStatus} msg:${errMsg} data:${errData} redirectUri:${builtRedirectUri} appId:${process.env.VITE_APP_ID ?? 'MISSING'} oauthServer:${process.env.OAUTH_SERVER_URL ?? 'MISSING'}`);
       redirectWithSignInError(res, trustedBase, safeReturnPath, "oauth_callback");
     }
   });

@@ -4823,8 +4823,8 @@ export const engagements = mysqlTable(
       .references(() => companies.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 512 }).notNull(),
     engagementType: engagementTypeEnum.notNull(),
-    status: engagementStatusEnum.notNull().default("active"),
-    health: engagementHealthEnum.notNull().default("unknown"),
+    status: mysqlEnum("status", ["draft","active","waiting_client","waiting_platform","blocked","completed","archived"]).notNull().default("active"),
+    health: mysqlEnum("health", ["on_track","at_risk","blocked","delayed","unknown"]).notNull().default("unknown"),
     healthReason: text("health_reason"),
     dueDate: timestamp("due_date"),
     slaDueAt: timestamp("sla_due_at"),
@@ -4835,7 +4835,7 @@ export const engagements = mysqlTable(
     topActionDueAt: timestamp("top_action_due_at"),
     topActionPayload: json("top_action_payload").$type<Record<string, unknown>>().default({}),
     assignedOwnerUserId: int("assigned_owner_user_id").references(() => users.id, { onDelete: "set null" }),
-    opsPriority: engagementOpsPriorityEnum.notNull().default("normal"),
+    opsPriority: mysqlEnum("ops_priority", ["normal","high","urgent"]).notNull().default("normal"),
     escalatedAt: timestamp("escalated_at"),
     workflowStage: varchar("workflow_stage", { length: 128 }),
     currentStage: varchar("current_stage", { length: 255 }),
@@ -4868,7 +4868,7 @@ export const engagementLinks = mysqlTable(
     companyId: int("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
-    linkType: engagementLinkTypeEnum.notNull(),
+    linkType: mysqlEnum("link_type", ["pro_service","government_case","marketplace_booking","contract","pro_billing_cycle","client_service_invoice","staffing_month","work_permit","employee_document","service_request"]).notNull(),
     entityId: int("entity_id"),
     entityKey: varchar("entity_key", { length: 128 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -4892,7 +4892,7 @@ export const engagementTasks = mysqlTable(
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 512 }).notNull(),
-    status: engagementTaskStatusEnum.notNull().default("pending"),
+    status: mysqlEnum("status", ["pending","in_progress","done","cancelled"]).notNull().default("pending"),
     dueDate: timestamp("due_date"),
     sortOrder: int("sort_order").notNull().default(0),
     /** When set, mirrors an internal `employee_tasks` row for client-visible work. */
@@ -4920,7 +4920,7 @@ export const engagementMessages = mysqlTable(
     companyId: int("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
-    author: engagementMessageAuthorEnum.notNull(),
+    author: mysqlEnum("author", ["client","platform","system"]).notNull(),
     authorUserId: int("author_user_id").references(() => users.id, { onDelete: "set null" }),
     subject: varchar("subject", { length: 255 }),
     body: text("body").notNull(),
@@ -4947,7 +4947,7 @@ export const engagementDocuments = mysqlTable(
       .references(() => companies.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 512 }).notNull(),
     fileUrl: varchar("file_url", { length: 2048 }),
-    status: engagementDocumentStatusEnum.notNull().default("pending"),
+    status: mysqlEnum("status", ["pending","approved","rejected"]).notNull().default("pending"),
     uploadedByUserId: int("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
     reviewedByUserId: int("reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
     reviewedAt: timestamp("reviewed_at"),
@@ -4955,7 +4955,7 @@ export const engagementDocuments = mysqlTable(
     storageKey: varchar("storage_key", { length: 1024 }),
     mimeType: varchar("mime_type", { length: 255 }),
     sizeBytes: int("size_bytes"),
-    scanStatus: engagementDocumentScanStatusEnum.notNull().default("not_scanned"),
+    scanStatus: mysqlEnum("scan_status", ["not_scanned","pending","clean","suspicious","failed"]).notNull().default("not_scanned"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -5018,7 +5018,7 @@ export const engagementPaymentTransfers = mysqlTable(
     companyId: int("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
-    phase: engagementPaymentTransferPhaseEnum.notNull().default("idle"),
+    phase: mysqlEnum("phase", ["idle","instructions_sent","proof_submitted","verified","rejected","reconciled"]).notNull().default("idle"),
     instructionsText: text("instructions_text"),
     proofUrl: varchar("proof_url", { length: 2048 }),
     proofReference: varchar("proof_reference", { length: 255 }),

@@ -100,6 +100,19 @@ export const staticSpaFallbackRateLimiter = rateLimit({
   message: { error: "Too many requests. Please try again shortly." },
 });
 
+/**
+ * Stripe / Thawani webhook POSTs: signature verification + DB work (CodeQL
+ * js/missing-rate-limiting). Cap per IP before body parsing; limit is high so
+ * legitimate provider retries and bursts stay under the ceiling.
+ */
+export const paymentProviderWebhookRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many webhook requests." },
+});
+
 // ─── Input sanitisation ───────────────────────────────────────────────────────
 /**
  * Recursively sanitises an object:

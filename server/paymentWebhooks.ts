@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import express from "express";
 import { and, eq } from "drizzle-orm";
+import { paymentProviderWebhookRateLimiter } from "./_core/security";
 import { getDb } from "./db";
 import {
   paymentGatewaySessions,
@@ -167,6 +168,7 @@ async function reconcileStripeCheckoutCompleted(params: {
 export function registerPaymentWebhookRoutes(app: Express): void {
   app.post(
     "/api/webhooks/thawani",
+    paymentProviderWebhookRateLimiter,
     express.raw({ type: "application/json", limit: "4mb" }),
     async (req: Request, res: Response) => {
       const raw = req.body;
@@ -211,6 +213,7 @@ export function registerPaymentWebhookRoutes(app: Express): void {
 
   app.post(
     "/api/webhooks/stripe",
+    paymentProviderWebhookRateLimiter,
     express.raw({ type: "application/json", limit: "4mb" }),
     async (req: Request, res: Response) => {
       const raw = req.body;

@@ -65,6 +65,39 @@ export interface WpsValidationResult {
   parsedBasicSalary: number | null;
 }
 
+export interface WpsValidationPeriodInput {
+  periodYear?: number | null;
+  periodMonth?: number | null;
+}
+
+export interface NormalizedWpsValidationPeriod {
+  periodYear: number | null;
+  periodMonth: number | null;
+  scope: "period" | "generic";
+}
+
+export function normalizeWpsValidationPeriod(
+  input: WpsValidationPeriodInput,
+): NormalizedWpsValidationPeriod {
+  const hasYear = input.periodYear !== null && input.periodYear !== undefined;
+  const hasMonth = input.periodMonth !== null && input.periodMonth !== undefined;
+  if (!hasYear && !hasMonth) {
+    return { periodYear: null, periodMonth: null, scope: "generic" };
+  }
+  if (!hasYear || !hasMonth) {
+    throw new Error("WPS period context requires both periodYear and periodMonth.");
+  }
+  const periodYear = Number(input.periodYear);
+  const periodMonth = Number(input.periodMonth);
+  if (!Number.isInteger(periodYear) || periodYear < 2000 || periodYear > 2100) {
+    throw new Error("Invalid WPS periodYear.");
+  }
+  if (!Number.isInteger(periodMonth) || periodMonth < 1 || periodMonth > 12) {
+    throw new Error("Invalid WPS periodMonth.");
+  }
+  return { periodYear, periodMonth, scope: "period" };
+}
+
 // ── Core rule function ────────────────────────────────────────────────────────
 
 /**

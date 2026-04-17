@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, gte, lte, sum, count } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, sum, count } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
@@ -27,6 +27,20 @@ import {
 import { fetchHrPerformanceDashboard } from "../hrPerformanceReadModels";
 
 export type PnlDataQualityStatus = "complete" | "partial" | "needs_review";
+export type WpsQualityScope = "period" | "company_fallback" | "none";
+
+interface WpsValidationSummaryRow {
+  id: number;
+  employeeId: number;
+  result: "ready" | "invalid" | "missing";
+  validatedAt: Date;
+}
+
+interface WpsValidationQualitySummary {
+  missingCount: number;
+  invalidCount: number;
+  employeeCount: number;
+}
 
 export interface DerivePnlDataQualityInput {
   revenueRecordCount: number;
@@ -34,11 +48,36 @@ export interface DerivePnlDataQualityInput {
   overheadOmr: number;
   wpsMissingCount: number;
   wpsInvalidCount: number;
+  wpsQualityScope: WpsQualityScope;
 }
 
 export interface DerivedPnlDataQuality {
   status: PnlDataQualityStatus;
   messages: string[];
+}
+
+function summarizeLatestWpsValidation(
+  rows: WpsValidationSummaryRow[],
+): WpsValidationQualitySummary {
+  const latestByEmployee = new Map<number, WpsValidationSummaryRow>();
+  for (const row of rows) {
+    const existing = latestByEmployee.get(row.employeeId);
+    if (
+      !existing ||
+      row.validatedAt.getTime() > existing.validatedAt.getTime() ||
+      (row.validatedAt.getTime() === existing.validatedAt.getTime() && row.id > existing.id)
+    ) {
+      latestByEmployee.set(row.employeeId, row);
+    }
+  }
+
+  let missingCount = 0;
+  let invalidCount = 0;
+  for (const row of latestByEmployee.values()) {
+    if (row.result === "missing") missingCount += 1;
+    if (row.result === "invalid") invalidCount += 1;
+  }
+  return { missingCount, invalidCount, employeeCount: latestByEmployee.size };
 }
 
 export function derivePnlDataQuality(input: DerivePnlDataQualityInput): DerivedPnlDataQuality {
@@ -66,6 +105,13 @@ export function derivePnlDataQuality(input: DerivePnlDataQualityInput): DerivedP
   }
 
   const wpsIssues = input.wpsMissingCount + input.wpsInvalidCount;
+  if (input.wpsQualityScope === "none") {
+    status = "partial";
+    messages.push("No WPS validation records were found for this period.");
+  } else if (input.wpsQualityScope === "company_fallback") {
+    status = "partial";
+    messages.push("Using company-level WPS validation fallback; period-specific validation is unavailable.");
+  }
   if (wpsIssues > 0) {
     status = "partial";
     messages.push(`WPS readiness issues found for ${wpsIssues} employee record(s).`);
@@ -788,16 +834,19 @@ export const financeHRRouter = router({
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) return null;
-      const revConditions = [eq(companyRevenueRecords.companyId, cid)];
-      const costConditions = [eq(employeeCostRecords.companyId, cid)];
-      if (input.periodYear) {
-        revConditions.push(eq(companyRevenueRecords.periodYear, input.periodYear));
-        costConditions.push(eq(employeeCostRecords.periodYear, input.periodYear));
-      }
-      if (input.periodMonth) {
-        revConditions.push(eq(companyRevenueRecords.periodMonth, input.periodMonth));
-        costConditions.push(eq(employeeCostRecords.periodMonth, input.periodMonth));
-      }
+      const now = new Date();
+      const periodYear = input.periodYear ?? now.getFullYear();
+      const periodMonth = input.periodMonth ?? now.getMonth() + 1;
+      const revConditions = [
+        eq(companyRevenueRecords.companyId, cid),
+        eq(companyRevenueRecords.periodYear, periodYear),
+        eq(companyRevenueRecords.periodMonth, periodMonth),
+      ];
+      const costConditions = [
+        eq(employeeCostRecords.companyId, cid),
+        eq(employeeCostRecords.periodYear, periodYear),
+        eq(employeeCostRecords.periodMonth, periodMonth),
+      ];
       const [revRow] = await db
         .select({ total: sum(companyRevenueRecords.amountOmr) })
         .from(companyRevenueRecords)
@@ -819,20 +868,66 @@ export const financeHRRouter = router({
         .from(employeeCostRecords)
         .where(and(...costConditions));
 
-      let wpsMissingCount = 0;
-      let wpsInvalidCount = 0;
-      const wpsRows = await db
+      const scopedEmployeeRows = await db
+        .select({ employeeId: employeeCostRecords.employeeId })
+        .from(employeeCostRecords)
+        .where(and(...costConditions))
+        .groupBy(employeeCostRecords.employeeId);
+      const scopedEmployeeIds = scopedEmployeeRows.map((row) => row.employeeId);
+
+      const periodWpsWhere = [
+        eq(employeeWpsValidations.companyId, cid),
+        eq(employeeWpsValidations.periodYear, periodYear),
+        eq(employeeWpsValidations.periodMonth, periodMonth),
+      ];
+      if (scopedEmployeeIds.length > 0) {
+        periodWpsWhere.push(inArray(employeeWpsValidations.employeeId, scopedEmployeeIds));
+      }
+      const genericWpsWhere = [
+        eq(employeeWpsValidations.companyId, cid),
+        isNull(employeeWpsValidations.periodYear),
+        isNull(employeeWpsValidations.periodMonth),
+      ];
+      if (scopedEmployeeIds.length > 0) {
+        genericWpsWhere.push(inArray(employeeWpsValidations.employeeId, scopedEmployeeIds));
+      }
+
+      const periodWpsRows = await db
         .select({
+          id: employeeWpsValidations.id,
+          employeeId: employeeWpsValidations.employeeId,
           result: employeeWpsValidations.result,
-          total: count(employeeWpsValidations.id),
+          validatedAt: employeeWpsValidations.validatedAt,
         })
         .from(employeeWpsValidations)
-        .where(eq(employeeWpsValidations.companyId, cid))
-        .groupBy(employeeWpsValidations.result);
-      for (const row of wpsRows) {
-        if (row.result === "missing") wpsMissingCount = Number(row.total ?? 0);
-        if (row.result === "invalid") wpsInvalidCount = Number(row.total ?? 0);
-      }
+        .where(and(...periodWpsWhere));
+
+      const genericWpsRows = await db
+        .select({
+          id: employeeWpsValidations.id,
+          employeeId: employeeWpsValidations.employeeId,
+          result: employeeWpsValidations.result,
+          validatedAt: employeeWpsValidations.validatedAt,
+        })
+        .from(employeeWpsValidations)
+        .where(and(...genericWpsWhere));
+
+      const periodWpsSummary = summarizeLatestWpsValidation(periodWpsRows);
+      const genericWpsSummary = summarizeLatestWpsValidation(genericWpsRows);
+
+      const effectiveWpsSummary =
+        periodWpsSummary.employeeCount > 0 ? periodWpsSummary : genericWpsSummary;
+      const wpsQualityScope: WpsQualityScope =
+        periodWpsSummary.employeeCount > 0
+          ? "period"
+          : genericWpsSummary.employeeCount > 0
+            ? "company_fallback"
+            : "none";
+
+      let wpsMissingCount = 0;
+      let wpsInvalidCount = 0;
+      wpsMissingCount = effectiveWpsSummary.missingCount;
+      wpsInvalidCount = effectiveWpsSummary.invalidCount;
 
       const revenueOmr = Number(revRow?.total ?? 0);
       const recordedCostOmr = Number(costRow?.total ?? 0);
@@ -848,6 +943,7 @@ export const financeHRRouter = router({
         overheadOmr: platformOverheadOmr,
         wpsMissingCount,
         wpsInvalidCount,
+        wpsQualityScope,
       });
 
       const margin = computeMargin({
@@ -856,9 +952,6 @@ export const financeHRRouter = router({
         platformOverheadOmr,
       });
 
-      const now = new Date();
-      const periodYear = input.periodYear ?? now.getFullYear();
-      const periodMonth = input.periodMonth ?? now.getMonth() + 1;
       const periodLabel = new Date(periodYear, periodMonth - 1, 1).toLocaleString("en-GB", {
         month: "short",
         year: "numeric",
@@ -871,6 +964,7 @@ export const financeHRRouter = router({
         hasAnyData: revenueRecordCount > 0 || employeeCostRecordCount > 0,
         dataQualityStatus: dataQuality.status,
         dataQualityMessages: dataQuality.messages,
+        wpsQualityScope,
         recordCounts: {
           revenue: revenueRecordCount,
           employeeCost: employeeCostRecordCount,

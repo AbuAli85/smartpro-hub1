@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { mergeLeavePolicyCaps } from "../../shared/leavePolicyCaps";
-import { validateEmployeeWpsReadiness } from "../../shared/employeeWps";
+import { normalizeWpsValidationPeriod, validateEmployeeWpsReadiness } from "../../shared/employeeWps";
 import { eq, and, desc, gte, lte, count, sum, or, isNull, isNotNull, inArray } from "drizzle-orm";
 import {
   companies,
@@ -2074,11 +2074,32 @@ export const hrRouter = router({
    * Persists the result to employee_wps_validations and updates wps_status on the employee row.
    */
   validateWps: protectedProcedure
-    .input(z.object({ employeeId: z.number().int().positive(), companyId: z.number().optional() }))
+    .input(
+      z
+        .object({
+          employeeId: z.number().int().positive(),
+          companyId: z.number().optional(),
+          periodYear: z.number().int().min(2000).max(2100).optional(),
+          periodMonth: z.number().int().min(1).max(12).optional(),
+        })
+        .refine(
+          (v) =>
+            (v.periodYear === undefined && v.periodMonth === undefined) ||
+            (v.periodYear !== undefined && v.periodMonth !== undefined),
+          {
+            message: "Provide both periodYear and periodMonth together.",
+            path: ["periodYear"],
+          },
+        ),
+    )
     .mutation(async ({ input, ctx }) => {
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const normalizedPeriod = normalizeWpsValidationPeriod({
+        periodYear: input.periodYear,
+        periodMonth: input.periodMonth,
+      });
 
       const [emp] = await db
         .select()
@@ -2103,6 +2124,8 @@ export const hrRouter = router({
         ibanValidFormat: !result.issues.includes("invalid_iban_format") && Boolean(emp.ibanNumber),
         bankNamePresent: Boolean(emp.bankName),
         salaryPresent: result.parsedBasicSalary !== null,
+        periodYear: normalizedPeriod.periodYear,
+        periodMonth: normalizedPeriod.periodMonth,
         result: result.status === "ready" ? "ready" : result.status === "missing" ? "missing" : "invalid",
         failureReasons: result.issues,
       });
@@ -2142,11 +2165,31 @@ export const hrRouter = router({
    * Bulk WPS validation — run for all active employees in the company.
    */
   bulkValidateWps: protectedProcedure
-    .input(z.object({ companyId: z.number().optional() }))
+    .input(
+      z
+        .object({
+          companyId: z.number().optional(),
+          periodYear: z.number().int().min(2000).max(2100).optional(),
+          periodMonth: z.number().int().min(1).max(12).optional(),
+        })
+        .refine(
+          (v) =>
+            (v.periodYear === undefined && v.periodMonth === undefined) ||
+            (v.periodYear !== undefined && v.periodMonth !== undefined),
+          {
+            message: "Provide both periodYear and periodMonth together.",
+            path: ["periodYear"],
+          },
+        ),
+    )
     .mutation(async ({ input, ctx }) => {
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const normalizedPeriod = normalizeWpsValidationPeriod({
+        periodYear: input.periodYear,
+        periodMonth: input.periodMonth,
+      });
 
       const activeEmps = await db
         .select()
@@ -2170,6 +2213,8 @@ export const hrRouter = router({
           ibanValidFormat: !result.issues.includes("invalid_iban_format") && Boolean(emp.ibanNumber),
           bankNamePresent: Boolean(emp.bankName),
           salaryPresent: result.parsedBasicSalary !== null,
+          periodYear: normalizedPeriod.periodYear,
+          periodMonth: normalizedPeriod.periodMonth,
           result: result.status === "ready" ? "ready" : result.status === "missing" ? "missing" : "invalid",
           failureReasons: result.issues,
         });

@@ -993,12 +993,15 @@ export const employeeWpsValidations = mysqlTable(
     ibanValidFormat: boolean("iban_valid_format").default(false).notNull(),
     bankNamePresent: boolean("bank_name_present").default(false).notNull(),
     salaryPresent: boolean("salary_present").default(false).notNull(),
+    periodMonth: tinyint("period_month"),
+    periodYear: smallint("period_year"),
     result: mysqlEnum("result", ["ready", "invalid", "missing"]).notNull(),
     failureReasons: json("failure_reasons").$type<string[]>(),
   },
   (t) => [
     index("idx_ewv_employee").on(t.employeeId),
     index("idx_ewv_company_result").on(t.companyId, t.result),
+    index("idx_ewv_company_period_result").on(t.companyId, t.periodYear, t.periodMonth, t.result),
   ]
 );
 export type EmployeeWpsValidation = typeof employeeWpsValidations.$inferSelect;

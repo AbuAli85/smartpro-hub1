@@ -19,33 +19,39 @@ const TRIM_TARGET_BYTES = Math.floor(MAX_LOG_SIZE_BYTES * 0.6); // Trim to 60% t
 type LogSource = "browserConsole" | "networkRequests" | "sessionReplay";
 
 function ensureLogDir() {
-  if (!fs.existsSync(LOG_DIR)) {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-  }
+  fs.mkdirSync(LOG_DIR, { recursive: true });
 }
 
-function trimLogFile(logPath: string, maxSize: number) {
+/** Pure: keep newest lines that fit within trim target (used when log exceeds max). */
+function trimLogContentToTarget(raw: string): string {
+  const lines = raw.split("\n");
+  const keptLines: string[] = [];
+  let keptBytes = 0;
+  const targetSize = TRIM_TARGET_BYTES;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const lineBytes = Buffer.byteLength(`${lines[i]}\n`, "utf-8");
+    if (keptBytes + lineBytes > targetSize) break;
+    keptLines.unshift(lines[i]);
+    keptBytes += lineBytes;
+  }
+  return keptLines.join("\n");
+}
+
+/** Write full `content` to `logPath` via temp file + rename (atomic replace). */
+function atomicReplaceLogFile(logPath: string, content: string): void {
+  let tmpPath: string | null = `${logPath}.tmp.${process.pid}.${Date.now()}`;
   try {
-    if (!fs.existsSync(logPath) || fs.statSync(logPath).size <= maxSize) {
-      return;
+    fs.writeFileSync(tmpPath, content, "utf-8");
+    fs.renameSync(tmpPath, logPath);
+    tmpPath = null;
+  } finally {
+    if (tmpPath) {
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch {
+        /* ignore */
+      }
     }
-
-    const lines = fs.readFileSync(logPath, "utf-8").split("\n");
-    const keptLines: string[] = [];
-    let keptBytes = 0;
-
-    // Keep newest lines (from end) that fit within 60% of maxSize
-    const targetSize = TRIM_TARGET_BYTES;
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const lineBytes = Buffer.byteLength(`${lines[i]}\n`, "utf-8");
-      if (keptBytes + lineBytes > targetSize) break;
-      keptLines.unshift(lines[i]);
-      keptBytes += lineBytes;
-    }
-
-    fs.writeFileSync(logPath, keptLines.join("\n"), "utf-8");
-  } catch {
-    /* ignore trim errors */
   }
 }
 
@@ -55,17 +61,36 @@ function writeToLogFile(source: LogSource, entries: unknown[]) {
   ensureLogDir();
   const logPath = path.join(LOG_DIR, `${source}.log`);
 
-  // Format entries with timestamps
-  const lines = entries.map((entry) => {
-    const ts = new Date().toISOString();
-    return `[${ts}] ${JSON.stringify(entry)}`;
-  });
+  const block =
+    entries
+      .map((entry) => {
+        const ts = new Date().toISOString();
+        return `[${ts}] ${JSON.stringify(entry)}`;
+      })
+      .join("\n") + "\n";
 
-  // Append to log file
-  fs.appendFileSync(logPath, `${lines.join("\n")}\n`, "utf-8");
+  // Single read of current file, append in memory, then one atomic write — avoids
+  // append + re-read on the same path (CodeQL js/file-system-race).
+  let prev = "";
+  try {
+    prev = fs.readFileSync(logPath, "utf-8");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
+      return;
+    }
+  }
 
-  // Trim if exceeds max size
-  trimLogFile(logPath, MAX_LOG_SIZE_BYTES);
+  const combined = prev + block;
+  const toWrite =
+    Buffer.byteLength(combined, "utf-8") <= MAX_LOG_SIZE_BYTES
+      ? combined
+      : trimLogContentToTarget(combined);
+
+  try {
+    atomicReplaceLogFile(logPath, toWrite);
+  } catch {
+    /* ignore log write errors */
+  }
 }
 
 /**

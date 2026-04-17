@@ -143,7 +143,7 @@ export default function FinanceOverviewPage() {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(v: number) => `OMR ${fmt(v)}`} />
+                    <Tooltip formatter={(v) => `OMR ${fmt(Number(v ?? 0))}`} />
                     <Legend />
                     <Bar dataKey="Payroll" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="Expenses" fill="#f59e0b" radius={[4, 4, 0, 0]} />
@@ -212,10 +212,10 @@ export default function FinanceOverviewPage() {
                 {pieData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                      <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, percent }) => `${name ?? ""} ${(((percent ?? 0) * 100)).toFixed(0)}%`}>
                         {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                       </Pie>
-                      <Tooltip formatter={(v: number) => `OMR ${fmt(v)}`} />
+                      <Tooltip formatter={(v) => `OMR ${fmt(Number(v ?? 0))}`} />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (

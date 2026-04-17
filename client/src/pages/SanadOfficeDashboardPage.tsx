@@ -376,7 +376,7 @@ export default function SanadOfficeDashboardPage() {
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip
-                        formatter={(value: number) => [`OMR ${value.toFixed(0)}`, ""]}
+                        formatter={(value) => [`OMR ${Number(value ?? 0).toFixed(0)}`, ""]}
                         contentStyle={{ fontSize: 12 }}
                       />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -416,7 +416,7 @@ export default function SanadOfficeDashboardPage() {
                             <Cell key={entry.status} fill={STATUS_COLORS[entry.status] ?? PIE_COLORS[i % PIE_COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(v: number, name: string) => [v, name.replace(/_/g, " ")]} contentStyle={{ fontSize: 12 }} />
+                        <Tooltip formatter={(v, name) => [Number(v ?? 0), String(name ?? "").replace(/_/g, " ")]} contentStyle={{ fontSize: 12 }} />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="flex-1 space-y-1.5">
@@ -458,7 +458,7 @@ export default function SanadOfficeDashboardPage() {
                     />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip
-                      formatter={(v: number, name: string) => [v, name]}
+                      formatter={(v, name) => [Number(v ?? 0), String(name ?? "")]}
                       labelFormatter={(l) => SERVICE_TYPE_LABELS[l] ?? l}
                       contentStyle={{ fontSize: 12 }}
                     />

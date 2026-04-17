@@ -151,7 +151,9 @@ export default function AnalyticsPage() {
                       innerRadius={60}
                       outerRadius={100}
                       dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }) =>
+                        `${name ?? ""} ${(((percent ?? 0) * 100)).toFixed(0)}%`
+                      }
                       labelLine={false}
                     >
                       {moduleData.map((entry, index) => (
@@ -213,7 +215,10 @@ export default function AnalyticsPage() {
                   <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
                       <Pie data={contractsOverview.filter((c) => c.count > 0)} cx="50%" cy="50%" outerRadius={100} dataKey="count" nameKey="status"
-                        label={({ status, count }: { status: string; count: number }) => `${status}: ${count}`}>
+                        label={(props) => {
+                          const row = props.payload as { status?: string; count?: number };
+                          return `${row.status ?? ""}: ${row.count ?? 0}`;
+                        }}>
                         {contractsOverview.filter((c) => c.count > 0).map((_: unknown, index: number) => (
                           <Cell key={index} fill={COLORS[index % COLORS.length]} />
                         ))}

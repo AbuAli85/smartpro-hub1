@@ -251,7 +251,7 @@ export default function SurveyAdminAnalyticsPage() {
                     interval={0}
                   />
                   <Tooltip
-                    formatter={(v: number) => [v, "Responses"]}
+                    formatter={(v) => [Number(v ?? 0), "Responses"]}
                     contentStyle={{ borderRadius: 8, fontSize: 12 }}
                   />
                   <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28} barSize={sectorChartData.length === 1 ? 24 : undefined}>
@@ -314,10 +314,10 @@ export default function SurveyAdminAnalyticsPage() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(v: number, _name: string, props: { payload?: { name?: string } }) => [
-                      v,
-                      props.payload?.name ?? "",
-                    ]}
+                    formatter={(v, _name, item) => {
+                      const payload = item.payload as { name?: string } | undefined;
+                      return [Number(v ?? 0), payload?.name ?? ""];
+                    }}
                     contentStyle={{ borderRadius: 8, fontSize: 12 }}
                   />
                   <Legend
@@ -363,7 +363,7 @@ export default function SurveyAdminAnalyticsPage() {
                   interval={0}
                 />
                 <Tooltip
-                  formatter={(v: number) => [v, "Responses"]}
+                  formatter={(v) => [Number(v ?? 0), "Responses"]}
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
                 />
                 <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28} barSize={governorateChartData.length === 1 ? 24 : undefined}>

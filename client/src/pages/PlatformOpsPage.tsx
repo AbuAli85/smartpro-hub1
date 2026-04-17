@@ -164,7 +164,10 @@ function FinanceView() {
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}`} />
                 <Tooltip
-                  formatter={(v: number, name: string) => [omr(v), name === "paidOmr" ? "Paid" : "Pending"]}
+                  formatter={(v, name) => [
+                    omr(Number(v ?? 0)),
+                    name === "paidOmr" ? "Paid" : "Pending",
+                  ]}
                   contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                 />
                 <Bar dataKey="paidOmr" name="Paid" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
@@ -454,7 +457,11 @@ function RegionalView() {
                     cx="50%"
                     cy="50%"
                     outerRadius={70}
-                    label={({ serviceType, percent }) => `${serviceType} ${(percent * 100).toFixed(0)}%`}
+                    label={(props) => {
+                      const row = props.payload as { serviceType?: string };
+                      const labelName = String(props.name ?? row.serviceType ?? "");
+                      return `${labelName} ${(((props.percent ?? 0) * 100)).toFixed(0)}%`;
+                    }}
                     labelLine={false}
                   >
                     {workOrders.map((_, i) => (

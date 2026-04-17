@@ -401,8 +401,11 @@ export default function DocumentExpiryDashboard() {
                   margin={{ top: 4, right: 16, left: -8, bottom: 0 }}
                   barCategoryGap="28%"
                   onClick={(e) => {
-                    if (e?.activePayload?.[0]) {
-                      const key = (e.activePayload[0].payload as any).key;
+                    const ev = e as {
+                      activePayload?: Array<{ payload?: { key?: string } }>;
+                    };
+                    if (ev?.activePayload?.[0]?.payload?.key != null) {
+                      const key = ev.activePayload[0].payload.key;
                       setSelectedMonthKey((prev) => (prev === key ? null : key));
                       setStatusFilter("all");
                     }

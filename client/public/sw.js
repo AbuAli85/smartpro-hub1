@@ -23,7 +23,10 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "SKIP_WAITING") {
+  // Only same-origin clients may trigger activation (CodeQL js/missing-origin-check).
+  if (event.origin !== self.location.origin) return;
+  if (!event.data || typeof event.data !== "object") return;
+  if (event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
 });

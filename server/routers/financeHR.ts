@@ -6,7 +6,7 @@ import { getDb } from "../db";
 import {
   expenseClaims, trainingRecords, employeeSelfReviews,
   employees, payrollRuns, payrollLineItems, companyMembers,
-  companyRevenueRecords, employeeCostRecords,
+  companyRevenueRecords, employeeCostRecords, employeeWpsValidations,
 } from "../../drizzle/schema";
 import { computeMargin, type FinancialEngineResult } from "../../shared/financialEngine";
 import type { User } from "../../drizzle/schema";
@@ -25,6 +25,54 @@ import {
   trainingRecordAuditSnapshot,
 } from "../hrPerformanceAudit";
 import { fetchHrPerformanceDashboard } from "../hrPerformanceReadModels";
+
+export type PnlDataQualityStatus = "complete" | "partial" | "needs_review";
+
+export interface DerivePnlDataQualityInput {
+  revenueRecordCount: number;
+  employeeCostRecordCount: number;
+  overheadOmr: number;
+  wpsMissingCount: number;
+  wpsInvalidCount: number;
+}
+
+export interface DerivedPnlDataQuality {
+  status: PnlDataQualityStatus;
+  messages: string[];
+}
+
+export function derivePnlDataQuality(input: DerivePnlDataQualityInput): DerivedPnlDataQuality {
+  const messages: string[] = [];
+  let status: PnlDataQualityStatus = "complete";
+
+  if (input.revenueRecordCount === 0 && input.employeeCostRecordCount === 0) {
+    return {
+      status: "needs_review",
+      messages: ["No revenue or employee cost records found for this period."],
+    };
+  }
+
+  if (input.revenueRecordCount === 0) {
+    status = "partial";
+    messages.push("Revenue entries are missing for this period.");
+  }
+  if (input.employeeCostRecordCount === 0) {
+    status = "partial";
+    messages.push("Employee cost entries are missing for this period.");
+  }
+  if (input.overheadOmr <= 0) {
+    status = "partial";
+    messages.push("No overhead allocation is included in this period.");
+  }
+
+  const wpsIssues = input.wpsMissingCount + input.wpsInvalidCount;
+  if (wpsIssues > 0) {
+    status = "partial";
+    messages.push(`WPS readiness issues found for ${wpsIssues} employee record(s).`);
+  }
+
+  return { status, messages };
+}
 
 /**
  * HR performance keys: role defaults ∪ company_members.permissions (see shared/hrPerformancePermissions.ts).
@@ -734,7 +782,7 @@ export const financeHRRouter = router({
       companyId: z.number().optional(),
       periodYear: z.number().int().optional(),
       periodMonth: z.number().int().min(1).max(12).optional(),
-      platformOverheadOmr: z.number().min(0).default(0),
+      platformOverheadOmr: z.number().min(0).optional(),
     }))
     .query(async ({ input, ctx }) => {
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
@@ -758,11 +806,78 @@ export const financeHRRouter = router({
         .select({ total: sum(employeeCostRecords.totalCost) })
         .from(employeeCostRecords)
         .where(and(...costConditions));
-      return computeMargin({
-        revenueOmr: Number(revRow?.total ?? 0),
-        employeeCostOmr: Number(costRow?.total ?? 0),
-        platformOverheadOmr: input.platformOverheadOmr,
+      const [overheadRow] = await db
+        .select({ total: sum(employeeCostRecords.overheadAllocation) })
+        .from(employeeCostRecords)
+        .where(and(...costConditions));
+      const [revCountRow] = await db
+        .select({ total: count(companyRevenueRecords.id) })
+        .from(companyRevenueRecords)
+        .where(and(...revConditions));
+      const [costCountRow] = await db
+        .select({ total: count(employeeCostRecords.id) })
+        .from(employeeCostRecords)
+        .where(and(...costConditions));
+
+      let wpsMissingCount = 0;
+      let wpsInvalidCount = 0;
+      const wpsRows = await db
+        .select({
+          result: employeeWpsValidations.result,
+          total: count(employeeWpsValidations.id),
+        })
+        .from(employeeWpsValidations)
+        .where(eq(employeeWpsValidations.companyId, cid))
+        .groupBy(employeeWpsValidations.result);
+      for (const row of wpsRows) {
+        if (row.result === "missing") wpsMissingCount = Number(row.total ?? 0);
+        if (row.result === "invalid") wpsInvalidCount = Number(row.total ?? 0);
+      }
+
+      const revenueOmr = Number(revRow?.total ?? 0);
+      const recordedCostOmr = Number(costRow?.total ?? 0);
+      const recordedOverheadOmr = Number(overheadRow?.total ?? 0);
+      const platformOverheadOmr = input.platformOverheadOmr ?? recordedOverheadOmr;
+      const employeeCostOmr = Math.max(0, recordedCostOmr - recordedOverheadOmr);
+      const revenueRecordCount = Number(revCountRow?.total ?? 0);
+      const employeeCostRecordCount = Number(costCountRow?.total ?? 0);
+
+      const dataQuality = derivePnlDataQuality({
+        revenueRecordCount,
+        employeeCostRecordCount,
+        overheadOmr: platformOverheadOmr,
+        wpsMissingCount,
+        wpsInvalidCount,
       });
+
+      const margin = computeMargin({
+        revenueOmr,
+        employeeCostOmr,
+        platformOverheadOmr,
+      });
+
+      const now = new Date();
+      const periodYear = input.periodYear ?? now.getFullYear();
+      const periodMonth = input.periodMonth ?? now.getMonth() + 1;
+      const periodLabel = new Date(periodYear, periodMonth - 1, 1).toLocaleString("en-GB", {
+        month: "short",
+        year: "numeric",
+      });
+      return {
+        ...margin,
+        periodYear,
+        periodMonth,
+        periodLabel,
+        hasAnyData: revenueRecordCount > 0 || employeeCostRecordCount > 0,
+        dataQualityStatus: dataQuality.status,
+        dataQualityMessages: dataQuality.messages,
+        recordCounts: {
+          revenue: revenueRecordCount,
+          employeeCost: employeeCostRecordCount,
+          wpsMissing: wpsMissingCount,
+          wpsInvalid: wpsInvalidCount,
+        },
+      };
     }),
 
   /** Get monthly P&L trend for the last N months. */
@@ -770,14 +885,14 @@ export const financeHRRouter = router({
     .input(z.object({
       companyId: z.number().optional(),
       months: z.number().min(1).max(24).default(6),
-      platformOverheadOmrPerMonth: z.number().min(0).default(0),
+      platformOverheadOmrPerMonth: z.number().min(0).optional(),
     }))
     .query(async ({ input, ctx }) => {
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) return [];
       const now = new Date();
-      const results: Array<{ periodYm: string } & FinancialEngineResult> = [];
+      const results: Array<{ periodYm: string; periodLabel: string } & FinancialEngineResult> = [];
       for (let i = input.months - 1; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const year = d.getFullYear();
@@ -799,11 +914,28 @@ export const financeHRRouter = router({
             eq(employeeCostRecords.periodYear, year),
             eq(employeeCostRecords.periodMonth, month),
           ));
-        results.push({ periodYm, ...computeMargin({
-          revenueOmr: Number(revRow?.total ?? 0),
-          employeeCostOmr: Number(costRow?.total ?? 0),
-          platformOverheadOmr: input.platformOverheadOmrPerMonth,
-        }) });
+        const [overheadRow] = await db
+          .select({ total: sum(employeeCostRecords.overheadAllocation) })
+          .from(employeeCostRecords)
+          .where(and(
+            eq(employeeCostRecords.companyId, cid),
+            eq(employeeCostRecords.periodYear, year),
+            eq(employeeCostRecords.periodMonth, month),
+          ));
+        const recordedCostOmr = Number(costRow?.total ?? 0);
+        const recordedOverheadOmr = Number(overheadRow?.total ?? 0);
+        const platformOverheadOmr = input.platformOverheadOmrPerMonth ?? recordedOverheadOmr;
+        const employeeCostOmr = Math.max(0, recordedCostOmr - recordedOverheadOmr);
+        const periodLabel = d.toLocaleString("en-GB", { month: "short" });
+        results.push({
+          periodYm,
+          periodLabel,
+          ...computeMargin({
+            revenueOmr: Number(revRow?.total ?? 0),
+            employeeCostOmr,
+            platformOverheadOmr,
+          }),
+        });
       }
       return results;
     }),

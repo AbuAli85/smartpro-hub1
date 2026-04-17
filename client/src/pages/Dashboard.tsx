@@ -25,6 +25,7 @@ import { WorkforceHealthWidget } from "@/components/WorkforceHealthWidget";
 import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 import { OwnerSetupChecklist } from "@/components/OwnerSetupChecklist";
 import { ExecutiveControlTower } from "@/components/dashboard/ExecutiveControlTower";
+import { FinancialSummaryCard } from "@/components/dashboard/FinancialSummaryCard";
 import PreCompanyDashboard from "@/components/dashboard/PreCompanyDashboard";
 import { ManagementCadencePanel } from "@/components/dashboard/ManagementCadencePanel";
 import { isPreCompanyWorkspaceUser } from "@/lib/workspaceMode";
@@ -837,6 +838,13 @@ export default function Dashboard() {
             <Link href="/analytics">{t("dashboard:analytics")}</Link>
           </Button>
         </div>
+      )}
+
+      {!showPlatformOverview && activeCompanyId && (
+        <FinancialSummaryCard
+          companyId={activeCompanyId}
+          canOpenFinanceOverview={showHref("/finance/overview")}
+        />
       )}
 
       {/* ── Cash received (paid) — only when cadence panel is absent; otherwise folded into ManagementCadencePanel ── */}

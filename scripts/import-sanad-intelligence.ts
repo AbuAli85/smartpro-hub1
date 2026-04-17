@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import { eq, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { drizzle } from "drizzle-orm/mysql2";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import * as schema from "../drizzle/schema";
 import { fingerprintCenterRow, governorateKeyFromLabel } from "../server/sanad-intelligence/normalize";
 import {
@@ -95,6 +95,42 @@ function csvTextToAoa(raw: string): unknown[][] {
     .split(/\r?\n/)
     .filter((l) => l.trim().length > 0)
     .map((l) => parseCsvLine(l));
+}
+
+function excelCellToText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "object") {
+    const rec = value as Record<string, unknown>;
+    if (rec.result !== undefined && rec.result !== null) return excelCellToText(rec.result);
+    if (typeof rec.text === "string") return rec.text.trim();
+    if (Array.isArray(rec.richText)) {
+      return rec.richText
+        .map((part) => (typeof part === "object" && part !== null ? String((part as Record<string, unknown>).text ?? "") : ""))
+        .join("")
+        .trim();
+    }
+    if (typeof rec.hyperlink === "string") return rec.hyperlink.trim();
+  }
+  return String(value).trim();
+}
+
+async function xlsxFileToAoa(filePath: string): Promise<unknown[][]> {
+  const wb = new ExcelJS.Workbook();
+  const data = await fs.readFile(filePath);
+  await wb.xlsx.load(data);
+  const ws = wb.worksheets[0];
+  if (!ws) return [];
+
+  const aoa: unknown[][] = [];
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    const cells = Array.isArray(row.values) ? row.values.slice(1) : [];
+    const line = cells.map((cell) => excelCellToText(cell));
+    if (line.some((v) => String(v).trim().length > 0)) {
+      aoa.push(line);
+    }
+  });
+  return aoa;
 }
 
 type SanadIntelDb = MySql2Database<typeof schema>;
@@ -371,14 +407,8 @@ async function main() {
   if (!directoryLoaded) {
     const xlsxPath = path.join(dir, "SanadCenterDirectory.xlsx");
     try {
-      const buf = await fs.readFile(xlsxPath);
       sourceFiles.push("SanadCenterDirectory.xlsx");
-      const wb = XLSX.read(buf, { type: "buffer" });
-      const sheetName = wb.SheetNames[0];
-      if (!sheetName) throw new Error("No sheet in workbook");
-      const sheet = wb.Sheets[sheetName];
-      if (!sheet) throw new Error("Missing sheet");
-      const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 }) as unknown[][];
+      const aoa = await xlsxFileToAoa(xlsxPath);
       if (aoa.length < 2) throw new Error("Sheet has no rows");
       rowCounts.directoryRows = await importDirectoryFromAoa(db, batchId, aoa);
       console.log(

@@ -9,7 +9,7 @@ import { createPool } from "mysql2/promise";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "../data/sanad-intelligence/import");
@@ -85,6 +85,32 @@ function readJson(filename) {
     console.error(`  ✗ Could not read ${filename}: ${e.message}`);
     return null;
   }
+}
+
+function excelCellToText(value) {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "object") {
+    if (value.result !== undefined && value.result !== null) return excelCellToText(value.result);
+    if (typeof value.text === "string") return value.text.trim();
+    if (Array.isArray(value.richText)) return value.richText.map((p) => p?.text ?? "").join("").trim();
+    if (typeof value.hyperlink === "string") return value.hyperlink.trim();
+  }
+  return String(value).trim();
+}
+
+async function xlsxToAoa(filePath) {
+  const buf = readFileSync(filePath);
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  const ws = wb.worksheets[0];
+  if (!ws) return [];
+  const aoa = [];
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    const line = (Array.isArray(row.values) ? row.values.slice(1) : []).map(excelCellToText);
+    if (line.some((v) => String(v).trim().length > 0)) aoa.push(line);
+  });
+  return aoa;
 }
 
 // ─── 1. Create import batch ───────────────────────────────────────────────────
@@ -286,12 +312,8 @@ async function importServices(batchId) {
 async function importCenters(batchId) {
   console.log("\n[5/5] Importing SANAD center directory from XLSX...");
   const xlsxPath = join(DATA_DIR, "SanadCenterDirectory.xlsx");
-  let buf;
-  try { buf = readFileSync(xlsxPath); } catch (e) { console.error("  ✗ Cannot read XLSX:", e.message); return 0; }
-
-  const wb = XLSX.read(buf, { type: "buffer" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  let aoa;
+  try { aoa = await xlsxToAoa(xlsxPath); } catch (e) { console.error("  ✗ Cannot read XLSX:", e.message); return 0; }
   if (aoa.length < 2) { console.error("  ✗ XLSX has no data rows"); return 0; }
 
   const rawHeaders = (aoa[0] ?? []).map(c => String(c ?? ""));

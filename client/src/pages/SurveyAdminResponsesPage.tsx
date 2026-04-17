@@ -54,6 +54,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import ExcelJS from "exceljs";
 
 type StatusFilter = "all" | "in_progress" | "completed" | "abandoned";
 
@@ -223,15 +224,24 @@ function downloadResponsesCsv(rows: ExportRow[], filename: string): void {
 }
 
 async function downloadResponsesXlsx(rows: ExportRow[], filename: string): Promise<void> {
-  const XLSX = await import("xlsx");
-  const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows.map(rowToArray)]);
-  // Auto-width columns
-  ws["!cols"] = EXPORT_HEADERS.map((h, i) => ({
-    wch: Math.max(h.length, ...rows.map((r) => (rowToArray(r)[i] ?? "").length), 10),
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Responses");
+  ws.addRow(EXPORT_HEADERS);
+  for (const row of rows) {
+    ws.addRow(rowToArray(row));
+  }
+  ws.columns = EXPORT_HEADERS.map((h, i) => ({
+    width: Math.max(h.length, ...rows.map((r) => (rowToArray(r)[i] ?? "").length), 10),
   }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Responses");
-  XLSX.writeFile(wb, filename);
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function downloadResponsesPdf(rows: ExportRow[], filename: string, statusLabel: string): void {

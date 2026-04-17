@@ -9,7 +9,7 @@ import {
   TrendingUp, Download, Pencil, Trash2, CheckCircle, RefreshCw,
   ClipboardList, CalendarDays, ScrollText, MapPin,
 } from "lucide-react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DialogFooter } from "@/components/ui/dialog";
@@ -1491,23 +1491,44 @@ export default function HRAttendancePage() {
         companyId: activeCompanyId,
         month: monthFilter,
       });
-      const ws = XLSX.utils.json_to_sheet(
-        result.rows.map((r) => ({
-          Employee: r.employeeName,
-          Site: r.siteName ?? "?",
-          "Client / Brand": r.clientName ?? "?",
-          "Days Present": r.daysPresent,
-          "Days Absent": r.daysAbsent,
-          "Days Late": r.daysLate,
-          "Worked Hours": (r.totalWorkedMinutes / 60).toFixed(1),
-          "Billable Hours": r.billableHours.toFixed(1),
-          "Scheduled Hours": (r.scheduledMinutes / 60).toFixed(1),
-          "Attendance Rate": `${r.attendanceRate}%`,
-        })),
-      );
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, `Attendance ${monthFilter}`);
-      XLSX.writeFile(wb, `attendance-${monthFilter}.xlsx`);
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet(`Attendance ${monthFilter}`);
+      ws.columns = [
+        { header: "Employee", key: "employee", width: 28 },
+        { header: "Site", key: "site", width: 20 },
+        { header: "Client / Brand", key: "client", width: 24 },
+        { header: "Days Present", key: "present", width: 14 },
+        { header: "Days Absent", key: "absent", width: 14 },
+        { header: "Days Late", key: "late", width: 12 },
+        { header: "Worked Hours", key: "worked", width: 14 },
+        { header: "Billable Hours", key: "billable", width: 14 },
+        { header: "Scheduled Hours", key: "scheduled", width: 14 },
+        { header: "Attendance Rate", key: "rate", width: 16 },
+      ];
+      for (const r of result.rows) {
+        ws.addRow({
+          employee: r.employeeName,
+          site: r.siteName ?? "?",
+          client: r.clientName ?? "?",
+          present: r.daysPresent,
+          absent: r.daysAbsent,
+          late: r.daysLate,
+          worked: (r.totalWorkedMinutes / 60).toFixed(1),
+          billable: r.billableHours.toFixed(1),
+          scheduled: (r.scheduledMinutes / 60).toFixed(1),
+          rate: `${r.attendanceRate}%`,
+        });
+      }
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `attendance-${monthFilter}.xlsx`;
+      anchor.click();
+      URL.revokeObjectURL(url);
       toast.success(t("attendance.exportDownloaded"));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : t("attendance.exportFailed");

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
@@ -166,15 +166,133 @@ function excelScalarToString(val: unknown): string {
   return String(val).trim();
 }
 
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  let cur = "";
+  let inQuotes = false;
+  while (i < line.length) {
+    const c = line[i]!;
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      cur += c;
+      i++;
+      continue;
+    }
+    if (c === '"') {
+      inQuotes = true;
+      i++;
+      continue;
+    }
+    if (c === ",") {
+      out.push(cur);
+      cur = "";
+      i++;
+      continue;
+    }
+    cur += c;
+    i++;
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+
+function parseCsvRows(raw: string): Record<string, unknown>[] {
+  const lines = raw
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return [];
+  const headers = parseCsvLine(lines[0] ?? "");
+  const rows: Record<string, unknown>[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCsvLine(lines[i] ?? "");
+    const row: Record<string, unknown> = {};
+    let hasAny = false;
+    for (let c = 0; c < headers.length; c++) {
+      const key = headers[c];
+      if (!key) continue;
+      const value = cols[c] ?? "";
+      if (value !== "") hasAny = true;
+      row[key] = value;
+    }
+    if (hasAny) rows.push(row);
+  }
+  return rows;
+}
+
+function workbookCellToString(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "object") {
+    const rec = value as Record<string, unknown>;
+    if (rec.result !== undefined && rec.result !== null) return workbookCellToString(rec.result);
+    if (typeof rec.text === "string") return rec.text.trim();
+    if (Array.isArray(rec.richText)) {
+      return rec.richText
+        .map((part) =>
+          typeof part === "object" && part !== null ? String((part as Record<string, unknown>).text ?? "") : "",
+        )
+        .join("")
+        .trim();
+    }
+    if (typeof rec.hyperlink === "string") return rec.hyperlink.trim();
+  }
+  return excelScalarToString(value);
+}
+
+async function parseWorkbookRows(buffer: ArrayBuffer): Promise<Record<string, unknown>[]> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer);
+  const ws = wb.worksheets[0];
+  if (!ws) return [];
+
+  const headerRow = ws.getRow(1);
+  const headerCells = Math.max(headerRow.cellCount, headerRow.actualCellCount);
+  const headers: string[] = [];
+  for (let i = 1; i <= headerCells; i++) {
+    headers.push(workbookCellToString(headerRow.getCell(i).value));
+  }
+  if (headers.every((h) => h.length === 0)) return [];
+
+  const rows: Record<string, unknown>[] = [];
+  for (let r = 2; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    if (row.cellCount === 0 && row.actualCellCount === 0) continue;
+    const obj: Record<string, unknown> = {};
+    let hasAny = false;
+    for (let c = 1; c <= headers.length; c++) {
+      const key = headers[c - 1];
+      if (!key) continue;
+      const value = workbookCellToString(row.getCell(c).value);
+      if (value !== "") hasAny = true;
+      obj[key] = value;
+    }
+    if (hasAny) rows.push(obj);
+  }
+  return rows;
+}
+
 function parseExcelFile(file: File): Promise<ParsedRow[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: "array" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rawRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
+        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const lowerName = file.name.toLowerCase();
+        const rawRows =
+          lowerName.endsWith(".csv")
+            ? parseCsvRows(new TextDecoder("utf-8").decode(new Uint8Array(arrayBuffer)))
+            : await parseWorkbookRows(arrayBuffer);
 
         if (rawRows.length === 0) { resolve([]); return; }
 
@@ -237,7 +355,7 @@ function parseExcelFile(file: File): Promise<ParsedRow[]> {
   });
 }
 
-function downloadTemplate() {
+async function downloadTemplate() {
   const headers = [
     "Employee Name", "First Name", "Last Name",
     "First Name (AR)", "Last Name (AR)",
@@ -264,12 +382,21 @@ function downloadTemplate() {
     "PASI-12345", "Bank Muscat", "0123456789",
     "Mohammed Al-Rashidi", "+968 99876543",
   ];
-  const ws = XLSX.utils.aoa_to_sheet([headers, example]);
-  // Style header row
-  ws["!cols"] = headers.map(() => ({ wch: 20 }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Employees");
-  XLSX.writeFile(wb, "SmartPRO_Employee_Import_Template.xlsx");
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Employees");
+  ws.addRow(headers);
+  ws.addRow(example);
+  ws.columns = headers.map(() => ({ width: 20 }));
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "SmartPRO_Employee_Import_Template.xlsx";
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -421,7 +548,7 @@ export default function EmployeeImportPage() {
                 Any column order is accepted — headers are matched automatically.
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={downloadTemplate} className="shrink-0">
+            <Button variant="outline" size="sm" onClick={() => void downloadTemplate()} className="shrink-0">
               <Download size={13} className="mr-1.5" /> Template
             </Button>
           </div>

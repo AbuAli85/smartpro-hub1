@@ -1,5 +1,10 @@
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { ClientWorkspaceLayout } from "@/features/clientWorkspace/ClientWorkspaceLayout";
+import { ClientWorkspaceOnboarding } from "@/features/clientWorkspace/ClientWorkspaceOnboarding";
+import { ClientWorkspaceBootstrapSkeleton } from "@/features/clientWorkspace/ClientWorkspaceBootstrapSkeleton";
 import ClientDashboardPage from "./ClientDashboardPage";
 import ClientEngagementsPage from "./ClientEngagementsPage";
 import ClientEngagementDetailPage from "./ClientEngagementDetailPage";
@@ -10,8 +15,25 @@ import ClientTeamPage from "./ClientTeamPage";
 
 /**
  * Shell + nested routes for `/client/*` (strict client workspace).
+ * Users without any company membership see full-page onboarding (no sidebar) until a workspace exists.
  */
 export default function ClientWorkspaceRoutes() {
+  const { isAuthenticated, user, loading: authLoading } = useAuth();
+  const { loading: companyCtxLoading, companies } = useActiveCompany();
+  const bootstrapLoading = authLoading || companyCtxLoading;
+
+  if (bootstrapLoading) {
+    return <ClientWorkspaceBootstrapSkeleton />;
+  }
+
+  if (!isAuthenticated || !user) {
+    return <Redirect to={getLoginUrl()} />;
+  }
+
+  if (companies.length === 0) {
+    return <ClientWorkspaceOnboarding />;
+  }
+
   return (
     <ClientWorkspaceLayout>
       <Switch>

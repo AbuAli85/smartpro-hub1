@@ -281,6 +281,13 @@ describe("clientRouteAccessible", () => {
     expect(clientRouteAccessible("/client-portal", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
   });
 
+  it("allows pre-workspace company creation from portal shell", () => {
+    expect(clientRouteAccessible("/company/create", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
+    expect(clientRouteAccessible("/company/team-access", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(
+      true,
+    );
+  });
+
   it("respects hidden optional nav subtrees", () => {
     const hidden = new Set(["/analytics"]);
     const ownerOpts = { memberRole: "company_admin" as const };

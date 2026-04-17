@@ -46,6 +46,19 @@
     "kpiAwaitingYou": "Awaiting you",
     "kpiInvoices": "Invoices",
     "kpiToSign": "To sign",
+    "onboarding": {
+      "title": "Set up your workspace",
+      "subtitle": "Create a company to use your SmartPRO client workspace. Engagements, documents, and billing will appear here once your workspace exists.",
+      "step1Title": "Create your company",
+      "step1Body": "Add your organization so SmartPRO can link engagements, invoices, and messages to the right account.",
+      "step1Cta": "Create company",
+      "step2Title": "Invite your team (optional)",
+      "step2Body": "After your company exists, invite colleagues from Team or company access settings.",
+      "step2Hint": "Available after step 1",
+      "step3Title": "Start working with SmartPRO",
+      "step3Body": "When your workspace is ready, open Engagements for active work, or use Messages and Documents from the sidebar.",
+      "step3Hint": "Available after step 1"
+    },
     "nav": {
       "dashboard": "Dashboard",
       "engagements": "Engagements",

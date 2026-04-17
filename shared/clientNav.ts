@@ -729,6 +729,9 @@ function portalShellPathAllowed(path: string): boolean {
   if (path === "/client-portal") return true;
   if (PORTAL_CLIENT_HREFS.has(path)) return true;
   if (path.startsWith("/client/")) return true;
+  /** Pre-workspace onboarding from client shell (create company / invite team). */
+  if (path === "/company/create" || path.startsWith("/company/create/")) return true;
+  if (path === "/company/team-access" || path.startsWith("/company/team-access")) return true;
   if (path.startsWith("/contracts/") && path.includes("/sign")) return true;
   return false;
 }

@@ -5,8 +5,8 @@
  * Accessible from the Company Switcher "+ Add another company" link.
  * After creation, the new company is auto-selected in the switcher.
  */
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useMemo } from "react";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -119,8 +119,19 @@ const COUNTRIES = [
   { code: "OTHER", name: "Other" },
 ];
 
+function parseSafeClientReturn(search: string): string | null {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  const q = new URLSearchParams(raw);
+  const r = q.get("return");
+  if (!r || !r.startsWith("/") || r.startsWith("//")) return null;
+  if (r === "/client" || r.startsWith("/client/")) return r;
+  return null;
+}
+
 export default function CreateCompanyPage() {
   const [, navigate] = useLocation();
+  const search = useSearch();
+  const returnToClient = useMemo(() => parseSafeClientReturn(search), [search]);
   const utils = trpc.useUtils();
 
   const [form, setForm] = useState({
@@ -198,9 +209,9 @@ export default function CreateCompanyPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => navigate("/dashboard")}
+                onClick={() => navigate(returnToClient ?? "/dashboard")}
               >
-                Go to Dashboard
+                {returnToClient ? "Go to workspace" : "Go to Dashboard"}
               </Button>
               <Button
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white"

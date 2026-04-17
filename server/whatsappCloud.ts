@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { Express, Request, Response } from "express";
 import express from "express";
+import { metaWhatsAppWebhookRateLimiter } from "./_core/security";
 import { toWhatsAppPhoneDigits } from "@shared/whatsappPhoneDigits";
 
 function trimEnv(key: string): string {
@@ -255,7 +256,7 @@ function logInboundWebhookPayload(body: unknown): void {
 export function registerWhatsAppWebhookRoutes(app: Express): void {
   const verifyToken = trimEnv("WHATSAPP_WEBHOOK_VERIFY_TOKEN");
 
-  app.get("/api/webhooks/whatsapp", (req: Request, res: Response) => {
+  app.get("/api/webhooks/whatsapp", metaWhatsAppWebhookRateLimiter, (req: Request, res: Response) => {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
@@ -274,6 +275,7 @@ export function registerWhatsAppWebhookRoutes(app: Express): void {
 
   app.post(
     "/api/webhooks/whatsapp",
+    metaWhatsAppWebhookRateLimiter,
     express.raw({ type: "application/json", limit: "5mb" }),
     (req: Request, res: Response) => {
       const raw = req.body;

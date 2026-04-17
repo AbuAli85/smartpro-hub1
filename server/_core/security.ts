@@ -113,6 +113,17 @@ export const paymentProviderWebhookRateLimiter = rateLimit({
   message: { error: "Too many webhook requests." },
 });
 
+/**
+ * Meta WhatsApp Cloud webhooks (GET verify + POST HMAC) — CodeQL js/missing-rate-limiting.
+ */
+export const metaWhatsAppWebhookRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many webhook requests." },
+});
+
 // ─── Input sanitisation ───────────────────────────────────────────────────────
 /**
  * Recursively sanitises an object:

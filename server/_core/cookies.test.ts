@@ -42,14 +42,18 @@ describe("getSessionCookieOptions SameSite", () => {
     expect(opts.secure).toBe(true);
   });
 
-  it("falls back to SameSite=Lax when crossSite=true but request is HTTP (local dev)", () => {
+  it("uses SameSite=None;Secure=true for crossSite=true even on plain HTTP (Cloudflare proxy may not forward X-Forwarded-Proto)", () => {
     const opts = getSessionCookieOptions(
       mockReq({ hostname: "localhost", protocol: "http" }),
       { crossSite: true }
     );
-    // SameSite=None requires Secure; on plain HTTP we must fall back to Lax
-    expect(opts.sameSite).toBe("lax");
-    expect(opts.secure).toBe(false);
+    // crossSite=true forces SameSite=None;Secure=true unconditionally.
+    // We cannot rely on isSecureRequest() because Cloudflare may not forward
+    // X-Forwarded-Proto to the origin, causing req.protocol to return "http"
+    // even though the client connection is HTTPS. OAuth callbacks are always
+    // HTTPS in production, so forcing Secure=true is safe.
+    expect(opts.sameSite).toBe("none");
+    expect(opts.secure).toBe(true);
   });
 
   it("uses SameSite=None when X-Forwarded-Proto is https (Cloudflare proxy)", () => {

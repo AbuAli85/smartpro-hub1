@@ -54,19 +54,27 @@ export function getSessionCookieOptions(
     hostname !== "::1";
 
   const domain = shouldSetDomain ? sessionCookieDomain(hostname) : undefined;
-  const secure = isSecureRequest(req);
 
-  // OAuth callbacks arrive as a cross-site top-level redirect from manus.im.
-  // Chrome (and all modern browsers) silently drop SameSite=Lax cookies that are
-  // set during a cross-site navigation — the session never lands.
-  // SameSite=None requires Secure=true; fall back to Lax on plain HTTP (local dev).
-  const sameSite: CookieOptions["sameSite"] = crossSite && secure ? "none" : "lax";
+  // When crossSite=true (OAuth callback from manus.im), we MUST use SameSite=None;Secure
+  // so the browser keeps the cookie on the cross-site top-level redirect.
+  //
+  // IMPORTANT: We force secure=true unconditionally when crossSite=true.
+  // We cannot rely on isSecureRequest() here because Cloudflare may not forward
+  // X-Forwarded-Proto to the origin container, causing req.protocol to return "http"
+  // even though the client connection is HTTPS. If secure=false, SameSite=None is
+  // invalid per spec and browsers fall back to SameSite=Lax, which drops the cookie
+  // on the cross-site redirect — the session never lands.
+  //
+  // OAuth callbacks are always HTTPS in production, so forcing secure=true is safe.
+  // On local dev (plain HTTP), crossSite is still false so this path is not taken.
+  const effectiveSameSite: CookieOptions["sameSite"] = crossSite ? "none" : "lax";
+  const effectiveSecure = crossSite ? true : isSecureRequest(req);
 
   return {
     httpOnly: true,
     path: "/",
-    sameSite,
-    secure,
+    sameSite: effectiveSameSite,
+    secure: effectiveSecure,
     ...(domain ? { domain } : {}),
   };
 }

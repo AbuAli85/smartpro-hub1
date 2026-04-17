@@ -41,11 +41,39 @@ function sessionCookieDomain(hostname: string): string | undefined {
   return lower;
 }
 
+/**
+ * Resolve the canonical hostname for the session cookie Domain attribute.
+ *
+ * The Manus platform routes requests through an internal reverse proxy that
+ * presents its own hostname (e.g. `smartprohub-q4qjnxjv.manus.space`) to the
+ * Express process, even when the public-facing URL is `www.thesmartpro.io`.
+ * If we use `req.hostname` for the cookie Domain, the browser at the public URL
+ * will never send the cookie back because the Domain attribute won't match.
+ *
+ * Fix: prefer `PUBLIC_APP_URL` (set in Manus Secrets) as the authoritative
+ * hostname. Fall back to `req.hostname` only when `PUBLIC_APP_URL` is absent
+ * (local dev, or deployments without a custom domain).
+ */
+function resolveCanonicalHostname(req: Request): string {
+  const publicUrl = (process.env.PUBLIC_APP_URL ?? process.env.APP_PUBLIC_URL ?? "").trim();
+  if (publicUrl) {
+    try {
+      return new URL(publicUrl).hostname;
+    } catch {
+      // malformed env — fall through to req.hostname
+    }
+  }
+  return req.hostname;
+}
+
 export function getSessionCookieOptions(
   req: Request,
   { crossSite = false }: { crossSite?: boolean } = {}
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  const hostname = req.hostname;
+  // Use the canonical public hostname (from PUBLIC_APP_URL) rather than
+  // req.hostname, which may be the internal Manus container hostname and would
+  // produce a cookie Domain that the browser at the public URL never sends back.
+  const hostname = resolveCanonicalHostname(req);
   const shouldSetDomain =
     hostname &&
     !LOCAL_HOSTS.has(hostname) &&

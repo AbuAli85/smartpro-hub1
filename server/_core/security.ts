@@ -78,6 +78,28 @@ export const publicRateLimiter = rateLimit({
   message: { error: "Rate limit exceeded. Please slow down." },
 });
 
+/**
+ * Dev-only: Vite SPA fallback re-reads `client/index.html` from disk per request.
+ * Rate-limit that path to limit disk abuse (CodeQL js/missing-rate-limiting) while
+ * staying well above normal local dev traffic (nav + refresh + HMR).
+ */
+export const viteDevSpaHtmlRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 180,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many page loads. Please slow down." },
+});
+
+/** Production: SPA fallback `sendFile(index.html)` (see vite-static.ts). */
+export const staticSpaFallbackRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please try again shortly." },
+});
+
 // ─── Input sanitisation ───────────────────────────────────────────────────────
 /**
  * Recursively sanitises an object:

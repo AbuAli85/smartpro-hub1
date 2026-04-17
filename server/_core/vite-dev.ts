@@ -4,6 +4,8 @@ import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
 
+import { viteDevSpaHtmlRateLimiter } from "./security";
+
 /** Dev-only: Vite middleware + HMR. Kept out of the production bundle via esbuild `--define`. */
 export async function setupVite(app: Express, server: Server) {
   const { createServer: createViteServer } = await import("vite");
@@ -32,7 +34,7 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
-  app.use("*", async (req, res, next) => {
+  app.use("*", viteDevSpaHtmlRateLimiter, async (req, res, next) => {
     const url = req.originalUrl;
 
     try {

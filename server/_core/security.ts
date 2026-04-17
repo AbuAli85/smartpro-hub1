@@ -255,44 +255,40 @@ function normalizeHttpOrigin(origin: string): string | null {
   }
 }
 
-/** Origins that may receive credentialed CORS responses — never reflect arbitrary Origin. */
-function corsAllowedOriginSet(req: Request): Set<string> {
-  if (process.env.ALLOWED_ORIGINS) {
-    const set = new Set<string>();
-    for (const part of process.env.ALLOWED_ORIGINS.split(",")) {
-      const o = part.trim();
-      if (!o) continue;
-      const n = normalizeHttpOrigin(o);
-      if (n) set.add(n);
-    }
-    return set;
+/** Normalised origin → exact `ALLOWED_ORIGINS` entry (server config only, no `Request`). */
+function configuredCorsOriginLiteralsByNormalized(): Map<string, string> {
+  const m = new Map<string, string>();
+  const raw = process.env.ALLOWED_ORIGINS;
+  if (!raw) return m;
+  for (const part of raw.split(",")) {
+    const entry = part.trim();
+    if (!entry) continue;
+    const n = normalizeHttpOrigin(entry);
+    if (n) m.set(n, entry);
   }
-  const host = (req.get("host") ?? "").split(",")[0].trim();
-  if (!host) return new Set();
-  const fallback = `${req.protocol}//${host}`;
-  const n = normalizeHttpOrigin(fallback);
-  return new Set(n ? [n] : []);
+  return m;
 }
 
 /**
- * Value for `Access-Control-Allow-Origin` — derived only from env or canonical
- * normalisation after allowlist check (breaks taint to arbitrary `Origin` for CodeQL).
+ * `Access-Control-Allow-Origin` value: from env literals only, or from
+ * `req.protocol` + Host when `ALLOWED_ORIGINS` is unset — never the raw Origin
+ * header string (CodeQL js/cors-misconfiguration-for-credentials).
  */
-function resolveAccessControlAllowOrigin(req: Request, requestOriginHeader: string): string | null {
-  const allowed = corsAllowedOriginSet(req);
-  const reqNorm = normalizeHttpOrigin(requestOriginHeader);
-  if (!reqNorm || !allowed.has(reqNorm)) return null;
+function resolveAccessControlAllowOriginHeader(
+  req: Request,
+  normalizedRequestOrigin: string | null
+): string | null {
+  if (!normalizedRequestOrigin) return null;
 
-  if (process.env.ALLOWED_ORIGINS) {
-    for (const part of process.env.ALLOWED_ORIGINS.split(",")) {
-      const entry = part.trim();
-      if (!entry) continue;
-      if (normalizeHttpOrigin(entry) === reqNorm) return entry;
-    }
-    return null;
+  const literals = configuredCorsOriginLiteralsByNormalized();
+  if (literals.size > 0) {
+    return literals.get(normalizedRequestOrigin) ?? null;
   }
 
-  return reqNorm;
+  const host = (req.get("host") ?? "").split(",")[0].trim();
+  if (!host) return null;
+  const built = `${req.protocol}//${host}`;
+  return normalizeHttpOrigin(built) === normalizedRequestOrigin ? built : null;
 }
 
 /**
@@ -305,13 +301,14 @@ function resolveAccessControlAllowOrigin(req: Request, requestOriginHeader: stri
  *
  * Allowed origins are read from the ALLOWED_ORIGINS env var (comma-separated).
  * If unset, only this server's own origin (from Host + protocol) is allowed —
- * never echo a client Origin unless it is on that allowlist (CodeQL
- * js/cors-misconfiguration-for-credentials).
+ * never echo the raw `Origin` header; ACAO is only an env literal or
+ * protocol+Host from this request (CodeQL js/cors-misconfiguration-for-credentials).
  */
 export function corsMiddleware(req: Request, res: Response, next: NextFunction) {
   const origin = headerFirstString(req.headers.origin);
   if (origin) {
-    const acao = resolveAccessControlAllowOrigin(req, origin);
+    const originNorm = normalizeHttpOrigin(origin);
+    const acao = resolveAccessControlAllowOriginHeader(req, originNorm);
     if (acao) {
       res.setHeader("Access-Control-Allow-Origin", acao);
       res.setHeader("Vary", "Origin");

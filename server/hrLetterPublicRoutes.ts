@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { and, eq } from "drizzle-orm";
 import { hrLetters } from "../drizzle/schema";
+import { hrLetterPublicViewRateLimiter } from "./_core/security";
 import { getDb, getCompanyById } from "./db";
 import { verifyHRLetterViewToken } from "./hrLetterViewToken";
 import { sanitizeLetterHtml } from "./_core/sanitizeLetterHtml";
@@ -30,7 +31,7 @@ function buildLetterBodyHtml(letter: {
 }
 
 export function registerHRLetterPublicRoutes(app: Express): void {
-  app.get("/api/hr-letters/view", async (req: Request, res: Response) => {
+  app.get("/api/hr-letters/view", hrLetterPublicViewRateLimiter, async (req: Request, res: Response) => {
     const token = typeof req.query.token === "string" ? req.query.token : "";
     if (!token) {
       res.status(400).type("text/plain").send("Missing token");

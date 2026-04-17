@@ -124,6 +124,17 @@ export const metaWhatsAppWebhookRateLimiter = rateLimit({
   message: { error: "Too many webhook requests." },
 });
 
+/**
+ * Public HR letter view (GET + signed token + DB) — CodeQL js/missing-rate-limiting.
+ */
+export const hrLetterPublicViewRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait and try again." },
+});
+
 // ─── Input sanitisation ───────────────────────────────────────────────────────
 /**
  * Recursively sanitises an object:

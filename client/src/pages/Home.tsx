@@ -2,7 +2,7 @@
 import { SignInCallbackErrorBanner } from "@/components/SignInCallbackErrorBanner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getLoginUrl } from "@/const";
+import { getLoginUrl, warmUpServer } from "@/const";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -290,11 +290,11 @@ export default function Home() {
               </>
             ) : (
               <>
-                <Button variant="ghost" size="sm" asChild>
-                  <a href={getLoginUrl()}>Sign in</a>
+                <Button variant="ghost" size="sm" onClick={async () => { await warmUpServer(); window.location.href = getLoginUrl(); }}>
+                  Sign in
                 </Button>
                 <Button size="sm" className="landing-cta-primary font-semibold shadow-sm" asChild>
-                  <a href={getLoginUrl()}>Get started</a>
+                  <button onClick={async () => { await warmUpServer(); window.location.href = getLoginUrl(); }}>Get started</button>
                 </Button>
               </>
             )}
@@ -333,9 +333,9 @@ export default function Home() {
                     className="landing-cta-primary font-semibold px-8 shadow-lg h-12"
                     asChild
                   >
-                    <a href={getLoginUrl()}>
+                    <button onClick={async () => { await warmUpServer(); window.location.href = getLoginUrl(); }}>
                       Start free trial <ArrowRight size={16} className="ml-2" />
-                    </a>
+                    </button>
                   </Button>
                   <Button
                     size="lg"
@@ -821,9 +821,9 @@ export default function Home() {
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button size="lg" className="landing-cta-primary font-semibold px-8 h-12 shadow-lg" asChild>
-                <a href={getLoginUrl()}>
+                <button onClick={async () => { await warmUpServer(); window.location.href = getLoginUrl(); }}>
                   Get started free <ArrowRight size={16} className="ml-2" />
-                </a>
+                </button>
               </Button>
               <Button
                 size="lg"

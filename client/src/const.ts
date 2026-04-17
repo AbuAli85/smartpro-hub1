@@ -20,3 +20,19 @@ export const getLoginUrl = (returnPath?: string) => {
 
   return url.toString();
 };
+
+/**
+ * Warm up the production server before redirecting to OAuth login.
+ * Production containers may be sleeping; pinging /api/health ensures the server
+ * is warm and ready to handle the OAuth callback before the short-lived auth code
+ * is issued — preventing "invalid or expired authorization code" errors on cold starts.
+ *
+ * Usage: await warmUpServer(); window.location.href = getLoginUrl();
+ */
+export const warmUpServer = async (): Promise<void> => {
+  try {
+    await fetch("/api/health", { method: "GET", cache: "no-store" });
+  } catch {
+    // Non-fatal: if the ping fails, proceed with login anyway
+  }
+};

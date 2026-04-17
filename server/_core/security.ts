@@ -275,6 +275,27 @@ function corsAllowedOriginSet(req: Request): Set<string> {
 }
 
 /**
+ * Value for `Access-Control-Allow-Origin` — derived only from env or canonical
+ * normalisation after allowlist check (breaks taint to arbitrary `Origin` for CodeQL).
+ */
+function resolveAccessControlAllowOrigin(req: Request, requestOriginHeader: string): string | null {
+  const allowed = corsAllowedOriginSet(req);
+  const reqNorm = normalizeHttpOrigin(requestOriginHeader);
+  if (!reqNorm || !allowed.has(reqNorm)) return null;
+
+  if (process.env.ALLOWED_ORIGINS) {
+    for (const part of process.env.ALLOWED_ORIGINS.split(",")) {
+      const entry = part.trim();
+      if (!entry) continue;
+      if (normalizeHttpOrigin(entry) === reqNorm) return entry;
+    }
+    return null;
+  }
+
+  return reqNorm;
+}
+
+/**
  * Explicit CORS middleware.
  *
  * When the app is served from the same origin as the API (typical deployment),
@@ -290,10 +311,9 @@ function corsAllowedOriginSet(req: Request): Set<string> {
 export function corsMiddleware(req: Request, res: Response, next: NextFunction) {
   const origin = headerFirstString(req.headers.origin);
   if (origin) {
-    const allowed = corsAllowedOriginSet(req);
-    const normalized = normalizeHttpOrigin(origin);
-    if (normalized && allowed.has(normalized)) {
-      res.setHeader("Access-Control-Allow-Origin", origin);
+    const acao = resolveAccessControlAllowOrigin(req, origin);
+    if (acao) {
+      res.setHeader("Access-Control-Allow-Origin", acao);
       res.setHeader("Vary", "Origin");
       res.setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");

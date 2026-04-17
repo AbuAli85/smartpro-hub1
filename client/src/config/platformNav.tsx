@@ -271,6 +271,10 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         intent: "workspace",
         activePathPrefixes: ["/engagements"],
       }),
+      leaf("cw.engagementsOps", "engagementsOps", "Engagements ops", "/engagements/ops", ListTodo, {
+        intent: "workspace",
+        activePathPrefixes: ["/engagements/ops"],
+      }),
     ],
   },
   /* D — People & HR */

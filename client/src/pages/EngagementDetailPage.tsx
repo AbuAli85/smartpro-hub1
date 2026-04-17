@@ -69,6 +69,49 @@ export default function EngagementDetailPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const internalNotes = trpc.engagements.listInternalNotes.useQuery(
+    { engagementId, companyId: activeCompanyId ?? undefined },
+    { enabled: valid && showStaffReply && activeCompanyId != null },
+  );
+  const addNote = trpc.engagements.addInternalNote.useMutation({
+    onSuccess: () => {
+      toast.success(t("noteAdded"));
+      setNoteBody("");
+      internalNotes.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const requestInstr = trpc.engagements.requestPaymentInstructions.useMutation({
+    onSuccess: () => {
+      toast.success(t("messageSent"));
+      setPayInstr("");
+      detail.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const submitProof = trpc.engagements.submitTransferProof.useMutation({
+    onSuccess: () => {
+      toast.success(t("messageSent"));
+      setProofUrl("");
+      setProofRef("");
+      detail.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const verifyProof = trpc.engagements.verifyTransferProof.useMutation({
+    onSuccess: () => detail.refetch(),
+    onError: (e) => toast.error(e.message),
+  });
+  const markPaid = trpc.engagements.markPaidExternally.useMutation({
+    onSuccess: () => detail.refetch(),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [noteBody, setNoteBody] = useState("");
+  const [payInstr, setPayInstr] = useState("");
+  const [proofUrl, setProofUrl] = useState("");
+  const [proofRef, setProofRef] = useState("");
+
   const nextStep = useMemo(() => {
     const e = detail.data?.engagement;
     if (!e) return "";
@@ -145,6 +188,18 @@ export default function EngagementDetailPage() {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("nextStep")}</p>
                 <p className="text-sm mt-1">{nextStep}</p>
               </div>
+              {detail.data.engagement.topActionLabel && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("topAction")}</p>
+                  <p className="text-sm mt-1">{detail.data.engagement.topActionLabel}</p>
+                </div>
+              )}
+              {detail.data.engagement.healthReason && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("healthReason")}</p>
+                  <p className="text-sm mt-1 text-amber-800 dark:text-amber-300">{detail.data.engagement.healthReason}</p>
+                </div>
+              )}
               {detail.data.engagement.summary && (
                 <p className="text-sm text-muted-foreground">{detail.data.engagement.summary}</p>
               )}
@@ -183,8 +238,9 @@ export default function EngagementDetailPage() {
                   ) : (
                     <ul className="list-disc pl-4 mt-1 space-y-1">
                       {detail.data.invoiceSummary.map((inv) => (
-                        <li key={inv.id}>
+                        <li key={`${inv.kind}-${inv.id}`}>
                           {inv.invoiceNumber} — {inv.status} — OMR {inv.amountOmr}
+                          {"balanceOmr" in inv && inv.balanceOmr != null ? ` — bal OMR ${inv.balanceOmr}` : ""}
                         </li>
                       ))}
                     </ul>
@@ -207,6 +263,138 @@ export default function EngagementDetailPage() {
               </CardContent>
             </Card>
           </div>
+
+          {showStaffReply && (
+            <Card className="border-0 shadow-sm border-l-4 border-l-amber-500/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">{t("internalNotes")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {internalNotes.data?.items.length === 0 && (
+                  <p className="text-xs text-muted-foreground">{t("none")}</p>
+                )}
+                {internalNotes.data?.items.map((n) => (
+                  <div key={n.id} className="text-sm border-b border-border/50 pb-2">
+                    <p className="whitespace-pre-wrap">{n.body}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{fmtDateTimeShort(n.createdAt)}</p>
+                  </div>
+                ))}
+                <Textarea rows={3} placeholder={t("notePlaceholder")} value={noteBody} onChange={(e) => setNoteBody(e.target.value)} />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!noteBody.trim() || addNote.isPending}
+                  onClick={() =>
+                    addNote.mutate({ engagementId, body: noteBody.trim(), companyId: activeCompanyId ?? undefined })
+                  }
+                >
+                  {t("addNote")}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">{t("paymentTransfer")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p className="text-xs text-muted-foreground">
+                {t("paymentPhase")}: {detail.data.paymentTransfer?.phase?.replace(/_/g, " ") ?? "idle"}
+              </p>
+              {detail.data.paymentTransfer?.instructionsText && (
+                <div className="rounded-md bg-muted/50 p-3 text-sm whitespace-pre-wrap">
+                  {detail.data.paymentTransfer.instructionsText}
+                </div>
+              )}
+              {showStaffReply && (
+                <div className="space-y-2 border-t pt-3">
+                  <Textarea
+                    rows={3}
+                    placeholder={t("instructionsPlaceholder")}
+                    value={payInstr}
+                    onChange={(e) => setPayInstr(e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!payInstr.trim() || requestInstr.isPending}
+                    onClick={() =>
+                      requestInstr.mutate({
+                        engagementId,
+                        instructionsText: payInstr.trim(),
+                        companyId: activeCompanyId ?? undefined,
+                      })
+                    }
+                  >
+                    {t("requestInstructions")}
+                  </Button>
+                  {detail.data.paymentTransfer?.phase === "proof_submitted" && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          verifyProof.mutate({
+                            engagementId,
+                            accept: true,
+                            companyId: activeCompanyId ?? undefined,
+                          })
+                        }
+                      >
+                        {t("verifyProof")} (accept)
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() =>
+                          verifyProof.mutate({
+                            engagementId,
+                            accept: false,
+                            companyId: activeCompanyId ?? undefined,
+                          })
+                        }
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() =>
+                      markPaid.mutate({
+                        engagementId,
+                        companyId: activeCompanyId ?? undefined,
+                      })
+                    }
+                  >
+                    {t("markReconciled")}
+                  </Button>
+                </div>
+              )}
+              {(detail.data.paymentTransfer?.phase === "instructions_sent" ||
+                detail.data.paymentTransfer?.phase === "rejected") && (
+                <div className="space-y-2 border-t pt-3">
+                  <Input placeholder={t("docUrl")} value={proofUrl} onChange={(e) => setProofUrl(e.target.value)} />
+                  <Input placeholder="Reference" value={proofRef} onChange={(e) => setProofRef(e.target.value)} />
+                  <Button
+                    size="sm"
+                    disabled={!proofUrl.trim() || submitProof.isPending}
+                    onClick={() =>
+                      submitProof.mutate({
+                        engagementId,
+                        proofUrl: proofUrl.trim(),
+                        proofReference: proofRef.trim() || undefined,
+                        companyId: activeCompanyId ?? undefined,
+                      })
+                    }
+                  >
+                    {t("submitProof")}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-2">
@@ -303,7 +491,10 @@ export default function EngagementDetailPage() {
                     <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 text-sm border-b border-border/60 pb-2">
                       <div>
                         <p className="font-medium">{d.title}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{d.status}</p>
+                        <p className="text-xs text-muted-foreground capitalize">
+                          {d.status}
+                          {d.scanStatus ? ` · scan: ${d.scanStatus.replace(/_/g, " ")}` : ""}
+                        </p>
                       </div>
                       {d.fileUrl && (
                         <Button variant="outline" size="sm" asChild>

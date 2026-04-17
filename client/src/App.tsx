@@ -30,6 +30,7 @@ const AdminSanadIntelligencePage = lazy(() => import("./pages/AdminSanadIntellig
 const HRAttendancePage = lazy(() => import("./pages/HRAttendancePage"));
 const ClientPortalPage = lazy(() => import("./pages/ClientPortalPage"));
 const EngagementsPage = lazy(() => import("./pages/EngagementsPage"));
+const EngagementsOpsPage = lazy(() => import("./pages/EngagementsOpsPage"));
 const EngagementDetailPage = lazy(() => import("./pages/EngagementDetailPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const WorkforceDashboard = lazy(() => import("./pages/WorkforceDashboard"));
@@ -203,6 +204,7 @@ function AppRoutes() {
         <Route path="/hr/monthly-report" component={MonthlyReportPage} />
         <Route path="/hr/insights" component={HRInsightsHubPage} />
         <Route path="/client-portal" component={ClientPortalPage} />
+        <Route path="/engagements/ops" component={EngagementsOpsPage} />
         <Route path="/engagements/:id" component={EngagementDetailPage} />
         <Route path="/engagements" component={EngagementsPage} />
         <Route path="/onboarding" component={OnboardingPage} />

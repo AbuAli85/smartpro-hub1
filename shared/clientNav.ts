@@ -542,7 +542,7 @@ export function companyNavExtensionAllows(
       path.startsWith("/hr/announcements") ||
       path.startsWith("/my-portal") ||
       path.startsWith("/employee") ||
-      path.startsWith("/engagements") ||
+      (path.startsWith("/engagements") && !path.startsWith("/engagements/ops")) ||
       path.startsWith("/marketplace");
     if (!portalOk) return false;
   }
@@ -606,6 +606,20 @@ export function clientNavItemVisible(
 ): boolean {
   if (OPTIONAL_NAV_HREFS.has(href) && hiddenOptional.has(href)) {
     return false;
+  }
+
+  /** Internal engagements ops queue — not for end-customer portal roles. */
+  if (normalizeClientPath(href) === "/engagements/ops") {
+    if (shouldUsePortalOnlyShell(user, options)) return false;
+    const mr = options?.memberRole;
+    if (isCustomerPortalMemberRole(mr)) return false;
+    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return true;
+    return (
+      isCompanyAdminMember(mr) ||
+      readsAsHrManager(mr) ||
+      readsAsFinanceManager(mr) ||
+      mr === "reviewer"
+    );
   }
 
   // External auditors cannot see management/write-heavy pages
@@ -744,6 +758,7 @@ function pathMatchesRestrictedPrefix(path: string, baseHref: string): boolean {
 /** Portal-only users (no company): allowed path prefixes / exact entries. */
 function portalShellPathAllowed(path: string): boolean {
   if (PORTAL_CLIENT_HREFS.has(path)) return true;
+  if (path.startsWith("/engagements/ops")) return false;
   if (path.startsWith("/engagements")) return true;
   if (path.startsWith("/marketplace")) return true;
   if (path.startsWith("/contracts")) return true;

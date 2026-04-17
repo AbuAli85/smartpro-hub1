@@ -27,9 +27,12 @@ export default function EngagementsPage() {
           <h1 className="text-xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">{t("subtitle")}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" asChild>
             <Link href="/client-portal">{t("backToPortal")}</Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/engagements/ops">{t("ops.link")}</Link>
           </Button>
           <Button
             variant="secondary"
@@ -75,6 +78,11 @@ export default function EngagementsPage() {
                     <p className="text-xs text-muted-foreground mt-1">
                       {e.engagementType.replace(/_/g, " ")} · {fmtDateTimeShort(e.updatedAt)}
                     </p>
+                    {e.topActionLabel && (
+                      <p className="text-xs mt-1 line-clamp-2">
+                        <span className="text-muted-foreground">{t("topAction")}:</span> {e.topActionLabel}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Badge variant="secondary" className="capitalize">

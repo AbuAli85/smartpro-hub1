@@ -8,7 +8,7 @@ import { useSmartRoleHomeRedirect } from "@/hooks/useSmartRoleHomeRedirect";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, ArrowRight, ArrowUpRight, BarChart3,
-  Briefcase, Building2, CheckCircle2, Clock, FileText,
+  Briefcase, Building2, CheckCircle2, Clock, FileText, Layers,
   Shield, ShoppingBag, TrendingUp, Users, Banknote,
   Globe, Zap, RefreshCw, Award, MapPin, Calendar,
   ChevronDown, ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck, ClipboardList, Download,
@@ -113,6 +113,37 @@ function ModuleCard({
         </CardContent>
       </Card>
     </Link>
+  );
+}
+
+function EngagementsDashboardStrip({ companyId }: { companyId: number }) {
+  const { t } = useTranslation("engagements");
+  const list = trpc.engagements.list.useQuery({ page: 1, pageSize: 5, companyId });
+  if (!list.data?.items.length) return null;
+  return (
+    <Card className="border-border/80">
+      <CardHeader className="flex flex-row items-center justify-between py-4 space-y-0">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Layers className="w-4 h-4 text-muted-foreground" />
+          {t("dashboardStripTitle")}
+        </CardTitle>
+        <Button variant="ghost" size="sm" className="text-xs h-8" asChild>
+          <Link href="/engagements">{t("dashboardStripCta")}</Link>
+        </Button>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-2">
+        {list.data.items.map((e) => (
+          <Link key={e.id} href={`/engagements/${e.id}`} className="block rounded-lg border border-border/60 px-3 py-2 hover:bg-muted/40">
+            <p className="text-sm font-medium truncate">{e.title}</p>
+            {e.topActionLabel && (
+              <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                {t("topAction")}: {e.topActionLabel}
+              </p>
+            )}
+          </Link>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -845,6 +876,10 @@ export default function Dashboard() {
           companyId={activeCompanyId}
           canOpenFinanceOverview={showHref("/finance/overview")}
         />
+      )}
+
+      {!showPlatformOverview && activeCompanyId != null && !seesPlatformOperatorNav(user) && (
+        <EngagementsDashboardStrip companyId={activeCompanyId} />
       )}
 
       {/* ── Cash received (paid) — only when cadence panel is absent; otherwise folded into ManagementCadencePanel ── */}

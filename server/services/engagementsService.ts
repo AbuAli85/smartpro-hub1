@@ -10,6 +10,8 @@ import {
   engagementMessages,
   engagementDocuments,
   engagementActivityLog,
+  engagementNotes,
+  engagementPaymentTransfers,
   notifications,
   proServices,
   governmentServiceCases,
@@ -20,7 +22,9 @@ import {
   employees,
   contractSignatures,
   sanadServiceRequests,
+  clientServiceInvoices,
 } from "../../drizzle/schema";
+import { syncEngagementDerivedState } from "./engagements/deriveEngagementState";
 import { createNotification } from "../repositories/notifications.repository";
 
 type Db = NonNullable<Awaited<ReturnType<typeof import("../db").getDb>>>;
@@ -440,6 +444,13 @@ export async function addEngagementLink(
 
 export async function buildEngagementDetail(db: Db, engagementId: number, companyId: number) {
   const eng = await assertEngagementInCompany(db, engagementId, companyId);
+  await syncEngagementDerivedState(db, engagementId, companyId);
+  const [engFresh] = await db
+    .select()
+    .from(engagements)
+    .where(and(eq(engagements.id, engagementId), eq(engagements.companyId, companyId)))
+    .limit(1);
+  const engagementRow = engFresh ?? eng;
   const links = await db.select().from(engagementLinks).where(eq(engagementLinks.engagementId, engagementId));
   const tasks = await db
     .select()
@@ -466,12 +477,13 @@ export async function buildEngagementDetail(db: Db, engagementId: number, compan
 
   const signatureSummary: { contractId: number; pending: number; signed: number }[] = [];
   const invoiceLines: {
-    kind: "pro_billing_cycle";
+    kind: "pro_billing_cycle" | "client_service_invoice";
     id: number;
     invoiceNumber: string;
     amountOmr: string;
     status: string;
-    dueDate: Date | null;
+    dueDate: Date | string | null;
+    balanceOmr?: string;
   }[] = [];
 
   for (const l of links) {
@@ -505,10 +517,36 @@ export async function buildEngagementDetail(db: Db, engagementId: number, compan
         });
       }
     }
+    if (l.linkType === "client_service_invoice" && l.entityId) {
+      const [inv] = await db
+        .select()
+        .from(clientServiceInvoices)
+        .where(and(eq(clientServiceInvoices.id, l.entityId), eq(clientServiceInvoices.companyId, companyId)))
+        .limit(1);
+      if (inv) {
+        invoiceLines.push({
+          kind: "client_service_invoice",
+          id: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          amountOmr: String(inv.totalOmr),
+          status: inv.status,
+          dueDate: inv.dueDate,
+          balanceOmr: String(inv.balanceOmr),
+        });
+      }
+    }
   }
 
+  const [paymentTransfer] = await db
+    .select()
+    .from(engagementPaymentTransfers)
+    .where(
+      and(eq(engagementPaymentTransfers.engagementId, engagementId), eq(engagementPaymentTransfers.companyId, companyId)),
+    )
+    .limit(1);
+
   return {
-    engagement: eng,
+    engagement: engagementRow,
     links,
     tasks,
     messages,
@@ -516,7 +554,44 @@ export async function buildEngagementDetail(db: Db, engagementId: number, compan
     activity,
     signatureSummary,
     invoiceSummary: invoiceLines,
+    paymentTransfer: paymentTransfer ?? null,
   };
+}
+
+export async function listEngagementInternalNotes(db: Db, engagementId: number, companyId: number) {
+  await assertEngagementInCompany(db, engagementId, companyId);
+  return db
+    .select()
+    .from(engagementNotes)
+    .where(and(eq(engagementNotes.engagementId, engagementId), eq(engagementNotes.companyId, companyId)))
+    .orderBy(desc(engagementNotes.createdAt))
+    .limit(200);
+}
+
+export async function addEngagementInternalNote(
+  db: Db,
+  engagementId: number,
+  companyId: number,
+  actorUserId: number,
+  body: string,
+): Promise<number> {
+  await assertEngagementInCompany(db, engagementId, companyId);
+  const [ins] = await db.insert(engagementNotes).values({
+    engagementId,
+    companyId,
+    authorUserId: actorUserId,
+    body,
+  });
+  const id = insertId(ins);
+  await logEngagementActivity(db, {
+    engagementId,
+    companyId,
+    actorUserId,
+    action: "note.internal_added",
+    payload: { noteId: id },
+  });
+  await syncEngagementDerivedState(db, engagementId, companyId);
+  return id;
 }
 
 export async function backfillEngagementsForCompany(
@@ -758,6 +833,7 @@ export async function sendClientEngagementMessage(
     action: "message.client_sent",
     payload: { subject },
   });
+  await syncEngagementDerivedState(db, workspaceId, companyId);
   try {
     const { notifyOwner } = await import("../_core/notification");
     await notifyOwner({
@@ -793,6 +869,7 @@ export async function sendPlatformEngagementMessage(
     action: "message.platform_sent",
     payload: { subject },
   });
+  await syncEngagementDerivedState(db, engagementId, companyId);
 }
 
 export async function markEngagementMessageRead(

@@ -19,21 +19,41 @@ import {
   engagementMessages,
   notifications,
   contracts,
+  companyMembers,
 } from "../../drizzle/schema";
 import {
   assertEngagementInCompany,
   addEngagementLink,
+  addEngagementInternalNote,
   backfillEngagementsForCompany,
   buildEngagementDetail,
   createEngagementFromSource,
   createRenewalEngagement,
   getOrCreateWorkspaceEngagement,
+  listEngagementInternalNotes,
   listUnifiedThread,
   logEngagementActivity,
   markEngagementMessageRead,
   sendClientEngagementMessage,
   sendPlatformEngagementMessage,
 } from "../services/engagementsService";
+import { syncEngagementDerivedState } from "../services/engagements/deriveEngagementState";
+import { applyEngagementWorkflowTransition } from "../services/engagements/engagementWorkflowService";
+import {
+  markPaidExternallyForEngagement,
+  requestPaymentInstructions,
+  submitTransferProof,
+  verifyTransferProof,
+} from "../services/engagements/engagementPaymentOps";
+import {
+  assignEngagementOwner,
+  escalateEngagement,
+  getEngagementsOpsSummary,
+  listEngagementsForOps,
+  listMyEngagementQueue,
+  setEngagementOpsPriority,
+  type OpsBucket,
+} from "../services/engagements/engagementOpsService";
 
 const createFromSourceInput = z.discriminatedUnion("sourceType", [
   z.object({ sourceType: z.literal("pro_service"), sourceId: z.number().int().positive() }),
@@ -51,6 +71,24 @@ function canReviewDocuments(role: CompanyMember["role"], user: User): boolean {
   if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user)) return true;
   return role === "company_admin" || role === "hr_admin" || role === "finance_admin";
 }
+
+function canUseEngagementOps(role: CompanyMember["role"], user: User): boolean {
+  return canReviewDocuments(role, user);
+}
+
+const opsBucketSchema = z.enum([
+  "all",
+  "open",
+  "awaiting_team",
+  "awaiting_client",
+  "overdue",
+  "at_risk",
+  "no_owner",
+  "pending_replies",
+  "overdue_payments",
+  "pending_signatures",
+  "docs_pending_review",
+]);
 
 function insertId(result: unknown): number {
   const id = Number((result as { insertId?: number }).insertId);
@@ -148,6 +186,43 @@ export const engagementsRouter = router({
       return { success: true as const };
     }),
 
+  /** All engagement status changes must pass workflow guards (role + allowed edge). */
+  applyTransition: protectedProcedure
+    .input(
+      z
+        .object({
+          engagementId: z.number().int().positive(),
+          to: z.enum([
+            "draft",
+            "active",
+            "waiting_client",
+            "waiting_platform",
+            "blocked",
+            "completed",
+            "archived",
+          ]),
+          reason: z.string().max(2000).optional().nullable(),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      requireNotAuditor(m.role);
+      await applyEngagementWorkflowTransition(db, {
+        engagementId: input.engagementId,
+        companyId: m.companyId,
+        to: input.to,
+        actorUserId: ctx.user.id,
+        memberRole: m.role,
+        user: ctx.user as User,
+        reason: input.reason,
+      });
+      return { success: true as const };
+    }),
+
+  /** @deprecated Use `applyTransition` — kept for older clients; forwards to workflow engine. */
   updateStatus: protectedProcedure
     .input(
       z
@@ -170,16 +245,431 @@ export const engagementsRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
+      await applyEngagementWorkflowTransition(db, {
+        engagementId: input.engagementId,
+        companyId: m.companyId,
+        to: input.status,
+        actorUserId: ctx.user.id,
+        memberRole: m.role,
+        user: ctx.user as User,
+        reason: "legacy.updateStatus",
+      });
+      return { success: true as const };
+    }),
+
+  listForOps: protectedProcedure
+    .input(
+      z
+        .object({
+          bucket: opsBucketSchema.default("open"),
+          page: z.number().int().positive().default(1),
+          pageSize: z.number().int().positive().max(100).default(50),
+          resyncDerived: z.boolean().optional(),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { items: [], total: 0 };
+      const u = ctx.user as User;
+      if (seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u)) {
+        return listEngagementsForOps(db, {
+          scope: "platform",
+          companyId: input.companyId ?? null,
+          bucket: input.bucket as OpsBucket,
+          page: input.page,
+          pageSize: input.pageSize,
+          resyncDerived: input.resyncDerived,
+        });
+      }
+      const m = await requireWorkspaceMembership(u, input.companyId);
+      if (!canUseEngagementOps(m.role, u)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions for ops queue" });
+      }
+      return listEngagementsForOps(db, {
+        scope: "tenant",
+        companyId: m.companyId,
+        bucket: input.bucket as OpsBucket,
+        page: input.page,
+        pageSize: input.pageSize,
+        resyncDerived: input.resyncDerived,
+      });
+    }),
+
+  getOpsSummary: protectedProcedure.input(optionalActiveWorkspace)
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return {} as Record<OpsBucket, number>;
+      const u = ctx.user as User;
+      if (seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u)) {
+        return getEngagementsOpsSummary(db, { scope: "platform", companyId: input.companyId ?? null });
+      }
+      const m = await requireWorkspaceMembership(u, input.companyId);
+      if (!canUseEngagementOps(m.role, u)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions for ops summary" });
+      }
+      return getEngagementsOpsSummary(db, { scope: "tenant", companyId: m.companyId });
+    }),
+
+  getMyQueue: protectedProcedure
+    .input(
+      z
+        .object({
+          page: z.number().int().positive().default(1),
+          pageSize: z.number().int().positive().max(100).default(50),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { items: [], total: 0 };
+      const u = ctx.user as User;
+      if (seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u)) {
+        return listMyEngagementQueue(db, {
+          userId: ctx.user.id,
+          scope: "platform",
+          page: input.page,
+          pageSize: input.pageSize,
+        });
+      }
+      const m = await requireWorkspaceMembership(u, input.companyId);
+      if (!canUseEngagementOps(m.role, u)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions for ops queue" });
+      }
+      return listMyEngagementQueue(db, {
+        userId: ctx.user.id,
+        companyId: m.companyId,
+        scope: "tenant",
+        page: input.page,
+        pageSize: input.pageSize,
+      });
+    }),
+
+  assignOwner: protectedProcedure
+    .input(
+      z
+        .object({
+          engagementId: z.number().int().positive(),
+          ownerUserId: z.number().int().positive().nullable(),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const u = ctx.user as User;
+      const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
+      let companyId: number;
+      if (isPlatform) {
+        if (input.companyId == null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required for platform operators" });
+        }
+        companyId = input.companyId;
+      } else {
+        const m = await requireWorkspaceMembership(u, input.companyId);
+        requireNotAuditor(m.role);
+        if (!canUseEngagementOps(m.role, u)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot assign owner" });
+        }
+        companyId = m.companyId;
+      }
+      await assertEngagementInCompany(db, input.engagementId, companyId);
+      if (input.ownerUserId != null && !isPlatform) {
+        const [mem] = await db
+          .select({ id: companyMembers.id })
+          .from(companyMembers)
+          .where(
+            and(
+              eq(companyMembers.companyId, companyId),
+              eq(companyMembers.userId, input.ownerUserId),
+              eq(companyMembers.isActive, true),
+            ),
+          )
+          .limit(1);
+        if (!mem) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Owner must be an active member of this company" });
+        }
+      }
+      await assignEngagementOwner(db, {
+        engagementId: input.engagementId,
+        companyId,
+        ownerUserId: input.ownerUserId,
+        actorUserId: ctx.user.id,
+      });
+      return { success: true as const };
+    }),
+
+  setPriority: protectedProcedure
+    .input(
+      z
+        .object({
+          engagementId: z.number().int().positive(),
+          priority: z.enum(["normal", "high", "urgent"]),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const u = ctx.user as User;
+      const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
+      let companyId: number;
+      if (isPlatform) {
+        if (input.companyId == null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required for platform operators" });
+        }
+        companyId = input.companyId;
+      } else {
+        const m = await requireWorkspaceMembership(u, input.companyId);
+        requireNotAuditor(m.role);
+        if (!canUseEngagementOps(m.role, u)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot change priority" });
+        }
+        companyId = m.companyId;
+      }
+      await assertEngagementInCompany(db, input.engagementId, companyId);
+      await setEngagementOpsPriority(db, {
+        engagementId: input.engagementId,
+        companyId,
+        priority: input.priority,
+        actorUserId: ctx.user.id,
+      });
+      return { success: true as const };
+    }),
+
+  escalate: protectedProcedure
+    .input(
+      z
+        .object({
+          engagementId: z.number().int().positive(),
+          note: z.string().max(2000).optional().nullable(),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const u = ctx.user as User;
+      const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
+      let companyId: number;
+      if (isPlatform) {
+        if (input.companyId == null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required for platform operators" });
+        }
+        companyId = input.companyId;
+      } else {
+        const m = await requireWorkspaceMembership(u, input.companyId);
+        requireNotAuditor(m.role);
+        if (!canUseEngagementOps(m.role, u)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot escalate" });
+        }
+        companyId = m.companyId;
+      }
+      await assertEngagementInCompany(db, input.engagementId, companyId);
+      await escalateEngagement(db, {
+        engagementId: input.engagementId,
+        companyId,
+        actorUserId: ctx.user.id,
+        note: input.note,
+      });
+      return { success: true as const };
+    }),
+
+  listInternalNotes: protectedProcedure
+    .input(z.object({ engagementId: z.number().int().positive() }).merge(optionalActiveWorkspace))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { items: [] };
+      const u = ctx.user as User;
+      const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
+      let companyId: number;
+      if (isPlatform) {
+        if (input.companyId == null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required for platform operators" });
+        }
+        companyId = input.companyId;
+      } else {
+        const m = await requireWorkspaceMembership(u, input.companyId);
+        if (!canReviewDocuments(m.role, u)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Internal notes are restricted" });
+        }
+        companyId = m.companyId;
+      }
+      const items = await listEngagementInternalNotes(db, input.engagementId, companyId);
+      return { items };
+    }),
+
+  addInternalNote: protectedProcedure
+    .input(
+      z.object({ engagementId: z.number().int().positive(), body: z.string().min(1).max(8000) }).merge(optionalActiveWorkspace),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const u = ctx.user as User;
+      const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
+      let companyId: number;
+      if (isPlatform) {
+        if (input.companyId == null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required for platform operators" });
+        }
+        companyId = input.companyId;
+      } else {
+        const m = await requireWorkspaceMembership(u, input.companyId);
+        requireNotAuditor(m.role);
+        if (!canReviewDocuments(m.role, u)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot add internal notes" });
+        }
+        companyId = m.companyId;
+      }
+      const id = await addEngagementInternalNote(db, input.engagementId, companyId, ctx.user.id, input.body);
+      return { noteId: id };
+    }),
+
+  requestPaymentInstructions: protectedProcedure
+    .input(
+      z
+        .object({
+          engagementId: z.number().int().positive(),
+          instructionsText: z.string().min(1).max(8000),
+          clientServiceInvoiceId: z.number().int().positive().optional().nullable(),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const u = ctx.user as User;
+      const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
+      let companyId: number;
+      if (isPlatform) {
+        if (input.companyId == null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required for platform operators" });
+        }
+        companyId = input.companyId;
+      } else {
+        const m = await requireWorkspaceMembership(u, input.companyId);
+        requireNotAuditor(m.role);
+        if (!canReviewDocuments(m.role, u)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only staff can send payment instructions" });
+        }
+        companyId = m.companyId;
+      }
+      await requestPaymentInstructions(db, {
+        engagementId: input.engagementId,
+        companyId,
+        actorUserId: ctx.user.id,
+        instructionsText: input.instructionsText,
+        clientServiceInvoiceId: input.clientServiceInvoiceId ?? null,
+      });
+      return { success: true as const };
+    }),
+
+  submitTransferProof: protectedProcedure
+    .input(
+      z
+        .object({
+          engagementId: z.number().int().positive(),
+          proofUrl: z.string().min(1).max(2048).regex(/^https?:\/\//i),
+          proofReference: z.string().max(255).optional().nullable(),
+          amountClaimedOmr: z.number().positive().optional().nullable(),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      requireNotAuditor(m.role);
       await assertEngagementInCompany(db, input.engagementId, m.companyId);
-      await db.update(engagements).set({ status: input.status }).where(eq(engagements.id, input.engagementId));
-      await logEngagementActivity(db, {
+      await submitTransferProof(db, {
         engagementId: input.engagementId,
         companyId: m.companyId,
         actorUserId: ctx.user.id,
-        action: "status.updated",
-        payload: { status: input.status },
+        proofUrl: input.proofUrl,
+        proofReference: input.proofReference,
+        amountClaimedOmr: input.amountClaimedOmr,
       });
       return { success: true as const };
+    }),
+
+  verifyTransferProof: protectedProcedure
+    .input(
+      z
+        .object({
+          engagementId: z.number().int().positive(),
+          accept: z.boolean(),
+          note: z.string().max(2000).optional().nullable(),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const u = ctx.user as User;
+      const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
+      let companyId: number;
+      if (isPlatform) {
+        if (input.companyId == null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required for platform operators" });
+        }
+        companyId = input.companyId;
+      } else {
+        const m = await requireWorkspaceMembership(u, input.companyId);
+        requireNotAuditor(m.role);
+        if (!canReviewDocuments(m.role, u)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only staff can verify proofs" });
+        }
+        companyId = m.companyId;
+      }
+      await verifyTransferProof(db, {
+        engagementId: input.engagementId,
+        companyId,
+        actorUserId: ctx.user.id,
+        accept: input.accept,
+        note: input.note,
+      });
+      return { success: true as const };
+    }),
+
+  markPaidExternally: protectedProcedure
+    .input(
+      z
+        .object({
+          engagementId: z.number().int().positive(),
+          clientServiceInvoiceId: z.number().int().positive().optional().nullable(),
+          amountOmr: z.number().positive().optional().nullable(),
+          reference: z.string().max(255).optional().nullable(),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const u = ctx.user as User;
+      const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
+      let companyId: number;
+      if (isPlatform) {
+        if (input.companyId == null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required for platform operators" });
+        }
+        companyId = input.companyId;
+      } else {
+        const m = await requireWorkspaceMembership(u, input.companyId);
+        requireNotAuditor(m.role);
+        if (!canReviewDocuments(m.role, u)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only staff can mark reconciled" });
+        }
+        companyId = m.companyId;
+      }
+      return markPaidExternallyForEngagement(db, {
+        engagementId: input.engagementId,
+        companyId,
+        actorUserId: ctx.user.id,
+        clientServiceInvoiceId: input.clientServiceInvoiceId,
+        amountOmr: input.amountOmr ?? null,
+        reference: input.reference,
+      });
     }),
 
   listTasks: protectedProcedure
@@ -233,6 +723,7 @@ export const engagementsRouter = router({
         action: "task.updated",
         payload: { taskId: input.taskId, status: input.status, title: input.title },
       });
+      await syncEngagementDerivedState(db, t.engagementId, m.companyId);
       return { success: true as const };
     }),
 
@@ -268,6 +759,7 @@ export const engagementsRouter = router({
         action: "task.created",
         payload: { taskId: id },
       });
+      await syncEngagementDerivedState(db, input.engagementId, m.companyId);
       return { taskId: id };
     }),
 
@@ -327,6 +819,7 @@ export const engagementsRouter = router({
           action: "message.client_sent",
           payload: { subject: input.subject },
         });
+        await syncEngagementDerivedState(db, input.engagementId, m.companyId);
         try {
           const { notifyOwner } = await import("../_core/notification");
           await notifyOwner({
@@ -430,6 +923,9 @@ export const engagementsRouter = router({
             .min(1)
             .max(2048)
             .regex(/^https?:\/\//i, "URL must start with http:// or https://"),
+          storageKey: z.string().max(1024).optional().nullable(),
+          mimeType: z.string().max(255).optional().nullable(),
+          sizeBytes: z.number().int().nonnegative().optional().nullable(),
         })
         .merge(optionalActiveWorkspace),
     )
@@ -446,6 +942,10 @@ export const engagementsRouter = router({
         fileUrl: input.fileUrl,
         status: "pending",
         uploadedByUserId: ctx.user.id,
+        storageKey: input.storageKey ?? null,
+        mimeType: input.mimeType ?? null,
+        sizeBytes: input.sizeBytes ?? null,
+        scanStatus: "pending",
       });
       const id = insertId(ins);
       await logEngagementActivity(db, {
@@ -455,6 +955,7 @@ export const engagementsRouter = router({
         action: "document.uploaded",
         payload: { documentId: id },
       });
+      await syncEngagementDerivedState(db, input.engagementId, m.companyId);
       return { documentId: id };
     }),
 
@@ -498,6 +999,7 @@ export const engagementsRouter = router({
         action: "document.reviewed",
         payload: { documentId: input.documentId, status: input.status },
       });
+      await syncEngagementDerivedState(db, doc.engagementId, m.companyId);
       return { success: true as const };
     }),
 

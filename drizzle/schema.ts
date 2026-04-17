@@ -4759,7 +4759,27 @@ export const engagementHealthEnum = mysqlEnum("engagement_health", [
   "on_track",
   "at_risk",
   "blocked",
+  "delayed",
   "unknown",
+]);
+
+export const engagementOpsPriorityEnum = mysqlEnum("engagement_ops_priority", ["normal", "high", "urgent"]);
+
+export const engagementDocumentScanStatusEnum = mysqlEnum("engagement_document_scan_status", [
+  "not_scanned",
+  "pending",
+  "clean",
+  "suspicious",
+  "failed",
+]);
+
+export const engagementPaymentTransferPhaseEnum = mysqlEnum("engagement_payment_transfer_phase", [
+  "idle",
+  "instructions_sent",
+  "proof_submitted",
+  "verified",
+  "rejected",
+  "reconciled",
 ]);
 
 export const engagementLinkTypeEnum = mysqlEnum("engagement_link_type", [
@@ -4805,7 +4825,19 @@ export const engagements = mysqlTable(
     engagementType: engagementTypeEnum.notNull(),
     status: engagementStatusEnum.notNull().default("active"),
     health: engagementHealthEnum.notNull().default("unknown"),
+    healthReason: text("health_reason"),
     dueDate: timestamp("due_date"),
+    slaDueAt: timestamp("sla_due_at"),
+    lastActivityAt: timestamp("last_activity_at"),
+    topActionType: varchar("top_action_type", { length: 64 }),
+    topActionLabel: varchar("top_action_label", { length: 512 }),
+    topActionStatus: varchar("top_action_status", { length: 64 }),
+    topActionDueAt: timestamp("top_action_due_at"),
+    topActionPayload: json("top_action_payload").$type<Record<string, unknown>>().default({}),
+    assignedOwnerUserId: int("assigned_owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    opsPriority: engagementOpsPriorityEnum.notNull().default("normal"),
+    escalatedAt: timestamp("escalated_at"),
+    workflowStage: varchar("workflow_stage", { length: 128 }),
     currentStage: varchar("current_stage", { length: 255 }),
     summary: text("summary"),
     metadata: json("metadata").$type<Record<string, unknown>>().default({}),
@@ -4817,6 +4849,8 @@ export const engagements = mysqlTable(
     index("idx_engagements_company").on(t.companyId),
     index("idx_engagements_company_type").on(t.companyId, t.engagementType),
     index("idx_engagements_company_status").on(t.companyId, t.status),
+    index("idx_engagements_owner").on(t.assignedOwnerUserId),
+    index("idx_engagements_company_priority").on(t.companyId, t.opsPriority),
   ],
 );
 export type Engagement = typeof engagements.$inferSelect;
@@ -4911,6 +4945,10 @@ export const engagementDocuments = mysqlTable(
     reviewedByUserId: int("reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
     reviewedAt: timestamp("reviewed_at"),
     reviewNote: text("review_note"),
+    storageKey: varchar("storage_key", { length: 1024 }),
+    mimeType: varchar("mime_type", { length: 255 }),
+    sizeBytes: int("size_bytes"),
+    scanStatus: engagementDocumentScanStatusEnum.notNull().default("not_scanned"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -4941,3 +4979,54 @@ export const engagementActivityLog = mysqlTable(
   ],
 );
 export type EngagementActivityLogRow = typeof engagementActivityLog.$inferSelect;
+
+export const engagementNotes = mysqlTable(
+  "engagement_notes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    engagementId: int("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    companyId: int("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    authorUserId: int("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_engagement_notes_engagement").on(t.engagementId),
+    index("idx_engagement_notes_company").on(t.companyId),
+  ],
+);
+export type EngagementNote = typeof engagementNotes.$inferSelect;
+
+export const engagementPaymentTransfers = mysqlTable(
+  "engagement_payment_transfers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    engagementId: int("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    companyId: int("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    phase: engagementPaymentTransferPhaseEnum.notNull().default("idle"),
+    instructionsText: text("instructions_text"),
+    proofUrl: varchar("proof_url", { length: 2048 }),
+    proofReference: varchar("proof_reference", { length: 255 }),
+    amountClaimedOmr: decimal("amount_claimed_omr", { precision: 14, scale: 3 }),
+    clientServiceInvoiceId: int("client_service_invoice_id"),
+    submittedByUserId: int("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    verifiedByUserId: int("verified_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    verifiedAt: timestamp("verified_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_engagement_payment_transfer_engagement").on(t.engagementId),
+    index("idx_engagement_payment_transfer_company").on(t.companyId),
+    index("idx_engagement_payment_transfer_phase").on(t.companyId, t.phase),
+  ],
+);
+export type EngagementPaymentTransfer = typeof engagementPaymentTransfers.$inferSelect;

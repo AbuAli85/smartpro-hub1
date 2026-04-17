@@ -102,6 +102,154 @@ const PENDING_COLUMNS: ColumnMigration[] = [
     column: "sanad_office_id",
     ddl: "ALTER TABLE `survey_responses` ADD COLUMN `sanad_office_id` int NULL",
   },
+  // 0058 — WPS employee bank fields
+  {
+    table: "employees",
+    column: "iban_number",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `iban_number` varchar(34) NULL DEFAULT NULL",
+  },
+  // 0066 — companies identity / compliance / commercial layer
+  {
+    table: "companies",
+    column: "company_size",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `company_size` int NULL",
+  },
+  {
+    table: "companies",
+    column: "established_at",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `established_at` date NULL",
+  },
+  {
+    table: "companies",
+    column: "company_type",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `company_type` enum('llc','sole_prop','branch','joint_venture','government','ngo','other') NULL DEFAULT 'llc'",
+  },
+  {
+    table: "companies",
+    column: "omanization_required",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `omanization_required` boolean NOT NULL DEFAULT TRUE",
+  },
+  {
+    table: "companies",
+    column: "omanization_ratio",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `omanization_ratio` decimal(5,2) NULL",
+  },
+  {
+    table: "companies",
+    column: "mol_compliance_status",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `mol_compliance_status` enum('compliant','warning','non_compliant','unknown') NOT NULL DEFAULT 'unknown'",
+  },
+  {
+    table: "companies",
+    column: "mol_last_checked_at",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `mol_last_checked_at` timestamp NULL",
+  },
+  {
+    table: "companies",
+    column: "billing_model",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `billing_model` enum('subscription','per_transaction','hybrid','custom') NULL DEFAULT 'subscription'",
+  },
+  {
+    table: "companies",
+    column: "subscription_fee",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `subscription_fee` decimal(10,3) NULL",
+  },
+  {
+    table: "companies",
+    column: "contract_start",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `contract_start` date NULL",
+  },
+  {
+    table: "companies",
+    column: "contract_end",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `contract_end` date NULL",
+  },
+  {
+    table: "companies",
+    column: "account_manager_id",
+    ddl: "ALTER TABLE `companies` ADD COLUMN `account_manager_id` int NULL",
+  },
+  // 0067 — employees payroll / WPS / lifecycle / deployment economics
+  {
+    table: "employees",
+    column: "basic_salary",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `basic_salary` decimal(12,3) NULL",
+  },
+  {
+    table: "employees",
+    column: "housing_allowance",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `housing_allowance` decimal(12,3) NULL DEFAULT 0",
+  },
+  {
+    table: "employees",
+    column: "transport_allowance",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `transport_allowance` decimal(12,3) NULL DEFAULT 0",
+  },
+  {
+    table: "employees",
+    column: "other_allowances",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `other_allowances` decimal(12,3) NULL DEFAULT 0",
+  },
+  {
+    table: "employees",
+    column: "total_salary",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `total_salary` decimal(12,3) NULL",
+  },
+  {
+    table: "employees",
+    column: "wps_status",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `wps_status` enum('ready','invalid','missing','exempt') NOT NULL DEFAULT 'missing'",
+  },
+  {
+    table: "employees",
+    column: "wps_last_validated_at",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `wps_last_validated_at` timestamp NULL",
+  },
+  {
+    table: "employees",
+    column: "probation_end_date",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `probation_end_date` date NULL",
+  },
+  {
+    table: "employees",
+    column: "contract_type",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `contract_type` enum('limited','unlimited','part_time','secondment') NULL DEFAULT 'unlimited'",
+  },
+  {
+    table: "employees",
+    column: "notice_period_days",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `notice_period_days` int NULL DEFAULT 30",
+  },
+  {
+    table: "employees",
+    column: "last_working_day",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `last_working_day` date NULL",
+  },
+  {
+    table: "employees",
+    column: "deployment_type",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `deployment_type` enum('dedicated','shared','internal') NULL DEFAULT 'internal'",
+  },
+  {
+    table: "employees",
+    column: "cost_to_company",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `cost_to_company` decimal(12,3) NULL",
+  },
+  {
+    table: "employees",
+    column: "salary_cost",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `salary_cost` decimal(12,3) NULL",
+  },
+  {
+    table: "employees",
+    column: "margin_omr",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `margin_omr` decimal(12,3) NULL",
+  },
+  {
+    table: "employees",
+    column: "is_omani",
+    ddl: "ALTER TABLE `employees` ADD COLUMN `is_omani` boolean NOT NULL DEFAULT FALSE",
+  },
 ];
 
 /** Each entry creates a unique/regular index if it does not already exist. */
@@ -121,6 +269,43 @@ const PENDING_INDEXES: IndexMigration[] = [
     table: "survey_responses",
     indexName: "idx_survey_responses_sanad_office",
     ddl: "CREATE INDEX `idx_survey_responses_sanad_office` ON `survey_responses` (`sanad_office_id`)",
+  },
+  // 0066 — companies compliance / commercial indexes
+  {
+    table: "companies",
+    indexName: "idx_companies_mol_status",
+    ddl: "CREATE INDEX `idx_companies_mol_status` ON `companies` (`mol_compliance_status`)",
+  },
+  {
+    table: "companies",
+    indexName: "idx_companies_billing_model",
+    ddl: "CREATE INDEX `idx_companies_billing_model` ON `companies` (`billing_model`)",
+  },
+  {
+    table: "companies",
+    indexName: "idx_companies_contract_end",
+    ddl: "CREATE INDEX `idx_companies_contract_end` ON `companies` (`contract_end`)",
+  },
+  // 0067 — employees WPS / deployment indexes
+  {
+    table: "employees",
+    indexName: "idx_emp_wps_status",
+    ddl: "CREATE INDEX `idx_emp_wps_status` ON `employees` (`companyId`, `wps_status`)",
+  },
+  {
+    table: "employees",
+    indexName: "idx_emp_deployment_type",
+    ddl: "CREATE INDEX `idx_emp_deployment_type` ON `employees` (`deployment_type`)",
+  },
+  {
+    table: "employees",
+    indexName: "idx_emp_is_omani",
+    ddl: "CREATE INDEX `idx_emp_is_omani` ON `employees` (`companyId`, `is_omani`)",
+  },
+  {
+    table: "employees",
+    indexName: "idx_emp_contract_type",
+    ddl: "CREATE INDEX `idx_emp_contract_type` ON `employees` (`companyId`, `contract_type`)",
   },
 ];
 

@@ -171,10 +171,40 @@ describe("runSchemaDriftGuard", () => {
       }
     }
 
-    const sql = readFileSync(join(thisDir, "../drizzle/0070_drizzle_baseline_schema_recovery.sql"), "utf8");
+    const sql = readFileSync(
+      join(thisDir, "../drizzle/0070_drizzle_baseline_schema_recovery.sql"),
+      "utf8",
+    );
     const creates = [...sql.matchAll(/CREATE TABLE IF NOT EXISTS `([^`]+)`/g)].map((m) => m[1]);
     expect(new Set(creates).size).toBe(schemaTableCount);
     expect(creates.length).toBe(schemaTableCount);
+  });
+
+  it("baseline migration 0070 contains only idempotent CREATE TABLE statements", async () => {
+    // Non-idempotent DDL (ADD CONSTRAINT / CREATE INDEX) must live in
+    // drizzle/bootstrap/*.sql so staging re-apply cannot fail on duplicates.
+    const sql = readFileSync(
+      join(thisDir, "../drizzle/0070_drizzle_baseline_schema_recovery.sql"),
+      "utf8",
+    );
+    expect(sql.match(/^ALTER TABLE /m)).toBeNull();
+    expect(sql.match(/^CREATE INDEX /m)).toBeNull();
+    expect(sql.match(/^CREATE UNIQUE INDEX /m)).toBeNull();
+  });
+
+  it("bootstrap FK + index files exist with expected statement counts", async () => {
+    const fks = readFileSync(
+      join(thisDir, "../drizzle/bootstrap/0070_constraints.sql"),
+      "utf8",
+    );
+    const idx = readFileSync(
+      join(thisDir, "../drizzle/bootstrap/0070_indexes.sql"),
+      "utf8",
+    );
+    const fkCount = [...fks.matchAll(/^ALTER TABLE /gm)].length;
+    const idxCount = [...idx.matchAll(/^CREATE (UNIQUE )?INDEX /gm)].length;
+    expect(fkCount).toBeGreaterThan(0);
+    expect(idxCount).toBeGreaterThan(0);
   });
 
   it("is non-fatal when mysql2 throws a connection error", async () => {

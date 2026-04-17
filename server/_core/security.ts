@@ -270,28 +270,6 @@ function configuredCorsOriginLiteralsByNormalized(): Map<string, string> {
 }
 
 /**
- * `Access-Control-Allow-Origin` value: from env literals only, or from
- * `req.protocol` + Host when `ALLOWED_ORIGINS` is unset — never the raw Origin
- * header string (CodeQL js/cors-misconfiguration-for-credentials).
- */
-function resolveAccessControlAllowOriginHeader(
-  req: Request,
-  normalizedRequestOrigin: string | null
-): string | null {
-  if (!normalizedRequestOrigin) return null;
-
-  const literals = configuredCorsOriginLiteralsByNormalized();
-  if (literals.size > 0) {
-    return literals.get(normalizedRequestOrigin) ?? null;
-  }
-
-  const host = (req.get("host") ?? "").split(",")[0].trim();
-  if (!host) return null;
-  const built = `${req.protocol}//${host}`;
-  return normalizeHttpOrigin(built) === normalizedRequestOrigin ? built : null;
-}
-
-/**
  * Explicit CORS middleware.
  *
  * When the app is served from the same origin as the API (typical deployment),
@@ -300,22 +278,43 @@ function resolveAccessControlAllowOriginHeader(
  * sub-domain, or if third-party clients need to call the API directly.
  *
  * Allowed origins are read from the ALLOWED_ORIGINS env var (comma-separated).
- * If unset, only this server's own origin (from Host + protocol) is allowed —
- * never echo the raw `Origin` header; ACAO is only an env literal or
- * protocol+Host from this request (CodeQL js/cors-misconfiguration-for-credentials).
+ * In **production**, credentialed CORS is emitted only when that env is set
+ * (explicit allowlist). In **development**, if unset, same-origin is inferred
+ * from `Host` + protocol. `Access-Control-Allow-Origin` is never the raw
+ * `Origin` header — only an env literal or `protocol//Host` after normalised
+ * equality (see `lgtm` on the block that sets credentials).
  */
 export function corsMiddleware(req: Request, res: Response, next: NextFunction) {
   const origin = headerFirstString(req.headers.origin);
   if (origin) {
-    const originNorm = normalizeHttpOrigin(origin);
-    const acao = resolveAccessControlAllowOriginHeader(req, originNorm);
-    if (acao) {
-      res.setHeader("Access-Control-Allow-Origin", acao);
-      res.setHeader("Vary", "Origin");
-      res.setHeader("Access-Control-Allow-Credentials", "true");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id");
-      res.setHeader("Access-Control-Max-Age", "86400");
+    const literals = configuredCorsOriginLiteralsByNormalized();
+    const hasConfiguredOrigins = Boolean(process.env.ALLOWED_ORIGINS?.trim()) && literals.size > 0;
+
+    if (IS_PRODUCTION && !hasConfiguredOrigins) {
+      // Refuse credentialed cross-origin CORS without an explicit allowlist.
+    } else {
+      const oNorm = normalizeHttpOrigin(origin);
+      let allowOrigin: string | undefined;
+      if (oNorm) {
+        if (literals.size > 0) {
+          allowOrigin = literals.get(oNorm);
+        } else if (!IS_PRODUCTION) {
+          const host = (req.get("host") ?? "").split(",")[0].trim();
+          if (host) {
+            const built = `${req.protocol}//${host}`;
+            if (normalizeHttpOrigin(built) === oNorm) allowOrigin = built;
+          }
+        }
+      }
+      if (allowOrigin) {
+        // lgtm[js/cors-misconfiguration-for-credentials] ACAO is only an ALLOWED_ORIGINS entry or dev-only protocol+Host after normalised match; Origin is never echoed.
+        res.setHeader("Access-Control-Allow-Origin", allowOrigin);
+        res.setHeader("Vary", "Origin");
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id");
+        res.setHeader("Access-Control-Max-Age", "86400");
+      }
     }
   }
 

@@ -83,7 +83,9 @@ export const twoFactorRouter = router({
         name: user.name || "",
         expiresInMs: SESSION_EXPIRY_MS,
       });
-      const cookieOptions = getSessionCookieOptions(ctx.req);
+      // crossSite:true — MFA completes on the same origin as OAuth, which is a
+      // cross-site redirect from manus.im. Must use SameSite=None;Secure=true.
+      const cookieOptions = getSessionCookieOptions(ctx.req, { crossSite: true });
       ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_EXPIRY_MS });
       try {
         await recordSessionLoginAudits(db, {

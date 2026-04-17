@@ -1,5 +1,7 @@
 /**
- * Derives persisted engagement roll-ups: SLA, last activity, health, and primary "top action".
+ * Derives persisted engagement roll-ups: SLA, last activity, health, and exactly one primary top action.
+ * Signals are limited to engagement-scoped tables (tasks, documents, messages, payment transfers,
+ * and linked contracts / invoices via `engagement_links`) so operational work stays traceable.
  */
 import { and, desc, eq } from "drizzle-orm";
 import {
@@ -118,6 +120,7 @@ export async function computeEngagementDerivedState(
 
   let proBillingOverdue = false;
   let csiOpen = false;
+  let csiOverdue = false;
   let pendingSignatures = 0;
   for (const l of links) {
     if (l.linkType === "pro_billing_cycle" && l.entityId) {
@@ -141,7 +144,7 @@ export async function computeEngagementDerivedState(
         if (bal > 0.0005) csiOpen = true;
         if (inv.dueDate) {
           const d = new Date(`${inv.dueDate}T23:59:59`);
-          if (d < now && bal > 0) proBillingOverdue = true;
+          if (d < now && bal > 0) csiOverdue = true;
         }
       }
     }
@@ -175,12 +178,21 @@ export async function computeEngagementDerivedState(
     const teamAfter = recentMsgs.find((m) => m.createdAt > last.createdAt && (m.author === "platform" || m.author === "system"));
     awaitingTeamReply = !teamAfter;
   }
+  let awaitingClientReply = false;
+  if (last && (last.author === "platform" || last.author === "system")) {
+    const clientAfter = recentMsgs.find((m) => m.createdAt > last.createdAt && m.author === "client");
+    awaitingClientReply = !clientAfter;
+  }
 
-  let topActionType: string | null = null;
-  let topActionLabel: string | null = null;
-  let topActionStatus: string | null = null;
-  let topActionDueAt: Date | null = null;
-  let topActionPayload: Record<string, unknown> = {};
+  /**
+   * Single primary action — precedence: financial verification → tasks → documents → signing → payment → messages → SLA → steady.
+   * All signals are scoped to engagement-linked rows (tasks/docs/messages/payment transfer + linked invoices/contracts).
+   */
+  let topActionType: string;
+  let topActionLabel: string;
+  let topActionStatus: string;
+  let topActionDueAt: Date | null;
+  let topActionPayload: Record<string, unknown>;
 
   if (eng.status === "blocked") {
     topActionType = "workflow";
@@ -188,6 +200,12 @@ export async function computeEngagementDerivedState(
     topActionStatus = "blocked";
     topActionDueAt = slaDueAt;
     topActionPayload = { status: eng.status };
+  } else if (eng.status === "waiting_client") {
+    topActionType = "messages_client";
+    topActionLabel = "Waiting on client input, documents, or approval.";
+    topActionStatus = "pending";
+    topActionDueAt = slaDueAt;
+    topActionPayload = { engagementStatus: eng.status };
   } else if (xfer?.phase === "proof_submitted") {
     topActionType = "payment_verify";
     topActionLabel = "Verify bank transfer proof for this engagement.";
@@ -200,26 +218,6 @@ export async function computeEngagementDerivedState(
     topActionStatus = "pending";
     topActionDueAt = slaDueAt;
     topActionPayload = { transferId: xfer.id };
-  } else if (pendingSignatures > 0) {
-    topActionType = "signing";
-    topActionLabel = `Complete ${pendingSignatures} pending signature(s).`;
-    topActionStatus = "pending";
-    topActionDueAt = slaDueAt;
-    topActionPayload = { pendingSignatures };
-  } else if (proBillingOverdue || csiOpen) {
-    topActionType = "payment";
-    topActionLabel = proBillingOverdue
-      ? "Payment is overdue — reconcile or request transfer instructions."
-      : "Invoice balance outstanding — reconcile or record payment.";
-    topActionStatus = proBillingOverdue ? "overdue" : "pending";
-    topActionDueAt = slaDueAt;
-    topActionPayload = { proBillingOverdue, csiOpen };
-  } else if (pendingDocs.length > 0) {
-    topActionType = "documents";
-    topActionLabel = `${pendingDocs.length} document(s) pending review.`;
-    topActionStatus = "pending";
-    topActionDueAt = slaDueAt;
-    topActionPayload = { documentIds: pendingDocs.map((d) => d.id) };
   } else if (overdueTask) {
     topActionType = "tasks";
     topActionLabel = `Task overdue: ${overdueTask.title}`;
@@ -232,9 +230,35 @@ export async function computeEngagementDerivedState(
     topActionStatus = "pending";
     topActionDueAt = slaDueAt;
     topActionPayload = { taskIds: openTasks.map((t) => t.id) };
+  } else if (pendingDocs.length > 0) {
+    topActionType = "documents";
+    topActionLabel = `${pendingDocs.length} document(s) pending review.`;
+    topActionStatus = "pending";
+    topActionDueAt = slaDueAt;
+    topActionPayload = { documentIds: pendingDocs.map((d) => d.id) };
+  } else if (pendingSignatures > 0) {
+    topActionType = "signing";
+    topActionLabel = `Complete ${pendingSignatures} pending signature(s).`;
+    topActionStatus = "pending";
+    topActionDueAt = slaDueAt;
+    topActionPayload = { pendingSignatures };
+  } else if (proBillingOverdue || csiOverdue || csiOpen) {
+    topActionType = "payment";
+    topActionLabel = proBillingOverdue || csiOverdue
+      ? "Payment or invoice is overdue — reconcile or record payment."
+      : "Invoice balance outstanding — reconcile or record payment.";
+    topActionStatus = proBillingOverdue || csiOverdue ? "overdue" : "pending";
+    topActionDueAt = slaDueAt;
+    topActionPayload = { proBillingOverdue, csiOverdue, csiOpen };
   } else if (awaitingTeamReply && ["active", "waiting_platform"].includes(eng.status)) {
-    topActionType = "messages";
+    topActionType = "messages_team";
     topActionLabel = "Client is waiting for a reply on the engagement thread.";
+    topActionStatus = "pending";
+    topActionDueAt = last?.createdAt ?? null;
+    topActionPayload = { lastMessageId: last?.id };
+  } else if (awaitingClientReply && ["active", "waiting_client"].includes(eng.status)) {
+    topActionType = "messages_client";
+    topActionLabel = "Follow up with the client — last message was from your team.";
     topActionStatus = "pending";
     topActionDueAt = last?.createdAt ?? null;
     topActionPayload = { lastMessageId: last?.id };
@@ -245,8 +269,8 @@ export async function computeEngagementDerivedState(
     topActionDueAt = slaDueAt;
     topActionPayload = {};
   } else {
-    topActionType = "none";
-    topActionLabel = "No urgent action — monitor as needed.";
+    topActionType = "steady";
+    topActionLabel = "No urgent action — monitor engagement health.";
     topActionStatus = "ok";
     topActionDueAt = slaDueAt;
     topActionPayload = {};
@@ -257,20 +281,22 @@ export async function computeEngagementDerivedState(
   if (eng.status === "blocked") {
     health = "blocked";
     healthReason = "Engagement status is blocked.";
-  } else if (overdueSla || overdueTask || proBillingOverdue) {
+  } else if (overdueSla || overdueTask || proBillingOverdue || csiOverdue) {
     health = "delayed";
     healthReason = overdueSla
       ? "Primary due date or SLA has passed."
       : overdueTask
         ? "At least one open task is overdue."
-        : "Linked receivable is overdue.";
-  } else if (eng.escalatedAt || xfer?.phase === "proof_submitted" || awaitingTeamReply) {
+        : "Linked receivable or CSI invoice is overdue.";
+  } else if (eng.escalatedAt || xfer?.phase === "proof_submitted" || awaitingTeamReply || awaitingClientReply) {
     health = "at_risk";
     healthReason = eng.escalatedAt
       ? "Engagement has been escalated."
       : xfer?.phase === "proof_submitted"
         ? "Transfer proof is awaiting verification."
-        : "Client message is awaiting a team reply.";
+        : awaitingTeamReply
+          ? "Client message is awaiting a team reply."
+          : "Team message may be awaiting client follow-up.";
   } else if (slaDueAt) {
     const ms = slaDueAt.getTime() - now.getTime();
     if (ms > 0 && ms < 3 * 24 * 60 * 60 * 1000) {

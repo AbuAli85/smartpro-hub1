@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -71,6 +72,16 @@ export default function ControlTowerPage() {
 
   const platformOp = seesPlatformOperatorNav(user);
   const scopeEnabled = activeCompanyId != null && !platformOp;
+
+  const engagementOpsRole =
+    activeCompany?.role === "company_admin" ||
+    activeCompany?.role === "hr_admin" ||
+    activeCompany?.role === "finance_admin";
+
+  const { data: engagementQueueKpi } = trpc.engagements.getOpsSummary.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: scopeEnabled && engagementOpsRole, staleTime: 60_000 },
+  );
 
   const {
     items: actionItems,
@@ -428,6 +439,36 @@ export default function ControlTowerPage() {
                 Open a tenant workspace from the company switcher to load tenant-specific signals. Platform tools stay in the sidebar.
               </CardDescription>
             </CardHeader>
+          </Card>
+        )}
+
+        {scopeEnabled && engagementOpsRole && engagementQueueKpi && (
+          <Card className="border-border/80">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Engagement operations</CardTitle>
+              <CardDescription className="text-xs">
+                KPIs use persisted engagement health and top-action roll-ups (same filters as{" "}
+                <Link href="/engagements/ops" className="text-primary underline font-medium">
+                  Engagement ops
+                </Link>
+                ).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              {[
+                { label: "Overdue", n: engagementQueueKpi.overdue ?? 0 },
+                { label: "At risk", n: engagementQueueKpi.at_risk ?? 0 },
+                { label: "Awaiting client", n: engagementQueueKpi.awaiting_client ?? 0 },
+                { label: "Awaiting team", n: engagementQueueKpi.awaiting_team ?? 0 },
+                { label: "Unassigned", n: engagementQueueKpi.no_owner ?? 0 },
+                { label: "Open", n: engagementQueueKpi.open ?? 0 },
+              ].map((c) => (
+                <div key={c.label} className="rounded-lg border bg-muted/30 px-3 py-2 text-center">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{c.label}</p>
+                  <p className="text-lg font-bold tabular-nums">{c.n}</p>
+                </div>
+              ))}
+            </CardContent>
           </Card>
         )}
 

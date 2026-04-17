@@ -37,9 +37,11 @@ export default function EngagementsOpsPage() {
   const { t } = useTranslation("engagements");
   const { user } = useAuth();
   const { activeCompanyId } = useActiveCompany();
+  const utils = trpc.useUtils();
   const isPlatform = user != null && seesPlatformOperatorNav(user);
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>("open");
   const [platformCompanyId, setPlatformCompanyId] = useState<string>("");
+  const [rollupBusy, setRollupBusy] = useState(false);
 
   const companyIdForQuery = isPlatform && platformCompanyId ? Number(platformCompanyId) : activeCompanyId ?? undefined;
 
@@ -52,31 +54,36 @@ export default function EngagementsOpsPage() {
     { enabled: !isPlatform ? activeCompanyId != null : true },
   );
 
+  const invalidateOps = () => {
+    void list.refetch();
+    void summary.refetch();
+  };
+
   const assign = trpc.engagements.assignOwner.useMutation({
     onSuccess: () => {
       toast.success(t("ops.assignDone"));
-      list.refetch();
+      invalidateOps();
     },
     onError: (e) => toast.error(e.message),
   });
   const priority = trpc.engagements.setPriority.useMutation({
     onSuccess: () => {
       toast.success(t("ops.priorityDone"));
-      list.refetch();
+      invalidateOps();
     },
     onError: (e) => toast.error(e.message),
   });
   const esc = trpc.engagements.escalate.useMutation({
     onSuccess: () => {
       toast.success(t("ops.escalateDone"));
-      list.refetch();
+      invalidateOps();
     },
     onError: (e) => toast.error(e.message),
   });
   const complete = trpc.engagements.applyTransition.useMutation({
     onSuccess: () => {
       toast.success(t("ops.completeDone"));
-      list.refetch();
+      invalidateOps();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -94,10 +101,57 @@ export default function EngagementsOpsPage() {
           <h1 className="text-xl font-bold tracking-tight">{t("ops.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">{t("ops.subtitle")}</p>
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/engagements">{t("backToList")}</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={rollupBusy || list.isFetching}
+            onClick={async () => {
+              setRollupBusy(true);
+              try {
+                await utils.engagements.listForOps.fetch({
+                  bucket,
+                  page: 1,
+                  pageSize: 75,
+                  companyId: companyIdForQuery,
+                  resyncDerived: true,
+                });
+                await utils.engagements.getOpsSummary.fetch({ companyId: companyIdForQuery });
+                invalidateOps();
+              } finally {
+                setRollupBusy(false);
+              }
+            }}
+          >
+            {rollupBusy ? "…" : "Refresh rollups"}
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/engagements">{t("backToList")}</Link>
+          </Button>
+        </div>
       </div>
+
+      {summary.data && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { label: "Open", value: summary.data.open ?? 0, hint: "Not completed" },
+            { label: "Overdue", value: summary.data.overdue ?? 0, hint: "SLA / action due" },
+            { label: "At risk", value: summary.data.at_risk ?? 0, hint: "Health" },
+            { label: "Awaiting client", value: summary.data.awaiting_client ?? 0, hint: "Status" },
+            { label: "Awaiting team", value: summary.data.awaiting_team ?? 0, hint: "Status" },
+            { label: "Unassigned", value: summary.data.no_owner ?? 0, hint: "No owner" },
+          ].map((kpi) => (
+            <Card key={kpi.label} className="border-border/80">
+              <CardContent className="p-4">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{kpi.label}</p>
+                <p className="text-2xl font-bold tabular-nums mt-1">{kpi.value}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{kpi.hint}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {isPlatform && (
         <Card className="border-dashed">
@@ -177,11 +231,18 @@ export default function EngagementsOpsPage() {
                   <p className="text-xs text-muted-foreground">
                     #{e.id} · {e.engagementType.replace(/_/g, " ")} · {fmtDateTimeShort(e.updatedAt)}
                   </p>
-                  {e.topActionLabel && (
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">{t("ops.next")}:</span> {e.topActionLabel}
-                    </p>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {e.topActionType && (
+                      <Badge variant="outline" className="text-[10px] font-mono uppercase">
+                        {e.topActionType.replace(/_/g, " ")}
+                      </Badge>
+                    )}
+                    {e.topActionLabel && (
+                      <p className="text-sm min-w-0">
+                        <span className="text-muted-foreground">{t("ops.next")}:</span> {e.topActionLabel}
+                      </p>
+                    )}
+                  </div>
                   {e.healthReason && (
                     <p className="text-xs text-amber-700 dark:text-amber-400">{e.healthReason}</p>
                   )}

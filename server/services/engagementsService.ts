@@ -480,6 +480,7 @@ export async function addEngagementLink(
     action: "link.added",
     payload: { linkType, entityId, entityKey },
   });
+  await syncEngagementDerivedState(db, engagementId, companyId);
 }
 
 export async function buildEngagementDetail(db: Db, engagementId: number, companyId: number) {
@@ -934,6 +935,7 @@ export async function markEngagementMessageRead(
       .update(engagementMessages)
       .set({ readAt: new Date() })
       .where(eq(engagementMessages.id, messageId));
+    await syncEngagementDerivedState(db, row.engagementId, companyId);
     return;
   }
   if (row.author === "client" && row.authorUserId === userId) {

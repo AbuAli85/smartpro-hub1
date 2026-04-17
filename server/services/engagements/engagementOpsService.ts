@@ -47,8 +47,14 @@ function buildOpsWhere(input: { scope: "platform" | "tenant"; companyId?: number
     case "overdue":
       parts.push(ne(engagements.status, "completed"));
       parts.push(ne(engagements.status, "archived"));
-      parts.push(isNotNull(engagements.slaDueAt));
-      parts.push(lt(engagements.slaDueAt, new Date()));
+      parts.push(
+        or(
+          and(isNotNull(engagements.slaDueAt), lt(engagements.slaDueAt, new Date())),
+          and(isNotNull(engagements.topActionDueAt), lt(engagements.topActionDueAt, new Date())),
+          eq(engagements.health, "delayed"),
+          eq(engagements.topActionStatus, "overdue"),
+        )!,
+      );
       break;
     case "at_risk":
       parts.push(eq(engagements.health, "at_risk"));
@@ -62,7 +68,9 @@ function buildOpsWhere(input: { scope: "platform" | "tenant"; companyId?: number
     case "pending_replies":
       parts.push(ne(engagements.status, "completed"));
       parts.push(ne(engagements.status, "archived"));
-      parts.push(eq(engagements.topActionType, "messages"));
+      parts.push(
+        or(eq(engagements.topActionType, "messages_team"), eq(engagements.topActionType, "messages"))!,
+      );
       break;
     case "overdue_payments":
       parts.push(ne(engagements.status, "completed"));
@@ -148,17 +156,20 @@ export async function getEngagementsOpsSummary(
     "pending_signatures",
     "docs_pending_review",
   ];
+  const counts = await Promise.all(
+    keys.map((bucket) =>
+      listEngagementsForOps(db, {
+        scope: input.scope,
+        companyId: input.companyId,
+        bucket,
+        page: 1,
+        pageSize: 1,
+        resyncDerived: false,
+      }).then((r) => ({ bucket, total: r.total })),
+    ),
+  );
   const out = {} as Record<OpsBucket, number>;
-  for (const k of keys) {
-    const { total } = await listEngagementsForOps(db, {
-      scope: input.scope,
-      companyId: input.companyId,
-      bucket: k,
-      page: 1,
-      pageSize: 1,
-    });
-    out[k] = total;
-  }
+  for (const { bucket, total } of counts) out[bucket] = total;
   return out;
 }
 

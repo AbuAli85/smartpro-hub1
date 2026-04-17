@@ -52,45 +52,138 @@ function validatedSameOriginRedirectHref(baseUrl: string, returnPath: string): s
   return resolved.href;
 }
 
+/** Host / Host:port → hostname only (lowercase), for comparisons behind proxies. */
+function oauthComparableHostname(host: string): string {
+  const h = host.trim().toLowerCase();
+  if (!h) return "";
+  try {
+    return new URL(`http://${h}`).hostname;
+  } catch {
+    return h.startsWith("[") ? h : h.split(":")[0] ?? h;
+  }
+}
+
 /**
- * Apex vs `www` (same site): OAuth callback may hit the bare domain while state
- * encodes `www` (or the reverse) behind the same load balancer.
+ * Apex vs `www` (same site): callback may hit bare domain while state encodes
+ * `www` (or reverse). Compares hostnames only (ports ignored).
  */
 function oauthStateHostMatchesRequest(stateHost: string, requestHost: string): boolean {
-  const a = stateHost.toLowerCase();
-  const b = requestHost.toLowerCase();
+  const a = oauthComparableHostname(stateHost);
+  const b = oauthComparableHostname(requestHost);
   if (a === b) return true;
-  const stripWww = (h: string) => (h.startsWith("www.") ? h.slice(4) : h);
+  const stripWww = (hostname: string) => (hostname.startsWith("www.") ? hostname.slice(4) : hostname);
   return stripWww(a) === stripWww(b);
+}
+
+/** Distinct Host / X-Forwarded-Host values from the request (first segment each). */
+function oauthRequestHostCandidates(req: Request): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of [req.get("x-forwarded-host"), req.get("host")]) {
+    const first = raw?.split(",")[0]?.trim();
+    if (!first || seen.has(first)) continue;
+    seen.add(first);
+    out.push(first);
+  }
+  return out;
+}
+
+/**
+ * Decode `state` query param (browser `btoa` of UTF-8 ASCII origin, optional `|path`).
+ * Harden for IdP/proxy/query parsing: spaces instead of `+`, URL-safe base64, padding.
+ */
+function decodeOAuthStatePayload(state: string): string | null {
+  try {
+    let s = state.trim();
+    if (!s) return null;
+    s = s.replace(/\s/g, "+");
+    s = s.replace(/-/g, "+").replace(/_/g, "/");
+    const rem = s.length % 4;
+    if (rem) s += "=".repeat(4 - rem);
+    const decoded = Buffer.from(s, "base64").toString("utf8");
+    if (!decoded || decoded.includes("\0")) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+let cachedOAuthEnvTrustedOrigins: URL[] | null = null;
+
+/** Origins explicitly configured for this deployment (CORS / public URL). */
+function oauthEnvTrustedOriginUrls(): URL[] {
+  if (cachedOAuthEnvTrustedOrigins) return cachedOAuthEnvTrustedOrigins;
+  const raw: string[] = [];
+  const allowedOrigins = process.env.ALLOWED_ORIGINS;
+  if (allowedOrigins) {
+    raw.push(...allowedOrigins.split(",").map((x) => x.trim()).filter(Boolean));
+  }
+  for (const v of [process.env.APP_PUBLIC_URL, process.env.PUBLIC_APP_URL]) {
+    const t = v?.trim();
+    if (t) raw.push(t);
+  }
+  const seen = new Set<string>();
+  const urls: URL[] = [];
+  for (const entry of raw) {
+    try {
+      const u = new URL(entry);
+      if (u.protocol !== "http:" && u.protocol !== "https:") continue;
+      const key = u.origin;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      urls.push(u);
+    } catch {
+      /* skip invalid */
+    }
+  }
+  cachedOAuthEnvTrustedOrigins = urls;
+  return urls;
+}
+
+/** True when decoded state origin matches an env-configured app URL (same scheme; www/apex host). */
+function oauthStateOriginMatchesEnvAllowlist(stateUrl: URL): boolean {
+  for (const allowed of oauthEnvTrustedOriginUrls()) {
+    if (stateUrl.protocol !== allowed.protocol) continue;
+    if (oauthStateHostMatchesRequest(stateUrl.host, allowed.host)) return true;
+  }
+  return false;
 }
 
 /**
  * Recover app origin from OAuth state (base64 of "origin" or "origin|returnPath").
- * Must align with the callback request Host (same registrable host; www/apex OK)
- * to avoid open redirects.
+ * Must align with the callback request Host (same registrable host; www/apex OK), or
+ * with `ALLOWED_ORIGINS` / `PUBLIC_APP_URL` / `APP_PUBLIC_URL` when proxies hide the
+ * public hostname on the incoming request.
  */
 function appBaseUrlFromState(state: string | undefined, req: Request): string | null {
   if (!state) return null;
+  const decoded = decodeOAuthStatePayload(state);
+  if (!decoded) return null;
   try {
-    const decoded = Buffer.from(state, "base64").toString("utf8");
     const pipeIdx = decoded.indexOf("|");
     const originPart = pipeIdx !== -1 ? decoded.slice(0, pipeIdx) : decoded;
     const u = new URL(originPart);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-    const hostHeader = (req.get("x-forwarded-host") ?? req.get("host") ?? "")
-      .split(",")[0]
-      .trim()
-      .toLowerCase();
-    if (!hostHeader || !oauthStateHostMatchesRequest(u.host, hostHeader)) return null;
-    return `${u.protocol}//${u.host}`;
+    const candidates = oauthRequestHostCandidates(req);
+    const hostMatchesRequest =
+      candidates.length > 0 &&
+      candidates.some((h) => oauthStateHostMatchesRequest(u.host, h));
+    if (hostMatchesRequest) {
+      return `${u.protocol}//${u.host}`;
+    }
+    if (oauthStateOriginMatchesEnvAllowlist(u)) {
+      return `${u.protocol}//${u.host}`;
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
 function redirectPathFromState(state: string): string {
+  const decoded = decodeOAuthStatePayload(state);
+  if (!decoded) return "/";
   try {
-    const decoded = Buffer.from(state, "base64").toString("utf8");
     const pipeIdx = decoded.indexOf("|");
     if (pipeIdx !== -1) {
       const returnPath = decoded.slice(pipeIdx + 1);

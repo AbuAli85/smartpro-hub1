@@ -15,6 +15,7 @@ import { serveStatic } from "./vite-static";
 import { applySecurityMiddleware } from "./security";
 import { validateProductionEnvironment } from "./env";
 import { runPendingMigrations } from "../runPendingMigrations";
+import { runSchemaDriftGuard } from "../schemaDriftGuard";
 import { runEmployeeTaskOverdueNotifications } from "../jobs/employeeTaskOverdue";
 import { runSyncExpiredContracts } from "../jobs/syncExpiredContracts";
 import { runSurveyNurtureEmails } from "../jobs/surveyNurture";
@@ -43,6 +44,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   validateProductionEnvironment();
   await runPendingMigrations();
+  void runSchemaDriftGuard(); // non-blocking: logs drift warnings without delaying startup
   const app = express();
   app.set("trust proxy", 1); // Trust first proxy — required for rate-limiter behind reverse proxy
   const server = createServer(app);

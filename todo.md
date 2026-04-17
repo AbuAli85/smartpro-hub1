@@ -32,3 +32,7 @@
 - [x] **TEST-DRIFT-GUARD** Add `server/schemaDriftGuard.test.ts` — 6 unit tests for the drift guard (disabled guard, no DB URL, full match, missing table, missing column, non-fatal on connection error)
 - [x] **DRIFT-3COLS** Fix 3 live DB drift warnings: add `attendance_sessions.promoter_assignment_id`, `outsourcing_contracts.required_headcount`, `promoter_payroll_runs.export_generation` via migration 0069
 - [x] **WPS-BADGE** Wire WPS readiness badge into employee detail/profile page using `hr.wpsHistory` query and `employees.wps_status` field
+
+## GitHub Sync (this session)
+
+- [x] **SYNC-0070** GitHub sync — pulled 2 commits (baseline schema recovery migration 0070), applied migration to DB (all 163 tables now present in live DB), fixed 2 TS errors in `companies.ts` (`snapshotDate` → `snapshotMonth`/`snapshotYear`), `tsc --noEmit` exits 0, 7 pre-existing test failures unchanged (attendance.forceCheckout, attendance.operationalFlows, HRPerformancePage)

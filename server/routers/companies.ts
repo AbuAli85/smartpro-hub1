@@ -1794,18 +1794,25 @@ export const companiesRouter = router({
       const totalActive = allEmps.length;
       const omaniCount = allEmps.filter((e) => isOmaniNationality(e.nationality)).length;
       const result = computeOmanizationRate({ totalActive, omaniCount }, input.targetPercent);
-      const today = new Date().toISOString().slice(0, 10);
+      const now = new Date();
+      const snapshotMonth = now.getMonth() + 1; // 1-12
+      const snapshotYear = now.getFullYear();
+      // Determine compliance status from result
+      const complianceStatus: "compliant" | "warning" | "non_compliant" = result.meetsTarget
+        ? "compliant"
+        : result.ratePercent >= (result.targetPercent ?? 0) * 0.9
+        ? "warning"
+        : "non_compliant";
       await db.insert(companyOmanizationSnapshots).values({
         companyId: cid,
-        snapshotDate: today,
-        totalActive,
-        omaniCount,
-        nonOmaniCount: result.nonOmaniCount,
-        ratePercent: String(result.ratePercent),
-        targetPercent: String(result.targetPercent),
-        meetsTarget: result.meetsTarget,
-        shortfallHeadcount: result.shortfallHeadcount,
-        takenByUserId: ctx.user.id,
+        snapshotMonth,
+        snapshotYear,
+        totalEmployees: totalActive,
+        omaniEmployees: omaniCount,
+        omaniRatio: String(result.ratePercent),
+        requiredRatio: result.targetPercent != null ? String(result.targetPercent) : null,
+        complianceStatus,
+        notes: result.shortfallHeadcount > 0 ? `Shortfall: ${result.shortfallHeadcount} headcount` : null,
       });
       return result;
     }),
@@ -1823,7 +1830,7 @@ export const companiesRouter = router({
         .select()
         .from(companyOmanizationSnapshots)
         .where(eq(companyOmanizationSnapshots.companyId, cid))
-        .orderBy(desc(companyOmanizationSnapshots.snapshotDate))
+        .orderBy(desc(companyOmanizationSnapshots.snapshotYear), desc(companyOmanizationSnapshots.snapshotMonth))
         .limit(input.limit);
     }),
 });

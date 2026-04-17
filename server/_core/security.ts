@@ -167,11 +167,21 @@ export const hrLetterPublicViewRateLimiter = rateLimit({
 });
 
 // ─── Input sanitisation ───────────────────────────────────────────────────────
+const PROTOTYPE_POLLUTION_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/** Only copy plain keys — blocks prototype pollution and CodeQL js/remote-property-injection. */
+function isSafeObjectKey(k: string): boolean {
+  if (k.length === 0 || k.length > 256) return false;
+  if (PROTOTYPE_POLLUTION_KEYS.has(k)) return false;
+  if (k.startsWith("__")) return false;
+  return /^[a-zA-Z0-9_.$-]+$/.test(k);
+}
+
 /**
  * Recursively sanitises an object:
  * - Strips null bytes (\x00) from strings
  * - Truncates strings exceeding 50,000 characters
- * - Removes __proto__, constructor, prototype keys (prototype pollution guard)
+ * - Drops keys that are not allow-listed (prototype / remote-property injection guard)
  */
 function sanitiseValue(val: unknown, depth = 0): unknown {
   if (depth > 10) return val; // Prevent infinite recursion on circular refs
@@ -182,11 +192,15 @@ function sanitiseValue(val: unknown, depth = 0): unknown {
     return val.map((v) => sanitiseValue(v, depth + 1));
   }
   if (val !== null && typeof val === "object") {
-    const out: Record<string, unknown> = {};
+    const out: Record<string, unknown> = Object.create(null);
     for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-      // Block prototype pollution keys
-      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-      out[k] = sanitiseValue(v, depth + 1);
+      if (!isSafeObjectKey(k)) continue;
+      Object.defineProperty(out, k, {
+        value: sanitiseValue(v, depth + 1),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     return out;
   }

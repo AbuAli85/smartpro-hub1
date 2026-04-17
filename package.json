@@ -13,6 +13,7 @@
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:backfill-hr-permissions": "tsx server/hrPerformancePermissionsBackfill.ts",
     "sanad-intel:import": "tsx scripts/import-sanad-intelligence.ts",
+    "db:build-baseline-0070": "node scripts/build-0070-baseline-migration.mjs",
     "db:run-pending": "tsx scripts/run-pending-migrations.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:migrate:dry": "tsx scripts/migrate.ts --dry-run"

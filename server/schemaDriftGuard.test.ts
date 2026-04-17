@@ -9,7 +9,12 @@
  *      a mock mysql2 connection that returns controlled SHOW COLUMNS data.
  */
 
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+
+const thisDir = dirname(fileURLToPath(import.meta.url));
 
 // ── Mock mysql2/promise before importing the module under test ────────────────
 vi.mock("mysql2/promise", () => ({
@@ -124,7 +129,7 @@ describe("runSchemaDriftGuard", () => {
     vi.mocked(mysql2.createConnection).mockResolvedValue(mockConn as never);
 
     const report = await runSchemaDriftGuard();
-    // There are 159 tables in the schema — all should be reported missing
+    // There are 163 tables in the schema — all should be reported missing
     expect(report.missingTables.length).toBeGreaterThan(0);
     expect(report.totalDrift).toBeGreaterThan(0);
   });
@@ -151,6 +156,25 @@ describe("runSchemaDriftGuard", () => {
     // assignment_status should be reported as missing
     expect(drift).toContain("assignment_status");
     expect(report.totalDrift).toBeGreaterThan(0);
+  });
+
+  it("baseline migration 0070 lists every Drizzle table with CREATE IF NOT EXISTS", async () => {
+    const schemaModule = await import("../drizzle/schema");
+    let schemaTableCount = 0;
+    for (const val of Object.values(schemaModule)) {
+      if (!val || typeof val !== "object") continue;
+      for (const sym of Object.getOwnPropertySymbols(val)) {
+        if (sym.description === "drizzle:Name") {
+          schemaTableCount++;
+          break;
+        }
+      }
+    }
+
+    const sql = readFileSync(join(thisDir, "../drizzle/0070_drizzle_baseline_schema_recovery.sql"), "utf8");
+    const creates = [...sql.matchAll(/CREATE TABLE IF NOT EXISTS `([^`]+)`/g)].map((m) => m[1]);
+    expect(new Set(creates).size).toBe(schemaTableCount);
+    expect(creates.length).toBe(schemaTableCount);
   });
 
   it("is non-fatal when mysql2 throws a connection error", async () => {

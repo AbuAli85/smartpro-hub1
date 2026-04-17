@@ -274,7 +274,7 @@ export function registerOAuthRoutes(app: Express) {
           name: fallbackUserInfo.name || "",
           expiresInMs: SESSION_EXPIRY_MS,
         });
-        const fallbackCookieOptions = getSessionCookieOptions(req);
+        const fallbackCookieOptions = getSessionCookieOptions(req, { crossSite: true });
         res.cookie(COOKIE_NAME, fallbackSessionToken, { ...fallbackCookieOptions, maxAge: SESSION_EXPIRY_MS });
         const fallbackHref = validatedSameOriginRedirectHref(resolvedTrustedBase, safeReturnPath);
         if (!fallbackHref) {
@@ -435,7 +435,7 @@ export function registerOAuthRoutes(app: Express) {
         expiresInMs: SESSION_EXPIRY_MS,
       });
 
-      const cookieOptions = getSessionCookieOptions(req);
+      const cookieOptions = getSessionCookieOptions(req, { crossSite: true });
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_EXPIRY_MS });
 
       const successHref = validatedSameOriginRedirectHref(trustedBase, safeReturnPath);

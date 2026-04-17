@@ -42,7 +42,8 @@ function sessionCookieDomain(hostname: string): string | undefined {
 }
 
 export function getSessionCookieOptions(
-  req: Request
+  req: Request,
+  { crossSite = false }: { crossSite?: boolean } = {}
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
   const hostname = req.hostname;
   const shouldSetDomain =
@@ -53,14 +54,19 @@ export function getSessionCookieOptions(
     hostname !== "::1";
 
   const domain = shouldSetDomain ? sessionCookieDomain(hostname) : undefined;
+  const secure = isSecureRequest(req);
+
+  // OAuth callbacks arrive as a cross-site top-level redirect from manus.im.
+  // Chrome (and all modern browsers) silently drop SameSite=Lax cookies that are
+  // set during a cross-site navigation — the session never lands.
+  // SameSite=None requires Secure=true; fall back to Lax on plain HTTP (local dev).
+  const sameSite: CookieOptions["sameSite"] = crossSite && secure ? "none" : "lax";
 
   return {
     httpOnly: true,
     path: "/",
-    // Lax is safe for same-origin navigation and blocks cross-site CSRF.
-    // Use "none" only if cross-origin auth flows (e.g. embedded iframes) are required.
-    sameSite: "lax",
-    secure: isSecureRequest(req),
+    sameSite,
+    secure,
     ...(domain ? { domain } : {}),
   };
 }

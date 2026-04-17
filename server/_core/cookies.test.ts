@@ -26,3 +26,42 @@ describe("getSessionCookieOptions domain", () => {
     expect(opts.domain).toBeUndefined();
   });
 });
+
+describe("getSessionCookieOptions SameSite", () => {
+  it("defaults to SameSite=Lax for same-site requests (e.g. logout, MFA)", () => {
+    const opts = getSessionCookieOptions(mockReq({ hostname: "www.thesmartpro.io" }));
+    expect(opts.sameSite).toBe("lax");
+  });
+
+  it("uses SameSite=None; Secure for cross-site OAuth callbacks on HTTPS", () => {
+    const opts = getSessionCookieOptions(
+      mockReq({ hostname: "www.thesmartpro.io", protocol: "https" }),
+      { crossSite: true }
+    );
+    expect(opts.sameSite).toBe("none");
+    expect(opts.secure).toBe(true);
+  });
+
+  it("falls back to SameSite=Lax when crossSite=true but request is HTTP (local dev)", () => {
+    const opts = getSessionCookieOptions(
+      mockReq({ hostname: "localhost", protocol: "http" }),
+      { crossSite: true }
+    );
+    // SameSite=None requires Secure; on plain HTTP we must fall back to Lax
+    expect(opts.sameSite).toBe("lax");
+    expect(opts.secure).toBe(false);
+  });
+
+  it("uses SameSite=None when X-Forwarded-Proto is https (Cloudflare proxy)", () => {
+    const opts = getSessionCookieOptions(
+      mockReq({
+        hostname: "www.thesmartpro.io",
+        protocol: "http", // raw protocol from Cloud Run is http
+        headers: { "x-forwarded-proto": "https" } as any,
+      }),
+      { crossSite: true }
+    );
+    expect(opts.sameSite).toBe("none");
+    expect(opts.secure).toBe(true);
+  });
+});

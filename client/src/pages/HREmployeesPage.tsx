@@ -543,6 +543,113 @@ function IbanQuickEdit({ employeeId, companyId, onSave }: { employeeId: number; 
   );
 }
 
+// ─── WPS Badge Section ──────────────────────────────────────────────────────
+const WPS_BADGE: Record<string, { label: string; bg: string; icon: typeof CheckCircle2 }> = {
+  ready:   { label: "WPS Ready",   bg: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+  invalid: { label: "WPS Invalid", bg: "bg-red-100 text-red-700 border-red-200",             icon: AlertCircle },
+  missing: { label: "WPS Missing", bg: "bg-amber-100 text-amber-700 border-amber-200",       icon: AlertTriangle },
+  exempt:  { label: "WPS Exempt",  bg: "bg-gray-100 text-gray-600 border-gray-200",          icon: Shield },
+};
+
+function WpsBadgeSection({
+  employeeId, emp, cid, onValidated,
+}: { employeeId: number; emp: any; cid?: number; onValidated: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const utils = trpc.useUtils();
+
+  const validateMutation = trpc.hr.validateWps.useMutation({
+    onSuccess: (res) => {
+      toast.success(`WPS status: ${res.status}`);
+      void utils.hr.getEmployee.invalidate({ id: employeeId });
+      void utils.hr.wpsHistory.invalidate({ employeeId });
+      onValidated();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const { data: history, isLoading: histLoading } = trpc.hr.wpsHistory.useQuery(
+    { employeeId, companyId: cid },
+    { enabled: expanded }
+  );
+
+  const currentStatus: string = emp.wpsStatus ?? "missing";
+  const badgeMeta = WPS_BADGE[currentStatus] ?? WPS_BADGE.missing;
+  const BadgeIcon = badgeMeta.icon;
+  const lastValidated = emp.wpsLastValidatedAt ? fmtDate(emp.wpsLastValidatedAt) : null;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">WPS Readiness</p>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+          disabled={validateMutation.isPending}
+          onClick={() => validateMutation.mutate({ employeeId, companyId: cid })}
+        >
+          <Shield size={11} />
+          {validateMutation.isPending ? "Validating..." : "Validate"}
+        </Button>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Badge className={`text-xs ${badgeMeta.bg}`} variant="outline">
+          <BadgeIcon size={10} className="mr-1" />
+          {badgeMeta.label}
+        </Badge>
+        {lastValidated && (
+          <span className="text-[10px] text-muted-foreground">Last checked: {lastValidated}</span>
+        )}
+      </div>
+      {/* Issues list */}
+      {currentStatus !== "ready" && currentStatus !== "exempt" && (
+        <div className="mt-2 space-y-1">
+          {!emp.ibanNumber && (
+            <p className="text-[11px] text-amber-700 flex items-center gap-1"><AlertTriangle size={10} /> IBAN number missing</p>
+          )}
+          {!emp.basicSalary && (
+            <p className="text-[11px] text-amber-700 flex items-center gap-1"><AlertTriangle size={10} /> Basic salary not set</p>
+          )}
+          {!emp.bankName && (
+            <p className="text-[11px] text-amber-700 flex items-center gap-1"><AlertTriangle size={10} /> Bank name missing</p>
+          )}
+        </div>
+      )}
+      {/* Expandable history */}
+      <button
+        className="mt-2 text-[11px] text-[var(--smartpro-orange)] hover:underline flex items-center gap-1"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <History size={11} />
+        {expanded ? "Hide history" : "View validation history"}
+        {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-1.5">
+          {histLoading && <p className="text-xs text-muted-foreground">Loading...</p>}
+          {!histLoading && (!history || history.length === 0) && (
+            <p className="text-xs text-muted-foreground">No validation history yet.</p>
+          )}
+          {!histLoading && history && history.map((row: any) => (
+            <div key={row.id} className="flex items-start gap-2 p-2 bg-muted/30 rounded-lg">
+              <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${
+                row.result === "ready" ? "bg-emerald-500" : row.result === "invalid" ? "bg-red-500" : "bg-amber-500"
+              }`} />
+              <div>
+                <p className="text-[11px] font-medium capitalize">{row.result}</p>
+                {row.failureReasons && (row.failureReasons as string[]).length > 0 && (
+                  <p className="text-[10px] text-muted-foreground">{(row.failureReasons as string[]).join(", ")}</p>
+                )}
+                <p className="text-[10px] text-muted-foreground">{row.validatedAt ? fmtDate(row.validatedAt) : ""}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Employee Detail Panel ────────────────────────────────────────────────────
 function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: number; onClose: () => void; onUpdate: () => void }) {
   const { t } = useTranslation("hr");
@@ -749,6 +856,10 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
         {!(emp as any).bankName && !(emp as any).bankAccountNumber && !(emp as any).ibanNumber && (
           <IbanQuickEdit employeeId={emp.id} companyId={cid} onSave={() => refetch()} />
         )}
+
+        {/* WPS Readiness */}
+        <Separator />
+        <WpsBadgeSection employeeId={employeeId} emp={emp as any} cid={cid} onValidated={() => refetch()} />
 
         {/* Compensation */}
         <Separator />

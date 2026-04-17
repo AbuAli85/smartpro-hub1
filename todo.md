@@ -30,3 +30,5 @@
 - [x] **FEAT-DRIFT-GUARD** Add `server/schemaDriftGuard.ts` — startup schema drift guard that compares Drizzle schema columns against live DB and logs warnings for any missing tables or columns; wired into `server/_core/index.ts` after `runPendingMigrations`
 - [x] **TEST-LIFECYCLE** Add `server/promoterAssignmentLifecycle.e2e.test.ts` — 31 end-to-end tests covering the full promoter assignment lifecycle: draft → active → payroll staging → billing staging → suspension → completion
 - [x] **TEST-DRIFT-GUARD** Add `server/schemaDriftGuard.test.ts` — 6 unit tests for the drift guard (disabled guard, no DB URL, full match, missing table, missing column, non-fatal on connection error)
+- [x] **DRIFT-3COLS** Fix 3 live DB drift warnings: add `attendance_sessions.promoter_assignment_id`, `outsourcing_contracts.required_headcount`, `promoter_payroll_runs.export_generation` via migration 0069
+- [x] **WPS-BADGE** Wire WPS readiness badge into employee detail/profile page using `hr.wpsHistory` query and `employees.wps_status` field

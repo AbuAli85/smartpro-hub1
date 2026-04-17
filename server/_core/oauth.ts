@@ -15,6 +15,43 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/** Same-origin return path only (blocks `//host`, `https:`, backslash tricks). */
+function sanitizeOAuthReturnPath(path: string): string {
+  const p = path.trim();
+  if (!p.startsWith("/") || p.startsWith("//") || p.includes("\\") || p.includes("://")) {
+    return "/";
+  }
+  return p;
+}
+
+/**
+ * Build an absolute redirect URL under `baseUrl` only — rejects cross-origin
+ * resolution so state-derived paths cannot become phishing redirects
+ * (CodeQL js/server-side-unvalidated-url-redirection).
+ */
+function validatedSameOriginRedirectHref(baseUrl: string, returnPath: string): string | null {
+  const path = sanitizeOAuthReturnPath(returnPath);
+  let baseParsed: URL;
+  try {
+    baseParsed = new URL(baseUrl);
+  } catch {
+    return null;
+  }
+  if (baseParsed.protocol !== "http:" && baseParsed.protocol !== "https:") {
+    return null;
+  }
+  let resolved: URL;
+  try {
+    resolved = new URL(path, baseParsed);
+  } catch {
+    resolved = new URL("/", baseParsed);
+  }
+  if (resolved.origin !== baseParsed.origin) {
+    return new URL("/", baseParsed).href;
+  }
+  return resolved.href;
+}
+
 /**
  * Recover app origin from OAuth state (base64 of "origin" or "origin|returnPath").
  * Must match the Host of this callback request to avoid open redirects.
@@ -44,7 +81,7 @@ function redirectPathFromState(state: string): string {
     const pipeIdx = decoded.indexOf("|");
     if (pipeIdx !== -1) {
       const returnPath = decoded.slice(pipeIdx + 1);
-      if (returnPath.startsWith("/")) return returnPath;
+      return sanitizeOAuthReturnPath(returnPath);
     }
   } catch {
     /* fall through */
@@ -53,29 +90,41 @@ function redirectPathFromState(state: string): string {
 }
 
 function redirectWithSignInError(res: Response, baseUrl: string, path: string, errorCode: string) {
-  const url = new URL(path, baseUrl);
+  const href = validatedSameOriginRedirectHref(baseUrl, path);
+  if (!href) {
+    res.status(500).type("html").send("<p>Sign-in redirect configuration error.</p>");
+    return;
+  }
+  const url = new URL(href);
   url.searchParams.set("signin_error", errorCode);
-  res.redirect(302, url.pathname + url.search + url.hash);
+  res.redirect(302, url.href);
 }
+
+const OAUTH_INCOMPLETE_HTML =
+  "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Sign-in</title></head><body style=\"font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem;\"><p>Sign-in link was incomplete. Close this tab and start again from the SmartPRO app.</p></body></html>";
 
 export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");
 
-    if (!code || !state) {
-      const base = appBaseUrlFromState(state, req);
-      if (base) {
-        const path = state ? redirectPathFromState(state) : "/";
-        redirectWithSignInError(res, base, path, "oauth_incomplete");
-        return;
-      }
-      res
-        .status(400)
-        .type("html")
-        .send(
-          "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Sign-in</title></head><body style=\"font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem;\"><p>Sign-in link was incomplete. Close this tab and start again from the SmartPRO app.</p></body></html>",
-        );
+    // Validate `state` and derive redirect targets once (avoids user-controlled-bypass:
+    // do not branch a sensitive redirect on raw query shape like `!code || !state`).
+    if (!state) {
+      res.status(400).type("html").send(OAUTH_INCOMPLETE_HTML);
+      return;
+    }
+
+    const trustedBase = appBaseUrlFromState(state, req);
+    const safeReturnPath = redirectPathFromState(state);
+
+    if (!trustedBase) {
+      res.status(400).type("html").send(OAUTH_INCOMPLETE_HTML);
+      return;
+    }
+
+    if (!code) {
+      redirectWithSignInError(res, trustedBase, safeReturnPath, "oauth_incomplete");
       return;
     }
 
@@ -84,12 +133,7 @@ export function registerOAuthRoutes(app: Express) {
       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
 
       if (!userInfo.openId) {
-        const baseNoOid = appBaseUrlFromState(state, req);
-        if (baseNoOid) {
-          redirectWithSignInError(res, baseNoOid, redirectPathFromState(state), "oauth_callback");
-          return;
-        }
-        res.status(400).json({ error: "openId missing from user info" });
+        redirectWithSignInError(res, trustedBase, safeReturnPath, "oauth_callback");
         return;
       }
 
@@ -185,8 +229,6 @@ export function registerOAuthRoutes(app: Express) {
         console.error("[OAuth] Auto-link employee failed (non-fatal):", autoLinkErr);
       }
 
-      const redirectTo = redirectPathFromState(state);
-
       const userForMfa = await db.getUserByOpenId(userInfo.openId);
       if (userForMfa?.twoFactorEnabled && userForMfa.twoFactorSecretEncrypted) {
         const mfaDb = await getDb();
@@ -197,23 +239,23 @@ export function registerOAuthRoutes(app: Express) {
         try {
           const challengeId = await createMfaChallengeForUser(mfaDb, {
             userId: userForMfa.id,
-            returnPath: redirectTo,
+            returnPath: safeReturnPath,
           });
-          const base = appBaseUrlFromState(state, req);
-          if (!base) {
-            res.status(400).send("Invalid OAuth state (origin)");
+          const mfaUrl = new URL("/auth/mfa", trustedBase);
+          mfaUrl.searchParams.set("challenge", challengeId);
+          const mfaHref = validatedSameOriginRedirectHref(
+            trustedBase,
+            `${mfaUrl.pathname}${mfaUrl.search}`,
+          );
+          if (!mfaHref) {
+            res.status(500).send("MFA redirect error");
             return;
           }
-          res.redirect(302, `${base}/auth/mfa?challenge=${encodeURIComponent(challengeId)}`);
+          res.redirect(302, mfaHref);
           return;
         } catch (mfaErr) {
           console.error("[OAuth] MFA challenge creation failed:", mfaErr);
-          const base = appBaseUrlFromState(state, req);
-          if (base) {
-            redirectWithSignInError(res, base, redirectTo, "mfa_unavailable");
-            return;
-          }
-          res.status(500).send("MFA unavailable");
+          redirectWithSignInError(res, trustedBase, safeReturnPath, "mfa_unavailable");
           return;
         }
       }
@@ -226,20 +268,15 @@ export function registerOAuthRoutes(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_EXPIRY_MS });
 
-      res.redirect(302, redirectTo);
-    } catch (error) {
-      console.error("[OAuth] Callback failed", error);
-      const base = appBaseUrlFromState(state, req);
-      if (base) {
-        redirectWithSignInError(res, base, redirectPathFromState(state), "oauth_callback");
+      const successHref = validatedSameOriginRedirectHref(trustedBase, safeReturnPath);
+      if (!successHref) {
+        res.status(500).send("Invalid post-login redirect");
         return;
       }
-      res
-        .status(500)
-        .type("html")
-        .send(
-          "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Sign-in failed</title></head><body style=\"font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem;\"><p>We could not finish sign-in. Go back to the SmartPRO app and try again. If it keeps failing, use the same sign-in method (Microsoft, Google, etc.) you used when you first registered.</p></body></html>",
-        );
+      res.redirect(302, successHref);
+    } catch (error) {
+      console.error("[OAuth] Callback failed", error);
+      redirectWithSignInError(res, trustedBase, safeReturnPath, "oauth_callback");
     }
   });
 }

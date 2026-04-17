@@ -36,3 +36,4 @@
 ## GitHub Sync (this session)
 
 - [x] **SYNC-0070** GitHub sync — pulled 2 commits (baseline schema recovery migration 0070), applied migration to DB (all 163 tables now present in live DB), fixed 2 TS errors in `companies.ts` (`snapshotDate` → `snapshotMonth`/`snapshotYear`), `tsc --noEmit` exits 0, 7 pre-existing test failures unchanged (attendance.forceCheckout, attendance.operationalFlows, HRPerformancePage)
+- [x] **SYNC-0071** GitHub sync — pulled 2 commits (WPS validation period scope + Omanization admin status cell). Applied migration 0071 (`period_year`/`period_month` columns + index on `employee_wps_validations`). `tsc --noEmit` exits 0. 15 new tests pass (OmanizationStatusCell x6, financeHR.pnlDataQuality x6, employeeWps.period x3). 7 pre-existing test failures unchanged.

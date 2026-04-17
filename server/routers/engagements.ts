@@ -15,6 +15,7 @@ import type { CompanyMember } from "../../drizzle/schema";
 import {
   engagements,
   engagementTasks,
+  employeeTasks,
   engagementDocuments,
   engagementMessages,
   notifications,
@@ -61,6 +62,7 @@ const createFromSourceInput = z.discriminatedUnion("sourceType", [
   z.object({ sourceType: z.literal("marketplace_booking"), sourceId: z.number().int().positive() }),
   z.object({ sourceType: z.literal("contract"), sourceId: z.number().int().positive() }),
   z.object({ sourceType: z.literal("pro_billing_cycle"), sourceId: z.number().int().positive() }),
+  z.object({ sourceType: z.literal("client_service_invoice"), sourceId: z.number().int().positive() }),
   z.object({ sourceType: z.literal("staffing_month"), sourceKey: z.string().regex(/^\d{4}-\d{2}$/) }),
   z.object({ sourceType: z.literal("service_request"), sourceId: z.number().int().positive() }),
 ]);
@@ -734,6 +736,8 @@ export const engagementsRouter = router({
           engagementId: z.number().int().positive(),
           title: z.string().min(1).max(512),
           dueDate: z.date().optional().nullable(),
+          /** Links this client-visible task to an internal `employee_tasks` row. */
+          linkedEmployeeTaskId: z.number().int().positive().optional(),
         })
         .merge(optionalActiveWorkspace),
     )
@@ -743,6 +747,14 @@ export const engagementsRouter = router({
       const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       await assertEngagementInCompany(db, input.engagementId, m.companyId);
+      if (input.linkedEmployeeTaskId != null) {
+        const [et] = await db
+          .select({ id: employeeTasks.id })
+          .from(employeeTasks)
+          .where(and(eq(employeeTasks.id, input.linkedEmployeeTaskId), eq(employeeTasks.companyId, m.companyId)))
+          .limit(1);
+        if (!et) throw new TRPCError({ code: "NOT_FOUND", message: "Employee task not found" });
+      }
       const [ins] = await db.insert(engagementTasks).values({
         engagementId: input.engagementId,
         companyId: m.companyId,
@@ -750,6 +762,7 @@ export const engagementsRouter = router({
         status: "pending",
         dueDate: input.dueDate ?? null,
         sortOrder: 99,
+        linkedEmployeeTaskId: input.linkedEmployeeTaskId ?? null,
       });
       const id = insertId(ins);
       await logEngagementActivity(db, {

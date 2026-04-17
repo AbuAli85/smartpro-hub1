@@ -363,7 +363,7 @@ export default function EmployeeLifecyclePage() {
     { enabled: employeeId > 0 }
   );
   /** All payroll periods for this employee (any year). */
-  const { data: payrollData } = trpc.hr.listPayroll.useQuery(
+  const { data: payrollData } = trpc.payroll.listEmployeePayrollHistory.useQuery(
     { employeeId },
     { enabled: employeeId > 0 }
   );

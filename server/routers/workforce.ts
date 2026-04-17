@@ -1672,6 +1672,12 @@ Return ONLY valid JSON matching the schema, no extra text.`,
         });
         const caseId = Number(caseResult[0].insertId);
 
+        const { tryCreateEngagementFromSource } = await import("../services/engagementAutoCreate");
+        await tryCreateEngagementFromSource(db, companyId, ctx.user.id, {
+          sourceType: "government_case",
+          sourceId: caseId,
+        });
+
         // Auto-generate tasks
         const tasks = autoTasksForCaseType(input.caseType);
         for (const task of tasks) {

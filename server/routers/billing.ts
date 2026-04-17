@@ -10,6 +10,7 @@ import {
   proBillingCycles,
 } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
+import { tryCreateEngagementFromSource } from "../services/engagementAutoCreate";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -27,10 +28,10 @@ function payoutNumber(officerId: number, year: number, month: number) {
 
 export const billingRouter = router({
   /**
-   * Generate monthly invoices for all active officer-company assignments.
+   * Generate monthly PRO-officer invoices for all active officer-company assignments.
    * Admin only. Idempotent — skips already-generated invoices for the period.
    */
-  generateMonthlyInvoices: protectedProcedure
+  generateProOfficerInvoices: protectedProcedure
     .input(
       z.object({
         month: z.number().min(1).max(12),
@@ -64,7 +65,7 @@ export const billingRouter = router({
         // Due date: 15th of the billing month
         const dueDate = new Date(input.year, input.month - 1, 15);
 
-        await db.insert(proBillingCycles).values({
+        const [ins] = await db.insert(proBillingCycles).values({
           officerId: a.officerId,
           companyId: a.companyId,
           assignmentId: a.id,
@@ -75,6 +76,13 @@ export const billingRouter = router({
           invoiceNumber: inv,
           dueDate,
         });
+        const newId = Number((ins as { insertId?: number }).insertId);
+        if (newId) {
+          await tryCreateEngagementFromSource(db, a.companyId, ctx.user.id, {
+            sourceType: "pro_billing_cycle",
+            sourceId: newId,
+          });
+        }
         created++;
       }
 

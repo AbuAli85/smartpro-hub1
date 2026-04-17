@@ -113,7 +113,7 @@ export const marketplaceRouter = router({
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const bookingNumber = "BK-" + Date.now() + "-" + nanoid(4).toUpperCase();
       const { companyId: _omit, ...bookingRest } = input;
-      await createMarketplaceBooking({
+      const bookingId = await createMarketplaceBooking({
         ...bookingRest,
         companyId,
         clientId: ctx.user.id,
@@ -121,6 +121,15 @@ export const marketplaceRouter = router({
         amount: input.amount ? String(input.amount) : undefined,
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
       });
+      const { getDb } = await import("../db");
+      const { tryCreateEngagementFromSource } = await import("../services/engagementAutoCreate");
+      const db = await getDb();
+      if (db) {
+        await tryCreateEngagementFromSource(db, companyId, ctx.user.id, {
+          sourceType: "marketplace_booking",
+          sourceId: bookingId,
+        });
+      }
       return { success: true, bookingNumber };
     }),
 

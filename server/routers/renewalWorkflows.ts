@@ -1,6 +1,10 @@
 /**
  * Automated Renewal Workflows Router
  *
+ * **Renewal requests from the client portal** should use `engagements.requestRenewal` as the
+ * supported self-service path. This router remains for **operator-defined automation rules**
+ * (scheduled scans, bulk case creation, PRO assignment hints) — not as a parallel client UX.
+ *
  * Business logic:
  * - Admins define rules (entity type + days-before threshold) that auto-create
  *   government cases, optionally auto-assign the best available PRO officer,
@@ -108,6 +112,12 @@ async function createRenewalCase(
     createdBy,
   }));
   await db.insert(caseTasks).values(tasks);
+
+  const { tryCreateEngagementFromSource } = await import("../services/engagementAutoCreate");
+  await tryCreateEngagementFromSource(db, companyId, createdBy, {
+    sourceType: "government_case",
+    sourceId: caseId,
+  });
 
   return caseId;
 }

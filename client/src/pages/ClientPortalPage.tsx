@@ -53,6 +53,9 @@ function statusBadge(status: string) {
     terminated: "bg-red-100 text-red-700",
     cancelled: "bg-gray-100 text-gray-500",
     pending: "bg-amber-100 text-amber-700",
+    sent: "bg-blue-100 text-blue-700",
+    partial: "bg-amber-100 text-amber-800",
+    void: "bg-gray-100 text-gray-500",
     paid: "bg-emerald-100 text-emerald-700",
     overdue: "bg-red-100 text-red-700",
     waived: "bg-gray-100 text-gray-500",
@@ -590,6 +593,7 @@ export default function ClientPortalPage() {
   const { data: dashboard, isLoading: dashLoading } = trpc.clientPortal.getDashboard.useQuery();
   const { data: contractsData } = trpc.clientPortal.listContracts.useQuery({ pageSize: 50 });
   const { data: invoicesData } = trpc.clientPortal.listInvoices.useQuery({ pageSize: 50 });
+  const { data: csiInvoicesData } = trpc.clientPortal.listClientServiceInvoices.useQuery({ pageSize: 50 });
   const { data: staffingInvoice, isLoading: staffingLoading } =
     trpc.clientPortal.getMyStaffingInvoice.useQuery(
       { month: staffingMonth },
@@ -933,6 +937,47 @@ export default function ClientPortalPage() {
                 ))}
               </div>
             )}
+
+            <div className="mt-10 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Client service invoices (staffing)</h3>
+                <Badge variant="outline">{csiInvoicesData?.items.length ?? 0}</Badge>
+              </div>
+              {(csiInvoicesData?.items ?? []).length === 0 ? (
+                <Card className="border-0 shadow-sm border-dashed">
+                  <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                    No CSI invoices found for your company on active staffing assignments.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {(csiInvoicesData?.items ?? []).map((inv) => (
+                    <Card key={`csi-${inv.id}`} className="border-0 shadow-sm">
+                      <CardContent className="p-5">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono text-sm font-semibold">{inv.invoiceLabel}</span>
+                              <Badge className={`text-xs ${statusBadge(String(inv.effectiveStatus))}`}>
+                                {inv.effectiveStatus}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Period {inv.periodMonth}/{inv.periodYear}
+                              {inv.dueDate ? ` · Due ${inv.dueDate}` : ""}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xl font-bold text-foreground">{fmtOMR(inv.totalOmr)}</p>
+                            <p className="text-xs text-muted-foreground">Balance {fmtOMR(inv.balanceOmr)}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="staffing" className="space-y-4">

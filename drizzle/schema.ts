@@ -4893,12 +4893,17 @@ export const engagementTasks = mysqlTable(
     status: engagementTaskStatusEnum.notNull().default("pending"),
     dueDate: timestamp("due_date"),
     sortOrder: int("sort_order").notNull().default(0),
+    /** When set, mirrors an internal `employee_tasks` row for client-visible work. */
+    linkedEmployeeTaskId: int("linked_employee_task_id").references(() => employeeTasks.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
   (t) => [
     index("idx_engagement_tasks_engagement").on(t.engagementId),
     index("idx_engagement_tasks_company").on(t.companyId),
+    index("idx_engagement_tasks_linked_employee_task").on(t.linkedEmployeeTaskId),
   ],
 );
 export type EngagementTask = typeof engagementTasks.$inferSelect;

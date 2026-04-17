@@ -2,8 +2,9 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { employeeTasks, employees, users } from "../../drizzle/schema";
+import { employeeTasks, employees, engagementTasks, users } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { assertEngagementInCompany } from "../services/engagementsService";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { sendEmployeeNotification, notifyAssignerTaskCompleted } from "./employeePortal";
@@ -139,12 +140,15 @@ export const tasksRouter = router({
       estimatedDurationMinutes: z.number().int().min(5).max(43200).optional(),
       checklist: taskChecklistSchema,
       attachmentLinks: taskAttachmentLinksSchema,
+      /** When set with `clientVisible`, creates a linked `engagement_tasks` row for the same company. */
+      engagementId: z.number().int().positive().optional(),
+      clientVisible: z.boolean().optional(),
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
-      const { companyId: _cid, ...rest } = input;
+      const { companyId: _cid, engagementId, clientVisible, ...rest } = input;
       const now = new Date();
       const [result] = await db.insert(employeeTasks).values({
         companyId,
@@ -163,6 +167,18 @@ export const tasksRouter = router({
         notifiedOverdue: false,
       });
       const insertId = (result as any).insertId as number;
+      if (clientVisible && engagementId) {
+        await assertEngagementInCompany(db, engagementId, companyId);
+        await db.insert(engagementTasks).values({
+          engagementId,
+          companyId,
+          title: rest.title.trim(),
+          status: "pending",
+          dueDate: rest.dueDate ? new Date(rest.dueDate) : null,
+          sortOrder: 99,
+          linkedEmployeeTaskId: insertId,
+        });
+      }
       const [assignee] = await db
         .select({ userId: employees.userId })
         .from(employees)
@@ -277,6 +293,14 @@ export const tasksRouter = router({
       await db.update(employeeTasks).set(updateData).where(eq(employeeTasks.id, id));
 
       if (becameCompleted) {
+        const [mirror] = await db
+          .select({ id: engagementTasks.id })
+          .from(engagementTasks)
+          .where(and(eq(engagementTasks.linkedEmployeeTaskId, id), eq(engagementTasks.companyId, companyId)))
+          .limit(1);
+        if (mirror) {
+          await db.update(engagementTasks).set({ status: "done" }).where(eq(engagementTasks.id, mirror.id));
+        }
         await notifyAssignerTaskCompleted({
           assignedByUserId: existing.assignedByUserId,
           completedByUserId: ctx.user.id,

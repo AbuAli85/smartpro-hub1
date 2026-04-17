@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -15,7 +16,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -240,7 +240,6 @@ export default function HRLeavePage() {
   const { user } = useAuth();
   const { activeCompanyId } = useActiveCompany();
   const [leaveOpen, setLeaveOpen] = useState(false);
-  const [payrollOpen, setPayrollOpen] = useState(false);
   const [leaveFilter, setLeaveFilter] = useState<string>("all");
   const [leaveForm, setLeaveForm] = useState({
     employeeId: "",
@@ -249,17 +248,8 @@ export default function HRLeavePage() {
     endDate: "",
     reason: "",
   });
-  const [payrollForm, setPayrollForm] = useState({
-    employeeId: "",
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
-    basicSalary: "",
-    allowances: "",
-    deductions: "",
-  });
-
   const { data: leaveRequests, isLoading: leaveLoading, refetch: refetchLeave } = trpc.hr.listLeave.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: payrollRecords, isLoading: payrollLoading, refetch: refetchPayroll } = trpc.hr.listPayroll.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: payrollRecords, isLoading: payrollLoading } = trpc.hr.listPayroll.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: employees, isLoading: employeesLoading } = trpc.hr.listEmployees.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   // Build employee name lookup
@@ -283,15 +273,6 @@ export default function HRLeavePage() {
 
   const updateLeave = trpc.hr.updateLeave.useMutation({
     onSuccess: () => { toast.success(t("leave.statusUpdated")); void refetchLeave(); },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const createPayroll = trpc.hr.createPayroll.useMutation({
-    onSuccess: () => {
-      toast.success(t("payroll.created"));
-      setPayrollOpen(false);
-      void refetchPayroll();
-    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -451,107 +432,12 @@ export default function HRLeavePage() {
             </DialogContent>
           </Dialog>
 
-          {/* Add Payroll (admin only) */}
           {isAdmin && (
-            <Dialog open={payrollOpen} onOpenChange={setPayrollOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gap-2">
-                  <DollarSign size={14} /> {t("payroll.title")}
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>{t("payroll.form.title")}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 mt-2">
-                  <div className="space-y-1.5">
-                    <Label>{t("employee")} *</Label>
-                    <Select value={payrollForm.employeeId} onValueChange={(v) => setPayrollForm({ ...payrollForm, employeeId: v })}>
-                      <SelectTrigger><SelectValue placeholder={t("payroll.form.selectEmployee")} /></SelectTrigger>
-                      <SelectContent>
-                        {(employees ?? []).map((e) => (
-                          <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label>{t("payroll.form.month")}</Label>
-                      <Select value={String(payrollForm.month)} onValueChange={(v) => setPayrollForm({ ...payrollForm, month: Number(v) })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Array.from({ length: 12 }, (_, i) => (
-                            <SelectItem key={i + 1} value={String(i + 1)}>
-                              {new Date(2024, i).toLocaleString("default", { month: "long" })}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>{t("payroll.form.year")}</Label>
-                      <Input type="number" value={payrollForm.year} onChange={(e) => setPayrollForm({ ...payrollForm, year: Number(e.target.value) })} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-1.5">
-                      <Label>{t("payroll.form.basicSalary")} *</Label>
-                      <Input type="number" placeholder="0.000" step="0.001" value={payrollForm.basicSalary} onChange={(e) => setPayrollForm({ ...payrollForm, basicSalary: e.target.value })} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>{t("payroll.form.allowances")}</Label>
-                      <Input type="number" placeholder="0.000" step="0.001" value={payrollForm.allowances} onChange={(e) => setPayrollForm({ ...payrollForm, allowances: e.target.value })} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>{t("payroll.form.deductions")}</Label>
-                      <Input type="number" placeholder="0.000" step="0.001" value={payrollForm.deductions} onChange={(e) => setPayrollForm({ ...payrollForm, deductions: e.target.value })} />
-                    </div>
-                  </div>
-                  {payrollForm.basicSalary && (
-                    <div className="bg-muted rounded-xl p-3 text-sm space-y-1.5">
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>{t("payroll.basicSalary")}</span>
-                        <span>OMR {Number(payrollForm.basicSalary).toFixed(3)}</span>
-                      </div>
-                      <div className="flex justify-between text-emerald-600">
-                        <span>+ {t("payroll.form.allowances")}</span>
-                        <span>OMR {Number(payrollForm.allowances || 0).toFixed(3)}</span>
-                      </div>
-                      <div className="flex justify-between text-red-600">
-                        <span>− {t("payroll.deductions")}</span>
-                        <span>OMR {Number(payrollForm.deductions || 0).toFixed(3)}</span>
-                      </div>
-                      <div className="flex justify-between font-bold border-t border-border pt-1.5 text-foreground">
-                        <span>{t("payroll.netPay")}</span>
-                        <span className="text-emerald-600">
-                          OMR {(Number(payrollForm.basicSalary) + Number(payrollForm.allowances || 0) - Number(payrollForm.deductions || 0)).toFixed(3)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      if (!payrollForm.employeeId || !payrollForm.basicSalary) { toast.error("Please fill required fields"); return; }
-                      createPayroll.mutate({
-                        employeeId: Number(payrollForm.employeeId),
-                        periodMonth: payrollForm.month,
-                        periodYear: payrollForm.year,
-                        basicSalary: Number(payrollForm.basicSalary),
-                        allowances: Number(payrollForm.allowances || 0),
-                        deductions: Number(payrollForm.deductions || 0),
-                        taxAmount: 0,
-                        companyId: activeCompanyId ?? undefined,
-                      });
-                    }}
-                    disabled={createPayroll.isPending}
-                  >
-                    {createPayroll.isPending ? "…" : t("payroll.form.submit")}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button size="sm" className="gap-2" asChild>
+              <Link href="/payroll">
+                <DollarSign size={14} /> Payroll hub
+              </Link>
+            </Button>
           )}
         </div>
       </div>
@@ -688,11 +574,11 @@ export default function HRLeavePage() {
               <CardContent className="p-10 text-center">
                 <DollarSign size={32} className="mx-auto text-muted-foreground/30 mb-3" />
                 <p className="text-sm font-medium text-muted-foreground">{t("payroll.noRecords")}</p>
-                {isAdmin && (
-                  <Button size="sm" className="mt-3 gap-1" onClick={() => setPayrollOpen(true)}>
-                    <Plus size={13} /> {t("payroll.createFirst")}
-                  </Button>
-                )}
+                <Button size="sm" className="mt-3 gap-1" asChild>
+                  <Link href="/payroll">
+                    <Plus size={13} /> Open payroll hub
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           ) : (

@@ -486,6 +486,14 @@ export const alertsRouter = router({
       const insertRow = caseResult[0] as { insertId?: number };
       const caseId = Number(insertRow?.insertId ?? 0);
 
+      if (caseId) {
+        const { tryCreateEngagementFromSource } = await import("../services/engagementAutoCreate");
+        await tryCreateEngagementFromSource(db, effectiveCompanyId, ctx.user.id, {
+          sourceType: "government_case",
+          sourceId: caseId,
+        });
+      }
+
       return {
         success: true,
         caseId,

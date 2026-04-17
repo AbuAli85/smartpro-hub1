@@ -108,6 +108,7 @@ export type CreateFromSourceInput =
   | { sourceType: "marketplace_booking"; sourceId: number }
   | { sourceType: "contract"; sourceId: number }
   | { sourceType: "pro_billing_cycle"; sourceId: number }
+  | { sourceType: "client_service_invoice"; sourceId: number }
   | { sourceType: "staffing_month"; sourceKey: string }
   | { sourceType: "service_request"; sourceId: number };
 
@@ -308,6 +309,45 @@ export async function createEngagementFromSource(
       actorUserId: userId,
       action: "engagement.created_from_source",
       payload: { sourceType: "pro_billing_cycle", sourceId: row.id },
+    });
+    return { engagementId: eid, created: true };
+  }
+
+  if (input.sourceType === "client_service_invoice") {
+    const [row] = await db
+      .select()
+      .from(clientServiceInvoices)
+      .where(and(eq(clientServiceInvoices.id, input.sourceId), eq(clientServiceInvoices.companyId, companyId)))
+      .limit(1);
+    if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Client service invoice not found" });
+    const existing = await findEngagementByCompanyLink(db, companyId, "client_service_invoice", input.sourceId, null);
+    if (existing) return { engagementId: existing, created: false };
+    const title = `Client services · ${row.invoiceNumber}`;
+    const [ins] = await db.insert(engagements).values({
+      companyId,
+      title,
+      engagementType: "client_service_invoice",
+      status: "active",
+      health: row.status === "overdue" ? "at_risk" : "on_track",
+      dueDate: row.dueDate ? new Date(`${row.dueDate}T12:00:00.000Z`) : null,
+      currentStage: row.status,
+      createdByUserId: userId,
+      metadata: { invoiceNumber: row.invoiceNumber },
+    });
+    const eid = insertId(ins);
+    await db.insert(engagementLinks).values({
+      engagementId: eid,
+      companyId,
+      linkType: "client_service_invoice",
+      entityId: row.id,
+      entityKey: null,
+    });
+    await logEngagementActivity(db, {
+      engagementId: eid,
+      companyId,
+      actorUserId: userId,
+      action: "engagement.created_from_source",
+      payload: { sourceType: "client_service_invoice", sourceId: row.id },
     });
     return { engagementId: eid, created: true };
   }

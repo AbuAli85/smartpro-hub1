@@ -64,9 +64,11 @@ export async function getMarketplaceBookings(companyId: number) {
     .orderBy(desc(marketplaceBookings.createdAt));
 }
 
-export async function createMarketplaceBooking(data: typeof marketplaceBookings.$inferInsert) {
+export async function createMarketplaceBooking(data: typeof marketplaceBookings.$inferInsert): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(marketplaceBookings).values(data);
-  return result[0] ?? null;
+  const id = Number((result[0] as { insertId?: number }).insertId);
+  if (!Number.isFinite(id)) throw new Error("Insert failed");
+  return id;
 }

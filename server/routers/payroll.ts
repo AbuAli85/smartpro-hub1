@@ -269,6 +269,65 @@ export const payrollRouter = router({
       return runs;
     }),
 
+  /** Per-employee payroll line history from canonical `payroll_line_items` (replaces legacy HR payroll list for UI). */
+  listEmployeePayrollHistory: protectedProcedure
+    .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const [emp] = await db
+        .select({ id: employees.id })
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      const rows = await db
+        .select({
+          line: payrollLineItems,
+          runStatus: payrollRuns.status,
+          periodMonth: payrollRuns.periodMonth,
+          periodYear: payrollRuns.periodYear,
+        })
+        .from(payrollLineItems)
+        .innerJoin(payrollRuns, eq(payrollLineItems.payrollRunId, payrollRuns.id))
+        .where(and(eq(payrollLineItems.companyId, m.companyId), eq(payrollLineItems.employeeId, input.employeeId)))
+        .orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth), desc(payrollLineItems.id))
+        .limit(500);
+      return rows.map((r) => {
+        const allowances =
+          Number(r.line.housingAllowance ?? 0) +
+          Number(r.line.transportAllowance ?? 0) +
+          Number(r.line.otherAllowances ?? 0) +
+          Number(r.line.overtimePay ?? 0) +
+          Number(r.line.commissionPay ?? 0);
+        const st = r.runStatus;
+        const legacyStatus: "draft" | "approved" | "paid" =
+          st === "paid"
+            ? "paid"
+            : st === "approved" ||
+                st === "wps_generated" ||
+                st === "pending_execution" ||
+                st === "locked" ||
+                st === "ready_for_upload" ||
+                st === "processing"
+              ? "approved"
+              : "draft";
+        return {
+          id: r.line.id,
+          employeeId: r.line.employeeId,
+          periodMonth: r.periodMonth,
+          periodYear: r.periodYear,
+          basicSalary: r.line.basicSalary,
+          allowances: String(allowances),
+          deductions: r.line.totalDeductions,
+          taxAmount: r.line.incomeTax,
+          netSalary: r.line.netSalary,
+          status: legacyStatus,
+        };
+      });
+    }),
+
   /** Get a single run with all line items */
   getRun: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))

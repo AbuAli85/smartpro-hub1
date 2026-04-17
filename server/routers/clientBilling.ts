@@ -20,11 +20,8 @@ import {
   projectCashFlow,
   omr,
 } from "../lib/billingEngine";
-
-function clientKeyFromName(name: string): string {
-  const k = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 200);
-  return k || "client";
-}
+import { clientKeyFromDisplayName } from "../lib/clientServiceInvoiceKeys";
+import { tryCreateEngagementFromSource } from "../services/engagementAutoCreate";
 
 function invoiceNumber(companyId: number, year: number, month: number, clientKey: string) {
   const m = String(month).padStart(2, "0");
@@ -37,7 +34,7 @@ export const clientBillingRouter = router({
    * Build monthly client invoices from attendance at billable sites (daily_rate × days present).
    * Idempotent per (company, client, period) via unique constraint.
    */
-  generateMonthlyInvoices: protectedProcedure
+  generateClientServiceInvoices: protectedProcedure
     .input(
       z.object({
         companyId: z.number().optional(),
@@ -76,7 +73,7 @@ export const clientBillingRouter = router({
       for (const site of sites) {
         const clientName = (site.clientName ?? "").trim();
         if (!clientName) continue;
-        const key = clientKeyFromName(clientName);
+        const key = clientKeyFromDisplayName(clientName);
         const [cnt] = await db
           .select({
             c: sql<string>`COUNT(DISTINCT ${attendanceSessions.businessDate})`,
@@ -161,6 +158,10 @@ export const clientBillingRouter = router({
             lineTotalOmr: String(lt),
           });
         }
+        await tryCreateEngagementFromSource(db, m.companyId, ctx.user.id, {
+          sourceType: "client_service_invoice",
+          sourceId: invoiceId,
+        });
         created++;
       }
 

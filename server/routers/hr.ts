@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { mergeLeavePolicyCaps } from "../../shared/leavePolicyCaps";
 import { normalizeWpsValidationPeriod, validateEmployeeWpsReadiness } from "../../shared/employeeWps";
-import { eq, and, desc, gte, lte, count, sum, or, isNull, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, count, sum, or, isNull, isNotNull, inArray } from "drizzle-orm";
 import {
   companies,
   workPermits,
@@ -13,6 +13,7 @@ import {
   kpiTargets,
   kpiAchievements,
   payrollRuns,
+  payrollLineItems,
   departments,
   positions,
   payrollRecords,
@@ -37,7 +38,6 @@ import {
   createJobApplication,
   createJobPosting,
   createLeaveRequest,
-  createPayrollRecord,
   createPerformanceReview,
   getAttendance,
   getDb,
@@ -49,14 +49,11 @@ import {
   getJobPostings,
   getLeaveRequestById,
   getLeaveRequests,
-  getPayrollRecordById,
-  getPayrollRecords,
   getPerformanceReviews,
   updateEmployee,
   updateJobApplication,
   updateJobPosting,
   updateLeaveRequest,
-  updatePayrollRecord,
 } from "../db";
 import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
@@ -212,6 +209,42 @@ async function getMergedLeaveCapsForCompanyId(
   return mergeLeavePolicyCaps(row?.leavePolicyCaps ?? null);
 }
 
+type DbConn = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+/** `departments` table is canonical; `employees.department` stores the active department English name (or empty). */
+async function resolveCanonicalDepartmentWrite(db: DbConn, companyId: number, raw: string | undefined | null): Promise<string> {
+  if (raw == null) return "";
+  const t = raw.trim();
+  if (t === "") return "";
+  const [d] = await db
+    .select({ name: departments.name })
+    .from(departments)
+    .where(and(eq(departments.companyId, companyId), eq(departments.name, t), eq(departments.isActive, true)))
+    .limit(1);
+  if (!d) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Unknown department "${t}". Use an active department from Settings → Departments.`,
+    });
+  }
+  return d.name;
+}
+
+function mapPayrollRunStatusToLegacy(runStatus: (typeof payrollRuns.$inferSelect)["status"]): "draft" | "approved" | "paid" {
+  if (runStatus === "paid") return "paid";
+  if (
+    runStatus === "approved" ||
+    runStatus === "wps_generated" ||
+    runStatus === "pending_execution" ||
+    runStatus === "locked" ||
+    runStatus === "ready_for_upload" ||
+    runStatus === "processing"
+  ) {
+    return "approved";
+  }
+  return "draft";
+}
+
 export const hrRouter = router({
   // Employees
   listEmployees: protectedProcedure
@@ -278,6 +311,10 @@ export const hrRouter = router({
       const companyId = membership.companyId;
       const { workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry,
         dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...empData } = input;
+      const db = await getDb();
+      if (db && empData.department !== undefined) {
+        empData.department = await resolveCanonicalDepartmentWrite(db, companyId, empData.department);
+      }
       const emp = await createEmployee({
         ...empData,
         companyId,
@@ -289,9 +326,9 @@ export const hrRouter = router({
       } as any);
       // If work permit number provided, create a work permit record
       if (workPermitNumber && emp) {
-        const db = await getDb();
-        if (db) {
-          await db.insert(workPermits).values({
+        const dbPermit = await getDb();
+        if (dbPermit) {
+          await dbPermit.insert(workPermits).values({
             companyId,
             employeeId: (emp as any).insertId ?? (emp as any).id ?? 0,
             workPermitNumber,
@@ -370,6 +407,10 @@ export const hrRouter = router({
       if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth || null;
       if (visaExpiryDate !== undefined) updateData.visaExpiryDate = visaExpiryDate || null;
       if (workPermitExpiryDate !== undefined) updateData.workPermitExpiryDate = workPermitExpiryDate || null;
+      const db = await getDb();
+      if (db && data.department !== undefined) {
+        updateData.department = await resolveCanonicalDepartmentWrite(db, existing.companyId, data.department);
+      }
       await updateEmployee(id, updateData);
       // Update or create work permit record if permit fields provided
       if (workPermitNumber !== undefined || visaNumber !== undefined || workPermitExpiry !== undefined) {
@@ -579,7 +620,9 @@ export const hrRouter = router({
       return { success: true };
     }),
 
-  // Payroll
+  /**
+   * @deprecated Prefer `payroll.listRuns` / `payroll.getRun`. Reads from `payroll_line_items` + `payroll_runs` (canonical engine).
+   */
   listPayroll: protectedProcedure
     .input(
       z.object({
@@ -595,9 +638,49 @@ export const hrRouter = router({
         const emp = await getEmployeeById(input.employeeId);
         if (!emp || emp.companyId !== cid) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       }
-      return getPayrollRecords(cid, input.year, input.month, input.employeeId);
+      const db = await getDb();
+      if (!db) return [];
+      const conds = [eq(payrollLineItems.companyId, cid)];
+      if (input.year != null) conds.push(eq(payrollRuns.periodYear, input.year));
+      if (input.month != null) conds.push(eq(payrollRuns.periodMonth, input.month));
+      if (input.employeeId != null) conds.push(eq(payrollLineItems.employeeId, input.employeeId));
+      const rows = await db
+        .select({
+          line: payrollLineItems,
+          periodMonth: payrollRuns.periodMonth,
+          periodYear: payrollRuns.periodYear,
+          runStatus: payrollRuns.status,
+        })
+        .from(payrollLineItems)
+        .innerJoin(payrollRuns, eq(payrollLineItems.payrollRunId, payrollRuns.id))
+        .where(and(...conds))
+        .orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth), desc(payrollLineItems.id))
+        .limit(500);
+      return rows.map((r) => {
+        const allowances =
+          Number(r.line.housingAllowance ?? 0) +
+          Number(r.line.transportAllowance ?? 0) +
+          Number(r.line.otherAllowances ?? 0) +
+          Number(r.line.overtimePay ?? 0) +
+          Number(r.line.commissionPay ?? 0);
+        return {
+          id: r.line.id,
+          employeeId: r.line.employeeId,
+          periodMonth: r.periodMonth,
+          periodYear: r.periodYear,
+          basicSalary: r.line.basicSalary,
+          allowances: String(allowances),
+          deductions: r.line.totalDeductions,
+          taxAmount: r.line.incomeTax,
+          netSalary: r.line.netSalary,
+          status: mapPayrollRunStatusToLegacy(r.runStatus),
+        };
+      });
     }),
 
+  /**
+   * @deprecated Use `payroll.createRun` / `payroll.executeMonthly`. Legacy `payroll_records` writes are disabled.
+   */
   createPayroll: protectedProcedure
     .input(
       z.object({
@@ -612,56 +695,23 @@ export const hrRouter = router({
         companyId: z.number().optional(),
       })
     )
-    .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const emp = await getEmployeeById(input.employeeId);
-      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      const netSalary = input.basicSalary + input.allowances - input.deductions - input.taxAmount;
-      await createPayrollRecord({
-        ...input,
-        companyId,
-        basicSalary: String(input.basicSalary),
-        allowances: String(input.allowances),
-        deductions: String(input.deductions),
-        taxAmount: String(input.taxAmount),
-        netSalary: String(netSalary),
+    .mutation(async () => {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Manual payroll entry here is retired. Use Payroll → Create run / Execute monthly (`payroll.createRun`, `payroll.executeMonthly`).",
       });
-      return { success: true };
     }),
 
+  /**
+   * @deprecated Legacy `payroll_records` updates are disabled — use `payroll` run approval / mark paid flows.
+   */
   updatePayroll: protectedProcedure
     .input(z.object({ id: z.number(), status: z.enum(["draft", "approved", "paid"]) }))
-    .mutation(async ({ input, ctx }) => {
-      const row = await getPayrollRecordById(input.id);
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll record not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Payroll record", row.companyId);
-      const updateData: any = { status: input.status };
-      if (input.status === "paid") updateData.paidAt = new Date();
-      await updatePayrollRecord(input.id, updateData);
-      // Notify the employee when their payslip is marked as paid
-      if (input.status === "paid") {
-        const db = await getDb();
-        if (db) {
-          const [emp] = await db
-            .select({ userId: employees.userId, firstName: employees.firstName })
-            .from(employees)
-            .where(eq(employees.id, row.employeeId))
-            .limit(1);
-          if (emp?.userId) {
-            await sendEmployeeNotification({
-              toUserId: emp.userId,
-              companyId: row.companyId,
-              type: "payslip_ready",
-              title: "💰 Payslip Ready",
-              message: `Your salary for ${row.periodMonth}/${row.periodYear} has been processed and paid. View your payslip in Employee home.`,
-              link: "/my-portal",
-              actorUserId: ctx.user.id,
-            });
-          }
-        }
-      }
-      return { success: true };
+    .mutation(async () => {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Legacy payroll status updates are retired. Use the Payroll hub (`payroll` router) to approve runs or record payment.",
+      });
     }),
 
   // Performance Reviews
@@ -699,13 +749,22 @@ export const hrRouter = router({
       return { success: true };
     }),
 
+  /**
+   * @deprecated Use `hr.listDepartments` — department names now come only from the `departments` table.
+   * Kept temporarily for API stability; returns the same names as `listDepartments` (active rows only).
+   */
   departments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
       const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
-      const emps = await getEmployees(cid);
-      const depts = Array.from(new Set(emps.map((e) => e.department).filter(Boolean)));
-      return depts;
+      const db = await getDb();
+      if (!db) return [];
+      const rows = await db
+        .select({ name: departments.name })
+        .from(departments)
+        .where(and(eq(departments.companyId, cid), eq(departments.isActive, true)))
+        .orderBy(asc(departments.name));
+      return rows.map((r) => r.name);
     }),
 
   // ── Attendance ──────────────────────────────────────────────────────────────
@@ -1636,11 +1695,15 @@ export const hrRouter = router({
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      let deptWrite = "";
+      if (input.departmentName != null && input.departmentName.trim() !== "") {
+        deptWrite = await resolveCanonicalDepartmentWrite(db, cid, input.departmentName);
+      }
       for (const empId of input.employeeIds) {
         const [emp] = await db.select({ id: employees.id, companyId: employees.companyId })
           .from(employees).where(eq(employees.id, empId));
         if (!emp || emp.companyId !== cid) continue;
-        await db.update(employees).set({ department: input.departmentName ?? "" }).where(eq(employees.id, empId));
+        await db.update(employees).set({ department: deptWrite }).where(eq(employees.id, empId));
       }
       return { success: true, updated: input.employeeIds.length };
     }),

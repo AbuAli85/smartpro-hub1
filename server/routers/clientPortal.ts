@@ -15,8 +15,10 @@ import {
   proBillingCycles, companySubscriptions, subscriptionPlans,
   sanadApplications, sanadOffices,
   attendanceSites, attendanceRecords, promoterAssignments,
+  clientServiceInvoices,
 } from "../../drizzle/schema";
 import { eq, and, desc, asc, lte, gte, or, isNotNull, inArray } from "drizzle-orm";
+import { clientKeyFromDisplayName } from "../lib/clientServiceInvoiceKeys";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import type { User } from "../../drizzle/schema";
@@ -183,6 +185,70 @@ export const clientPortalRouter = router({
       });
 
       return { items: enriched, total: enriched.length };
+    }),
+
+  /**
+   * Client service invoices (CSI) where this portal company is the billed client
+   * (matched via active promoter assignment + billing client key).
+   */
+  listClientServiceInvoices: protectedProcedure
+    .input(
+      z
+        .object({
+          status: z.enum(["draft", "sent", "partial", "paid", "overdue", "void"]).optional(),
+          page: z.number().default(1),
+          pageSize: z.number().default(20),
+        })
+        .merge(optionalActiveWorkspace),
+    )
+    .query(async ({ ctx, input }) => {
+      const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
+      const db = await getDb();
+      if (!db) return { items: [], total: 0 };
+
+      const [co] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, companyId)).limit(1);
+      const portalKey = clientKeyFromDisplayName(co?.name ?? "");
+
+      const staffingRows = await db
+        .selectDistinct({ id: promoterAssignments.firstPartyCompanyId })
+        .from(promoterAssignments)
+        .where(
+          and(
+            eq(promoterAssignments.secondPartyCompanyId, companyId),
+            eq(promoterAssignments.assignmentStatus, "active"),
+          ),
+        );
+      const staffingIds = staffingRows.map((r) => r.id).filter((id): id is number => id != null);
+      if (!staffingIds.length) return { items: [], total: 0 };
+
+      const conds = [
+        inArray(clientServiceInvoices.companyId, staffingIds),
+        eq(clientServiceInvoices.clientKey, portalKey),
+      ];
+      if (input.status) conds.push(eq(clientServiceInvoices.status, input.status));
+
+      const rows = await db
+        .select()
+        .from(clientServiceInvoices)
+        .where(and(...conds))
+        .orderBy(desc(clientServiceInvoices.periodYear), desc(clientServiceInvoices.periodMonth));
+
+      const enriched = rows.map((inv) => {
+        let effectiveStatus = inv.status;
+        if (inv.status === "sent" || inv.status === "partial") {
+          const due = new Date(`${inv.dueDate}T23:59:59.000Z`);
+          if (due < new Date() && Number(inv.balanceOmr ?? 0) > 0) effectiveStatus = "overdue";
+        }
+        return {
+          ...inv,
+          effectiveStatus,
+          invoiceLabel: inv.invoiceNumber,
+        };
+      });
+
+      const start = (input.page - 1) * input.pageSize;
+      const slice = enriched.slice(start, start + input.pageSize);
+      return { items: slice, total: enriched.length };
     }),
 
   /**

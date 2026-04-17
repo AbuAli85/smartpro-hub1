@@ -419,7 +419,7 @@ export default function BillingEnginePage() {
     { enabled: user?.role === "admin" && showPayoutDialog }
   );
 
-  const generateMutation = trpc.billing.generateMonthlyInvoices.useMutation({
+  const generateMutation = trpc.billing.generateProOfficerInvoices.useMutation({
     onSuccess: (data) => {
       toast.success(`Generated ${data.created} invoices (${data.skipped} already existed)`);
       setShowGenDialog(false);

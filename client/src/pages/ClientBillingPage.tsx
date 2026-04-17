@@ -215,7 +215,7 @@ function GenerateMonthlyDialog({
     setYear(String(n.getFullYear()));
   }, [open]);
 
-  const mutation = trpc.clientBilling.generateMonthlyInvoices.useMutation({
+  const mutation = trpc.clientBilling.generateClientServiceInvoices.useMutation({
     onSuccess: (data) => {
       toast.success(
         t("clientBilling.invoiceList.generateDialog.success")

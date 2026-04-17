@@ -18,9 +18,8 @@ import { useTranslation } from "react-i18next";
 type Props = { children: ReactNode };
 
 /**
- * Minimal header + main for portal-only users on the client journey:
- * `/client` (with or without a company) and pre-company paths handled by {@link PlatformLayout}.
- * No platform sidebar, control tower, or ops/HR shell — {@link ClientWorkspaceLayout} supplies workspace nav.
+ * Outer chrome for `/client` (see {@link AppRoutes}): minimal header + {@link ClientAccessGate} + children.
+ * Never combined with {@link PlatformLayout} — {@link ClientWorkspaceLayout} supplies in-workspace navigation.
  */
 export function ClientPreCompanyMinimalLayout({ children }: Props) {
   const { user, logout } = useAuth();

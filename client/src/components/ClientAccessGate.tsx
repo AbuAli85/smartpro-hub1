@@ -1,7 +1,8 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 import { trpc } from "@/lib/trpc";
-import { clientRouteAccessible } from "@shared/clientNav";
+import { clientRouteAccessible, seesPlatformOperatorNav } from "@shared/clientNav";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Redirect, useLocation } from "wouter";
@@ -76,6 +77,14 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
   }
 
   if (!allowed) {
+    if (
+      user &&
+      !seesPlatformOperatorNav(user) &&
+      !canAccessGlobalAdminProcedures(user) &&
+      companies.length > 0
+    ) {
+      return <Redirect to="/client" />;
+    }
     return <Redirect to="/dashboard" />;
   }
 

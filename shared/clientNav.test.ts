@@ -87,9 +87,9 @@ describe("clientNavItemVisible", () => {
     expect(clientNavItemVisible("/payroll", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
   });
 
-  it("hides client workspace in the main sidebar for internal company roles (not duplicate operational entry)", () => {
+  it("shows client workspace in the main sidebar for all company members (shared hub)", () => {
     const ownerOpts = { hasCompanyWorkspace: true, hasCompanyMembership: true, memberRole: "company_admin" as const };
-    expect(clientNavItemVisible("/client", owner, new Set(), ownerOpts)).toBe(false);
+    expect(clientNavItemVisible("/client", owner, new Set(), ownerOpts)).toBe(true);
     expect(clientNavItemVisible("/contracts", owner, new Set(), ownerOpts)).toBe(true);
   });
 
@@ -264,6 +264,14 @@ describe("shouldUsePortalOnlyShell", () => {
 });
 
 describe("clientRouteAccessible", () => {
+  it("allows /client for any tenant member with a company (membership role, not users.role)", () => {
+    const opts = { hasCompanyMembership: true, memberRole: "company_admin" as const };
+    expect(clientRouteAccessible("/client", owner, new Set(), opts)).toBe(true);
+    expect(clientRouteAccessible("/client/engagements", member, new Set(), { ...opts, memberRole: "company_member" })).toBe(
+      true,
+    );
+  });
+
   it("matches sidebar rules for platform-only prefixes", () => {
     expect(clientRouteAccessible("/billing/invoices", member, new Set())).toBe(false);
     expect(clientRouteAccessible("/billing/invoices", platform, new Set())).toBe(true);

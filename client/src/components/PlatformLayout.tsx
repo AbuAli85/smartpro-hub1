@@ -53,8 +53,6 @@ import { useOnboardingAutoComplete } from "@/hooks/useOnboardingAutoComplete";
 import { filterVisibleNavGroups } from "@/config/platformNav";
 import { PlatformSidebarNav } from "@/components/PlatformSidebarNav";
 import type { ClientNavOptions } from "@shared/clientNav";
-import { isPortalClientWorkspaceShellPath, isPortalPreCompanyMinimalPath } from "@shared/clientWorkspaceChrome";
-import { ClientPreCompanyMinimalLayout } from "@/features/clientWorkspace/ClientPreCompanyMinimalLayout";
 import { resolveSidebarBadgeMap } from "@/lib/sidebarBadgeResolver";
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const { user, logout } = useAuth();
@@ -453,24 +451,6 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     );
   }
 
-  const effectiveMemberRole = layoutCompany?.member?.role ?? activeCompany?.role ?? null;
-  const portalShell = shouldUsePortalOnlyShell(user, {
-    hasCompanyWorkspace: Boolean(layoutCompany?.company?.id),
-    companyWorkspaceLoading:
-      companiesListLoading || (Boolean(activeCompanyId) && layoutCompanyLoading),
-    memberRole: effectiveMemberRole,
-  });
-  const portalMinimalOuterChrome =
-    Boolean(user) &&
-    portalShell &&
-    (isPortalClientWorkspaceShellPath(location) ||
-      (isPortalPreCompanyMinimalPath(location) &&
-        (companiesListLoading || companies.length === 0)));
-
-  if (portalMinimalOuterChrome) {
-    return <ClientPreCompanyMinimalLayout>{children}</ClientPreCompanyMinimalLayout>;
-  }
-
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Skip to main content — visible only on keyboard focus */}
@@ -596,10 +576,6 @@ function MobileBottomNav() {
       { href: "/hr/employees", icon: <Users size={20} />, label: "HR" },
     ];
   }, [platform, portalShell, preRegShell, effectiveMemberRole, t]);
-
-  if (portalShell && isPortalClientWorkspaceShellPath(location)) {
-    return null;
-  }
 
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border flex items-center justify-around h-16">

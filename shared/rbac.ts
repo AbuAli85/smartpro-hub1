@@ -2,8 +2,8 @@
  * Canonical RBAC helpers for SmartPRO.
  *
  * Global operator grants are stored in `platform_user_roles` and exposed on the session user
- * as `platformRoles`. Legacy `users.role` / `users.platformRole` remain during transition — see
- * shared/identityAuthority.ts.
+ * as `platformRoles`. Legacy `users.platformRole` may still appear on the session user during transition — see
+ * shared/identityAuthority.ts. Tenant UI must use `company_members.role` (nav `memberRole`), not `users.role`.
  */
 
 import {

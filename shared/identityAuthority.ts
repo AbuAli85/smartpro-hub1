@@ -2,7 +2,7 @@
  * Centralized global platform authority (cross-tenant operators).
  * Source of truth order:
  *   1) `platform_user_roles` rows surfaced on the user as `platformRoles: string[]`
- *   2) Transition fallbacks: legacy `users.platformRole` + `users.role` (during migration only)
+ *   2) Transition fallback: legacy `users.platformRole` when it matches a known global slug
  *
  * Tenant / company access comes from `company_members` — never infer tenant admin from legacy
  * `users.platformRole` alone.
@@ -31,7 +31,6 @@ function effectiveGlobalPlatformSlugs(user: IdentityAugmentedUser): string[] {
 
   const pr = (user.platformRole ?? "").trim();
   if (pr && GLOBAL_PLATFORM_ROLE_SLUGS.has(pr)) return [pr];
-  if (user.role === "admin") return ["platform_admin"];
   return [];
 }
 
@@ -40,7 +39,6 @@ export function getEffectiveGlobalPlatformRoles(user: IdentityAugmentedUser): st
 }
 
 export function canAccessGlobalAdminFromIdentity(user: IdentityAugmentedUser): boolean {
-  if (user.role === "admin") return true;
   const slugs = effectiveGlobalPlatformSlugs(user);
   return slugs.includes("super_admin") || slugs.includes("platform_admin");
 }

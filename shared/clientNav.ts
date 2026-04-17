@@ -390,6 +390,7 @@ export function seesLeadershipCompanyNav(memberRole?: string | null): boolean {
   return isCompanyAdminMember(memberRole) || isFinanceAdminMember(memberRole);
 }
 
+/** True when the auth profile is the end-customer channel (`users.platformRole`). Not a company_members check. */
 export function isPortalClientNav(user: { platformRole?: string | null } | null): boolean {
   return user?.platformRole === "client";
 }
@@ -542,9 +543,9 @@ export function shouldUsePreRegistrationShell(
 
 /**
  * Customer / end-user portal shell (PORTAL_CLIENT_HREFS).
- * Applies when the user is an end customer (`platformRole` or company membership role `client`),
- * even after they belong to a company — they must not see HR, Sanad ops, company admin, etc.
- * Platform operators (SANAD, regional_manager, client_services) and global admins keep the full app.
+ * **Primary rule:** active workspace `company_members.role === "client"`.
+ * Until that role is known, fall back to `users.platformRole === "client"` (account channel only).
+ * Platform operators and global admins never use this shell.
  */
 export function shouldUsePortalOnlyShell(
   user: { platformRole?: string | null } | null,
@@ -556,12 +557,7 @@ export function shouldUsePortalOnlyShell(
   if (hasResolvedMemberRole(mr)) {
     return isCustomerPortalMemberRole(mr);
   }
-  if (options?.companyWorkspaceLoading) {
-    if (isPortalClientNav(user)) return true;
-    return false;
-  }
-  if (isPortalClientNav(user)) return true;
-  return false;
+  return isPortalClientNav(user);
 }
 
 /**
@@ -623,9 +619,11 @@ export function clientNavItemVisible(
   if (companyNavExtensionAllows(href, user, options)) return true;
 
   const path = normalizeClientPath(href);
-  // Client workspace is for portal-only / customer members — hide from internal operators.
-  if (path.startsWith("/client") && !shouldUsePortalOnlyShell(user, options)) {
-    return false;
+  // Client workspace: any member with a company may open it; hide from platform/global operators in the main shell.
+  if (path.startsWith("/client")) {
+    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return false;
+    if (shouldUsePreRegistrationShell(user, options)) return false;
+    return Boolean(options?.hasCompanyMembership);
   }
   if (
     path === "/reports" ||
@@ -758,6 +756,13 @@ export function clientRouteAccessible(
   // Buyer Portal routes — path allowed; API enforces customer_account membership
   if (path === "/buyer" || path.startsWith("/buyer/")) {
     return true;
+  }
+
+  if (path === "/client" || path.startsWith("/client/")) {
+    if (!user) return false;
+    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user)) return true;
+    if (shouldUsePortalOnlyShell(user, options)) return true;
+    return Boolean(options?.hasCompanyMembership);
   }
 
   for (const opt of Array.from(OPTIONAL_NAV_HREFS)) {

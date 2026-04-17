@@ -36,7 +36,10 @@ describe("identityAuthority", () => {
     );
   });
 
-  it("legacy admin role still grants global admin", () => {
-    expect(canAccessGlobalAdminFromIdentity({ role: "admin", platformRole: "client", platformRoles: [] })).toBe(true);
+  it("does not grant global admin from legacy users.role alone (use platformRoles / platformRole slugs)", () => {
+    expect(canAccessGlobalAdminFromIdentity({ role: "admin", platformRole: "client", platformRoles: [] })).toBe(false);
+    expect(
+      canAccessGlobalAdminFromIdentity({ role: "admin", platformRole: "client", platformRoles: ["platform_admin"] }),
+    ).toBe(true);
   });
 });

@@ -5,6 +5,7 @@ import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import PlatformLayout from "./components/PlatformLayout";
+import { ClientPreCompanyMinimalLayout } from "./features/clientWorkspace/ClientPreCompanyMinimalLayout";
 import NavigationProgress from "./components/NavigationProgress";
 import { isBuyerPortalUiEnabled } from "./lib/buyerPortalEnv";
 
@@ -151,6 +152,19 @@ function PageLoader() {
   );
 }
 
+/** `/client` and `/client/...` — never wrapped in {@link PlatformLayout} (no admin sidebar / ops shell). */
+const CLIENT_APP_PATH = /^\/client(\/.*)?$/;
+
+function ClientAppLayout() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ClientPreCompanyMinimalLayout>
+        <ClientWorkspaceRoutes />
+      </ClientPreCompanyMinimalLayout>
+    </Suspense>
+  );
+}
+
 function PublicRoutes() {
   const buyerPortalUi = isBuyerPortalUiEnabled();
   return (
@@ -180,8 +194,11 @@ function PublicRoutes() {
 
 function AppRoutes() {
   return (
-    <PlatformLayout>
-      <Switch>
+    <Switch>
+      <Route path={CLIENT_APP_PATH} component={ClientAppLayout} />
+      <Route>
+        <PlatformLayout>
+          <Switch>
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/control-tower" component={ControlTowerPage} />
         <Route path="/sanad" component={SanadPage} />
@@ -203,13 +220,6 @@ function AppRoutes() {
         <Route path="/hr/today-board" component={TodayBoardPage} />
         <Route path="/hr/monthly-report" component={MonthlyReportPage} />
         <Route path="/hr/insights" component={HRInsightsHubPage} />
-        <Route path="/client/engagements/:id" component={ClientWorkspaceRoutes} />
-        <Route path="/client/engagements" component={ClientWorkspaceRoutes} />
-        <Route path="/client/documents" component={ClientWorkspaceRoutes} />
-        <Route path="/client/invoices" component={ClientWorkspaceRoutes} />
-        <Route path="/client/messages" component={ClientWorkspaceRoutes} />
-        <Route path="/client/team" component={ClientWorkspaceRoutes} />
-        <Route path="/client" component={ClientWorkspaceRoutes} />
         <Route path="/client-portal">{() => <Redirect to="/client" />}</Route>
         <Route path="/engagements/ops" component={EngagementsOpsPage} />
         <Route path="/engagements/:id" component={EngagementDetailPage} />
@@ -317,8 +327,10 @@ function AppRoutes() {
         <Route path="/platform-readiness" component={ProductionReadinessPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
-      </Switch>
-    </PlatformLayout>
+          </Switch>
+        </PlatformLayout>
+      </Route>
+    </Switch>
   );
 }
 

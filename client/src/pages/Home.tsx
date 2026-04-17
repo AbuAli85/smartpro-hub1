@@ -1,9 +1,13 @@
-﻿import { useAuth } from "@/_core/hooks/useAuth";
+﻿import { useEffect } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { seesPlatformOperatorNav } from "@shared/clientNav";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { SignInCallbackErrorBanner } from "@/components/SignInCallbackErrorBanner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getLoginUrl, warmUpServer } from "@/const";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   ArrowRight,
   Shield,
@@ -230,7 +234,16 @@ const FAQS = [
 
 export default function Home() {
   const { t } = useTranslation("common");
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
+  const [, setLocation] = useLocation();
+  const { loading: companiesLoading } = useActiveCompany();
+
+  useEffect(() => {
+    if (loading || !isAuthenticated || !user) return;
+    if (companiesLoading) return;
+    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user)) return;
+    setLocation("/client", { replace: true });
+  }, [companiesLoading, isAuthenticated, loading, setLocation, user]);
 
   if (loading) {
     return (
@@ -279,15 +292,26 @@ export default function Home() {
             </Link>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {isAuthenticated ? (
-              <>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/control-tower">Dashboard</Link>
-                </Button>
-                <Button size="sm" className="landing-cta-primary font-semibold shadow-sm" asChild>
-                  <Link href="/control-tower">Go to app <ArrowRight size={14} className="ml-1" /></Link>
-                </Button>
-              </>
+            {isAuthenticated && user ? (
+              seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user) ? (
+                <>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/control-tower">Dashboard</Link>
+                  </Button>
+                  <Button size="sm" className="landing-cta-primary font-semibold shadow-sm" asChild>
+                    <Link href="/control-tower">Go to app <ArrowRight size={14} className="ml-1" /></Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/client">Workspace</Link>
+                  </Button>
+                  <Button size="sm" className="landing-cta-primary font-semibold shadow-sm" asChild>
+                    <Link href="/client">Go to app <ArrowRight size={14} className="ml-1" /></Link>
+                  </Button>
+                </>
+              )
             ) : (
               <>
                 <Button variant="ghost" size="sm" onClick={async () => { await warmUpServer(); window.location.href = getLoginUrl(); }}>

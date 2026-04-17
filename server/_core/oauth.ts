@@ -225,8 +225,69 @@ export function registerOAuthRoutes(app: Express) {
     const safeReturnPath = redirectPathFromState(state);
 
     if (!trustedBase) {
-      res.status(400).type("html").send(OAUTH_INCOMPLETE_HTML);
-      return;
+      // Last-resort fallback: if the proxy stripped Host/X-Forwarded-Host so the state
+      // origin could not be matched against the request, fall back to PUBLIC_APP_URL.
+      // This covers apex vs www mismatches on Manus-hosted deployments.
+      const envPublicUrl = (process.env.PUBLIC_APP_URL ?? process.env.APP_PUBLIC_URL ?? "").trim();
+      if (!envPublicUrl) {
+        res.status(400).type("html").send(OAUTH_INCOMPLETE_HTML);
+        return;
+      }
+      // Re-check: does the state origin match the env public URL (www/apex-tolerant)?
+      const stateDecoded = decodeOAuthStatePayload(state);
+      if (!stateDecoded) {
+        res.status(400).type("html").send(OAUTH_INCOMPLETE_HTML);
+        return;
+      }
+      try {
+        const pipeIdx = stateDecoded.indexOf("|");
+        const originPart = pipeIdx !== -1 ? stateDecoded.slice(0, pipeIdx) : stateDecoded;
+        const stateUrl = new URL(originPart);
+        const envUrl = new URL(envPublicUrl);
+        if (!oauthStateHostMatchesRequest(stateUrl.host, envUrl.host)) {
+          res.status(400).type("html").send(OAUTH_INCOMPLETE_HTML);
+          return;
+        }
+        // Use the state origin (what the browser actually used) as trustedBase so
+        // the redirect URI matches what was sent during authorize.
+        const resolvedTrustedBase = `${stateUrl.protocol}//${stateUrl.host}`;
+        // Re-run the callback with the resolved base
+        if (!code) {
+          redirectWithSignInError(res, resolvedTrustedBase, safeReturnPath, "oauth_incomplete");
+          return;
+        }
+        const fallbackRedirectUri = new URL("/api/oauth/callback", resolvedTrustedBase).href;
+        const fallbackToken = await sdk.exchangeCodeForToken(code, fallbackRedirectUri);
+        const fallbackUserInfo = await sdk.getUserInfo(fallbackToken.accessToken);
+        if (!fallbackUserInfo.openId) {
+          redirectWithSignInError(res, resolvedTrustedBase, safeReturnPath, "oauth_callback");
+          return;
+        }
+        await db.upsertUser({
+          openId: fallbackUserInfo.openId,
+          name: fallbackUserInfo.name || null,
+          email: fallbackUserInfo.email ?? null,
+          loginMethod: fallbackUserInfo.loginMethod ?? fallbackUserInfo.platform ?? null,
+          lastSignedIn: new Date(),
+        });
+        const fallbackSessionToken = await sdk.createSessionToken(fallbackUserInfo.openId, {
+          name: fallbackUserInfo.name || "",
+          expiresInMs: SESSION_EXPIRY_MS,
+        });
+        const fallbackCookieOptions = getSessionCookieOptions(req);
+        res.cookie(COOKIE_NAME, fallbackSessionToken, { ...fallbackCookieOptions, maxAge: SESSION_EXPIRY_MS });
+        const fallbackHref = validatedSameOriginRedirectHref(resolvedTrustedBase, safeReturnPath);
+        if (!fallbackHref) {
+          res.status(500).send("Invalid post-login redirect");
+          return;
+        }
+        res.redirect(302, fallbackHref);
+        return;
+      } catch (fallbackErr) {
+        console.error("[OAuth] Fallback callback failed", fallbackErr);
+        res.status(400).type("html").send(OAUTH_INCOMPLETE_HTML);
+        return;
+      }
     }
 
     if (!code) {
@@ -235,7 +296,9 @@ export function registerOAuthRoutes(app: Express) {
     }
 
     try {
-      const oauthRedirectUri = new URL("/api/oauth/callback", `${trustedBase}/`).href;
+      // Build redirect URI without trailing-slash duplication: trustedBase has no trailing slash
+      // (e.g. "https://www.thesmartpro.io"), so new URL("/api/oauth/callback", trustedBase) is correct.
+      const oauthRedirectUri = new URL("/api/oauth/callback", trustedBase).href;
       const tokenResponse = await sdk.exchangeCodeForToken(code, oauthRedirectUri);
       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
 

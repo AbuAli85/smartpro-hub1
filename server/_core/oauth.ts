@@ -448,8 +448,37 @@ export function registerOAuthRoutes(app: Express) {
       const errMsg = error instanceof Error ? error.message : String(error);
       const errStatus = (error as any)?.response?.status ?? (error as any)?.status ?? 'unknown';
       const errData = JSON.stringify((error as any)?.response?.data ?? (error as any)?.data ?? null);
+      const errCode = (error as any)?.response?.data?.code ?? (error as any)?.data?.code ?? '';
       const builtRedirectUri = trustedBase ? new URL('/api/oauth/callback', trustedBase).href : 'NO_TRUSTED_BASE';
       console.error(`[OAuth] Callback failed — status:${errStatus} msg:${errMsg} data:${errData} redirectUri:${builtRedirectUri} appId:${process.env.VITE_APP_ID ?? 'MISSING'} oauthServer:${process.env.OAUTH_SERVER_URL ?? 'MISSING'}`);
+
+      // If the code is expired (cold-start race), silently restart the OAuth flow
+      // so the user gets a fresh code without seeing an error page.
+      const isExpiredCode =
+        errStatus === 401 &&
+        (errCode === 'unauthenticated' ||
+          errMsg.toLowerCase().includes('expired') ||
+          errMsg.toLowerCase().includes('invalid or expired'));
+
+      if (isExpiredCode && trustedBase) {
+        console.log('[OAuth] Expired code detected — auto-restarting OAuth flow for seamless retry');
+        // Rebuild the authorize URL the same way the client does (see client/src/const.ts getLoginUrl)
+        const oauthPortalUrl = process.env.VITE_OAUTH_PORTAL_URL ?? 'https://manus.im';
+        const appId = process.env.VITE_APP_ID ?? '';
+        const retryRedirectUri = new URL('/api/oauth/callback', trustedBase).href;
+        const retryState = Buffer.from(trustedBase).toString('base64');
+        const retryUrl = new URL(`${oauthPortalUrl}/app-auth`);
+        retryUrl.searchParams.set('appId', appId);
+        retryUrl.searchParams.set('redirectUri', retryRedirectUri);
+        retryUrl.searchParams.set('state', retryState);
+        retryUrl.searchParams.set('type', 'signIn');
+        if (safeReturnPath && safeReturnPath !== '/') {
+          retryUrl.searchParams.set('returnPath', safeReturnPath);
+        }
+        res.redirect(302, retryUrl.href);
+        return;
+      }
+
       redirectWithSignInError(res, trustedBase, safeReturnPath, "oauth_callback");
     }
   });

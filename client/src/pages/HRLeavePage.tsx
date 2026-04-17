@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { isCompanyAdminMember, isHrAdminMember } from "@shared/clientNav";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
@@ -238,7 +240,7 @@ function HRLeavePageSkeleton() {
 export default function HRLeavePage() {
   const { t } = useTranslation("hr");
   const { user } = useAuth();
-  const { activeCompanyId } = useActiveCompany();
+  const { activeCompanyId, activeCompany } = useActiveCompany();
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveFilter, setLeaveFilter] = useState<string>("all");
   const [leaveForm, setLeaveForm] = useState({
@@ -276,7 +278,14 @@ export default function HRLeavePage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const isAdmin = user?.role === "admin";
+  const memberRole = activeCompany?.role ?? null;
+  const isAdmin = useMemo(
+    () =>
+      canAccessGlobalAdminProcedures(user ?? {}) ||
+      isCompanyAdminMember(memberRole) ||
+      isHrAdminMember(memberRole),
+    [user, memberRole],
+  );
 
   // Stats
   const totalPayroll = payrollRecords?.reduce((sum, r) => sum + Number(r.netSalary ?? 0), 0) ?? 0;

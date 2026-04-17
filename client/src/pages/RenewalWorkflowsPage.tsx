@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { isCompanyAdminMember } from "@shared/clientNav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -211,7 +214,13 @@ function RuleFormDialog({
 export default function RenewalWorkflowsPage() {
   const { t, i18n } = useTranslation("renewalWorkflows");
   const { user } = useAuth();
-  const isPlatformAdmin = user?.role === "admin";
+  const { activeCompany } = useActiveCompany();
+  const canRunWorkflowAutomation = useMemo(
+    () =>
+      canAccessGlobalAdminProcedures(user ?? {}) ||
+      isCompanyAdminMember(activeCompany?.role ?? null),
+    [user, activeCompany?.role],
+  );
   const [, navigate] = useLocation();
   const dateLocale = i18n.language === "ar-OM" ? "ar-OM" : "en-GB";
 
@@ -335,7 +344,7 @@ export default function RenewalWorkflowsPage() {
             <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1">
               <RefreshCw className="h-4 w-4 shrink-0" /> {t("refresh")}
             </Button>
-            {isPlatformAdmin && (
+            {canRunWorkflowAutomation && (
               <>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -677,7 +686,7 @@ export default function RenewalWorkflowsPage() {
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setDryRunDialogOpen(false)}>{t("close")}</Button>
-              {isPlatformAdmin && (
+              {canRunWorkflowAutomation && (
                 <Button
                   className="bg-green-600 hover:bg-green-700 gap-1"
                   onClick={() => {

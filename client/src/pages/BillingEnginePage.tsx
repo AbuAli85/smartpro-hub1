@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -374,6 +375,7 @@ function BillingReportButton({ month, year, companyId }: { month: number; year: 
 
 export default function BillingEnginePage() {
   const { user } = useAuth();
+  const isGlobalPlatformAdmin = canAccessGlobalAdminProcedures(user ?? {});
   const { activeCompanyId } = useActiveCompany();
   const now = currentMonth();
   const [filterMonth, setFilterMonth] = useState(String(now.month));
@@ -416,7 +418,7 @@ export default function BillingEnginePage() {
 
   const officersForPayoutQuery = trpc.officers.list.useQuery(
     { status: "active" },
-    { enabled: user?.role === "admin" && showPayoutDialog }
+    { enabled: isGlobalPlatformAdmin && showPayoutDialog }
   );
 
   const generateMutation = trpc.billing.generateProOfficerInvoices.useMutation({
@@ -471,7 +473,7 @@ export default function BillingEnginePage() {
     onError: (e) => toast.error(e.message),
   });
 
-  if (user?.role !== "admin") {
+  if (!isGlobalPlatformAdmin) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">

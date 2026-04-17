@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -384,7 +385,7 @@ function CertificateDialog({ open, onClose, companyId, companyName }: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function OfficerAssignmentPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = seesPlatformOperatorNav(user);
   
   const utils = trpc.useUtils();
 

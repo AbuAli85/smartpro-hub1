@@ -7,8 +7,8 @@ import {
 } from "@shared/rbac";
 
 describe("canAccessGlobalAdminProcedures", () => {
-  it("allows legacy users.role admin", () => {
-    expect(canAccessGlobalAdminProcedures({ role: "admin", platformRole: "client" })).toBe(true);
+  it("does not grant global admin from users.role alone (requires platformRoles or global platformRole slug)", () => {
+    expect(canAccessGlobalAdminProcedures({ role: "admin", platformRole: "client", platformRoles: [] })).toBe(false);
   });
 
   it("allows super_admin and platform_admin via platformRole", () => {

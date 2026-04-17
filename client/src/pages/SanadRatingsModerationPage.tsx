@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckCircle2, Eye, EyeOff, MessageSquare, RefreshCw, Shield, Star, XCircle } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 
 // ─── Star Rating Display ──────────────────────────────────────────────────────
 
@@ -127,7 +128,7 @@ export default function SanadRatingsModerationPage() {
 
   const handleRefresh = () => utils.ratings.listForModeration.invalidate();
 
-  if (user?.role !== "admin") {
+  if (!user || !canAccessGlobalAdminProcedures(user)) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">

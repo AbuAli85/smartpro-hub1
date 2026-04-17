@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { isCompanyAdminMember } from "@shared/clientNav";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -162,7 +164,8 @@ export default function CompanyAdminPage() {
   const [removeDialog, setRemoveDialog] = useState<{ memberId: number; name: string } | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
 
-  const isAdmin = user?.role === "admin" || myMembership?.role === "company_admin";
+  const isAdmin =
+    canAccessGlobalAdminProcedures(user ?? {}) || isCompanyAdminMember(myMembership?.role ?? null);
 
   const { data: pendingInvites, refetch: refetchInvites } = trpc.companies.listInvites.useQuery(
     { companyId: activeCompanyId ?? undefined },

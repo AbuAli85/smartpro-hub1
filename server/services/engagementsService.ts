@@ -155,6 +155,7 @@ export async function createEngagementFromSource(
       action: "engagement.created_from_source",
       payload: { sourceType: "pro_service", sourceId: row.id },
     });
+    await syncEngagementDerivedState(db, eid, companyId);
     return { engagementId: eid, created: true };
   }
 
@@ -194,6 +195,7 @@ export async function createEngagementFromSource(
       action: "engagement.created_from_source",
       payload: { sourceType: "government_case", sourceId: row.id },
     });
+    await syncEngagementDerivedState(db, eid, companyId);
     return { engagementId: eid, created: true };
   }
 
@@ -232,6 +234,7 @@ export async function createEngagementFromSource(
       action: "engagement.created_from_source",
       payload: { sourceType: "marketplace_booking", sourceId: row.id },
     });
+    await syncEngagementDerivedState(db, eid, companyId);
     return { engagementId: eid, created: true };
   }
 
@@ -271,6 +274,7 @@ export async function createEngagementFromSource(
       action: "engagement.created_from_source",
       payload: { sourceType: "contract", sourceId: row.id },
     });
+    await syncEngagementDerivedState(db, eid, companyId);
     return { engagementId: eid, created: true };
   }
 
@@ -310,6 +314,7 @@ export async function createEngagementFromSource(
       action: "engagement.created_from_source",
       payload: { sourceType: "pro_billing_cycle", sourceId: row.id },
     });
+    await syncEngagementDerivedState(db, eid, companyId);
     return { engagementId: eid, created: true };
   }
 
@@ -349,6 +354,7 @@ export async function createEngagementFromSource(
       action: "engagement.created_from_source",
       payload: { sourceType: "client_service_invoice", sourceId: row.id },
     });
+    await syncEngagementDerivedState(db, eid, companyId);
     return { engagementId: eid, created: true };
   }
 
@@ -384,6 +390,7 @@ export async function createEngagementFromSource(
       action: "engagement.created_from_source",
       payload: { sourceType: "staffing_month", sourceKey: input.sourceKey },
     });
+    await syncEngagementDerivedState(db, eid, companyId);
     return { engagementId: eid, created: true };
   }
 
@@ -427,6 +434,7 @@ export async function createEngagementFromSource(
       action: "engagement.created_from_source",
       payload: { sourceType: "service_request", sourceId: row.id },
     });
+    await syncEngagementDerivedState(db, eid, companyId);
     return { engagementId: eid, created: true };
   }
 
@@ -481,6 +489,48 @@ export async function addEngagementLink(
     payload: { linkType, entityId, entityKey },
   });
   await syncEngagementDerivedState(db, engagementId, companyId);
+}
+
+export async function removeEngagementLink(db: Db, companyId: number, userId: number, linkId: number): Promise<void> {
+  const [link] = await db
+    .select()
+    .from(engagementLinks)
+    .where(and(eq(engagementLinks.id, linkId), eq(engagementLinks.companyId, companyId)))
+    .limit(1);
+  if (!link) throw new TRPCError({ code: "NOT_FOUND", message: "Engagement link not found" });
+  await assertEngagementInCompany(db, link.engagementId, companyId);
+  await db.delete(engagementLinks).where(and(eq(engagementLinks.id, linkId), eq(engagementLinks.companyId, companyId)));
+  await logEngagementActivity(db, {
+    engagementId: link.engagementId,
+    companyId,
+    actorUserId: userId,
+    action: "link.removed",
+    payload: { linkType: link.linkType, entityId: link.entityId, entityKey: link.entityKey },
+  });
+  await syncEngagementDerivedState(db, link.engagementId, companyId);
+}
+
+/** Recompute roll-ups for every engagement linked to a contract (signatures, status). */
+export async function syncEngagementsLinkedToContract(db: Db, contractId: number): Promise<void> {
+  const [c] = await db
+    .select({ companyId: contracts.companyId })
+    .from(contracts)
+    .where(eq(contracts.id, contractId))
+    .limit(1);
+  if (!c) return;
+  const rows = await db
+    .select({ engagementId: engagementLinks.engagementId })
+    .from(engagementLinks)
+    .where(
+      and(
+        eq(engagementLinks.companyId, c.companyId),
+        eq(engagementLinks.linkType, "contract"),
+        eq(engagementLinks.entityId, contractId),
+      ),
+    );
+  for (const r of rows) {
+    await syncEngagementDerivedState(db, r.engagementId, c.companyId);
+  }
 }
 
 export async function buildEngagementDetail(db: Db, engagementId: number, companyId: number) {
@@ -770,6 +820,7 @@ export async function createRenewalEngagement(
     },
     { actorUserId: userId },
   );
+  await syncEngagementDerivedState(db, eid, companyId);
   return eid;
 }
 

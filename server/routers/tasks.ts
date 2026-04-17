@@ -5,6 +5,7 @@ import { alias } from "drizzle-orm/mysql-core";
 import { employeeTasks, employees, engagementTasks, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { assertEngagementInCompany } from "../services/engagementsService";
+import { syncEngagementDerivedState } from "../services/engagements/deriveEngagementState";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { sendEmployeeNotification, notifyAssignerTaskCompleted } from "./employeePortal";
@@ -178,6 +179,7 @@ export const tasksRouter = router({
           sortOrder: 99,
           linkedEmployeeTaskId: insertId,
         });
+        await syncEngagementDerivedState(db, engagementId, companyId);
       }
       const [assignee] = await db
         .select({ userId: employees.userId })
@@ -292,14 +294,20 @@ export const tasksRouter = router({
 
       await db.update(employeeTasks).set(updateData).where(eq(employeeTasks.id, id));
 
+      const [mirrorEng] = await db
+        .select({ engagementId: engagementTasks.engagementId })
+        .from(engagementTasks)
+        .where(and(eq(engagementTasks.linkedEmployeeTaskId, id), eq(engagementTasks.companyId, companyId)))
+        .limit(1);
+
       if (becameCompleted) {
-        const [mirror] = await db
-          .select({ id: engagementTasks.id })
-          .from(engagementTasks)
-          .where(and(eq(engagementTasks.linkedEmployeeTaskId, id), eq(engagementTasks.companyId, companyId)))
-          .limit(1);
-        if (mirror) {
-          await db.update(engagementTasks).set({ status: "done" }).where(eq(engagementTasks.id, mirror.id));
+        if (mirrorEng) {
+          await db
+            .update(engagementTasks)
+            .set({ status: "done" })
+            .where(
+              and(eq(engagementTasks.linkedEmployeeTaskId, id), eq(engagementTasks.companyId, companyId)),
+            );
         }
         await notifyAssignerTaskCompleted({
           assignedByUserId: existing.assignedByUserId,
@@ -307,6 +315,10 @@ export const tasksRouter = router({
           companyId,
           title: existing.title,
         });
+      }
+
+      if (mirrorEng) {
+        await syncEngagementDerivedState(db, mirrorEng.engagementId, companyId);
       }
 
       return { success: true };
@@ -320,7 +332,17 @@ export const tasksRouter = router({
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+      const [mirrorEng] = await db
+        .select({ engagementId: engagementTasks.engagementId })
+        .from(engagementTasks)
+        .where(
+          and(eq(engagementTasks.linkedEmployeeTaskId, input.id), eq(engagementTasks.companyId, companyId)),
+        )
+        .limit(1);
       await db.delete(employeeTasks).where(eq(employeeTasks.id, input.id));
+      if (mirrorEng) {
+        await syncEngagementDerivedState(db, mirrorEng.engagementId, companyId);
+      }
       return { success: true };
     }),
 

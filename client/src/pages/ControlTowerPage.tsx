@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import { fmtDateTimeShort } from "@/lib/dateUtils";
 import { useActionQueue } from "@/hooks/useActionQueue";
 import { useSmartRoleHomeRedirect } from "@/hooks/useSmartRoleHomeRedirect";
 import { buildRiskStripCards } from "@/features/controlTower/riskStripModel";
@@ -78,10 +80,19 @@ export default function ControlTowerPage() {
     activeCompany?.role === "hr_admin" ||
     activeCompany?.role === "finance_admin";
 
+  const utils = trpc.useUtils();
   const { data: engagementQueueKpi } = trpc.engagements.getOpsSummary.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: scopeEnabled && engagementOpsRole, staleTime: 60_000 },
   );
+
+  const engagementRollupsRefresh = trpc.engagements.refreshRollups.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Refreshed ${r.synced} engagement roll-up(s).`);
+      void utils.engagements.getOpsSummary.invalidate({ companyId: activeCompanyId ?? undefined });
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const {
     items: actionItems,
@@ -442,31 +453,67 @@ export default function ControlTowerPage() {
           </Card>
         )}
 
-        {scopeEnabled && engagementOpsRole && engagementQueueKpi && (
+        {scopeEnabled && engagementOpsRole && engagementQueueKpi?.counts && (
           <Card className="border-border/80">
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Engagement operations</CardTitle>
-              <CardDescription className="text-xs">
-                KPIs use persisted engagement health and top-action roll-ups (same filters as{" "}
-                <Link href="/engagements/ops" className="text-primary underline font-medium">
-                  Engagement ops
-                </Link>
-                ).
-              </CardDescription>
+            <CardHeader className="py-3 space-y-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <CardTitle className="text-sm">Engagement operations</CardTitle>
+                  <CardDescription className="text-xs">
+                    KPIs use persisted engagement health and top-action roll-ups (same filters as{" "}
+                    <Link href="/engagements/ops" className="text-primary underline font-medium">
+                      Engagement ops
+                    </Link>
+                    ). Click a tile to open the matching ops bucket.
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={engagementRollupsRefresh.isPending}
+                  onClick={() =>
+                    engagementRollupsRefresh.mutate({ companyId: activeCompanyId ?? undefined })
+                  }
+                >
+                  {engagementRollupsRefresh.isPending ? "Refreshing…" : "Refresh rollups"}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Last roll-up write:{" "}
+                {engagementQueueKpi.latestDerivedStateSyncedAt
+                  ? fmtDateTimeShort(engagementQueueKpi.latestDerivedStateSyncedAt)
+                  : "—"}
+              </p>
             </CardHeader>
             <CardContent className="pt-0 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-              {[
-                { label: "Overdue", n: engagementQueueKpi.overdue ?? 0 },
-                { label: "At risk", n: engagementQueueKpi.at_risk ?? 0 },
-                { label: "Awaiting client", n: engagementQueueKpi.awaiting_client ?? 0 },
-                { label: "Awaiting team", n: engagementQueueKpi.awaiting_team ?? 0 },
-                { label: "Unassigned", n: engagementQueueKpi.no_owner ?? 0 },
-                { label: "Open", n: engagementQueueKpi.open ?? 0 },
-              ].map((c) => (
-                <div key={c.label} className="rounded-lg border bg-muted/30 px-3 py-2 text-center">
+              {(
+                [
+                  { label: "Overdue", n: engagementQueueKpi.counts.overdue ?? 0, bucket: "overdue" },
+                  { label: "At risk", n: engagementQueueKpi.counts.at_risk ?? 0, bucket: "at_risk" },
+                  {
+                    label: "Awaiting client",
+                    n: engagementQueueKpi.counts.awaiting_client ?? 0,
+                    bucket: "awaiting_client",
+                  },
+                  {
+                    label: "Awaiting team",
+                    n: engagementQueueKpi.counts.awaiting_team ?? 0,
+                    bucket: "awaiting_team",
+                  },
+                  { label: "Unassigned", n: engagementQueueKpi.counts.no_owner ?? 0, bucket: "no_owner" },
+                  { label: "Open", n: engagementQueueKpi.counts.open ?? 0, bucket: "open" },
+                ] as const
+              ).map((c) => (
+                <Link
+                  key={c.label}
+                  href={`/engagements/ops?bucket=${c.bucket}`}
+                  className="rounded-lg border bg-muted/30 px-3 py-2 text-center hover:bg-muted/55 hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{c.label}</p>
                   <p className="text-lg font-bold tabular-nums">{c.n}</p>
-                </div>
+                </Link>
               ))}
             </CardContent>
           </Card>

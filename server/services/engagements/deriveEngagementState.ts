@@ -332,6 +332,7 @@ export async function syncEngagementDerivedState(db: Db, engagementId: number, c
       topActionPayload: derived.topActionPayload,
       health: derived.health,
       healthReason: derived.healthReason,
+      derivedStateSyncedAt: new Date(),
     })
     .where(and(eq(engagements.id, engagementId), eq(engagements.companyId, companyId)));
 }

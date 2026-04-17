@@ -20,6 +20,7 @@ import { runEmployeeTaskOverdueNotifications } from "../jobs/employeeTaskOverdue
 import { runSyncExpiredContracts } from "../jobs/syncExpiredContracts";
 import { runSurveyNurtureEmails } from "../jobs/surveyNurture";
 import { runMarkMissedShiftsAbsent } from "../jobs/markMissedShiftsAbsent";
+import { resyncHotEngagementDerivedState } from "../jobs/engagementDerivedRollupRefresh";
 import { registerSentryExpressErrorHandler } from "./sentry";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -203,6 +204,29 @@ async function startServer() {
         })
         .catch((e) => console.error("[absent-job] run error:", e));
     }, 30 * 60 * 1000); // every 30 minutes
+  }
+
+  // ── Engagement roll-up freshness (every 15 min) ───────────────────────────────
+  // Recomputes persisted health / top action for hot engagements (open, overdue-ish,
+  // at-risk health, recently updated). Disable with DISABLE_ENGAGEMENT_ROLLUP_CRON=1.
+  if (process.env.DISABLE_ENGAGEMENT_ROLLUP_CRON !== "1") {
+    const FIFTEEN_MIN_MS = 15 * 60 * 1000;
+    void resyncHotEngagementDerivedState({ companyId: null, limit: 800 })
+      .then((r) => {
+        if (r.synced > 0 || r.errors > 0) {
+          console.log(`[engagement-rollups] startup — scanned: ${r.scanned}, synced: ${r.synced}, errors: ${r.errors}`);
+        }
+      })
+      .catch((e) => console.error("[engagement-rollups] startup error:", e));
+    setInterval(() => {
+      void resyncHotEngagementDerivedState({ companyId: null, limit: 800 })
+        .then((r) => {
+          if (r.synced > 0 || r.errors > 0) {
+            console.log(`[engagement-rollups] — scanned: ${r.scanned}, synced: ${r.synced}, errors: ${r.errors}`);
+          }
+        })
+        .catch((e) => console.error("[engagement-rollups] interval error:", e));
+    }, FIFTEEN_MIN_MS);
   }
 }
 

@@ -57,6 +57,7 @@
     "priorityDone": "تم تحديث الأولوية",
     "escalateDone": "تم التصعيد",
     "completeDone": "تم الإكمال",
+    "rollupsRefreshed": "تم تحديث التجميعات",
     "link": "قائمة العمليات"
   },
   "dashboardStripTitle": "أولويات المشاريع",

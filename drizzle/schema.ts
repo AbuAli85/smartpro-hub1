@@ -4844,6 +4844,8 @@ export const engagements = mysqlTable(
     createdByUserId: int("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    /** Set whenever `syncEngagementDerivedState` persists roll-ups (health, top action, SLA). */
+    derivedStateSyncedAt: timestamp("derived_state_synced_at"),
   },
   (t) => [
     index("idx_engagements_company").on(t.companyId),

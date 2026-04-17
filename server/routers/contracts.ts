@@ -25,6 +25,7 @@ import {
 import { invokeLLM } from "../_core/llm";
 import { contractSignatures, contractSignatureAudit, contracts } from "../../drizzle/schema";
 import { recordContractStatusUpdatedAudit } from "../tenantGovernanceAudit";
+import { syncEngagementsLinkedToContract } from "../services/engagementsService";
 
 export const contractsRouter = router({
   list: protectedProcedure
@@ -263,6 +264,7 @@ Generate a complete, professional contract document with all standard clauses fo
         companyName: ctx.user.name ?? "SmartPRO",
         signingUrl,
       }).catch((e) => console.error("[Email] addSigner signing email failed (non-fatal):", e));
+      await syncEngagementsLinkedToContract(db, input.contractId);
       return { id: insertId };
     }),
 
@@ -335,6 +337,7 @@ Generate a complete, professional contract document with all standard clauses fo
           notes: "All parties have signed. Contract is fully executed.",
         });
       }
+      await syncEngagementsLinkedToContract(db, signer.contractId);
       return { ok: true, allSigned, signatureUrl: url };
     }),
 
@@ -359,6 +362,7 @@ Generate a complete, professional contract document with all standard clauses fo
         actorType: "user",
         notes: input.reason ?? "Declined without reason",
       });
+      await syncEngagementsLinkedToContract(db, signer.contractId);
       return { ok: true };
     }),
 

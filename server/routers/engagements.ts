@@ -25,6 +25,7 @@ import {
 import {
   assertEngagementInCompany,
   addEngagementLink,
+  removeEngagementLink,
   addEngagementInternalNote,
   backfillEngagementsForCompany,
   buildEngagementDetail,
@@ -55,6 +56,7 @@ import {
   setEngagementOpsPriority,
   type OpsBucket,
 } from "../services/engagements/engagementOpsService";
+import { resyncHotEngagementDerivedState } from "../jobs/engagementDerivedRollupRefresh";
 
 const createFromSourceInput = z.discriminatedUnion("sourceType", [
   z.object({ sourceType: z.literal("pro_service"), sourceId: z.number().int().positive() }),
@@ -301,7 +303,20 @@ export const engagementsRouter = router({
   getOpsSummary: protectedProcedure.input(optionalActiveWorkspace)
     .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) return {} as Record<OpsBucket, number>;
+      const emptyCounts: Record<OpsBucket, number> = {
+        all: 0,
+        open: 0,
+        awaiting_team: 0,
+        awaiting_client: 0,
+        overdue: 0,
+        at_risk: 0,
+        no_owner: 0,
+        pending_replies: 0,
+        overdue_payments: 0,
+        pending_signatures: 0,
+        docs_pending_review: 0,
+      };
+      if (!db) return { counts: emptyCounts, latestDerivedStateSyncedAt: null as Date | null };
       const u = ctx.user as User;
       if (seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u)) {
         return getEngagementsOpsSummary(db, { scope: "platform", companyId: input.companyId ?? null });
@@ -311,6 +326,41 @@ export const engagementsRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions for ops summary" });
       }
       return getEngagementsOpsSummary(db, { scope: "tenant", companyId: m.companyId });
+    }),
+
+  /**
+   * Recompute persisted roll-ups for hot engagements (open / overdue-ish / at-risk / recently updated).
+   * Same cohort as the server interval job; bounded for safety.
+   */
+  refreshRollups: protectedProcedure.input(optionalActiveWorkspace.optional()).mutation(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const u = ctx.user as User;
+    if (seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u)) {
+      const companyId = input?.companyId ?? null;
+      const r = await resyncHotEngagementDerivedState({
+        companyId,
+        limit: companyId != null ? 500 : 800,
+      });
+      return { ...r, finishedAt: new Date() };
+    }
+    const m = await requireWorkspaceMembership(u, input?.companyId);
+    if (!canUseEngagementOps(m.role, u)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions to refresh rollups" });
+    }
+    const r = await resyncHotEngagementDerivedState({ companyId: m.companyId, limit: 500 });
+    return { ...r, finishedAt: new Date() };
+  }),
+
+  removeLink: protectedProcedure
+    .input(z.object({ linkId: z.number().int().positive() }).merge(optionalActiveWorkspace))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      requireNotAuditor(m.role);
+      await removeEngagementLink(db, m.companyId, ctx.user.id, input.linkId);
+      return { success: true as const };
     }),
 
   getMyQueue: protectedProcedure

@@ -57,6 +57,7 @@
     "priorityDone": "Priority updated",
     "escalateDone": "Escalated",
     "completeDone": "Marked completed",
+    "rollupsRefreshed": "Roll-ups refreshed",
     "link": "Ops queue"
   },
   "dashboardStripTitle": "Engagement priorities",

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,17 +33,29 @@ const BUCKETS = [
   "all",
 ] as const;
 
+function parseBucketFromSearch(search: string): (typeof BUCKETS)[number] | null {
+  const q = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  const raw = q.get("bucket");
+  if (!raw) return null;
+  return (BUCKETS as readonly string[]).includes(raw) ? (raw as (typeof BUCKETS)[number]) : null;
+}
+
 export default function EngagementsOpsPage() {
   const { t } = useTranslation("engagements");
   const { user } = useAuth();
   const { activeCompanyId } = useActiveCompany();
-  const utils = trpc.useUtils();
+  const urlSearch = useSearch();
   const isPlatform = user != null && seesPlatformOperatorNav(user);
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>("open");
   const [platformCompanyId, setPlatformCompanyId] = useState<string>("");
   const [rollupBusy, setRollupBusy] = useState(false);
 
   const companyIdForQuery = isPlatform && platformCompanyId ? Number(platformCompanyId) : activeCompanyId ?? undefined;
+
+  useEffect(() => {
+    const b = parseBucketFromSearch(urlSearch);
+    if (b) setBucket(b);
+  }, [urlSearch]);
 
   const summary = trpc.engagements.getOpsSummary.useQuery(
     { companyId: companyIdForQuery },
@@ -58,6 +70,14 @@ export default function EngagementsOpsPage() {
     void list.refetch();
     void summary.refetch();
   };
+
+  const refreshRollups = trpc.engagements.refreshRollups.useMutation({
+    onSuccess: () => {
+      toast.success(t("ops.rollupsRefreshed"));
+      invalidateOps();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const assign = trpc.engagements.assignOwner.useMutation({
     onSuccess: () => {
@@ -89,7 +109,7 @@ export default function EngagementsOpsPage() {
   });
 
   const summaryChips = useMemo(() => {
-    const s = summary.data;
+    const s = summary.data?.counts;
     if (!s) return [];
     return BUCKETS.filter((b) => (s[b] ?? 0) > 0).map((b) => ({ b, n: s[b] ?? 0 }));
   }, [summary.data]);
@@ -106,25 +126,18 @@ export default function EngagementsOpsPage() {
             type="button"
             variant="secondary"
             size="sm"
-            disabled={rollupBusy || list.isFetching}
-            onClick={async () => {
+            disabled={rollupBusy || list.isFetching || refreshRollups.isPending}
+            onClick={() => {
               setRollupBusy(true);
-              try {
-                await utils.engagements.listForOps.fetch({
-                  bucket,
-                  page: 1,
-                  pageSize: 75,
-                  companyId: companyIdForQuery,
-                  resyncDerived: true,
-                });
-                await utils.engagements.getOpsSummary.fetch({ companyId: companyIdForQuery });
-                invalidateOps();
-              } finally {
-                setRollupBusy(false);
-              }
+              refreshRollups.mutate(
+                { companyId: companyIdForQuery },
+                {
+                  onSettled: () => setRollupBusy(false),
+                },
+              );
             }}
           >
-            {rollupBusy ? "…" : "Refresh rollups"}
+            {rollupBusy || refreshRollups.isPending ? "…" : "Refresh rollups"}
           </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href="/engagements">{t("backToList")}</Link>
@@ -132,15 +145,15 @@ export default function EngagementsOpsPage() {
         </div>
       </div>
 
-      {summary.data && (
+      {summary.data?.counts && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: "Open", value: summary.data.open ?? 0, hint: "Not completed" },
-            { label: "Overdue", value: summary.data.overdue ?? 0, hint: "SLA / action due" },
-            { label: "At risk", value: summary.data.at_risk ?? 0, hint: "Health" },
-            { label: "Awaiting client", value: summary.data.awaiting_client ?? 0, hint: "Status" },
-            { label: "Awaiting team", value: summary.data.awaiting_team ?? 0, hint: "Status" },
-            { label: "Unassigned", value: summary.data.no_owner ?? 0, hint: "No owner" },
+            { label: "Open", value: summary.data.counts.open ?? 0, hint: "Not completed" },
+            { label: "Overdue", value: summary.data.counts.overdue ?? 0, hint: "SLA / action due" },
+            { label: "At risk", value: summary.data.counts.at_risk ?? 0, hint: "Health" },
+            { label: "Awaiting client", value: summary.data.counts.awaiting_client ?? 0, hint: "Status" },
+            { label: "Awaiting team", value: summary.data.counts.awaiting_team ?? 0, hint: "Status" },
+            { label: "Unassigned", value: summary.data.counts.no_owner ?? 0, hint: "No owner" },
           ].map((kpi) => (
             <Card key={kpi.label} className="border-border/80">
               <CardContent className="p-4">
@@ -179,9 +192,9 @@ export default function EngagementsOpsPage() {
             onClick={() => setBucket(b)}
           >
             {b.replace(/_/g, " ")}
-            {summary.data?.[b] != null ? (
+            {summary.data?.counts?.[b] != null ? (
               <Badge variant="secondary" className="ml-2">
-                {summary.data[b]}
+                {summary.data.counts[b]}
               </Badge>
             ) : null}
           </Button>

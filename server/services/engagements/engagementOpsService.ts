@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { SQL, and, desc, eq, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { SQL, and, desc, eq, isNotNull, isNull, lt, max, ne, or, sql } from "drizzle-orm";
 import { companies, engagements } from "../../../drizzle/schema";
 import { logEngagementActivity } from "../engagementsService";
 import { syncEngagementDerivedState } from "./deriveEngagementState";
@@ -128,8 +128,14 @@ export async function listEngagementsForOps(
     .where(whereExpr);
 
   if (input.resyncDerived) {
-    for (const r of rows) {
-      await syncEngagementDerivedState(db, r.engagement.id, r.engagement.companyId);
+    const syncCandidates = await db
+      .select({ id: engagements.id, companyId: engagements.companyId })
+      .from(engagements)
+      .where(whereExpr)
+      .orderBy(desc(engagements.updatedAt))
+      .limit(500);
+    for (const r of syncCandidates) {
+      await syncEngagementDerivedState(db, r.id, r.companyId);
     }
   }
 
@@ -139,10 +145,24 @@ export async function listEngagementsForOps(
   };
 }
 
+export type EngagementOpsSummaryPayload = {
+  counts: Record<OpsBucket, number>;
+  latestDerivedStateSyncedAt: Date | null;
+};
+
+function opsSummaryCompanyWhere(input: { scope: "platform" | "tenant"; companyId?: number | null }): SQL | undefined {
+  if (input.scope === "tenant") {
+    if (input.companyId == null) throw new TRPCError({ code: "BAD_REQUEST", message: "companyId required" });
+    return eq(engagements.companyId, input.companyId);
+  }
+  if (input.companyId != null) return eq(engagements.companyId, input.companyId);
+  return undefined;
+}
+
 export async function getEngagementsOpsSummary(
   db: Db,
   input: { scope: "platform" | "tenant"; companyId?: number | null },
-): Promise<Record<OpsBucket, number>> {
+): Promise<EngagementOpsSummaryPayload> {
   const keys: OpsBucket[] = [
     "all",
     "open",
@@ -170,7 +190,17 @@ export async function getEngagementsOpsSummary(
   );
   const out = {} as Record<OpsBucket, number>;
   for (const { bucket, total } of counts) out[bucket] = total;
-  return out;
+
+  const cw = opsSummaryCompanyWhere(input);
+  const [maxRow] = await db
+    .select({ latest: max(engagements.derivedStateSyncedAt) })
+    .from(engagements)
+    .where(cw ?? sql`1=1`);
+
+  return {
+    counts: out,
+    latestDerivedStateSyncedAt: maxRow?.latest ?? null,
+  };
 }
 
 export async function assignEngagementOwner(

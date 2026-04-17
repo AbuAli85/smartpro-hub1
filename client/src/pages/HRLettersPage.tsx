@@ -44,6 +44,21 @@ const LANGUAGE_OPTIONS = [
   { value: "both", label: "Bilingual", flag: "🌐" },
 ];
 
+/** Plain text for clipboard — avoids regex tag stripping (CodeQL js/incomplete-multi-character-sanitization). */
+function clipboardPlainTextFromHtml(html: string): string {
+  if (typeof document !== "undefined") {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return doc.body?.textContent ?? "";
+  }
+  let s = html;
+  let prev = "";
+  while (s !== prev) {
+    prev = s;
+    s = s.replace(/<[^>]*>/g, "");
+  }
+  return s;
+}
+
 function LetterPreview({
   letter,
   companyName,
@@ -113,7 +128,7 @@ function LetterPreview({
 
   const handleCopy = () => {
     const text = [letter.bodyEn, letter.bodyAr].filter(Boolean).join("\n\n---\n\n");
-    const stripped = text.replace(/<[^>]+>/g, "");
+    const stripped = clipboardPlainTextFromHtml(text);
     navigator.clipboard.writeText(stripped).then(() => toast.success("Letter copied to clipboard"));
   };
 

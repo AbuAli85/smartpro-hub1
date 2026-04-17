@@ -50,15 +50,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Fail on high/critical CVEs; moderate and below are reported only.
+      # Fail on high/critical CVEs (pnpm uses the npm advisory DB). Do not use
+      # `npm audit` here: this repo is pnpm-only (no package-lock.json → ENOLOCK).
       - name: Audit for high/critical vulnerabilities
         run: pnpm audit --audit-level=high
         continue-on-error: false
-
-      # Also run npm audit (catches different advisories from pnpm)
-      - name: npm audit
-        run: npm audit --audit-level=high --production
-        continue-on-error: true
 
   # ── Static Analysis (SAST) ───────────────────────────────────────────────────
   sast:

@@ -1,4 +1,5 @@
 ﻿import { useAuth } from "@/_core/hooks/useAuth";
+import { SignInCallbackErrorBanner } from "@/components/SignInCallbackErrorBanner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getLoginUrl } from "@/const";
@@ -302,6 +303,9 @@ export default function Home() {
       </nav>
 
       <main id="main">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <SignInCallbackErrorBanner />
+        </div>
         <section className="hero-gradient text-white relative overflow-hidden">
           <div
             className="absolute inset-0 opacity-[0.07]"

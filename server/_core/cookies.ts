@@ -21,6 +21,26 @@ function isSecureRequest(req: Request) {
   return protoList.some(proto => proto.trim().toLowerCase() === "https");
 }
 
+/**
+ * Cookie `Domain` for session: use registrable apex when hostname is `www.*` so the
+ * same session is visible on both apex and www (OAuth `redirectUri` often uses www
+ * while marketing links use apex, or vice versa).
+ */
+function sessionCookieDomain(hostname: string): string | undefined {
+  if (!hostname || LOCAL_HOSTS.has(hostname) || isIpAddress(hostname)) return undefined;
+
+  const lower = hostname.toLowerCase();
+  if (lower.startsWith("www.") && lower.length > 4) {
+    const rest = lower.slice(4);
+    if (!rest || isIpAddress(rest) || LOCAL_HOSTS.has(rest)) return undefined;
+    return `.${rest}`;
+  }
+  if (!lower.startsWith(".")) {
+    return `.${lower}`;
+  }
+  return lower;
+}
+
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
@@ -32,12 +52,7 @@ export function getSessionCookieOptions(
     hostname !== "127.0.0.1" &&
     hostname !== "::1";
 
-  const domain =
-    shouldSetDomain && !hostname.startsWith(".")
-      ? `.${hostname}`
-      : shouldSetDomain
-        ? hostname
-        : undefined;
+  const domain = shouldSetDomain ? sessionCookieDomain(hostname) : undefined;
 
   return {
     httpOnly: true,

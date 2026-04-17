@@ -58,7 +58,18 @@ export default function ClientDashboardPage() {
           <AlertTitle>{t("clientWorkspace.welcomeTitle")}</AlertTitle>
           <AlertDescription className="space-y-3">
             <p>{t("clientWorkspace.welcomeBody")}</p>
+            <ul className="list-disc pl-5 text-sm space-y-1">
+              <li>{t("clientWorkspace.companyCreatedNext1")}</li>
+              <li>{t("clientWorkspace.companyCreatedNext2")}</li>
+              <li>{t("clientWorkspace.companyCreatedNext3")}</li>
+            </ul>
             <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" asChild>
+                <Link href="/client/engagements">{t("clientWorkspace.welcomeEngagementsCta")}</Link>
+              </Button>
+              <Button variant="secondary" size="sm" asChild>
+                <Link href="/client/documents">{t("clientWorkspace.welcomeDocumentsCta")}</Link>
+              </Button>
               <Button variant="secondary" size="sm" asChild>
                 <Link href="/client/team">{t("clientWorkspace.welcomeTeamCta")}</Link>
               </Button>

@@ -10,3 +10,12 @@ export function isPortalPreCompanyMinimalPath(location: string): boolean {
   if (path === "/company/create" || path.startsWith("/company/create/")) return true;
   return false;
 }
+
+/**
+ * Strict client workspace URL (`/client`, `/client/...`).
+ * Portal users use minimal outer chrome here (no platform sidebar / ops nav), even after a company exists.
+ */
+export function isPortalClientWorkspaceShellPath(location: string): boolean {
+  const path = normalizeAppPath(location.split("?")[0] ?? "") || "/";
+  return path === "/client" || path.startsWith("/client/");
+}

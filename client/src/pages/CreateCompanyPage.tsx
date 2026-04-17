@@ -3,12 +3,15 @@
  *
  * A clean, blank form for creating a new company.
  * Accessible from the Company Switcher "+ Add another company" link.
- * After creation, the new company is auto-selected in the switcher.
+ * After creation, membership is refreshed, the new company is selected as the active workspace,
+ * and the success screen sends users to `/client` (client workspace), not the admin dashboard.
  */
-import { useState, useMemo } from "react";
-import { useLocation, useSearch } from "wouter";
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -119,19 +122,10 @@ const COUNTRIES = [
   { code: "OTHER", name: "Other" },
 ];
 
-function parseSafeClientReturn(search: string): string | null {
-  const raw = search.startsWith("?") ? search.slice(1) : search;
-  const q = new URLSearchParams(raw);
-  const r = q.get("return");
-  if (!r || !r.startsWith("/") || r.startsWith("//")) return null;
-  if (r === "/client" || r.startsWith("/client/")) return r;
-  return null;
-}
-
 export default function CreateCompanyPage() {
   const [, navigate] = useLocation();
-  const search = useSearch();
-  const returnToClient = useMemo(() => parseSafeClientReturn(search), [search]);
+  const { t } = useTranslation("engagements");
+  const { switchCompany } = useActiveCompany();
   const utils = trpc.useUtils();
 
   const [form, setForm] = useState({
@@ -151,14 +145,12 @@ export default function CreateCompanyPage() {
   const [created, setCreated] = useState<{ id: number; name: string } | null>(null);
 
   const createMutation = trpc.companies.create.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      await utils.companies.myCompanies.refetch();
+      void utils.companies.myCompany.invalidate();
+      switchCompany(data.id);
       setCreated({ id: data.id, name: form.name });
-      // Invalidate the companies list so the switcher refreshes
-      utils.companies.myCompanies.invalidate();
-      utils.companies.myCompany.invalidate();
-      // Save the new company ID to localStorage so it auto-selects
-      localStorage.setItem("smartpro_active_company_id", String(data.id));
-      toast.success(`Company "${form.name}" created successfully!`);
+      toast.success(t("clientWorkspace.companyCreatedToast", { name: form.name }));
     },
     onError: (err) => {
       toast.error(err.message || "Failed to create company");
@@ -199,21 +191,20 @@ export default function CreateCompanyPage() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-foreground">{created.name}</h2>
-              <p className="text-muted-foreground text-sm mt-1">Company created successfully</p>
+              <p className="text-muted-foreground text-sm mt-1">{t("clientWorkspace.companyCreatedSubtitle")}</p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              You are now the Admin of this company. You can start adding employees,
-              setting up payroll, and managing HR from the dashboard.
-            </p>
+            <ul className="text-sm text-muted-foreground text-left list-disc pl-5 space-y-1.5 w-full max-w-sm mx-auto">
+              <li>{t("clientWorkspace.companyCreatedNext1")}</li>
+              <li>{t("clientWorkspace.companyCreatedNext2")}</li>
+              <li>{t("clientWorkspace.companyCreatedNext3")}</li>
+            </ul>
             <div className="flex gap-3 mt-2 w-full">
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() =>
-                  navigate(returnToClient ? `${returnToClient}${returnToClient.includes("?") ? "&" : "?"}welcome=1` : "/dashboard")
-                }
+                onClick={() => navigate("/client?welcome=1")}
               >
-                {returnToClient ? "Go to workspace" : "Go to Dashboard"}
+                {t("clientWorkspace.companyCreatedCta")}
               </Button>
               <Button
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white"

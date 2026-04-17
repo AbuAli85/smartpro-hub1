@@ -53,7 +53,7 @@ import { useOnboardingAutoComplete } from "@/hooks/useOnboardingAutoComplete";
 import { filterVisibleNavGroups } from "@/config/platformNav";
 import { PlatformSidebarNav } from "@/components/PlatformSidebarNav";
 import type { ClientNavOptions } from "@shared/clientNav";
-import { isPortalPreCompanyMinimalPath } from "@shared/clientWorkspaceChrome";
+import { isPortalClientWorkspaceShellPath, isPortalPreCompanyMinimalPath } from "@shared/clientWorkspaceChrome";
 import { ClientPreCompanyMinimalLayout } from "@/features/clientWorkspace/ClientPreCompanyMinimalLayout";
 import { resolveSidebarBadgeMap } from "@/lib/sidebarBadgeResolver";
 function SidebarContent({ onClose }: { onClose?: () => void }) {
@@ -460,13 +460,14 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
       companiesListLoading || (Boolean(activeCompanyId) && layoutCompanyLoading),
     memberRole: effectiveMemberRole,
   });
-  const preCompanyClientChrome =
+  const portalMinimalOuterChrome =
     Boolean(user) &&
     portalShell &&
-    isPortalPreCompanyMinimalPath(location) &&
-    (companiesListLoading || companies.length === 0);
+    (isPortalClientWorkspaceShellPath(location) ||
+      (isPortalPreCompanyMinimalPath(location) &&
+        (companiesListLoading || companies.length === 0)));
 
-  if (preCompanyClientChrome) {
+  if (portalMinimalOuterChrome) {
     return <ClientPreCompanyMinimalLayout>{children}</ClientPreCompanyMinimalLayout>;
   }
 
@@ -595,6 +596,10 @@ function MobileBottomNav() {
       { href: "/hr/employees", icon: <Users size={20} />, label: "HR" },
     ];
   }, [platform, portalShell, preRegShell, effectiveMemberRole, t]);
+
+  if (portalShell && isPortalClientWorkspaceShellPath(location)) {
+    return null;
+  }
 
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border flex items-center justify-around h-16">

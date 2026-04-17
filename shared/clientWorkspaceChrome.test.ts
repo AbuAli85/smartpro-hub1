@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPortalPreCompanyMinimalPath } from "./clientWorkspaceChrome";
+import { isPortalClientWorkspaceShellPath, isPortalPreCompanyMinimalPath } from "./clientWorkspaceChrome";
 
 describe("isPortalPreCompanyMinimalPath", () => {
   it("matches /client and nested client routes", () => {
@@ -19,5 +19,19 @@ describe("isPortalPreCompanyMinimalPath", () => {
     expect(isPortalPreCompanyMinimalPath("/preferences")).toBe(false);
     expect(isPortalPreCompanyMinimalPath("/company/team-access")).toBe(false);
     expect(isPortalPreCompanyMinimalPath("/client-portal")).toBe(false);
+  });
+});
+
+describe("isPortalClientWorkspaceShellPath", () => {
+  it("matches /client and nested routes only", () => {
+    expect(isPortalClientWorkspaceShellPath("/client")).toBe(true);
+    expect(isPortalClientWorkspaceShellPath("/client/engagements")).toBe(true);
+    expect(isPortalClientWorkspaceShellPath("/client?welcome=1")).toBe(true);
+  });
+
+  it("does not match create flow or unrelated paths", () => {
+    expect(isPortalClientWorkspaceShellPath("/company/create")).toBe(false);
+    expect(isPortalClientWorkspaceShellPath("/dashboard")).toBe(false);
+    expect(isPortalClientWorkspaceShellPath("/client-portal")).toBe(false);
   });
 });

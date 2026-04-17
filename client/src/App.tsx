@@ -1,6 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect } from "wouter";
 import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -28,7 +28,7 @@ const SubscriptionsPage = lazy(() => import("./pages/SubscriptionsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminSanadIntelligencePage = lazy(() => import("./pages/AdminSanadIntelligencePage"));
 const HRAttendancePage = lazy(() => import("./pages/HRAttendancePage"));
-const ClientPortalPage = lazy(() => import("./pages/ClientPortalPage"));
+const ClientWorkspaceRoutes = lazy(() => import("./pages/client/ClientWorkspaceRoutes"));
 const EngagementsPage = lazy(() => import("./pages/EngagementsPage"));
 const EngagementsOpsPage = lazy(() => import("./pages/EngagementsOpsPage"));
 const EngagementDetailPage = lazy(() => import("./pages/EngagementDetailPage"));
@@ -203,7 +203,14 @@ function AppRoutes() {
         <Route path="/hr/today-board" component={TodayBoardPage} />
         <Route path="/hr/monthly-report" component={MonthlyReportPage} />
         <Route path="/hr/insights" component={HRInsightsHubPage} />
-        <Route path="/client-portal" component={ClientPortalPage} />
+        <Route path="/client/engagements/:id" component={ClientWorkspaceRoutes} />
+        <Route path="/client/engagements" component={ClientWorkspaceRoutes} />
+        <Route path="/client/documents" component={ClientWorkspaceRoutes} />
+        <Route path="/client/invoices" component={ClientWorkspaceRoutes} />
+        <Route path="/client/messages" component={ClientWorkspaceRoutes} />
+        <Route path="/client/team" component={ClientWorkspaceRoutes} />
+        <Route path="/client" component={ClientWorkspaceRoutes} />
+        <Route path="/client-portal">{() => <Redirect to="/client" />}</Route>
         <Route path="/engagements/ops" component={EngagementsOpsPage} />
         <Route path="/engagements/:id" component={EngagementDetailPage} />
         <Route path="/engagements" component={EngagementsPage} />

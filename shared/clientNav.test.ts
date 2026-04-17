@@ -73,8 +73,9 @@ describe("clientNavItemVisible", () => {
   });
 
   it("restricts portal client to allow-list when no company workspace", () => {
-    expect(clientNavItemVisible("/dashboard", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
-    expect(clientNavItemVisible("/client-portal", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
+    expect(clientNavItemVisible("/dashboard", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(false);
+    expect(clientNavItemVisible("/client", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
+    expect(clientNavItemVisible("/client/invoices", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
     expect(clientNavItemVisible("/payroll", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(false);
     expect(clientNavItemVisible("/hr/employees", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(false);
   });
@@ -82,13 +83,13 @@ describe("clientNavItemVisible", () => {
   it("keeps portal customers on the allow-list after they join a company (no HR / admin nav)", () => {
     expect(clientNavItemVisible("/hr/employees", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
     expect(clientNavItemVisible("/sanad", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
-    expect(clientNavItemVisible("/client-portal", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(true);
+    expect(clientNavItemVisible("/client/engagements", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(true);
     expect(clientNavItemVisible("/payroll", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
   });
 
-  it("hides client portal in the main sidebar for internal company roles (not duplicate operational entry)", () => {
+  it("hides client workspace in the main sidebar for internal company roles (not duplicate operational entry)", () => {
     const ownerOpts = { hasCompanyWorkspace: true, hasCompanyMembership: true, memberRole: "company_admin" as const };
-    expect(clientNavItemVisible("/client-portal", owner, new Set(), ownerOpts)).toBe(false);
+    expect(clientNavItemVisible("/client", owner, new Set(), ownerOpts)).toBe(false);
     expect(clientNavItemVisible("/contracts", owner, new Set(), ownerOpts)).toBe(true);
   });
 
@@ -101,12 +102,19 @@ describe("clientNavItemVisible", () => {
       }),
     ).toBe(false);
     expect(
-      clientNavItemVisible("/contracts", owner, new Set(), {
+      clientNavItemVisible("/client", owner, new Set(), {
         hasCompanyWorkspace: true,
         hasCompanyMembership: true,
         memberRole: "client",
       }),
     ).toBe(true);
+    expect(
+      clientNavItemVisible("/contracts", owner, new Set(), {
+        hasCompanyWorkspace: true,
+        hasCompanyMembership: true,
+        memberRole: "client",
+      }),
+    ).toBe(false);
   });
 
   it("keeps portal shell while loading for platformRole client", () => {
@@ -263,7 +271,14 @@ describe("clientRouteAccessible", () => {
 
   it("blocks disallowed paths under portal shell", () => {
     expect(clientRouteAccessible("/hr/employees", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(false);
-    expect(clientRouteAccessible("/contracts/123", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
+    expect(clientRouteAccessible("/contracts/123", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(false);
+    expect(clientRouteAccessible("/contracts/123/sign", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(
+      true,
+    );
+  });
+
+  it("allows legacy /client-portal URL until App redirects to /client", () => {
+    expect(clientRouteAccessible("/client-portal", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
   });
 
   it("respects hidden optional nav subtrees", () => {

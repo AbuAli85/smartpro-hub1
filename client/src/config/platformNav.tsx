@@ -29,6 +29,7 @@ import {
   ListTodo,
   Mail,
   Megaphone,
+  MessageSquare,
   Network,
   PhoneCall,
   QrCode,
@@ -49,6 +50,7 @@ import {
   UserCircle,
   UserSquare2,
   Users,
+  Users2,
   SlidersHorizontal,
 } from "lucide-react";
 import { clientNavItemVisible, type ClientNavOptions } from "@shared/clientNav";
@@ -177,7 +179,7 @@ function branch(
  * - **access**: membership access & roles
  * - **proShared**: Omani PRO pillar
  * - **getStarted**: create / learn paths for users with no company yet (filtered like other groups)
- * - **clientWorkspace**: customer-facing aggregate (`/client-portal`) — not platform operator tooling
+ * - **clientWorkspace**: customer-facing aggregate (`/client/*`) — not platform operator tooling
  * - **platform**: internal / global admin
  */
 export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
@@ -256,7 +258,7 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("co.emailTemplates", "emailTemplates", "Email Templates", "/company/email-preview", Mail, { intent: "workspace" }),
     ],
   },
-  /* C2 — Personal / client portal (customer-facing aggregate; route `/client-portal`) */
+  /* C2 — Client workspace (strict `/client/*` shell for customer-role members) */
   {
     id: "clientWorkspace",
     labelKey: "clientWorkspaceGroup",
@@ -264,12 +266,25 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     tier: "primary",
     collapsible: false,
     items: [
-      leaf("cw.clientPortal", "clientPortal", "My workspace", "/client-portal", UserCircle, {
+      leaf("cw.clientDashboard", "clientDashboard", "Dashboard", "/client", LayoutDashboard, {
+        intent: "workspace",
+        activePathPrefixes: ["/client"],
+      }),
+      leaf("cw.engagements", "engagements", "Engagements", "/client/engagements", Layers, {
+        intent: "workspace",
+        activePathPrefixes: ["/client/engagements"],
+      }),
+      leaf("cw.clientDocuments", "clientDocuments", "Documents", "/client/documents", FolderOpen, {
         intent: "workspace",
       }),
-      leaf("cw.engagements", "engagements", "Engagements", "/engagements", Layers, {
+      leaf("cw.clientInvoices", "clientInvoices", "Invoices", "/client/invoices", FileText, {
         intent: "workspace",
-        activePathPrefixes: ["/engagements"],
+      }),
+      leaf("cw.clientMessages", "clientMessages", "Messages", "/client/messages", MessageSquare, {
+        intent: "workspace",
+      }),
+      leaf("cw.clientTeam", "clientTeam", "Team", "/client/team", Users2, {
+        intent: "workspace",
       }),
       leaf("cw.engagementsOps", "engagementsOps", "Engagements ops", "/engagements/ops", ListTodo, {
         intent: "workspace",

@@ -64,8 +64,8 @@ async function loadSourceRow(
 
 function portalUrlForEmail(): string {
   const u = ENV.appPublicUrl.trim();
-  if (u) return u.replace(/\/+$/, "") + "/client-portal?tab=invoices";
-  return "https://smartprohub-q4qjnxjv.manus.space/client-portal?tab=invoices";
+  if (u) return u.replace(/\/+$/, "") + "/client/invoices";
+  return "https://smartprohub-q4qjnxjv.manus.space/client/invoices";
 }
 
 export const collectionsRouter = router({

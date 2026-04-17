@@ -135,7 +135,7 @@ export async function listCollectionsExecutionQueue(
       workflowStatus,
       note: persisted?.note ?? null,
       recommendedAction: recommendNext(workflowStatus, days),
-      deepLink: `/client-portal?tab=invoices`,
+      deepLink: `/client/invoices`,
       priorityScore: ps,
     });
   }

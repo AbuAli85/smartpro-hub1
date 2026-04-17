@@ -43,6 +43,10 @@ describe("getRoleDefaultRoute — system defaults", () => {
     expect(getRoleDefaultRoute("external_auditor")).toBe("/control-tower");
   });
 
+  it("returns /client for client (customer workspace)", () => {
+    expect(getRoleDefaultRoute("client")).toBe("/client");
+  });
+
   it("returns /control-tower for unknown roles", () => {
     expect(getRoleDefaultRoute("unknown_role")).toBe("/control-tower");
     expect(getRoleDefaultRoute(null)).toBe("/control-tower");

@@ -166,9 +166,9 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
               </Link>
             </Button>
           )}
-          {showHref("/client-portal") && (
+          {showHref("/client/invoices") && (
             <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-              <Link href="/client-portal?tab=invoices">{t("collections")}</Link>
+              <Link href="/client/invoices">{t("collections")}</Link>
             </Button>
           )}
           {showHref("/renewal-workflows") && (
@@ -478,9 +478,9 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
                 </div>
               </div>
             </div>
-            {showHref("/client-portal") && (
+            {showHref("/client/invoices") && (
               <Button variant="outline" size="sm" className="w-full text-xs h-8" asChild>
-                <Link href="/client-portal?tab=invoices">{t("openCollections")}</Link>
+                <Link href="/client/invoices">{t("openCollections")}</Link>
               </Button>
             )}
           </CardContent>

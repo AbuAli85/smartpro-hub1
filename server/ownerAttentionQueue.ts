@@ -78,7 +78,7 @@ export function buildOwnerAttentionQueue(input: OwnerAttentionInput): OwnerAtten
   } = input;
 
   const slaHref = isPlatformOperator ? "/sla-management" : "/operations";
-  const overdueHref = isPlatformOperator ? "/billing" : "/client-portal?tab=invoices";
+  const overdueHref = isPlatformOperator ? "/billing" : "/client/invoices";
 
   if (slaBreaches > 0) {
     q.push({

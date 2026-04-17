@@ -67,7 +67,7 @@ export function buildRoleExecutionView(input: RoleExecutionInput): RoleExecution
 
   const quickBase = [
     { label: "Decisions queue (open)", value: input.decisionsOpen, href: "/dashboard", emphasis: input.decisionsOpen > 0 ? ("warning" as const) : ("default" as const) },
-    { label: "Receivables at risk (OMR)", value: input.agedReceivablesOmr.toFixed(3), href: "/client-portal?tab=invoices", emphasis: input.agedReceivablesOmr > 0 ? ("warning" as const) : ("default" as const) },
+    { label: "Receivables at risk (OMR)", value: input.agedReceivablesOmr.toFixed(3), href: "/client/invoices", emphasis: input.agedReceivablesOmr > 0 ? ("warning" as const) : ("default" as const) },
     { label: "Collections queue rows", value: input.collectionQueueCount, href: "/dashboard" },
   ];
 
@@ -99,7 +99,7 @@ export function buildRoleExecutionView(input: RoleExecutionInput): RoleExecution
         "Expense approvals sit in Finance / HR workflows.",
       ],
       quickMetrics: [
-        { label: "PRO overdue rows", value: input.proOverdueCount, href: "/client-portal?tab=invoices", emphasis: input.proOverdueCount > 0 ? "warning" : "default" },
+        { label: "PRO overdue rows", value: input.proOverdueCount, href: "/client/invoices", emphasis: input.proOverdueCount > 0 ? "warning" : "default" },
         { label: "Subscription overdue rows", value: input.subscriptionOverdueCount, href: "/subscriptions", emphasis: input.subscriptionOverdueCount > 0 ? "warning" : "default" },
         ...quickBase.slice(0, 3),
         { label: "Contracts pending signature", value: input.contractsPendingSignature, href: "/contracts", emphasis: input.contractsPendingSignature > 0 ? "warning" : "default" },

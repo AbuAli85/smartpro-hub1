@@ -115,7 +115,7 @@ export async function buildRevenueRealizationSnapshot(
   if (billingFollowThroughPressure) {
     nextRecommendedActions.push({
       label: "Reconcile PRO billing cycles",
-      href: "/client-portal?tab=invoices",
+      href: "/client/invoices",
       basis:
         "Fee-bearing PRO completions exist in the lookback while officer billing cycles are pending or overdue (tenant-level).",
     });
@@ -123,7 +123,7 @@ export async function buildRevenueRealizationSnapshot(
   if (tenantHasProBillingOverdue) {
     nextRecommendedActions.push({
       label: "Collect overdue officer billing",
-      href: "/client-portal?tab=invoices",
+      href: "/client/invoices",
       basis: "At least one PRO billing cycle is overdue for this workspace.",
     });
   }

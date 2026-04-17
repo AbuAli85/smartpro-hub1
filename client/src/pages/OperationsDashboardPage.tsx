@@ -162,7 +162,7 @@ export default function OperationsDashboardPage() {
               </Link>
             )}
             {(snapshot?.overdueInvoices?.count ?? 0) > 0 && (
-              <Link href={isPlatform ? "/billing" : "/client-portal?tab=invoices"}>
+              <Link href={isPlatform ? "/billing" : "/client/invoices"}>
                 <Button size="sm" variant="secondary" className="h-8 text-xs">Overdue AR</Button>
               </Link>
             )}

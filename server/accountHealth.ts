@@ -70,7 +70,7 @@ export function deriveAccountHealthTier(s: ContactAccountSignals): AccountHealth
     reasons.push(
       "Workspace has overdue PRO/officer billing — collections not mapped to this contact in data.",
     );
-    nextActions.push({ label: "Collections", href: "/client-portal?tab=invoices" });
+    nextActions.push({ label: "Collections", href: "/client/invoices" });
   }
   if (days != null && days >= 45) {
     reasons.push(`No recorded CRM touch for ${days} days (deals, quotes, comms, contact).`);

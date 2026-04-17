@@ -38,7 +38,7 @@ describe("buildOwnerAttentionQueue", () => {
       renewalWorkflowsFailed: 0,
       draftQuotations: 0,
     });
-    expect(q[0]?.href).toBe("/client-portal?tab=invoices");
+    expect(q[0]?.href).toBe("/client/invoices");
   });
 
   it("routes SLA to operations for company users", () => {

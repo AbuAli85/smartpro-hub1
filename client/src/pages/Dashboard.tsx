@@ -1126,7 +1126,7 @@ export default function Dashboard() {
                       <Link href="/contracts">Contracts</Link>
                     </Button>
                     <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                      <Link href="/client-portal?tab=invoices">Collections</Link>
+                      <Link href="/client/invoices">Collections</Link>
                     </Button>
                     <Button variant="default" size="sm" className="text-xs h-7" asChild>
                       <Link href="/hr/tasks">Tasks</Link>
@@ -1369,7 +1369,7 @@ export default function Dashboard() {
                     <span className="text-[10px] text-muted-foreground block">derived</span>
                   </Link>
                   <Link
-                    href="/client-portal?tab=invoices"
+                    href="/client/invoices"
                     className={`rounded-md border px-2 py-1.5 hover:bg-muted/50 ${businessPulse.finance.proBillingOverdueCount > 0 ? "border-red-200 bg-red-50/50 dark:bg-red-950/20" : "border-border/60"}`}
                   >
                     <span className="text-muted-foreground block">Billed (PRO) — overdue</span>
@@ -1541,7 +1541,7 @@ export default function Dashboard() {
                                 Contract
                               </Link>
                             )}
-                            <Link href="/client-portal?tab=invoices" className="text-[10px] text-muted-foreground hover:underline">
+                            <Link href="/client/invoices" className="text-[10px] text-muted-foreground hover:underline">
                               Collections →
                             </Link>
                           </div>
@@ -1590,7 +1590,7 @@ export default function Dashboard() {
                       <Link href="/pro">PRO</Link>
                     </Button>
                     <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                      <Link href="/client-portal?tab=invoices">Collections</Link>
+                      <Link href="/client/invoices">Collections</Link>
                     </Button>
                     <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
                       <Link href="/marketplace">Marketplace</Link>

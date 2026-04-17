@@ -552,11 +552,11 @@ function MobileBottomNav() {
       ];
     }
     if (portalShell) {
-      // Primary hub is Client workspace; contracts/invoices are inside `/client-portal` tabs (avoid parallel duplication).
+      // Primary hub is Client workspace (`/client`); invoices/contracts live under that shell.
       return [
         { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
         { href: "/alerts", icon: <Bell size={20} />, label: "Alerts" },
-        { href: "/client-portal", icon: <UserCircle size={20} />, label: t("clientWorkspaceMobile", "Workspace") },
+        { href: "/client", icon: <UserCircle size={20} />, label: t("clientWorkspaceMobile", "Workspace") },
         { href: "/company/hub", icon: <Building2 size={20} />, label: t("companyHub", "Company Hub") },
       ];
     }

@@ -27,6 +27,7 @@ import { clientBillingRouter } from "./routers/clientBilling";
 import { recruitmentRouter } from "./routers/recruitment";
 import { clientPortalRouter } from "./routers/clientPortal";
 import { engagementsRouter } from "./routers/engagements";
+import { clientWorkspaceRouter } from "./routers/clientWorkspace";
 import { buyerPortalRouter } from "./routers/buyerPortal";
 import { operationsRouter } from "./routers/operations";
 import { quotationsRouter } from "./routers/quotations";
@@ -130,6 +131,7 @@ export const appRouter = router({
   recruitment: recruitmentRouter,
   clientPortal: clientPortalRouter,
   engagements: engagementsRouter,
+  clientWorkspace: clientWorkspaceRouter,
   /** Runtime gated by ENV.buyerPortalEnabled inside procedures (stable AppRouter type). */
   buyerPortal: buyerPortalRouter,
   operations: operationsRouter,

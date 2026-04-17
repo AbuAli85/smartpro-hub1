@@ -395,7 +395,7 @@ export async function loadCollectionsFollowUpRows(
     billingYear: r.billingYear,
     nextAction: {
       label: r.status === "overdue" ? "Collect or escalate" : "Confirm payment plan",
-      href: "/client-portal?tab=invoices",
+      href: "/client/invoices",
       basis:
         r.status === "overdue"
           ? "Officer billing cycle is overdue — workspace-level invoice."
@@ -563,7 +563,7 @@ export function resolvePrimaryAccountAction(input: AccountResolutionInput): {
   } else if (ar || bf) {
     primary = {
       label: "Workspace collections",
-      href: "/client-portal?tab=invoices",
+      href: "/client/invoices",
       basis: "Billing cycles stressed at workspace level — not mapped to this contact in data.",
     };
   } else {
@@ -586,7 +586,7 @@ export function resolvePrimaryAccountAction(input: AccountResolutionInput): {
   if (!ar && !bf) {
     alternatives.push({
       label: "Collections (workspace)",
-      href: "/client-portal?tab=invoices",
+      href: "/client/invoices",
       basis: "Check officer billing if monetization is unclear.",
     });
   }

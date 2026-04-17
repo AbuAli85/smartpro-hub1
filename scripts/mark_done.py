@@ -132,7 +132,7 @@ done_patterns = [
     # Subscriptions
     "Route: /subscriptions",
     # Client portal
-    "Route: /client-portal",
+    "Route: /client",
     # Marketplace
     "Route: /marketplace",
     # Finance

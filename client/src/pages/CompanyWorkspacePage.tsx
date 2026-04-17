@@ -674,7 +674,7 @@ export default function CompanyWorkspacePage() {
                   { label: "Company Settings", href: "/company-admin", icon: <Building2 size={13} className="text-muted-foreground" /> },
                   { label: "Workforce Hub", href: "/workforce", icon: <Globe size={13} className="text-muted-foreground" /> },
                   { label: "Analytics", href: "/analytics", icon: <BarChart3 size={13} className="text-muted-foreground" /> },
-                  { label: "Client workspace", href: "/client-portal", icon: <UserCheck size={13} className="text-muted-foreground" /> },
+                  { label: "Client workspace", href: "/client", icon: <UserCheck size={13} className="text-muted-foreground" /> },
                 ].map((l) => (
                   <Link key={l.href} href={l.href}>
                     <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-muted transition-colors cursor-pointer">

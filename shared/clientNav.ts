@@ -113,36 +113,19 @@ export const FIELD_EMPLOYEE_HREFS = new Set<string>([
   "/",
 ]);
 
-/** End-customer portal — minimal shell */
+/**
+ * End-customer portal — strict Client Workspace shell only (`/client/*`),
+ * plus session preferences and contract signing deep links.
+ */
 export const PORTAL_CLIENT_HREFS = new Set<string>([
-  "/dashboard",
-  "/client-portal",
-  "/engagements",
-  "/marketplace",
-  "/subscriptions",
-  "/alerts",
-  "/contracts",
-  "/onboarding",
-  "/company/hub",
-  "/company/workspace",
-  "/my-team",
-  "/my-team/import",
-  "/company/operations",
-  "/company/documents",
-  "/company/profile",
-  "/company/team-access",
-  "/hr/documents-dashboard",
-  "/hr/letters",
-  "/hr/leave-balance",
-  "/hr/completeness",
-  "/hr/departments",
-  "/hr/org-structure",
-  "/hr/tasks",
-  "/hr/announcements",
-  "/my-portal",
-  "/payroll/process",
-  "/preferences",
   "/",
+  "/client",
+  "/client/engagements",
+  "/client/documents",
+  "/client/invoices",
+  "/client/messages",
+  "/client/team",
+  "/preferences",
 ]);
 
 /**
@@ -459,7 +442,7 @@ export function getRoleDefaultRoute(memberRole?: string | null): string {
     case "company_member": return "/my-portal";
     case "reviewer": return "/control-tower";
     case "external_auditor": return "/control-tower";
-    case "client": return "/client-portal";
+    case "client": return "/client";
     default: return "/control-tower";
   }
 }
@@ -529,21 +512,8 @@ export function companyNavExtensionAllows(
   if (shouldUsePortalOnlyShell(user, options)) {
     const portalOk =
       PORTAL_CLIENT_HREFS.has(path) ||
-      path.startsWith("/contracts") ||
-      path.startsWith("/company/documents") ||
-      path.startsWith("/company/team-access") ||
-      path.startsWith("/hr/documents-dashboard") ||
-      path.startsWith("/hr/letters") ||
-      path.startsWith("/hr/leave-balance") ||
-      path.startsWith("/hr/completeness") ||
-      path.startsWith("/hr/org-structure") ||
-      path.startsWith("/workspace") ||
-      path.startsWith("/hr/tasks") ||
-      path.startsWith("/hr/announcements") ||
-      path.startsWith("/my-portal") ||
-      path.startsWith("/employee") ||
-      (path.startsWith("/engagements") && !path.startsWith("/engagements/ops")) ||
-      path.startsWith("/marketplace");
+      path.startsWith("/client/") ||
+      (path.startsWith("/contracts/") && path.includes("/sign"));
     if (!portalOk) return false;
   }
   if (shouldUsePreRegistrationShell(user, options)) {
@@ -653,9 +623,8 @@ export function clientNavItemVisible(
   if (companyNavExtensionAllows(href, user, options)) return true;
 
   const path = normalizeClientPath(href);
-  // `/client-portal` is the customer-role aggregate workspace; keep it out of the main tree for
-  // internal operators (company_admin, HR, finance, etc.) so it does not compete with operational modules.
-  if (path === "/client-portal" && !shouldUsePortalOnlyShell(user, options)) {
+  // Client workspace is for portal-only / customer members — hide from internal operators.
+  if (path.startsWith("/client") && !shouldUsePortalOnlyShell(user, options)) {
     return false;
   }
   if (
@@ -755,25 +724,12 @@ function pathMatchesRestrictedPrefix(path: string, baseHref: string): boolean {
   return path === baseHref || path.startsWith(`${baseHref}/`);
 }
 
-/** Portal-only users (no company): allowed path prefixes / exact entries. */
+/** Portal-only users: strict `/client` workspace + preferences + contract signing. */
 function portalShellPathAllowed(path: string): boolean {
+  if (path === "/client-portal") return true;
   if (PORTAL_CLIENT_HREFS.has(path)) return true;
-  if (path.startsWith("/engagements/ops")) return false;
-  if (path.startsWith("/engagements")) return true;
-  if (path.startsWith("/marketplace")) return true;
-  if (path.startsWith("/contracts")) return true;
-  if (path.startsWith("/company/documents")) return true;
-  if (path.startsWith("/company/team-access")) return true;
-  if (path.startsWith("/hr/documents-dashboard")) return true;
-  if (path.startsWith("/hr/letters")) return true;
-  if (path.startsWith("/hr/leave-balance")) return true;
-  if (path.startsWith("/hr/completeness")) return true;
-  if (path.startsWith("/hr/org-structure")) return true;
-  if (path.startsWith("/workspace")) return true;
-  if (path.startsWith("/hr/tasks")) return true;
-  if (path.startsWith("/hr/announcements")) return true;
-  if (path.startsWith("/my-portal")) return true;
-  if (path.startsWith("/employee")) return true;
+  if (path.startsWith("/client/")) return true;
+  if (path.startsWith("/contracts/") && path.includes("/sign")) return true;
   return false;
 }
 

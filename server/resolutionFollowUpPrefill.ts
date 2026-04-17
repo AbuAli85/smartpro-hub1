@@ -225,7 +225,7 @@ export async function buildBillingResolutionFollowUpPrefill(
     tagLine,
     recommendedActionLabel: row.status === "overdue" ? "Collect or escalate overdue invoice" : "Confirm payment or plan",
     recommendedBasis: `Workspace PRO/officer billing — invoice ${row.invoiceNumber}, period ${row.billingMonth}/${row.billingYear}.`,
-    contextUrl: "/client-portal?tab=invoices",
+      contextUrl: "/client/invoices",
   });
 
   return {

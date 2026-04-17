@@ -485,7 +485,7 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <Link href="/client-portal?tab=invoices" className="text-[10px] text-[var(--smartpro-orange)] font-medium hover:underline">
+                    <Link href="/client/invoices" className="text-[10px] text-[var(--smartpro-orange)] font-medium hover:underline">
                       Client billing →
                     </Link>
                     <Link href="/pro" className="text-[10px] text-[var(--smartpro-orange)] font-medium hover:underline">

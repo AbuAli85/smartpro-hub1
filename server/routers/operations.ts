@@ -959,7 +959,7 @@ export const operationsRouter = router({
         severity: "high",
         title: `OMR ${overdueTotal.toFixed(3)} overdue from ${overdueCount} invoice${overdueCount > 1 ? "s" : ""}`,
         description: "Follow up with clients on overdue payments to maintain healthy cash flow.",
-        actionUrl: isPlatform ? "/billing" : "/client-portal?tab=invoices",
+        actionUrl: isPlatform ? "/billing" : "/client/invoices",
         actionLabel: isPlatform ? "Billing engine" : "View invoices",
         titleKey: "insights.overdueInvoices",
         titleParams: { total: overdueTotal.toFixed(3), count: overdueCount },
@@ -1419,7 +1419,7 @@ export const operationsRouter = router({
                 ? `/contracts?id=${postSale.stalledContractSampleId}`
                 : "/contracts",
             proJobs: "/pro",
-            clientBilling: "/client-portal?tab=invoices",
+            clientBilling: "/client/invoices",
           },
         },
         accountPortfolio,

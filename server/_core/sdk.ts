@@ -39,20 +39,17 @@ class OAuthService {
     }
   }
 
-  private decodeState(state: string): string {
-    const redirectUri = atob(state);
-    return redirectUri;
-  }
-
-  async getTokenByCode(
-    code: string,
-    state: string
-  ): Promise<ExchangeTokenResponse> {
+  /**
+   * OAuth `redirect_uri` must exactly match the value sent to the IdP on authorize
+   * (`{origin}/api/oauth/callback`). It is NOT the same as our `state` param (base64 of
+   * origin or `origin|returnPath` — see `client/src/const.ts`).
+   */
+  async getTokenByCode(code: string, redirectUri: string): Promise<ExchangeTokenResponse> {
     const payload: ExchangeTokenRequest = {
       clientId: ENV.appId,
       grantType: "authorization_code",
       code,
-      redirectUri: this.decodeState(state),
+      redirectUri,
     };
 
     const { data } = await this.client.post<ExchangeTokenResponse>(
@@ -115,15 +112,11 @@ class SDKServer {
   }
 
   /**
-   * Exchange OAuth authorization code for access token
-   * @example
-   * const tokenResponse = await sdk.exchangeCodeForToken(code, state);
+   * Exchange OAuth authorization code for access token.
+   * @param redirectUri Same absolute URL registered with the IdP, e.g. `{trustedOrigin}/api/oauth/callback`.
    */
-  async exchangeCodeForToken(
-    code: string,
-    state: string
-  ): Promise<ExchangeTokenResponse> {
-    return this.oauthService.getTokenByCode(code, state);
+  async exchangeCodeForToken(code: string, redirectUri: string): Promise<ExchangeTokenResponse> {
+    return this.oauthService.getTokenByCode(code, redirectUri);
   }
 
   /**

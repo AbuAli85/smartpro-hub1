@@ -235,7 +235,8 @@ export function registerOAuthRoutes(app: Express) {
     }
 
     try {
-      const tokenResponse = await sdk.exchangeCodeForToken(code, state);
+      const oauthRedirectUri = new URL("/api/oauth/callback", `${trustedBase}/`).href;
+      const tokenResponse = await sdk.exchangeCodeForToken(code, oauthRedirectUri);
       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
 
       if (!userInfo.openId) {

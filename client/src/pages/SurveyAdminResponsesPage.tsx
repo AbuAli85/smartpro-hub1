@@ -1169,7 +1169,7 @@ export default function SurveyAdminResponsesPage() {
                             defaultValue:
                               "السلام عليكم ورحمة الله وبركاته،\n\nنفيدكم بأن هذه الرسالة تتصل باستبيان قطاع الأعمال الرسمي في سلطنة عُمان (منصة سمارت برو «المندوب الذكي» وبرنامج مكاتب سند)، لجمع معلومات قطاعية تُسهم في التخطيط والإفادة الرسمية.\n\nالمنشأة:\n{{officeName}}\n\nلم يُرفق رابط إلكتروني مع هذه الرسالة حالياً. نرجو منكم الرد على هذه المحادثة عند التيسّر، أو تزويدنا ببريد إلكتروني نشط، ليُرسل إليكم رابط الاستبيان المخصّص للمنشأة.\n\nشكراً لتعاونكم،",
                           });
-                    const waHref = waDigits ? buildWhatsAppMessageHref(waDigits, waMessage) : null;
+                    const waHref = waDigits ? (buildWhatsAppMessageHref(waDigits, waMessage) ?? null) : null;
                     return (
                     <TableRow key={row.rowKey} className="align-top">
                       <TableCell className="max-w-[10rem] font-medium">

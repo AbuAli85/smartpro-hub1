@@ -542,6 +542,9 @@ function OverviewSurface() {
   );
 }
 
+/** Default survey slug for intel outreach URLs (keep in sync with `survey.ts` admin intel links). */
+const SANAD_INTEL_OUTREACH_SURVEY_SLUG = "oman-business-sector-2026";
+
 function DirectorySurface() {
   const { user } = useAuth();
   const fullSanadOps = Boolean(user && canAccessSanadIntelFull(user));
@@ -856,7 +859,7 @@ function DirectorySurface() {
     const digits = toWhatsAppPhoneDigits(phone ?? null);
     if (!digits) return null;
     const body = `Hello,\n\nPlease complete your SmartPRO Sanad onboarding using this link:\n${url}\n\nCentre: ${name}\n\nThank you.`;
-    return buildWhatsAppMessageHref(digits, body);
+    return buildWhatsAppMessageHref(digits, body) ?? null;
   }, [inviteFullUrl, detail.data?.center.contactNumber, detail.data?.center.centerName]);
 
   return (
@@ -1304,8 +1307,20 @@ function DirectorySurface() {
                             <DropdownMenuLabel>Outreach</DropdownMenuLabel>
                             {(() => {
                               const digits = toWhatsAppPhoneDigits(center.contactNumber);
+                              const origin = typeof window !== "undefined" ? window.location.origin : "";
+                              const joinUrl =
+                                origin && ops?.inviteToken
+                                  ? `${origin}/sanad/join?token=${encodeURIComponent(ops.inviteToken)}`
+                                  : "";
+                              const surveyUrl =
+                                origin && ops?.linkedSanadOfficeId
+                                  ? `${origin}/survey/${SANAD_INTEL_OUTREACH_SURVEY_SLUG}?officeId=${ops.linkedSanadOfficeId}`
+                                  : "";
                               const waHref = digits
-                                ? buildWhatsAppMessageHref(digits, buildSanadDirectoryOutreachBodyAr(center.centerName))
+                                ? (buildWhatsAppMessageHref(
+                                    digits,
+                                    buildSanadDirectoryOutreachBodyAr(center.centerName, joinUrl, surveyUrl),
+                                  ) ?? null)
                                 : null;
                               return (
                                 <>

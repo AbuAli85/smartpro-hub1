@@ -599,6 +599,26 @@ function DirectorySurface() {
     if (pipelineQuickView !== "all") setPipeStage("");
   }, [pipelineQuickView]);
 
+  const governorateOptions = useMemo(() => {
+    const raw = filters?.governorates ?? [];
+    const byKey = new Map<string, string>();
+    for (const g of raw) {
+      const key = (g.key ?? "").trim();
+      if (!key) continue;
+      if (key === "__all") continue;
+      const label = (g.label ?? "").trim() || key;
+      if (!byKey.has(key)) byKey.set(key, label);
+    }
+    return Array.from(byKey.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  }, [filters?.governorates]);
+
+  useEffect(() => {
+    if (!gov) return;
+    if (!governorateOptions.some((g) => g.key === gov)) setGov("");
+  }, [gov, governorateOptions]);
+
   const filtersActive = Boolean(
     search.trim() ||
       gov ||
@@ -815,9 +835,6 @@ function DirectorySurface() {
     return buildWhatsAppMessageHref(digits, body);
   }, [inviteFullUrl, detail.data?.center.contactNumber, detail.data?.center.centerName]);
 
-  /** Radix Select rejects `value=""` on SelectItem; skip empty keys from API data. */
-  const governorateOptions = (filters?.governorates ?? []).filter((g) => g.key.length > 0);
-
   return (
     <div className="space-y-5">
       <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
@@ -871,7 +888,7 @@ function DirectorySurface() {
                 <SelectContent>
                   <SelectItem value="__all">All</SelectItem>
                   {governorateOptions.map((g) => (
-                    <SelectItem key={g.key} value={g.key}>
+                    <SelectItem key={g.key} value={g.key} textValue={g.label}>
                       {g.label}
                     </SelectItem>
                   ))}

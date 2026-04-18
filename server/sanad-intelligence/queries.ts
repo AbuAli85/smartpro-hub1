@@ -585,9 +585,16 @@ export async function listGovernorateKeysFromCenters(db: DB) {
     .orderBy(asc(schema.sanadIntelCenters.governorateLabelRaw));
   const byKey = new Map<string, string>();
   for (const r of rows) {
-    if (!byKey.has(r.key)) byKey.set(r.key, r.label);
+    const key = (r.key ?? "").trim();
+    if (!key) continue;
+    /** Reserved for directory UI "All" sentinel — must not appear as a SelectItem value. */
+    if (key === "__all") continue;
+    const label = (r.label ?? "").trim() || key;
+    if (!byKey.has(key)) byKey.set(key, label);
   }
-  return Array.from(byKey.entries()).map(([key, label]) => ({ key, label }));
+  return Array.from(byKey.entries())
+    .map(([key, label]) => ({ key, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
 }
 
 export async function listWilayatForGovernorate(db: DB, governorateKey: string) {

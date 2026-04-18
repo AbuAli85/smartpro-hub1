@@ -15,14 +15,18 @@ import type { ActionQueueResult } from "@/hooks/useActionQueue";
 /** Fixed "now" so aging/stale signals stay stable for decision prompts. */
 const FIXED_NOW = new Date("2026-04-09T12:00:00.000Z");
 
-const { trpcQuery } = vi.hoisted(() => ({
-  trpcQuery: (data: unknown, isLoading = false) => () => ({
-    data,
-    isLoading,
-    isError: false,
-    dataUpdatedAt: Date.now(),
-  }),
-}));
+const { trpcQuery, engagementOpsSummaryInvalidate } = vi.hoisted(() => {
+  const engagementOpsSummaryInvalidate = vi.fn();
+  return {
+    trpcQuery: (data: unknown, isLoading = false) => () => ({
+      data,
+      isLoading,
+      isError: false,
+      dataUpdatedAt: Date.now(),
+    }),
+    engagementOpsSummaryInvalidate,
+  };
+});
 
 function buildQueueFixture(): ActionQueueResult {
   const raw: ActionQueueItem[] = [
@@ -88,6 +92,21 @@ vi.mock("@/contexts/ActiveCompanyContext", () => ({
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
+    useUtils: () => ({
+      engagements: {
+        getOpsSummary: { invalidate: engagementOpsSummaryInvalidate },
+      },
+    }),
+    engagements: {
+      getOpsSummary: { useQuery: trpcQuery({}) },
+      refreshRollups: {
+        useMutation: () => ({
+          mutate: vi.fn(),
+          mutateAsync: vi.fn().mockResolvedValue({ synced: 0 }),
+          isPending: false,
+        }),
+      },
+    },
     operations: {
       getOwnerBusinessPulse: {
         useQuery: trpcQuery({

@@ -152,6 +152,15 @@ function makePublicCtx(): TrpcContext {
   };
 }
 
+/** Global admin procedures use `platform_user_roles` / `platformRoles`, not legacy `users.role === "admin"`. */
+function makePlatformAdminCtx(overrides: Partial<AuthUser> = {}): TrpcContext {
+  return makeCtx({
+    platformRoles: ["platform_admin"],
+    platformRole: "platform_admin",
+    ...overrides,
+  });
+}
+
 /** `requireActiveCompanyId` with no explicit `companyId` needs exactly one row from `getUserCompanies`. */
 function seedSingleCompanyWorkspace() {
   vi.mocked(db.getUserCompanies).mockResolvedValueOnce([
@@ -231,7 +240,7 @@ describe("companies", () => {
 // ─── Analytics Tests ──────────────────────────────────────────────────────────
 describe("analytics", () => {
   it("platformStats returns platform-wide stats for admin", async () => {
-    const caller = appRouter.createCaller(makeCtx({ role: "admin" }));
+    const caller = appRouter.createCaller(makePlatformAdminCtx());
     const result = await caller.analytics.platformStats();
     expect(result).not.toBeNull();
     expect(result).toHaveProperty("companies");
@@ -240,32 +249,32 @@ describe("analytics", () => {
   });
 
   it("companyStats returns null when no company", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makePlatformAdminCtx());
     const result = await caller.analytics.companyStats();
     // Returns null when user has no company linked
     expect(result).toBeNull();
   });
 
   it("contractsOverview returns array", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makePlatformAdminCtx());
     const result = await caller.analytics.contractsOverview();
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("proServicesOverview returns array", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makePlatformAdminCtx());
     const result = await caller.analytics.proServicesOverview();
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("dealsPipeline returns array", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makePlatformAdminCtx());
     const result = await caller.analytics.dealsPipeline();
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("hrOverview returns null when no company", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makePlatformAdminCtx());
     const result = await caller.analytics.hrOverview();
     expect(result).toBeNull();
   });
@@ -279,7 +288,7 @@ describe("analytics", () => {
   });
 
   it("auditLogs returns array for admin", async () => {
-    const caller = appRouter.createCaller(makeCtx({ role: "admin" }));
+    const caller = appRouter.createCaller(makePlatformAdminCtx({ role: "admin" }));
     const result = await caller.analytics.auditLogs({ limit: 10 });
     expect(Array.isArray(result)).toBe(true);
   });
@@ -294,6 +303,7 @@ describe("sanad", () => {
   });
 
   it("listApplications returns empty array when no company", async () => {
+    seedWorkspaceMembershipPair();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.sanad.listApplications({});
     expect(Array.isArray(result)).toBe(true);
@@ -303,12 +313,14 @@ describe("sanad", () => {
 // ─── PRO Services Tests ───────────────────────────────────────────────────────
 describe("pro", () => {
   it("list returns empty array when no company", async () => {
+    seedWorkspaceMembershipPair();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.pro.list({});
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("expiringDocuments returns empty array when no company", async () => {
+    seedWorkspaceMembershipPair();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.pro.expiringDocuments({ daysAhead: 30 });
     expect(Array.isArray(result)).toBe(true);
@@ -318,6 +330,7 @@ describe("pro", () => {
 // ─── Contracts Tests ──────────────────────────────────────────────────────────
 describe("contracts", () => {
   it("list returns empty array when no company", async () => {
+    seedWorkspaceMembershipPair();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.contracts.list({});
     expect(Array.isArray(result)).toBe(true);
@@ -440,6 +453,10 @@ describe("officers.listCertificates", () => {
   beforeEach(() => {
     vi.mocked(db.getUserCompany).mockReset();
     vi.mocked(db.getUserCompany).mockResolvedValue(null);
+    vi.mocked(db.getUserCompanies).mockReset();
+    vi.mocked(db.getUserCompanies).mockResolvedValue([]);
+    vi.mocked(db.getUserCompanyById).mockReset();
+    vi.mocked(db.getUserCompanyById).mockResolvedValue(null);
   });
 
   it("returns empty when DB is unavailable", async () => {
@@ -587,6 +604,7 @@ describe("contracts.export", () => {
   });
 
   it("exportHtml returns html and title for existing contract", async () => {
+    seedWorkspaceMembershipPair();
     const { getContractById } = await import("./db");
     (getContractById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       id: 1,
@@ -856,7 +874,7 @@ describe("sanad.officerPerformance", () => {
 
 describe("sanad.earningsTrend", () => {
   it("returns empty array when DB is unavailable (mock env)", async () => {
-    const ctx = makeCtx({ role: "admin" });
+    const ctx = makePlatformAdminCtx({ role: "admin" });
     const result = await appRouter.createCaller(ctx).sanad.earningsTrend({ officeId: 1 });
     expect(Array.isArray(result)).toBe(true);
     expect(result).toHaveLength(0);

@@ -129,7 +129,7 @@ describe("runSchemaDriftGuard", () => {
     vi.mocked(mysql2.createConnection).mockResolvedValue(mockConn as never);
 
     const report = await runSchemaDriftGuard();
-    // There are 163 tables in the schema — all should be reported missing
+    // Every Drizzle table should be reported missing when the DB is empty
     expect(report.missingTables.length).toBeGreaterThan(0);
     expect(report.totalDrift).toBeGreaterThan(0);
   });

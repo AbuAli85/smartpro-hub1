@@ -1128,6 +1128,8 @@ CREATE TABLE IF NOT EXISTS `employee_wps_validations` (
 	`iban_valid_format` boolean NOT NULL DEFAULT false,
 	`bank_name_present` boolean NOT NULL DEFAULT false,
 	`salary_present` boolean NOT NULL DEFAULT false,
+	`period_month` tinyint,
+	`period_year` smallint,
 	`result` enum('ready','invalid','missing') NOT NULL,
 	`failure_reasons` json,
 	CONSTRAINT `employee_wps_validations_id` PRIMARY KEY(`id`)
@@ -1190,6 +1192,133 @@ CREATE TABLE IF NOT EXISTS `employees` (
 	`createdAt` timestamp NOT NULL DEFAULT (now()),
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `employees_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `engagement_activity_log` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`engagement_id` int NOT NULL,
+	`company_id` int NOT NULL,
+	`actor_user_id` int,
+	`action` varchar(128) NOT NULL,
+	`payload` json DEFAULT ('{}'),
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `engagement_activity_log_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `engagement_documents` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`engagement_id` int NOT NULL,
+	`company_id` int NOT NULL,
+	`title` varchar(512) NOT NULL,
+	`file_url` varchar(2048),
+	`status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+	`uploaded_by_user_id` int,
+	`reviewed_by_user_id` int,
+	`reviewed_at` timestamp,
+	`review_note` text,
+	`storage_key` varchar(1024),
+	`mime_type` varchar(255),
+	`size_bytes` int,
+	`scan_status` enum('not_scanned','pending','clean','suspicious','failed') NOT NULL DEFAULT 'not_scanned',
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `engagement_documents_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `engagement_links` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`engagement_id` int NOT NULL,
+	`company_id` int NOT NULL,
+	`link_type` enum('pro_service','government_case','marketplace_booking','contract','pro_billing_cycle','client_service_invoice','staffing_month','work_permit','employee_document','service_request') NOT NULL,
+	`entity_id` int,
+	`entity_key` varchar(128),
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `engagement_links_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `engagement_messages` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`engagement_id` int NOT NULL,
+	`company_id` int NOT NULL,
+	`author` enum('client','platform','system') NOT NULL,
+	`author_user_id` int,
+	`subject` varchar(255),
+	`body` text NOT NULL,
+	`read_at` timestamp,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `engagement_messages_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `engagement_notes` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`engagement_id` int NOT NULL,
+	`company_id` int NOT NULL,
+	`author_user_id` int,
+	`body` text NOT NULL,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `engagement_notes_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `engagement_payment_transfers` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`engagement_id` int NOT NULL,
+	`company_id` int NOT NULL,
+	`phase` enum('idle','instructions_sent','proof_submitted','verified','rejected','reconciled') NOT NULL DEFAULT 'idle',
+	`instructions_text` text,
+	`proof_url` varchar(2048),
+	`proof_reference` varchar(255),
+	`amount_claimed_omr` decimal(14,3),
+	`client_service_invoice_id` int,
+	`submitted_by_user_id` int,
+	`verified_by_user_id` int,
+	`verified_at` timestamp,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `engagement_payment_transfers_id` PRIMARY KEY(`id`),
+	CONSTRAINT `uq_engagement_payment_transfer_engagement` UNIQUE(`engagement_id`)
+);
+
+CREATE TABLE IF NOT EXISTS `engagement_tasks` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`engagement_id` int NOT NULL,
+	`company_id` int NOT NULL,
+	`title` varchar(512) NOT NULL,
+	`status` enum('pending','in_progress','done','cancelled') NOT NULL DEFAULT 'pending',
+	`due_date` timestamp,
+	`sort_order` int NOT NULL DEFAULT 0,
+	`linked_employee_task_id` int,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `engagement_tasks_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `engagements` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`company_id` int NOT NULL,
+	`title` varchar(512) NOT NULL,
+	`engagement_type` enum('workspace','pro_service','government_case','marketplace_booking','contract','pro_billing_cycle','client_service_invoice','staffing_month','work_permit_renewal','service_request') NOT NULL,
+	`status` enum('draft','active','waiting_client','waiting_platform','blocked','completed','archived') NOT NULL DEFAULT 'active',
+	`health` enum('on_track','at_risk','blocked','delayed','unknown') NOT NULL DEFAULT 'unknown',
+	`health_reason` text,
+	`due_date` timestamp,
+	`sla_due_at` timestamp,
+	`last_activity_at` timestamp,
+	`top_action_type` varchar(64),
+	`top_action_label` varchar(512),
+	`top_action_status` varchar(64),
+	`top_action_due_at` timestamp,
+	`top_action_payload` json DEFAULT ('{}'),
+	`assigned_owner_user_id` int,
+	`ops_priority` enum('normal','high','urgent') NOT NULL DEFAULT 'normal',
+	`escalated_at` timestamp,
+	`workflow_stage` varchar(128),
+	`current_stage` varchar(255),
+	`summary` text,
+	`metadata` json DEFAULT ('{}'),
+	`created_by_user_id` int,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	`derived_state_synced_at` timestamp,
+	CONSTRAINT `engagements_id` PRIMARY KEY(`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `expense_claims` (
@@ -2282,7 +2411,7 @@ CREATE TABLE IF NOT EXISTS `sanad_intel_center_operations` (
 	`coverage_radius_km` int,
 	`target_sla_hours` int,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`invite_token` varchar(64),
+	`invite_token` varchar(96),
 	`invite_sent_at` timestamp,
 	`invite_expires_at` timestamp,
 	`registered_user_id` int,

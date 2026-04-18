@@ -40,6 +40,22 @@ describe("buildWhatsAppMessageHref", () => {
     expect(buildWhatsAppMessageHref("96892345678", "")).toBeNull();
     expect(buildWhatsAppMessageHref("96892345678", "   ")).toBeNull();
   });
+
+  it("round-trips a long body with query params via URLSearchParams", () => {
+    const longQuery = "x=1&" + "y=".repeat(80) + "2";
+    const body = `See ${"https://example.com/path?" + longQuery}`;
+    const href = buildWhatsAppMessageHref("96892345678", body);
+    expect(href).not.toBeNull();
+    expect(new URL(href!).searchParams.get("text")).toBe(body);
+  });
+
+  it("encodes Arabic inside an embedded URL query in the message body", () => {
+    const embedded = `https://example.com/s?q=${encodeURIComponent("تجربة")}`;
+    const body = `رابط: ${embedded}`;
+    const href = buildWhatsAppMessageHref("96892345678", body);
+    expect(href).not.toBeNull();
+    expect(new URL(href!).searchParams.get("text")).toBe(body);
+  });
 });
 
 describe("buildWhatsAppMessageHrefFromRawPhone", () => {
@@ -107,6 +123,31 @@ describe("buildSanadDirectoryOutreachBodyAr", () => {
     const m = buildSanadDirectoryOutreachBodyAr("   ", "  ", "\t");
     expect(m).not.toContain("بيانات المركز المسجّلة لدينا:");
     expect(m).toContain("عبر الرد المباشر على هذه الرسالة");
+  });
+
+  it("treats whitespace-only joinUrl and surveyUrl as no links (no http in body)", () => {
+    const m = buildSanadDirectoryOutreachBodyAr("مركز", " \n\t ", "   ");
+    expect(m).not.toMatch(/https?:\/\//);
+    expect(m).toContain("عبر الرد المباشر على هذه الرسالة");
+  });
+
+  it("includes very long join URLs with many query keys", () => {
+    const longPath = "p/" + "seg/".repeat(40);
+    const join = `https://example.com/${longPath}?${Array.from({ length: 25 }, (_, i) => `k${i}=${i}`).join("&")}`;
+    const m = buildSanadDirectoryOutreachBodyAr("مركز", join, "");
+    expect(m).toContain(longPath);
+    const href = buildWhatsAppMessageHref("96892345678", m);
+    expect(href).not.toBeNull();
+    expect(new URL(href!).searchParams.get("text")).toBe(m);
+  });
+
+  it("includes survey URL with Arabic values percent-encoded in the link line", () => {
+    const survey = `https://example.com/survey?office=1&label=${encodeURIComponent("مكتب مسقط")}`;
+    const m = buildSanadDirectoryOutreachBodyAr("", "", survey);
+    expect(m).toContain(survey);
+    const href = buildWhatsAppMessageHref("96892345678", m);
+    expect(href).not.toBeNull();
+    expect(new URL(href!).searchParams.get("text")).toBe(m);
   });
 
   it("does not produce triple blank lines between sections", () => {

@@ -5,7 +5,14 @@
 
 import type { IdentityAugmentedUser } from "./identityAuthority";
 import { canAccessGlobalAdminFromIdentity, seesPlatformOperatorNavFromIdentity } from "./identityAuthority";
-import { getRoleDefaultRoute, isCustomerPortalMemberRole, normalizeClientPath } from "./clientNav";
+import {
+  clientRouteAccessible,
+  getRoleDefaultRoute,
+  isCustomerPortalMemberRole,
+  normalizeClientPath,
+  type ClientNavOptions,
+} from "./clientNav";
+import { sanitizeRelativeAppPath } from "./sanitizeRelativeAppPath";
 
 /** Default shell for platform operators and global admins after sign-in from `/`. */
 export const OPERATOR_DEFAULT_HOME = "/control-tower";
@@ -86,4 +93,45 @@ export function resolvePostAuthHome(input: ResolvePostAuthHomeInput): ResolvePos
 export function isAlreadyAtPostAuthDestination(currentPath: string, target: string | null): boolean {
   if (!target) return false;
   return normalizeClientPath(currentPath) === normalizeClientPath(target);
+}
+
+export type PickSafeReturnPathInput = {
+  /** Raw return path from OAuth state / deep link (trimmed by caller). */
+  requestedPath: string;
+  resolveInput: ResolvePostAuthHomeInput;
+  routeCheck: {
+    user: IdentityAugmentedUser | null;
+    hiddenOptional: Set<string>;
+    navOptions?: ClientNavOptions;
+  };
+};
+
+/**
+ * After authentication, choose where to send the user:
+ * - If `requestedPath` is `/` or empty → canonical home from {@link resolvePostAuthHome}.
+ * - Else if the path is **allowed** for this user/session ({@link clientRouteAccessible}) → use it.
+ * - Else → canonical home (prevents privilege / UX bugs from arbitrary `returnPath`).
+ *
+ * Call only when `resolvePostAuthHome` inputs are settled (same gates as marketing-home redirect).
+ */
+export function pickSafeAuthenticatedReturnPath(input: PickSafeReturnPathInput): string {
+  const { requestedPath, resolveInput, routeCheck } = input;
+  const { user, hiddenOptional, navOptions } = routeCheck;
+
+  const canonicalResult = resolvePostAuthHome(resolveInput);
+  const canonical =
+    canonicalResult.redirectTo ??
+    (resolveInput.isAuthenticated && resolveInput.user ? "/dashboard" : "/");
+
+  const safe = sanitizeRelativeAppPath(requestedPath);
+  const pathForPolicy = normalizeClientPath(safe);
+  if (pathForPolicy === "/" || pathForPolicy === "") {
+    return canonical;
+  }
+  if (!user) return canonical;
+
+  if (clientRouteAccessible(pathForPolicy, user, hiddenOptional, navOptions)) {
+    return safe;
+  }
+  return canonical;
 }

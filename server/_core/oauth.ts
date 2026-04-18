@@ -9,6 +9,7 @@ import { companyMembers, employees, users } from "../../drizzle/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { recordSessionLoginAudits } from "../complianceAudit";
 import { createMfaChallengeForUser } from "../lib/twoFactorService";
+import { sanitizeRelativeAppPath } from "@shared/sanitizeRelativeAppPath";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -17,11 +18,7 @@ function getQueryParam(req: Request, key: string): string | undefined {
 
 /** Same-origin return path only (blocks `//host`, `https:`, backslash tricks). */
 function sanitizeOAuthReturnPath(path: string): string {
-  const p = path.trim();
-  if (!p.startsWith("/") || p.startsWith("//") || p.includes("\\") || p.includes("://")) {
-    return "/";
-  }
-  return p;
+  return sanitizeRelativeAppPath(path);
 }
 
 /**

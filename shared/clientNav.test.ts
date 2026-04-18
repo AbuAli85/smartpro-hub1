@@ -274,6 +274,7 @@ describe("clientRouteAccessible", () => {
     expect(clientRouteAccessible("/client/engagements", member, new Set(), { ...adminOpts, memberRole: "company_member" })).toBe(
       false,
     );
+    expect(clientRouteAccessible("/client/company/create", owner, new Set(), adminOpts)).toBe(false);
   });
 
   it("allows /client and /client/company/create only before first company membership", () => {

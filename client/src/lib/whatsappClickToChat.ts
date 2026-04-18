@@ -19,9 +19,27 @@ export function buildWhatsAppMessageHref(phoneDigits: string, message: string): 
 
 /**
  * Arabic outreach draft for directory row "Open WhatsApp".
- * Starts a line with Latin ("SmartPRO") so WhatsApp / RTL clients render mixed text predictably.
+ * Official / formal register with cautious legal framing: administrative contact only, no contract by message alone.
  */
 export function buildSanadDirectoryOutreachBodyAr(centerName: string): string {
-  const name = centerName.trim() || "مركزكم";
-  return `مرحباً،\n\nSmartPRO — نُسجّل اهتمامكم بالانضمام إلى منصة خدمات الأعمال.\n\nالمركز: ${name}`;
+  const name = centerName.trim() || "البيان كما ورد في السجلّ";
+  return [
+    "السلام عليكم ورحمة الله وبركاته،",
+    "",
+    "تحية طيبة وبعد،",
+    "",
+    "السادةَ الفاضلين،",
+    "",
+    "نخاطبكم — باسم منصة «سمارت برو» SmartPRO للخدمات المهنية، سلطنة عُمان — في إطار التواصل المؤسسي الرسمي المتعلق ببرنامج شركاء «سند»، وفق السياسات والإجراءات الداخلية المعتمدة لدى المنصة.",
+    "",
+    "البيان المرجعي (كما هو مسجّل لدى المنصة):",
+    name,
+    "",
+    "نرجو — إن رغبتم — الإفادة بمدى رغبتكم في متابعة المسار الإداري المشار إليه أعلاه، أو بأي استفسارٍ يتعلق به، وذلك بالرد على هذه الرسالة عبر هذه القناة.",
+    "",
+    "تنويه: لا يُعدّ هذا التواصل بمفرده عرضاً تعاقدياً ملزماً أو عقداً؛ وأي التزامٍ تعاقديٍ أو إجراءاتٍ نهائيةٍ تكون خاضعةً للوثائق والشروط والقنوات الرسمية المعتمدة لدى المنصة واستكمال المتطلبات النظامية ذات الصلة.",
+    "",
+    "ولكم منّا فائق الاحترام والتقدير،",
+    "الشؤون المؤسسية والعلاقات — SmartPRO",
+  ].join("\n");
 }

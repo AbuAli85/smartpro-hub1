@@ -3,11 +3,13 @@ import { sanadCatalogueProcedures } from "./catalogue.router";
 import { sanadCoreProcedures } from "./sanadCore";
 import { sanadMarketplaceProcedures } from "./marketplace.router";
 import { sanadRosterProcedures } from "./roster.router";
+import { sanadWorkspaceProcedures } from "./workspace.router";
 
 export const sanadRouter = router({
   ...sanadCoreProcedures,
   ...sanadCatalogueProcedures,
   ...sanadMarketplaceProcedures,
+  ...sanadWorkspaceProcedures,
   ...sanadRosterProcedures,
 });
 

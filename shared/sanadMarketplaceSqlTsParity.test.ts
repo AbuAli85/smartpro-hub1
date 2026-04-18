@@ -35,7 +35,7 @@ function toLifecycleInput(o: ListingOffice): SanadLifecycleOfficeInput {
 }
 
 /**
- * Mirrors `server/routers/sanad.ts` → `listPublicProviders` core eligibility when
+ * Mirrors `server/routers/sanad/marketplace.router.ts` → `listPublicProviders` core eligibility when
  * `marketplaceReadyOnly !== false` and `publicListedOnly !== false`, without optional filters.
  */
 function strictMarketplaceDiscoveryEligibleSqlParity(office: ListingOffice, activeCatalogueCount: number): boolean {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  PLATFORM_NAV_GROUP_DEFS,
-  PLATFORM_NAV_ALL_LEAVES,
+  ALL_SIDEBAR_NAV_GROUP_DEFS,
+  SIDEBAR_NAV_ALL_LEAVES,
   groupContainsActiveRoute,
   isNavLeafActive,
   normalizeNavPathForMatching,
@@ -9,7 +9,7 @@ import {
 import type { NavGroupDef, NavLeafDef, NavItemDef } from "./platformNav";
 
 function findGroup(id: string): NavGroupDef | undefined {
-  return PLATFORM_NAV_GROUP_DEFS.find((g) => g.id === id);
+  return ALL_SIDEBAR_NAV_GROUP_DEFS.find((g) => g.id === id);
 }
 
 function walkLeaves(items: readonly NavItemDef[], out: NavLeafDef[] = []): NavLeafDef[] {
@@ -22,10 +22,10 @@ function walkLeaves(items: readonly NavItemDef[], out: NavLeafDef[] = []): NavLe
 
 /** Groups whose *single* active leaf belongs to that route (single group). */
 function owningGroupIdsForPath(path: string): string[] {
-  const actives = PLATFORM_NAV_ALL_LEAVES.filter((l) => isNavLeafActive(l, path));
+  const actives = SIDEBAR_NAV_ALL_LEAVES.filter((l) => isNavLeafActive(l, path));
   expect(actives.length).toBe(1);
   const leaf = actives[0];
-  return PLATFORM_NAV_GROUP_DEFS.filter((g) =>
+  return ALL_SIDEBAR_NAV_GROUP_DEFS.filter((g) =>
     walkLeaves(g.items).some((l) => l.id === leaf.id),
   ).map((g) => g.id);
 }
@@ -57,6 +57,7 @@ describe("route → group ownership matrix", () => {
     { path: "/compliance", groupId: "control" },
     { path: "/client", groupId: "clientWorkspace" },
     { path: "/client/invoices", groupId: "clientWorkspace" },
+    { path: "/preferences", groupId: "clientWorkspace" },
     { path: "/compliance/renewals", groupId: "complianceWorkforce" },
     { path: "/workforce/documents", groupId: "complianceWorkforce" },
     { path: "/workforce/profile-change-requests", groupId: "peopleHr" },
@@ -77,8 +78,8 @@ describe("route → group ownership matrix", () => {
   });
 
   it("does not double-highlight Sanad marketplace under /sanad parent leaf", () => {
-    const sanadRoot = PLATFORM_NAV_ALL_LEAVES.find((l) => l.href === "/sanad");
-    const sanadMp = PLATFORM_NAV_ALL_LEAVES.find((l) => l.href === "/sanad/marketplace");
+    const sanadRoot = SIDEBAR_NAV_ALL_LEAVES.find((l) => l.href === "/sanad");
+    const sanadMp = SIDEBAR_NAV_ALL_LEAVES.find((l) => l.href === "/sanad/marketplace");
     expect(sanadRoot).toBeDefined();
     expect(sanadMp).toBeDefined();
     expect(isNavLeafActive(sanadMp!, "/sanad/marketplace")).toBe(true);

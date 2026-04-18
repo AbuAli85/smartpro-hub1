@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Layers, FolderOpen, Receipt, MessageSquare, Users } from "lucide-react";
+import { LayoutDashboard, Layers, FolderOpen, Receipt, MessageSquare, Settings, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 const NAV = [
@@ -11,6 +11,7 @@ const NAV = [
   { href: "/client/invoices", key: "invoices", icon: Receipt },
   { href: "/client/messages", key: "messages", icon: MessageSquare },
   { href: "/client/team", key: "team", icon: Users },
+  { href: "/preferences", key: "settings", icon: Settings },
 ] as const;
 
 export function ClientWorkspaceLayout({ children }: { children: ReactNode }) {

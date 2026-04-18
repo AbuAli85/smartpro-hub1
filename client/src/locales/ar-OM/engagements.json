@@ -75,11 +75,12 @@
     },
     "nav": {
       "dashboard": "لوحة التحكم",
-      "engagements": "المشاريع",
+      "engagements": "الخدمات",
       "documents": "المستندات",
-      "invoices": "الفواتير",
+      "invoices": "الفواتير والمدفوعات",
       "messages": "الرسائل",
-      "team": "الفريق"
+      "team": "الفريق",
+      "settings": "الإعدادات"
     }
   },
   "backToPortal": "بوابة العميل",

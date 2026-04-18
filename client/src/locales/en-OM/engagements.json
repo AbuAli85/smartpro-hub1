@@ -75,11 +75,12 @@
     },
     "nav": {
       "dashboard": "Dashboard",
-      "engagements": "Engagements",
+      "engagements": "Services",
       "documents": "Documents",
-      "invoices": "Invoices",
+      "invoices": "Invoices & payments",
       "messages": "Messages",
-      "team": "Team"
+      "team": "Team",
+      "settings": "Settings"
     }
   },
   "backToPortal": "Client portal",

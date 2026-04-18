@@ -34,6 +34,7 @@ import {
   PhoneCall,
   QrCode,
   Radar,
+  Receipt,
   RefreshCw,
   Settings,
   Shield,
@@ -53,7 +54,7 @@ import {
   Users2,
   SlidersHorizontal,
 } from "lucide-react";
-import { clientNavItemVisible, type ClientNavOptions } from "@shared/clientNav";
+import { clientNavItemVisible, shouldUsePortalOnlyShell, type ClientNavOptions } from "@shared/clientNav";
 import { normalizeAppPath } from "@shared/normalizeAppPath";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 
@@ -179,9 +180,50 @@ function branch(
  * - **access**: membership access & roles
  * - **proShared**: Omani PRO pillar
  * - **getStarted**: create / learn paths for users with no company yet (filtered like other groups)
- * - **clientWorkspace**: customer-facing aggregate (`/client/*`) — not platform operator tooling
+ * - **clientWorkspace**: defined only in {@link CLIENT_PORTAL_SHELL_GROUP_DEFS} (explicit whitelist; not part of tenant OS tree)
  * - **platform**: internal / global admin
  */
+
+/**
+ * End-customer portal shell — explicit whitelist only (`/client/*` + session settings).
+ * Rendered instead of {@link PLATFORM_NAV_GROUP_DEFS} when `shouldUsePortalOnlyShell` is true (see `filterVisibleNavGroups`).
+ */
+export const CLIENT_PORTAL_SHELL_GROUP_DEFS: readonly NavGroupDef[] = [
+  {
+    id: "clientWorkspace",
+    labelKey: "clientPortalShellGroup",
+    defaultGroupLabel: "My account",
+    tier: "primary",
+    collapsible: false,
+    items: [
+      leaf("cp.dashboard", "clientDashboard", "Dashboard", "/client", LayoutDashboard, {
+        intent: "workspace",
+        activePathPrefixes: ["/client"],
+      }),
+      leaf("cp.services", "clientPortalServices", "Services", "/client/engagements", Layers, {
+        intent: "workspace",
+        activePathPrefixes: ["/client/engagements"],
+      }),
+      leaf("cp.documents", "clientDocuments", "Documents", "/client/documents", FolderOpen, {
+        intent: "workspace",
+      }),
+      leaf("cp.invoices", "clientPortalInvoicesPayments", "Invoices & payments", "/client/invoices", Receipt, {
+        intent: "workspace",
+      }),
+      leaf("cp.messages", "clientMessages", "Messages", "/client/messages", MessageSquare, {
+        intent: "workspace",
+      }),
+      leaf("cp.team", "clientTeam", "Team", "/client/team", Users2, {
+        intent: "workspace",
+      }),
+      leaf("cp.settings", "clientPortalSettings", "Settings", "/preferences", Settings, {
+        intent: "workspace",
+      }),
+    ],
+  },
+];
+
+/** Company workspace + operator nav (excludes {@link CLIENT_PORTAL_SHELL_GROUP_DEFS}). */
 export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
   /* A0 — Get started (create workspace; visible when allowed by clientNav) */
   {
@@ -256,40 +298,6 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         intent: "workspace",
       }),
       leaf("co.emailTemplates", "emailTemplates", "Email Templates", "/company/email-preview", Mail, { intent: "workspace" }),
-    ],
-  },
-  /* C2 — Client workspace (strict `/client/*` shell for customer-role members) */
-  {
-    id: "clientWorkspace",
-    labelKey: "clientWorkspaceGroup",
-    defaultGroupLabel: "My workspace",
-    tier: "primary",
-    collapsible: false,
-    items: [
-      leaf("cw.clientDashboard", "clientDashboard", "Dashboard", "/client", LayoutDashboard, {
-        intent: "workspace",
-        activePathPrefixes: ["/client"],
-      }),
-      leaf("cw.engagements", "engagements", "Engagements", "/client/engagements", Layers, {
-        intent: "workspace",
-        activePathPrefixes: ["/client/engagements"],
-      }),
-      leaf("cw.clientDocuments", "clientDocuments", "Documents", "/client/documents", FolderOpen, {
-        intent: "workspace",
-      }),
-      leaf("cw.clientInvoices", "clientInvoices", "Invoices", "/client/invoices", FileText, {
-        intent: "workspace",
-      }),
-      leaf("cw.clientMessages", "clientMessages", "Messages", "/client/messages", MessageSquare, {
-        intent: "workspace",
-      }),
-      leaf("cw.clientTeam", "clientTeam", "Team", "/client/team", Users2, {
-        intent: "workspace",
-      }),
-      leaf("cw.engagementsOps", "engagementsOps", "Engagements ops", "/engagements/ops", ListTodo, {
-        intent: "workspace",
-        activePathPrefixes: ["/engagements/ops"],
-      }),
     ],
   },
   /* D — People & HR */
@@ -585,8 +593,14 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
   },
 ];
 
-/** Stable ordered group ids for tests and diagnostics. */
+/** Stable ordered group ids for tests and diagnostics (company + operator shell only). */
 export const PLATFORM_NAV_GROUP_IDS: readonly string[] = PLATFORM_NAV_GROUP_DEFS.map((g) => g.id);
+
+/** All sidebar groups for ownership / active tests (platform tree + client portal whitelist). */
+export const ALL_SIDEBAR_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
+  ...PLATFORM_NAV_GROUP_DEFS,
+  ...CLIENT_PORTAL_SHELL_GROUP_DEFS,
+];
 
 function walkItemsForLeaves(items: readonly NavItemDef[], out: NavLeafDef[]): void {
   for (const item of items) {
@@ -595,10 +609,40 @@ function walkItemsForLeaves(items: readonly NavItemDef[], out: NavLeafDef[]): vo
   }
 }
 
-/** All leaves in canonical nav (for most-specific active resolution). */
+/** Flatten visible sidebar groups for active-state resolution (avoids cross-shell false positives). */
+export function collectLeavesFromNavGroups(groups: readonly NavGroupDef[]): NavLeafDef[] {
+  const out: NavLeafDef[] = [];
+  for (const g of groups) walkItemsForLeaves(g.items, out);
+  return out;
+}
+
+/** Leaves in the company / operator nav tree only. */
 export const PLATFORM_NAV_ALL_LEAVES: readonly NavLeafDef[] = (() => {
   const out: NavLeafDef[] = [];
   for (const g of PLATFORM_NAV_GROUP_DEFS) walkItemsForLeaves(g.items, out);
+  return out;
+})();
+
+const CLIENT_PORTAL_NAV_ALL_LEAVES: readonly NavLeafDef[] = (() => {
+  const out: NavLeafDef[] = [];
+  for (const g of CLIENT_PORTAL_SHELL_GROUP_DEFS) walkItemsForLeaves(g.items, out);
+  return out;
+})();
+
+/** Union of platform + client-portal leaves for sidebar active-state (e.g. `/preferences` on portal users). */
+export const SIDEBAR_NAV_ALL_LEAVES: readonly NavLeafDef[] = (() => {
+  const seen = new Set<string>();
+  const out: NavLeafDef[] = [];
+  for (const l of PLATFORM_NAV_ALL_LEAVES) {
+    if (seen.has(l.id)) continue;
+    seen.add(l.id);
+    out.push(l);
+  }
+  for (const l of CLIENT_PORTAL_NAV_ALL_LEAVES) {
+    if (seen.has(l.id)) continue;
+    seen.add(l.id);
+    out.push(l);
+  }
   return out;
 })();
 
@@ -636,17 +680,31 @@ function filterItem(
   return { ...item, children: nextChildren };
 }
 
+function filterNavGroups(
+  defs: readonly NavGroupDef[],
+  user: Parameters<typeof clientNavItemVisible>[1],
+  hiddenOptional: Set<string>,
+  options: ClientNavOptions | undefined,
+): NavGroupDef[] {
+  return defs
+    .map((g) => ({
+      ...g,
+      items: g.items
+        .map((item) => filterItem(item, user, hiddenOptional, options))
+        .filter((item): item is NavItemDef => item != null),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
 export function filterVisibleNavGroups(
   user: Parameters<typeof clientNavItemVisible>[1],
   options: ClientNavOptions | undefined,
 ): NavGroupDef[] {
   const hiddenOptional = getHiddenNavHrefs();
-  return PLATFORM_NAV_GROUP_DEFS.map((g) => ({
-    ...g,
-    items: g.items
-      .map((item) => filterItem(item, user, hiddenOptional, options))
-      .filter((item): item is NavItemDef => item != null),
-  })).filter((g) => g.items.length > 0);
+  if (shouldUsePortalOnlyShell(user, options)) {
+    return filterNavGroups(CLIENT_PORTAL_SHELL_GROUP_DEFS, user, hiddenOptional, options);
+  }
+  return filterNavGroups(PLATFORM_NAV_GROUP_DEFS, user, hiddenOptional, options);
 }
 
 /** Normalized pathname for active matching (query/hash stripped, trailing slash collapsed). */
@@ -662,26 +720,49 @@ export function isLeafActive(href: string, location: string): boolean {
   return false;
 }
 
-export function isNavLeafActive(leaf: NavLeafDef, location: string): boolean {
+/**
+ * @param visibleNavGroups When set, only leaves from these groups compete for “active” (sidebar shell isolation).
+ */
+export function isNavLeafActive(
+  leaf: NavLeafDef,
+  location: string,
+  visibleNavGroups?: readonly NavGroupDef[],
+): boolean {
   const loc = normalizeNavPathForMatching(location);
-  const candidates = PLATFORM_NAV_ALL_LEAVES.filter((l) => navLeafMatchScore(l, loc) >= 0);
+  const pool =
+    visibleNavGroups != null && visibleNavGroups.length > 0
+      ? collectLeavesFromNavGroups(visibleNavGroups)
+      : SIDEBAR_NAV_ALL_LEAVES;
+  const candidates = pool.filter((l) => navLeafMatchScore(l, loc) >= 0);
   if (candidates.length === 0) return false;
   const best = candidates.reduce((a, b) => (navLeafMatchScore(b, loc) > navLeafMatchScore(a, loc) ? b : a));
   return best.id === leaf.id;
 }
 
-function subtreeContainsActive(item: NavItemDef, location: string): boolean {
-  if (item.kind === "leaf") return isNavLeafActive(item, location);
-  return item.children.some((c) => subtreeContainsActive(c, location));
+function subtreeContainsActive(
+  item: NavItemDef,
+  location: string,
+  visibleNavGroups?: readonly NavGroupDef[],
+): boolean {
+  if (item.kind === "leaf") return isNavLeafActive(item, location, visibleNavGroups);
+  return item.children.some((c) => subtreeContainsActive(c, location, visibleNavGroups));
 }
 
-export function groupContainsActiveRoute(group: NavGroupDef, location: string): boolean {
+export function groupContainsActiveRoute(
+  group: NavGroupDef,
+  location: string,
+  visibleNavGroups?: readonly NavGroupDef[],
+): boolean {
   for (const item of group.items) {
-    if (subtreeContainsActive(item, location)) return true;
+    if (subtreeContainsActive(item, location, visibleNavGroups)) return true;
   }
   return false;
 }
 
-export function branchShouldShowOpen(item: NavBranchDef, location: string): boolean {
-  return subtreeContainsActive(item, location);
+export function branchShouldShowOpen(
+  item: NavBranchDef,
+  location: string,
+  visibleNavGroups?: readonly NavGroupDef[],
+): boolean {
+  return subtreeContainsActive(item, location, visibleNavGroups);
 }

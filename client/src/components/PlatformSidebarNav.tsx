@@ -59,6 +59,7 @@ function NavLeafLink({
   t,
   pendingProfileReq,
   badgeValues,
+  navGroups,
 }: {
   item: NavLeafDef;
   location: string;
@@ -66,8 +67,9 @@ function NavLeafLink({
   t: (key: string, defaultLabel: string) => string;
   pendingProfileReq: number;
   badgeValues: SidebarBadgeMap;
+  navGroups: NavGroupDef[];
 }) {
-  const active = isNavLeafActive(item, location);
+  const active = isNavLeafActive(item, location, navGroups);
   const Icon = item.icon;
   const navBadge = item.badgeMeta ? badgeValues[item.badgeMeta.key] : undefined;
   const badgeToneClass =
@@ -123,6 +125,7 @@ function NavBranch({
   t,
   pendingProfileReq,
   badgeValues,
+  navGroups,
 }: {
   item: NavBranchDef;
   location: string;
@@ -130,8 +133,9 @@ function NavBranch({
   t: (key: string, defaultLabel: string) => string;
   pendingProfileReq: number;
   badgeValues: SidebarBadgeMap;
+  navGroups: NavGroupDef[];
 }) {
-  const pathActive = branchShouldShowOpen(item, location);
+  const pathActive = branchShouldShowOpen(item, location, navGroups);
   const [peekOpen, setPeekOpen] = useState(false);
 
   useEffect(() => {
@@ -177,6 +181,7 @@ function NavBranch({
             t={t}
             pendingProfileReq={pendingProfileReq}
             badgeValues={badgeValues}
+            navGroups={navGroups}
           />
         ))}
       </CollapsibleContent>
@@ -191,6 +196,7 @@ function NavItemRow({
   t,
   pendingProfileReq,
   badgeValues,
+  navGroups,
 }: {
   item: NavItemDef;
   location: string;
@@ -198,6 +204,7 @@ function NavItemRow({
   t: (key: string, defaultLabel: string) => string;
   pendingProfileReq: number;
   badgeValues: SidebarBadgeMap;
+  navGroups: NavGroupDef[];
 }) {
   if (item.kind === "branch") {
     return (
@@ -208,11 +215,12 @@ function NavItemRow({
         t={t}
         pendingProfileReq={pendingProfileReq}
         badgeValues={badgeValues}
+        navGroups={navGroups}
       />
     );
   }
   const Icon = item.icon;
-  const active = isNavLeafActive(item, location);
+  const active = isNavLeafActive(item, location, navGroups);
   const navBadge = item.badgeMeta ? badgeValues[item.badgeMeta.key] : undefined;
   const badgeToneClass =
     navBadge?.tone === "critical"
@@ -276,24 +284,24 @@ export function PlatformSidebarNav({
 
   const resolveGroupOpen = useCallback(
     (group: NavGroupDef): boolean => {
-      const active = groupContainsActiveRoute(group, location);
+      const active = groupContainsActiveRoute(group, location, groups);
       if (active) return true;
       if (!group.collapsible) return true;
       const o = groupOpenOverride[group.id];
       if (o !== undefined) return o;
       return !group.defaultCollapsed;
     },
-    [groupOpenOverride, location],
+    [groupOpenOverride, location, groups],
   );
 
   const setGroupOpen = useCallback((group: NavGroupDef, nextOpen: boolean) => {
-    if (groupContainsActiveRoute(group, location)) return;
+    if (groupContainsActiveRoute(group, location, groups)) return;
     setGroupOpenOverride((prev) => {
       const n = { ...prev, [group.id]: nextOpen };
       writeStoredGroupOpen(n);
       return n;
     });
-  }, [location]);
+  }, [location, groups]);
 
   return (
     <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-7" aria-label="Primary">
@@ -323,6 +331,7 @@ export function PlatformSidebarNav({
                 t={t}
                 pendingProfileReq={pendingProfileReq}
                 badgeValues={badgeValues}
+                navGroups={groups}
               />
             ))}
           </div>

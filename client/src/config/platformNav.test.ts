@@ -38,13 +38,12 @@ describe("platformNav IA & routing", () => {
     expect(() => assertPlatformNavIntegrity(PLATFORM_NAV_GROUP_DEFS)).not.toThrow();
   });
 
-  it("uses the final canonical section order (A→K)", () => {
+  it("uses the final canonical section order (company + operator shell; client portal is separate)", () => {
     expect(PLATFORM_NAV_GROUP_IDS).toEqual([
       "getStarted",
       "control",
       "govPartner",
       "company",
-      "clientWorkspace",
       "peopleHr",
       "operations",
       "marketplaceSection",
@@ -161,6 +160,44 @@ describe("platformNav IA & routing", () => {
     expect(hrefs).not.toContain("/control-tower");
     expect(hrefs).not.toContain("/operations");
     expect(hrefs).not.toContain("/hr/employees");
+  });
+
+  it("portal shell (customer member) uses explicit client whitelist only — no tenant OS groups", () => {
+    const portal = { role: "user" as const, platformRole: "client" as const };
+    const groups = filterVisibleNavGroups(portal, {
+      hasCompanyWorkspace: true,
+      hasCompanyMembership: true,
+      memberRole: "client" as const,
+    });
+    expect(groups.map((g) => g.id)).toEqual(["clientWorkspace"]);
+    const hrefs = groups.flatMap((g) => walkLeaves(g.items)).map((l) => l.href);
+    expect(hrefs).toEqual([
+      "/client",
+      "/client/engagements",
+      "/client/documents",
+      "/client/invoices",
+      "/client/messages",
+      "/client/team",
+      "/preferences",
+    ]);
+    expect(hrefs).not.toContain("/payroll");
+    expect(hrefs).not.toContain("/hr/employees");
+    expect(hrefs).not.toContain("/engagements/ops");
+  });
+
+  it("company_admin shell does not include client portal group (customer channel only)", () => {
+    const groups = filterVisibleNavGroups(ownerUser, companyOpts);
+    expect(groups.some((g) => g.id === "clientWorkspace")).toBe(false);
+  });
+
+  it("operator shell does not include client portal group", () => {
+    const op = { role: "user" as const, platformRole: "regional_manager" as const };
+    const groups = filterVisibleNavGroups(op, {
+      hasCompanyWorkspace: true,
+      hasCompanyMembership: true,
+      memberRole: "company_admin" as const,
+    });
+    expect(groups.some((g) => g.id === "clientWorkspace")).toBe(false);
   });
 });
 

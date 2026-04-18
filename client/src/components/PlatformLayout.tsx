@@ -8,14 +8,17 @@ import {
   Building2,
   ChevronDown,
   FileText,
+  FolderOpen,
   HelpCircle,
   Home,
+  Layers,
   LayoutDashboard,
   LayoutGrid,
   LogOut,
   Menu,
+  MessageSquare,
+  Receipt,
   Settings,
-  UserCircle,
   Users,
   X,
 } from "lucide-react";
@@ -100,11 +103,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
   const platformNav = seesPlatformOperatorNav(user);
 
-  const visibleNavGroups = useMemo(() => {
+  const navOptions = useMemo((): ClientNavOptions => {
     const memberPermissions = Array.isArray(myCompany?.member?.permissions)
       ? [...(myCompany.member.permissions as string[])]
       : [];
-    const navOptions: ClientNavOptions = {
+    return {
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
       companyWorkspaceLoading: myCompanyLoading,
       memberRole: effectiveMemberRole,
@@ -112,18 +115,21 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       navExtraAllowedHrefs,
       memberPermissions,
     };
-    return filterVisibleNavGroups(user, navOptions);
   }, [
-    user,
-    navPrefsEpoch,
     myCompany?.company?.id,
-    myCompany?.member?.role,
-    myCompany?.member?.permissions,
-    activeCompany?.role,
-    navExtraAllowedHrefs,
     myCompanyLoading,
+    effectiveMemberRole,
     companies.length,
+    navExtraAllowedHrefs,
+    myCompany?.member?.permissions,
   ]);
+
+  const portalShell = shouldUsePortalOnlyShell(user, navOptions);
+
+  const visibleNavGroups = useMemo(
+    () => filterVisibleNavGroups(user, navOptions),
+    [user, navPrefsEpoch, navOptions],
+  );
 
   const sidebarBadgeValues = useMemo(
     () =>
@@ -142,7 +148,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     <div className="flex flex-col h-full sidebar-nav">
       {/* Logo */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-[var(--sidebar-border)]">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
+        <Link href={portalShell ? "/client" : "/dashboard"} className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-[var(--smartpro-orange)] flex items-center justify-center shadow-md">
             <span className="text-white font-black text-sm tracking-tight">SP</span>
           </div>
@@ -527,11 +533,16 @@ function MobileBottomNav() {
   );
   const effectiveMemberRole = myCompany?.member?.role ?? activeCompany?.role ?? null;
   const platform = seesPlatformOperatorNav(user);
-  const portalShell = shouldUsePortalOnlyShell(user, {
-    hasCompanyWorkspace: Boolean(myCompany?.company?.id),
-    companyWorkspaceLoading: companyLoading,
-    memberRole: effectiveMemberRole,
-  });
+  const navOptions = useMemo(
+    (): ClientNavOptions => ({
+      hasCompanyWorkspace: Boolean(myCompany?.company?.id),
+      companyWorkspaceLoading: companyLoading,
+      memberRole: effectiveMemberRole,
+      hasCompanyMembership: companies.length > 0,
+    }),
+    [myCompany?.company?.id, companyLoading, effectiveMemberRole, companies.length],
+  );
+  const portalShell = shouldUsePortalOnlyShell(user, navOptions);
   const preRegShell = shouldUsePreRegistrationShell(user, {
     hasCompanyMembership: companies.length > 0,
   });
@@ -553,12 +564,13 @@ function MobileBottomNav() {
       ];
     }
     if (portalShell) {
-      // Primary hub is Client workspace (`/client`); invoices/contracts live under that shell.
       return [
-        { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
-        { href: "/alerts", icon: <Bell size={20} />, label: "Alerts" },
-        { href: "/client", icon: <UserCircle size={20} />, label: t("clientWorkspaceMobile", "Workspace") },
-        { href: "/company/hub", icon: <Building2 size={20} />, label: t("companyHub", "Company Hub") },
+        { href: "/client", icon: <LayoutDashboard size={20} />, label: t("clientPortalMobileHome", "Home") },
+        { href: "/client/engagements", icon: <Layers size={20} />, label: t("clientPortalMobileServices", "Services") },
+        { href: "/client/documents", icon: <FolderOpen size={20} />, label: t("clientPortalMobileDocs", "Docs") },
+        { href: "/client/invoices", icon: <Receipt size={20} />, label: t("clientPortalMobileInvoices", "Invoices") },
+        { href: "/client/messages", icon: <MessageSquare size={20} />, label: t("clientPortalMobileMessages", "Messages") },
+        { href: "/client/team", icon: <Users size={20} />, label: t("clientPortalMobileTeam", "Team") },
       ];
     }
     if (isFieldEmployee(effectiveMemberRole)) {

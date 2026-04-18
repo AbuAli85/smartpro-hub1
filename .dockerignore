@@ -1,17 +1,67 @@
+# Dependencies (reinstalled inside container)
 node_modules
+.pnpm-store/
+
+# Build outputs (rebuilt inside container)
 dist
+
+# Environment variables (injected at runtime)
 .env
 .env.*
 !.env.example
+
+# Logs and debug
 .manus-logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Version control
 .git
 .gitignore
+
+# Documentation (not needed at runtime)
 *.md
 docs/
 todo.md
+
+# Test coverage
 coverage/
 .nyc_output/
-*.log
+
+# Docker config (not needed inside container)
 docker-compose*.yml
 Dockerfile
 .dockerignore
+
+# IDE / editor config
+.cursor/
+.vscode/
+.idea/
+
+# Data import files (only needed for one-time seeding, not runtime)
+data/
+
+# Drizzle meta snapshots (only needed for drizzle-kit generate, not runtime)
+drizzle/meta/
+
+# Migration utility scripts (one-time use, not runtime)
+scripts/
+check-migrations.mjs
+apply-migration*.mjs
+fix-users*.mjs
+migrate-phase*.mjs
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Temporary
+tmp/
+temp/

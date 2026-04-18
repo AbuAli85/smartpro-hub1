@@ -287,6 +287,13 @@ describe("clientRouteAccessible", () => {
     );
   });
 
+  it("denies /client for platform operators even with no company membership", () => {
+    expect(clientRouteAccessible("/client", platform, new Set(), { hasCompanyMembership: false })).toBe(false);
+    expect(clientRouteAccessible("/client/company/create", platform, new Set(), { hasCompanyMembership: false })).toBe(
+      false,
+    );
+  });
+
   it("matches sidebar rules for platform-only prefixes", () => {
     expect(clientRouteAccessible("/billing/invoices", member, new Set())).toBe(false);
     expect(clientRouteAccessible("/billing/invoices", platform, new Set())).toBe(true);

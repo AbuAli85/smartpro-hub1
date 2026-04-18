@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import PlatformLayout from "./components/PlatformLayout";
 import { ClientPreCompanyMinimalLayout } from "./features/clientWorkspace/ClientPreCompanyMinimalLayout";
 import NavigationProgress from "./components/NavigationProgress";
+import { PostAuthNavigationSweep } from "./components/PostAuthNavigationSweep";
 import { isBuyerPortalUiEnabled } from "./lib/buyerPortalEnv";
 
 // ─── Route-level code splitting ───────────────────────────────────────────────
@@ -342,6 +343,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
+          <PostAuthNavigationSweep />
           <NavigationProgress />
           <Toaster />
           <Suspense fallback={<PageLoader />}>

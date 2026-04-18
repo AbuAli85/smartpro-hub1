@@ -135,3 +135,49 @@ export function pickSafeAuthenticatedReturnPath(input: PickSafeReturnPathInput):
   }
   return canonical;
 }
+
+/** Paths where we must not hijack navigation (e.g. MFA step-up). */
+export function isPostAuthNavigationSweepSkippedPath(pathname: string): boolean {
+  const p = normalizeClientPath(pathname.split("?")[0] ?? pathname);
+  if (p === "/auth/mfa" || p.startsWith("/auth/mfa/")) return true;
+  return false;
+}
+
+export type ComputePostAuthNavigationRedirectInput = {
+  isAuthenticated: boolean;
+  authLoading: boolean;
+  companiesLoading: boolean;
+  pathname: string;
+  /** From wouter `useSearch()` (may be `""`, `?a=1`, or `a=1`). */
+  search: string;
+  /** `requestedPath` is derived from `pathname` + `search` inside {@link computePostAuthNavigationRedirect}. */
+  pickSafeInput: Omit<PickSafeReturnPathInput, "requestedPath">;
+};
+
+/**
+ * Production post-auth / deep-link redirect: settled auth + companies only.
+ * Returns `null` when the current URL already matches policy or sweep must not run.
+ */
+export function computePostAuthNavigationRedirect(
+  input: ComputePostAuthNavigationRedirectInput,
+): string | null {
+  const { isAuthenticated, authLoading, companiesLoading, pathname, search, pickSafeInput } = input;
+  if (!isAuthenticated || authLoading || companiesLoading) return null;
+
+  const pathOnly = normalizeClientPath(pathname.split("?")[0] ?? pathname);
+  if (isPostAuthNavigationSweepSkippedPath(pathOnly)) return null;
+
+  const sq = (search ?? "").trim();
+  const fullPath = sq === "" ? pathname : `${pathname}${sq.startsWith("?") ? sq : `?${sq}`}`;
+
+  const target = pickSafeAuthenticatedReturnPath({
+    ...pickSafeInput,
+    requestedPath: fullPath,
+  });
+
+  if (normalizeClientPath(target) === normalizeClientPath(fullPath)) {
+    return null;
+  }
+
+  return target;
+}

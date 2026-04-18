@@ -766,10 +766,11 @@ export function clientRouteAccessible(
 
   if (path === "/client" || path.startsWith("/client/")) {
     if (!user) return false;
+    /** Platform staff never use the end-customer `/client` shell (no preview bypass). */
+    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return false;
     /**
      * Strict client workspace routes: only `company_members.role === "client"` once a workspace exists.
      * Pre-workspace users stay on `/client` + `/client/company/create` for onboarding (no membership yet).
-     * No operator / `super_admin` preview here — use a dedicated test account with a `client` membership if needed.
      */
     if (!options?.hasCompanyMembership) {
       return path === "/client" || path === "/client/company/create" || path.startsWith("/client/company/create/");

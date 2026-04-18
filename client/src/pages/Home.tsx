@@ -1,19 +1,14 @@
-﻿import { useEffect, useMemo } from "react";
+﻿import { useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
-import { normalizeClientPath, seesPlatformOperatorNav } from "@shared/clientNav";
+import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
-import {
-  resolvePostAuthHome,
-  isAlreadyAtPostAuthDestination,
-  tenantWorkspaceLandingPath,
-  OPERATOR_DEFAULT_HOME,
-} from "@shared/postAuthHome";
+import { tenantWorkspaceLandingPath, OPERATOR_DEFAULT_HOME } from "@shared/postAuthHome";
 import { SignInCallbackErrorBanner } from "@/components/SignInCallbackErrorBanner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getLoginUrl, warmUpServer } from "@/const";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import {
   ArrowRight,
   Shield,
@@ -241,7 +236,6 @@ const FAQS = [
 export default function Home() {
   const { t } = useTranslation("common");
   const { isAuthenticated, loading, user } = useAuth();
-  const [pathname, setLocation] = useLocation();
   const { loading: companiesLoading, companies, activeCompany } = useActiveCompany();
 
   const workspaceHref = useMemo(() => {
@@ -251,33 +245,6 @@ export default function Home() {
     if (companies.length === 0) return "/dashboard";
     return tenantWorkspaceLandingPath(activeCompany?.role ?? null);
   }, [isAuthenticated, user, companiesLoading, companies.length, activeCompany?.role]);
-
-  useEffect(() => {
-    if (loading || !isAuthenticated || !user) return;
-    if (companiesLoading) return;
-    const { redirectTo } = resolvePostAuthHome({
-      isAuthenticated,
-      authLoading: loading,
-      companiesLoading,
-      user,
-      companiesSettled: !companiesLoading,
-      hasCompanyMembership: companies.length > 0,
-      activeMemberRole: activeCompany?.role ?? null,
-    });
-    if (!redirectTo) return;
-    if (normalizeClientPath(pathname) !== "/") return;
-    if (isAlreadyAtPostAuthDestination(pathname, redirectTo)) return;
-    setLocation(redirectTo, { replace: true });
-  }, [
-    activeCompany?.role,
-    companies.length,
-    companiesLoading,
-    isAuthenticated,
-    loading,
-    pathname,
-    setLocation,
-    user,
-  ]);
 
   if (loading) {
     return (

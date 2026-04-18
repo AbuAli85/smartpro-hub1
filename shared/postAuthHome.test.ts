@@ -5,6 +5,8 @@ import {
   OPERATOR_DEFAULT_HOME,
   isAlreadyAtPostAuthDestination,
   pickSafeAuthenticatedReturnPath,
+  computePostAuthNavigationRedirect,
+  isPostAuthNavigationSweepSkippedPath,
 } from "./postAuthHome";
 
 const baseInput = {
@@ -15,6 +17,9 @@ const baseInput = {
   hasCompanyMembership: true,
   user: { role: "user" as const, platformRole: "company_member" as const, platformRoles: [] as string[] },
 };
+
+const portalClientUser = { role: "user" as const, platformRole: "client" as const, platformRoles: [] as string[] };
+const ownerUser = { role: "user" as const, platformRole: "company_admin" as const, platformRoles: [] as string[] };
 
 describe("resolvePostAuthHome", () => {
   it("returns null while auth is loading", () => {
@@ -125,8 +130,204 @@ describe("isAlreadyAtPostAuthDestination", () => {
   });
 });
 
-const portalClientUser = { role: "user" as const, platformRole: "client" as const, platformRoles: [] as string[] };
-const ownerUser = { role: "user" as const, platformRole: "company_admin" as const, platformRoles: [] as string[] };
+describe("isPostAuthNavigationSweepSkippedPath", () => {
+  it("skips MFA challenge routes", () => {
+    expect(isPostAuthNavigationSweepSkippedPath("/auth/mfa")).toBe(true);
+    expect(isPostAuthNavigationSweepSkippedPath("/auth/mfa?challenge=1")).toBe(true);
+    expect(isPostAuthNavigationSweepSkippedPath("/dashboard")).toBe(false);
+  });
+});
+
+function pickSafeRouteCheck(memberRole: "company_admin" | "hr_admin" | "finance_admin") {
+  return {
+    user: ownerUser,
+    hiddenOptional: new Set<string>(),
+    navOptions: { hasCompanyMembership: true, memberRole },
+  };
+}
+
+describe("computePostAuthNavigationRedirect", () => {
+  it("returns null while auth is still loading", () => {
+    expect(
+      computePostAuthNavigationRedirect({
+        isAuthenticated: true,
+        authLoading: true,
+        companiesLoading: false,
+        pathname: "/client",
+        search: "",
+        pickSafeInput: {
+          resolveInput: { ...baseInput, activeMemberRole: "company_admin" },
+          routeCheck: pickSafeRouteCheck("company_admin"),
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("returns null while workspace policy context is still loading", () => {
+    expect(
+      computePostAuthNavigationRedirect({
+        isAuthenticated: true,
+        authLoading: false,
+        companiesLoading: true,
+        pathname: "/client",
+        search: "",
+        pickSafeInput: {
+          resolveInput: { ...baseInput, activeMemberRole: "company_admin" },
+          routeCheck: pickSafeRouteCheck("company_admin"),
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("redirects company_admin from / to control tower", () => {
+    expect(
+      computePostAuthNavigationRedirect({
+        isAuthenticated: true,
+        authLoading: false,
+        companiesLoading: false,
+        pathname: "/",
+        search: "",
+        pickSafeInput: {
+          resolveInput: { ...baseInput, activeMemberRole: "company_admin" },
+          routeCheck: pickSafeRouteCheck("company_admin"),
+        },
+      }),
+    ).toBe("/control-tower");
+  });
+
+  it("redirects company_admin from disallowed /client to tenant landing", () => {
+    expect(
+      computePostAuthNavigationRedirect({
+        isAuthenticated: true,
+        authLoading: false,
+        companiesLoading: false,
+        pathname: "/client",
+        search: "",
+        pickSafeInput: {
+          resolveInput: { ...baseInput, activeMemberRole: "company_admin" },
+          routeCheck: pickSafeRouteCheck("company_admin"),
+        },
+      }),
+    ).toBe("/control-tower");
+  });
+
+  it("honours allowed /preferences for client member", () => {
+    const clientUser = { role: "user" as const, platformRole: "client" as const, platformRoles: [] as string[] };
+    expect(
+      computePostAuthNavigationRedirect({
+        isAuthenticated: true,
+        authLoading: false,
+        companiesLoading: false,
+        pathname: "/preferences",
+        search: "",
+        pickSafeInput: {
+          resolveInput: { ...baseInput, user: clientUser, activeMemberRole: "client" },
+          routeCheck: {
+            user: clientUser,
+            hiddenOptional: new Set(),
+            navOptions: {
+              hasCompanyMembership: true,
+              hasCompanyWorkspace: true,
+              memberRole: "client" as const,
+            },
+          },
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("redirects super_admin from stale /client return to operator home", () => {
+    const su = { role: "user" as const, platformRole: "client" as const, platformRoles: ["super_admin"] as string[] };
+    expect(
+      computePostAuthNavigationRedirect({
+        isAuthenticated: true,
+        authLoading: false,
+        companiesLoading: false,
+        pathname: "/client",
+        search: "",
+        pickSafeInput: {
+          resolveInput: { ...baseInput, user: su, activeMemberRole: "client" },
+          routeCheck: {
+            user: su,
+            hiddenOptional: new Set(),
+            navOptions: { hasCompanyMembership: true, memberRole: "client" as const },
+          },
+        },
+      }),
+    ).toBe(OPERATOR_DEFAULT_HOME);
+  });
+
+  it("returns null on MFA path (sweep skipped)", () => {
+    expect(
+      computePostAuthNavigationRedirect({
+        isAuthenticated: true,
+        authLoading: false,
+        companiesLoading: false,
+        pathname: "/auth/mfa",
+        search: "?challenge=1",
+        pickSafeInput: {
+          resolveInput: { ...baseInput, activeMemberRole: "company_admin" },
+          routeCheck: pickSafeRouteCheck("company_admin"),
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps an allowed internal deep link for hr_admin", () => {
+    expect(
+      computePostAuthNavigationRedirect({
+        isAuthenticated: true,
+        authLoading: false,
+        companiesLoading: false,
+        pathname: "/hr/employees",
+        search: "",
+        pickSafeInput: {
+          resolveInput: { ...baseInput, activeMemberRole: "hr_admin" },
+          routeCheck: {
+            user: ownerUser,
+            hiddenOptional: new Set(),
+            navOptions: { hasCompanyMembership: true, memberRole: "hr_admin" as const },
+          },
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("is deterministic for active workspace role (multi-company simulation)", () => {
+    const toHr = computePostAuthNavigationRedirect({
+      isAuthenticated: true,
+      authLoading: false,
+      companiesLoading: false,
+      pathname: "/client",
+      search: "",
+      pickSafeInput: {
+        resolveInput: { ...baseInput, activeMemberRole: "hr_admin" },
+        routeCheck: {
+          user: baseInput.user,
+          hiddenOptional: new Set(),
+          navOptions: { hasCompanyMembership: true, memberRole: "hr_admin" as const },
+        },
+      },
+    });
+    const toFinance = computePostAuthNavigationRedirect({
+      isAuthenticated: true,
+      authLoading: false,
+      companiesLoading: false,
+      pathname: "/client",
+      search: "",
+      pickSafeInput: {
+        resolveInput: { ...baseInput, activeMemberRole: "finance_admin" },
+        routeCheck: {
+          user: baseInput.user,
+          hiddenOptional: new Set(),
+          navOptions: { hasCompanyMembership: true, memberRole: "finance_admin" as const },
+        },
+      },
+    });
+    expect(toHr).toBe("/hr/employees");
+    expect(toFinance).toBe("/payroll");
+  });
+});
 
 describe("pickSafeAuthenticatedReturnPath", () => {
   it("uses canonical home for marketing root even when a return path asks for /", () => {

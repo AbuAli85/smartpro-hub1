@@ -1,8 +1,8 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 import { trpc } from "@/lib/trpc";
-import { clientRouteAccessible, seesPlatformOperatorNav } from "@shared/clientNav";
-import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { clientRouteAccessible, normalizeClientPath } from "@shared/clientNav";
+import { tenantWorkspaceLandingPath } from "@shared/postAuthHome";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Redirect, useLocation } from "wouter";
@@ -77,13 +77,10 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
   }
 
   if (!allowed) {
-    if (
-      user &&
-      !seesPlatformOperatorNav(user) &&
-      !canAccessGlobalAdminProcedures(user) &&
-      companies.length > 0
-    ) {
-      return <Redirect to="/client" />;
+    const path = normalizeClientPath(location);
+    const tenantHome = tenantWorkspaceLandingPath(effectiveMemberRole);
+    if (path === "/client" || path.startsWith("/client/")) {
+      return <Redirect to={tenantHome} />;
     }
     return <Redirect to="/dashboard" />;
   }

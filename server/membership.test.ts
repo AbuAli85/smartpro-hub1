@@ -4,6 +4,7 @@ import * as tenant from "./_core/tenant";
 import {
   getActiveCompanyMembership,
   requireActiveCompanyMembership,
+  requireClientWorkspaceMembership,
   requireWorkspaceMembership,
 } from "./_core/membership";
 
@@ -85,5 +86,32 @@ describe("requireWorkspaceMembership", () => {
     vi.mocked(tenant.requireActiveCompanyId).mockResolvedValue(42);
     vi.mocked(db.getUserCompanyById).mockResolvedValue(null);
     await expect(requireWorkspaceMembership(user, 42)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("requireClientWorkspaceMembership", () => {
+  const user = { id: 5 } as any;
+
+  beforeEach(() => {
+    vi.mocked(tenant.requireActiveCompanyId).mockReset();
+    vi.mocked(db.getUserCompanyById).mockReset();
+  });
+
+  it("returns company when membership role is client", async () => {
+    vi.mocked(tenant.requireActiveCompanyId).mockResolvedValue(9);
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 9 },
+      member: { role: "client" },
+    } as any);
+    await expect(requireClientWorkspaceMembership(user, 9)).resolves.toEqual({ companyId: 9, role: "client" });
+  });
+
+  it("throws FORBIDDEN when membership is not client", async () => {
+    vi.mocked(tenant.requireActiveCompanyId).mockResolvedValue(9);
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 9 },
+      member: { role: "company_admin" },
+    } as any);
+    await expect(requireClientWorkspaceMembership(user, 9)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

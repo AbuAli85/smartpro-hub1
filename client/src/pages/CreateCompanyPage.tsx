@@ -4,10 +4,11 @@
  * A clean, blank form for creating a new company.
  * Accessible from the Company Switcher "+ Add another company" link.
  * After creation, membership is refreshed, the new company is selected as the active workspace,
- * and the success screen sends users to `/client` (client workspace), not the admin dashboard.
+ * and the success screen sends the creator (company owner) to their tenant home (`/control-tower` by default).
  */
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { getRoleDefaultRoute } from "@shared/clientNav";
 import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -123,7 +124,8 @@ const COUNTRIES = [
 ];
 
 export default function CreateCompanyPage() {
-  const [, navigate] = useLocation();
+  const [loc, navigate] = useLocation();
+  const isClientShellCreate = loc.startsWith("/client/company/create");
   const { t } = useTranslation("engagements");
   const { switchCompany } = useActiveCompany();
   const utils = trpc.useUtils();
@@ -202,7 +204,7 @@ export default function CreateCompanyPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => navigate("/client?welcome=1")}
+                onClick={() => navigate(`${getRoleDefaultRoute("company_admin")}?welcome=1`)}
               >
                 {t("clientWorkspace.companyCreatedCta")}
               </Button>
@@ -233,7 +235,8 @@ export default function CreateCompanyPage() {
       <div className="border-b bg-card">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
           <button
-            onClick={() => navigate(-1 as any)}
+            type="button"
+            onClick={() => (isClientShellCreate ? navigate("/client") : window.history.back())}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm"
           >
             <ArrowLeft size={16} />

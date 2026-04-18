@@ -72,6 +72,23 @@ describe("clientWorkspaceRouter company scoping", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("listEngagements rejects when user is a member but not customer (client) role", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 3 },
+      member: { role: "company_admin" },
+    } as any);
+    const caller = clientWorkspaceRouter.createCaller(makeCtx({ platformRole: "company_admin" }));
+    await expect(
+      caller.listEngagements({
+        companyId: 3,
+        page: 1,
+        pageSize: 10,
+        filter: "all",
+        sort: "recently_updated",
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("listEngagements verifies membership before returning empty when db is unavailable", async () => {
     vi.mocked(db.getUserCompanyById).mockResolvedValue({
       company: { id: 3 },

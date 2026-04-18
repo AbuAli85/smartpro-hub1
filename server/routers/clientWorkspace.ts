@@ -1,10 +1,12 @@
 /**
- * Client Workspace (/client/*) — read-mostly aggregates scoped to workspace company.
+ * Client Workspace (`/client/*`) — read-mostly aggregates scoped to workspace company.
+ * **Policy:** every procedure requires `company_members.role === "client"` in the active workspace
+ * (see `requireClientWorkspaceMembership`). There is no operator/global-admin preview bypass here.
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../_core/trpc";
-import { requireWorkspaceMembership } from "../_core/membership";
+import { requireClientWorkspaceMembership } from "../_core/membership";
 import { requiredActiveWorkspace } from "../_core/workspaceInput";
 import { getDb } from "../db";
 import type { User } from "../../drizzle/schema";
@@ -34,7 +36,7 @@ const engagementSortSchema = z.enum(["due_date", "recently_updated", "priority"]
 
 export const clientWorkspaceRouter = router({
   getHomeSummary: protectedProcedure.input(requiredActiveWorkspace).query(async ({ ctx, input }) => {
-    const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+    const m = await requireClientWorkspaceMembership(ctx.user as User, input.companyId);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     return getClientHomeSummary(db, m.companyId);
@@ -52,7 +54,7 @@ export const clientWorkspaceRouter = router({
         .merge(requiredActiveWorkspace),
     )
     .query(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requireClientWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
       return listClientEngagements(db, {
@@ -75,7 +77,7 @@ export const clientWorkspaceRouter = router({
         .merge(requiredActiveWorkspace),
     )
     .query(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requireClientWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
       return listClientWorkspaceDocuments(db, {
@@ -98,7 +100,7 @@ export const clientWorkspaceRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requireClientWorkspaceMembership(ctx.user as User, input.companyId);
       return listClientWorkspaceInvoices(db, {
         companyId: m.companyId,
         page: input.page,
@@ -107,14 +109,14 @@ export const clientWorkspaceRouter = router({
     }),
 
   listThreads: protectedProcedure.input(requiredActiveWorkspace).query(async ({ ctx, input }) => {
-    const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+    const m = await requireClientWorkspaceMembership(ctx.user as User, input.companyId);
     const db = await getDb();
     if (!db) return [];
     return listClientWorkspaceThreads(db, { companyId: m.companyId });
   }),
 
   listTeam: protectedProcedure.input(requiredActiveWorkspace).query(async ({ ctx, input }) => {
-    const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+    const m = await requireClientWorkspaceMembership(ctx.user as User, input.companyId);
     const db = await getDb();
     if (!db) return [];
     return listClientWorkspaceTeam(db, m.companyId);

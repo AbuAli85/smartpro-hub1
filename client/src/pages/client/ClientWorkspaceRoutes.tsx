@@ -2,6 +2,8 @@ import { Route, Switch, Redirect } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { isCustomerPortalMemberRole } from "@shared/clientNav";
+import { tenantWorkspaceLandingPath } from "@shared/postAuthHome";
 import { ClientWorkspaceLayout } from "@/features/clientWorkspace/ClientWorkspaceLayout";
 import { ClientWorkspaceOnboarding } from "@/features/clientWorkspace/ClientWorkspaceOnboarding";
 import { ClientWorkspaceBootstrapSkeleton } from "@/features/clientWorkspace/ClientWorkspaceBootstrapSkeleton";
@@ -19,7 +21,7 @@ import ClientTeamPage from "./ClientTeamPage";
  */
 export default function ClientWorkspaceRoutes() {
   const { isAuthenticated, user, loading: authLoading } = useAuth();
-  const { loading: companyCtxLoading, companies } = useActiveCompany();
+  const { loading: companyCtxLoading, companies, activeCompany } = useActiveCompany();
   const bootstrapLoading = authLoading || companyCtxLoading;
 
   if (bootstrapLoading) {
@@ -32,6 +34,11 @@ export default function ClientWorkspaceRoutes() {
 
   if (companies.length === 0) {
     return <ClientWorkspaceOnboarding />;
+  }
+
+  const memberRole = activeCompany?.role ?? null;
+  if (!isCustomerPortalMemberRole(memberRole)) {
+    return <Redirect to={tenantWorkspaceLandingPath(memberRole)} />;
   }
 
   return (

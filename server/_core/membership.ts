@@ -50,6 +50,24 @@ export async function requireWorkspaceMembership(
   return { companyId: m.company.id, role: m.member.role };
 }
 
+/**
+ * End-customer Client Workspace (`/client/*`, `clientWorkspace.*`) — active membership must be
+ * `company_members.role === "client"`. Generic {@link requireWorkspaceMembership} is not sufficient.
+ */
+export async function requireClientWorkspaceMembership(
+  user: User,
+  companyId?: number | null,
+): Promise<{ companyId: number; role: "client" }> {
+  const m = await requireWorkspaceMembership(user, companyId);
+  if (m.role !== "client") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Client workspace is only available to customer (client) members in this company.",
+    });
+  }
+  return { companyId: m.companyId, role: "client" };
+}
+
 export async function requireActiveCompanyMembership(
   userId: number,
   companyId?: number | null

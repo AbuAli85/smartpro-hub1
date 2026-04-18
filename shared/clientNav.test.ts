@@ -81,15 +81,16 @@ describe("clientNavItemVisible", () => {
   });
 
   it("keeps portal customers on the allow-list after they join a company (no HR / admin nav)", () => {
-    expect(clientNavItemVisible("/hr/employees", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
-    expect(clientNavItemVisible("/sanad", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
-    expect(clientNavItemVisible("/client/engagements", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(true);
-    expect(clientNavItemVisible("/payroll", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
+    const optsClient = { hasCompanyWorkspace: true, hasCompanyMembership: true, memberRole: "client" as const };
+    expect(clientNavItemVisible("/hr/employees", portalClient, new Set(), optsClient)).toBe(false);
+    expect(clientNavItemVisible("/sanad", portalClient, new Set(), optsClient)).toBe(false);
+    expect(clientNavItemVisible("/client/engagements", portalClient, new Set(), optsClient)).toBe(true);
+    expect(clientNavItemVisible("/payroll", portalClient, new Set(), optsClient)).toBe(false);
   });
 
-  it("shows client workspace in the main sidebar for all company members (shared hub)", () => {
+  it("hides client workspace nav from non-client company members", () => {
     const ownerOpts = { hasCompanyWorkspace: true, hasCompanyMembership: true, memberRole: "company_admin" as const };
-    expect(clientNavItemVisible("/client", owner, new Set(), ownerOpts)).toBe(true);
+    expect(clientNavItemVisible("/client", owner, new Set(), ownerOpts)).toBe(false);
     expect(clientNavItemVisible("/contracts", owner, new Set(), ownerOpts)).toBe(true);
   });
 
@@ -264,11 +265,24 @@ describe("shouldUsePortalOnlyShell", () => {
 });
 
 describe("clientRouteAccessible", () => {
-  it("allows /client for any tenant member with a company (membership role, not users.role)", () => {
-    const opts = { hasCompanyMembership: true, memberRole: "company_admin" as const };
-    expect(clientRouteAccessible("/client", owner, new Set(), opts)).toBe(true);
-    expect(clientRouteAccessible("/client/engagements", member, new Set(), { ...opts, memberRole: "company_member" })).toBe(
+  it("allows /client only for customer (client) membership once a company exists", () => {
+    const clientOpts = { hasCompanyMembership: true, memberRole: "client" as const };
+    expect(clientRouteAccessible("/client", portalClient, new Set(), clientOpts)).toBe(true);
+    expect(clientRouteAccessible("/client/engagements", portalClient, new Set(), clientOpts)).toBe(true);
+    const adminOpts = { hasCompanyMembership: true, memberRole: "company_admin" as const };
+    expect(clientRouteAccessible("/client", owner, new Set(), adminOpts)).toBe(false);
+    expect(clientRouteAccessible("/client/engagements", member, new Set(), { ...adminOpts, memberRole: "company_member" })).toBe(
+      false,
+    );
+  });
+
+  it("allows /client and /client/company/create only before first company membership", () => {
+    expect(clientRouteAccessible("/client", portalClient, new Set(), { hasCompanyMembership: false })).toBe(true);
+    expect(clientRouteAccessible("/client/company/create", portalClient, new Set(), { hasCompanyMembership: false })).toBe(
       true,
+    );
+    expect(clientRouteAccessible("/client/engagements", portalClient, new Set(), { hasCompanyMembership: false })).toBe(
+      false,
     );
   });
 
@@ -289,8 +303,11 @@ describe("clientRouteAccessible", () => {
     expect(clientRouteAccessible("/client-portal", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
   });
 
-  it("allows pre-workspace company creation from portal shell", () => {
+  it("allows pre-workspace company creation from portal shell (legacy and client-journey paths)", () => {
     expect(clientRouteAccessible("/company/create", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
+    expect(clientRouteAccessible("/client/company/create", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(
+      true,
+    );
     expect(clientRouteAccessible("/company/team-access", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(
       true,
     );

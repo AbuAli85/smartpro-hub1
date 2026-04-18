@@ -10,7 +10,7 @@ import { Building2, Users, Sparkles } from "lucide-react";
  */
 export function ClientWorkspaceOnboarding() {
   const { t } = useTranslation("engagements");
-  const createHref = "/company/create?return=/client";
+  const createHref = "/client/company/create?return=/client";
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-start px-4 py-10 md:py-14 bg-muted/20">

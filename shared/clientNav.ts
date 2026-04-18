@@ -120,6 +120,7 @@ export const FIELD_EMPLOYEE_HREFS = new Set<string>([
 export const PORTAL_CLIENT_HREFS = new Set<string>([
   "/",
   "/client",
+  "/client/company/create",
   "/client/engagements",
   "/client/documents",
   "/client/invoices",
@@ -619,11 +620,14 @@ export function clientNavItemVisible(
   if (companyNavExtensionAllows(href, user, options)) return true;
 
   const path = normalizeClientPath(href);
-  // Client workspace: any member with a company may open it; hide from platform/global operators in the main shell.
+  // Client workspace: customer (`client`) members with a company; portal-only users may see `/client` before join.
   if (path.startsWith("/client")) {
     if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return false;
     if (shouldUsePreRegistrationShell(user, options)) return false;
-    return Boolean(options?.hasCompanyMembership);
+    if (shouldUsePortalOnlyShell(user, options)) {
+      return isCustomerPortalMemberRole(options?.memberRole) || isPortalClientNav(user);
+    }
+    return Boolean(options?.hasCompanyMembership && isCustomerPortalMemberRole(options?.memberRole));
   }
   if (
     path === "/reports" ||
@@ -727,7 +731,9 @@ function portalShellPathAllowed(path: string): boolean {
   if (path === "/client-portal") return true;
   if (PORTAL_CLIENT_HREFS.has(path)) return true;
   if (path.startsWith("/client/")) return true;
-  /** Pre-workspace onboarding from client shell (create company / invite team). */
+  /** Client-journey company creation (minimal `/client` chrome). */
+  if (path === "/client/company/create" || path.startsWith("/client/company/create/")) return true;
+  /** Legacy portal deep link while still routed under PlatformLayout — prefer `/client/company/create`. */
   if (path === "/company/create" || path.startsWith("/company/create/")) return true;
   if (path === "/company/team-access" || path.startsWith("/company/team-access")) return true;
   if (path.startsWith("/contracts/") && path.includes("/sign")) return true;
@@ -760,9 +766,15 @@ export function clientRouteAccessible(
 
   if (path === "/client" || path.startsWith("/client/")) {
     if (!user) return false;
-    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user)) return true;
-    if (shouldUsePortalOnlyShell(user, options)) return true;
-    return Boolean(options?.hasCompanyMembership);
+    /**
+     * Strict client workspace routes: only `company_members.role === "client"` once a workspace exists.
+     * Pre-workspace users stay on `/client` + `/client/company/create` for onboarding (no membership yet).
+     * No operator / `super_admin` preview here — use a dedicated test account with a `client` membership if needed.
+     */
+    if (!options?.hasCompanyMembership) {
+      return path === "/client" || path === "/client/company/create" || path.startsWith("/client/company/create/");
+    }
+    return isCustomerPortalMemberRole(options?.memberRole);
   }
 
   for (const opt of Array.from(OPTIONAL_NAV_HREFS)) {

@@ -159,7 +159,10 @@ function ClientAppLayout() {
   return (
     <Suspense fallback={<PageLoader />}>
       <ClientPreCompanyMinimalLayout>
-        <ClientWorkspaceRoutes />
+        <Switch>
+          <Route path="/client/company/create" component={CreateCompanyPage} />
+          <Route component={ClientWorkspaceRoutes} />
+        </Switch>
       </ClientPreCompanyMinimalLayout>
     </Suspense>
   );

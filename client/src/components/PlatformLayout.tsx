@@ -8,16 +8,12 @@ import {
   Building2,
   ChevronDown,
   FileText,
-  FolderOpen,
   HelpCircle,
   Home,
-  Layers,
   LayoutDashboard,
   LayoutGrid,
   LogOut,
   Menu,
-  MessageSquare,
-  Receipt,
   Settings,
   Users,
   X,
@@ -57,6 +53,7 @@ import { filterVisibleNavGroups } from "@/config/platformNav";
 import { PlatformSidebarNav } from "@/components/PlatformSidebarNav";
 import type { ClientNavOptions } from "@shared/clientNav";
 import { resolveSidebarBadgeMap } from "@/lib/sidebarBadgeResolver";
+import { ClientPortalMobileBottomNav } from "@/components/ClientPortalMobileBottomNav";
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const { user, logout } = useAuth();
   const { t } = useTranslation("nav");
@@ -524,7 +521,6 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
 function MobileBottomNav() {
   const [location] = useLocation();
-  const { t } = useTranslation("nav");
   const { user } = useAuth();
   const { activeCompanyId, activeCompany, loading: companiesLoading, companies } = useActiveCompany();
   const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery(
@@ -563,16 +559,6 @@ function MobileBottomNav() {
         { href: "/crm", icon: <Briefcase size={20} />, label: "CRM" },
       ];
     }
-    if (portalShell) {
-      return [
-        { href: "/client", icon: <LayoutDashboard size={20} />, label: t("clientPortalMobileHome", "Home") },
-        { href: "/client/engagements", icon: <Layers size={20} />, label: t("clientPortalMobileServices", "Services") },
-        { href: "/client/documents", icon: <FolderOpen size={20} />, label: t("clientPortalMobileDocs", "Docs") },
-        { href: "/client/invoices", icon: <Receipt size={20} />, label: t("clientPortalMobileInvoices", "Invoices") },
-        { href: "/client/messages", icon: <MessageSquare size={20} />, label: t("clientPortalMobileMessages", "Messages") },
-        { href: "/client/team", icon: <Users size={20} />, label: t("clientPortalMobileTeam", "Team") },
-      ];
-    }
     if (isFieldEmployee(effectiveMemberRole)) {
       return [
         { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
@@ -587,7 +573,11 @@ function MobileBottomNav() {
       { href: "/company/hub", icon: <Building2 size={20} />, label: "Hub" },
       { href: "/hr/employees", icon: <Users size={20} />, label: "HR" },
     ];
-  }, [platform, portalShell, preRegShell, effectiveMemberRole, t]);
+  }, [platform, preRegShell, effectiveMemberRole]);
+
+  if (portalShell) {
+    return <ClientPortalMobileBottomNav />;
+  }
 
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border flex items-center justify-around h-16">

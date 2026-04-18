@@ -40,7 +40,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-const LOGO_SRC = "/smartpro-logo.png";
+const LOGO_SRC = "/manus-storage/smartpro-logo_e0528436.png";
 
 const MODULES = [
   {

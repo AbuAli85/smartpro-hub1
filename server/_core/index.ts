@@ -5,6 +5,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerStorageProxy } from "./storageProxy";
 import { registerHRLetterPublicRoutes } from "../hrLetterPublicRoutes";
 import { registerSurveyNurturePublicRoutes } from "../surveyNurturePublicRoutes";
 import { registerWhatsAppWebhookRoutes } from "../whatsappCloud";
@@ -66,6 +67,8 @@ async function startServer() {
     res.status(200).json({ ok: true, ts: Date.now() });
   });
 
+  // Storage proxy for CDN-hosted assets
+  registerStorageProxy(app);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   registerHRLetterPublicRoutes(app);

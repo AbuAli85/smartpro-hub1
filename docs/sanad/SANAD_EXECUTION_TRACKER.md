@@ -40,7 +40,7 @@ Baseline review gaps are tracked as workstreams with explicit acceptance criteri
 | Field | Value |
 | --- | --- |
 | **Status** | Missing (deferred) |
-| **Files** | `server/routers/sanad.ts` |
+| **Files** | `server/routers/sanad/` (`sanadCore.ts`, `index.ts`, …) — **roster** split to `roster.router.ts` (2026-04-18 PoC) |
 | **Risk** | Medium — merge conflicts and subtle auth/query regressions |
 | **Acceptance criteria** | Extracted sub-routers or modules by domain (marketplace, roster, catalogue) with identical contracts |
 | **Test evidence** | `server/sanad.partnerMarketplaceAndRoster.integration.test.ts` (router caller); parity tests |

@@ -16,6 +16,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
+import { deriveInviteTokenStorageValue } from "./activation";
 import { sanadIntelligenceRouter } from "../routers/sanadIntelligence";
 import type { TrpcContext } from "../_core/context";
 import {
@@ -57,8 +58,8 @@ function makeAdminCtx(userId = 1): TrpcContext {
       email: "admin@test.om",
       name: "Admin",
       loginMethod: "manus",
-      role: "admin",
-      platformRole: null,
+      role: "user",
+      platformRole: "super_admin",
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
@@ -256,6 +257,9 @@ describe("A. Invite generation lifecycle", () => {
     expect(result.inviteExpiresAt).toBeInstanceOf(Date);
     // update was called (to write token to ops row)
     expect(mockDb.update).toHaveBeenCalled();
+    const setFn = (mockDb.update as ReturnType<typeof vi.fn>).mock.results[0]?.value?.set as ReturnType<typeof vi.fn>;
+    const invitePayload = setFn.mock.calls[0]?.[0] as { inviteToken?: string };
+    expect(invitePayload.inviteToken).toMatch(/^v2:[a-f0-9]{64}$/);
     // audit event was inserted
     expect(insertSpy).toHaveBeenCalledWith(
       auditEvents,
@@ -440,6 +444,26 @@ describe("B. Public accept flow", () => {
     await expect(
       caller.acceptCenterInvite({ token: "linked-token", name: "Test", phone: "99001122" }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("B5b — peekCenterInvite resolves v2 hashed-at-rest invite rows using the raw URL token", async () => {
+    const raw = "client-visible-token-123";
+    const stored = deriveInviteTokenStorageValue(raw);
+    const opsHashed = makeOps({
+      inviteToken: stored,
+      inviteExpiresAt: new Date(Date.now() + 86400000),
+    });
+    const selectMap = new Map<object, unknown[]>([
+      [sanadIntelCenterOperations, [opsHashed]],
+      [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
+    ]);
+    const mockDb = buildMockDb({ selectMap });
+    vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
+
+    const caller = sanadIntelligenceRouter.createCaller(makeAdminCtx());
+    const peek = await caller.peekCenterInvite({ token: raw });
+    expect(peek.centerName).toBeTruthy();
   });
 
   it("B6 — CONFLICT when token is already linked to a user account", async () => {

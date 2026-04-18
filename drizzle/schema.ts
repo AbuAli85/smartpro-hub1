@@ -4252,8 +4252,8 @@ export const sanadIntelCenterOperations = mysqlTable(
     coverageRadiusKm: int("coverage_radius_km"),
     targetSlaHours: int("target_sla_hours"),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-    /** Secure token for public onboarding link (unique when set). */
-    inviteToken: varchar("invite_token", { length: 64 }).unique(),
+    /** Secure token for public onboarding link (unique when set). May store `v2:` + SHA-256 hex of the URL token. */
+    inviteToken: varchar("invite_token", { length: 96 }).unique(),
     inviteSentAt: timestamp("invite_sent_at"),
     inviteExpiresAt: timestamp("invite_expires_at"),
     registeredUserId: int("registered_user_id").references(() => users.id),

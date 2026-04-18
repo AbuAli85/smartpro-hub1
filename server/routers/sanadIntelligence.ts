@@ -47,6 +47,7 @@ import {
   evaluateActivationServerGate,
   findByInviteToken,
   inviteIsExpired,
+  inviteTokenStoredLooksHashedAtRest,
   isSanadInviteOnboardingChannelOpen,
   SANAD_INVITE_PEEK_NOT_FOUND_MESSAGE,
 } from "../sanad-intelligence/activation";
@@ -762,12 +763,13 @@ export const sanadIntelligenceRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const ops = await ensureCenterOperations(db as never, input.centerId);
-    const now = new Date();
     const hasToken = Boolean(ops.inviteToken);
     const expired = inviteIsExpired(ops.inviteExpiresAt);
-    const invitePath = hasToken && ops.inviteToken ? buildSanadInvitePath(ops.inviteToken) : null;
+    const storedLooksHashed = inviteTokenStoredLooksHashedAtRest(ops.inviteToken);
+    const invitePath =
+      hasToken && ops.inviteToken && !storedLooksHashed ? buildSanadInvitePath(ops.inviteToken) : null;
     return {
-      inviteToken: ops.inviteToken,
+      inviteToken: storedLooksHashed ? null : ops.inviteToken,
       inviteSentAt: ops.inviteSentAt,
       inviteExpiresAt: ops.inviteExpiresAt,
       invitePath,

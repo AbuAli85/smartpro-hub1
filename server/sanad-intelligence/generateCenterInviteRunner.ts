@@ -8,6 +8,7 @@ import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
 import { insertSanadIntelAuditEvent } from "./sanadIntelAudit";
 import {
   buildSanadInvitePath,
+  deriveInviteTokenStorageValue,
   ensureCenterOperations,
   generateInviteTokenValue,
 } from "./activation";
@@ -42,6 +43,7 @@ export async function runGenerateCenterInvite(
   }
 
   const token = generateInviteTokenValue();
+  const storedToken = deriveInviteTokenStorageValue(token);
   const now = new Date();
   const days = args.expiresInDays ?? 14;
   const inviteExpiresAt = new Date(now.getTime() + days * 86400000);
@@ -49,7 +51,7 @@ export async function runGenerateCenterInvite(
   await db
     .update(schema.sanadIntelCenterOperations)
     .set({
-      inviteToken: token,
+      inviteToken: storedToken,
       inviteSentAt: now,
       inviteExpiresAt,
     })

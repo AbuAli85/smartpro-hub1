@@ -1,5 +1,5 @@
-import { randomBytes } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { createHash, randomBytes } from "node:crypto";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../drizzle/schema";
 import { getCenterDetail } from "./queries";
@@ -70,6 +70,20 @@ export function generateInviteTokenValue(): string {
   return randomBytes(32).toString("hex");
 }
 
+/** Prefix for invite tokens stored as a SHA-256 digest (URL still carries the raw secret). */
+export const SANAD_INVITE_TOKEN_STORAGE_PREFIX = "v2:" as const;
+
+/** Value persisted in `sanad_intel_center_operations.invite_token` (not the raw URL token). */
+export function deriveInviteTokenStorageValue(plaintextToken: string): string {
+  const t = plaintextToken.trim();
+  const h = createHash("sha256").update(t, "utf8").digest("hex");
+  return `${SANAD_INVITE_TOKEN_STORAGE_PREFIX}${h}`;
+}
+
+export function inviteTokenStoredLooksHashedAtRest(stored: string | null | undefined): boolean {
+  return Boolean(stored?.startsWith(SANAD_INVITE_TOKEN_STORAGE_PREFIX));
+}
+
 export async function ensureCenterOperations(db: DB, centerId: number) {
   const [ops] = await db
     .select()
@@ -87,6 +101,9 @@ export async function ensureCenterOperations(db: DB, centerId: number) {
 }
 
 export async function findByInviteToken(db: DB, token: string) {
+  const t = token.trim();
+  if (!t) return null;
+  const hashedForm = deriveInviteTokenStorageValue(t);
   const [row] = await db
     .select({
       center: schema.sanadIntelCenters,
@@ -97,7 +114,12 @@ export async function findByInviteToken(db: DB, token: string) {
       schema.sanadIntelCenters,
       eq(schema.sanadIntelCenters.id, schema.sanadIntelCenterOperations.centerId),
     )
-    .where(eq(schema.sanadIntelCenterOperations.inviteToken, token))
+    .where(
+      or(
+        eq(schema.sanadIntelCenterOperations.inviteToken, t),
+        eq(schema.sanadIntelCenterOperations.inviteToken, hashedForm),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }

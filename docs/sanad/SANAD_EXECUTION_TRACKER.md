@@ -2,7 +2,7 @@
 
 ## Executive summary
 
-Baseline review gaps are tracked as workstreams with explicit acceptance criteria. This pass prioritized **test-backed verification** of marketplace readiness parity, partner/marketplace/roster server flows, and **invite token at-rest hardening** (v2 SHA-256 digest + wider DB column), without splitting oversized UI/router files. Refactors (router decomposition, repository unification, large-page splits) remain **deferred until coverage is stronger**.
+Baseline review gaps are tracked as workstreams with explicit acceptance criteria. **Week 1 (2026-04-18):** the monolithic Sanad router was split into `server/routers/sanad/` (`sanadCore.ts` + four domain sub-routers + `index.ts` merge) with **no tRPC path changes**. Earlier work prioritized **test-backed verification** of marketplace readiness parity, partner/marketplace/roster flows, and **invite token at-rest hardening** (v2 SHA-256 digest + migration `0076`). Large UI splits and repository unification remain **deferred** where noted per workstream.
 
 ## What is already strong
 
@@ -14,7 +14,7 @@ Baseline review gaps are tracked as workstreams with explicit acceptance criteri
 ## Confirmed gaps (from baseline)
 
 1. Oversized `client/src/pages/AdminSanadIntelligencePage.tsx`
-2. Oversized `server/routers/sanad.ts`
+2. ~~Oversized `server/routers/sanad.ts`~~ → replaced by `server/routers/sanad/` package (Week 1)
 3. Mixed repository pattern vs inline Drizzle in SANAD paths
 4. Weak router/integration coverage for critical partner flows (partially addressed this pass)
 5. Possible SQL vs TS marketplace readiness drift (parity tests added)
@@ -35,16 +35,16 @@ Baseline review gaps are tracked as workstreams with explicit acceptance criteri
 | **Test evidence** | None for split (deferred per instruction: tests first) |
 | **Notes** | Documented deferral until partner/marketplace/roster tests are stable |
 
-## Workstream B — Split / modularize `server/routers/sanad.ts`
+## Workstream B — Split / modularize Sanad router (`server/routers/sanad/`)
 
 | Field | Value |
 | --- | --- |
-| **Status** | Missing (deferred) |
-| **Files** | `server/routers/sanad/` (`sanadCore.ts`, `index.ts`, …) — **roster** split to `roster.router.ts` (2026-04-18 PoC) |
+| **Status** | **Done (Week 1, 2026-04-18)** — four domain sub-routers + slim core |
+| **Files** | `server/routers/sanad/index.ts` (merge), `sanadCore.ts` (~872 lines), `roster.router.ts` (5), `catalogue.router.ts` (8), `marketplace.router.ts` (3), `workspace.router.ts` (4) |
 | **Risk** | Medium — merge conflicts and subtle auth/query regressions |
-| **Acceptance criteria** | Extracted sub-routers or modules by domain (marketplace, roster, catalogue) with identical contracts |
-| **Test evidence** | `server/sanad.partnerMarketplaceAndRoster.integration.test.ts` (router caller); parity tests |
-| **Notes** | No structural refactor in this pass |
+| **Acceptance criteria** | Sub-routers by domain; **identical** `sanad.*` tRPC contracts; one-way imports: `*.router.ts` → `sanadCore.ts` only |
+| **Test evidence** | `pnpm check`; `server/sanad.partnerMarketplaceAndRoster.integration.test.ts`; `shared/sanadMarketplaceSqlTsParity.test.ts`; targeted `server/smartpro.test.ts` Sanad cases |
+| **Notes** | **Merge order in `index.ts`:** `sanadCore` → catalogue → marketplace → **workspace** → **roster** (spread order only matters on key collision; there is none). Top-level `server/routers/sanad.ts` removed earlier; app imports `./routers/sanad`. Week 2 can peel providers / work orders / dashboard / service requests / applications from `sanadCore.ts`. |
 
 ## Workstream C — Repository pattern consistency for SANAD
 
@@ -73,7 +73,7 @@ Baseline review gaps are tracked as workstreams with explicit acceptance criteri
 | Field | Value |
 | --- | --- |
 | **Status** | Partial (documented mirror + tests; router still inlines SQL) |
-| **Files** | `shared/sanadMarketplaceSqlTsParity.test.ts`, `shared/sanadMarketplaceReadiness.ts`, `server/routers/sanad.ts` (`listPublicProviders`) |
+| **Files** | `shared/sanadMarketplaceSqlTsParity.test.ts`, `shared/sanadMarketplaceReadiness.ts`, `server/routers/sanad/marketplace.router.ts` (`listPublicProviders`) |
 | **Risk** | Medium — drift between SQL filters and shared readiness |
 | **Acceptance criteria** | Automated proof that strict discovery rules in TS match SQL semantics; optional filters documented in tests |
 | **Test evidence** | `shared/sanadMarketplaceSqlTsParity.test.ts` |
@@ -117,3 +117,4 @@ Baseline review gaps are tracked as workstreams with explicit acceptance criteri
 ## Changelog
 
 - **2026-04-18**: Initial tracker; added marketplace parity tests, partner/roster integration tests, v2 invite hashing + migration `0076`, invite unit tests, bridge test updates.
+- **2026-04-18 (Week 1 closeout):** Workstream B — extracted `roster`, `catalogue`, `marketplace`, `workspace` sub-routers; `sanadCore.ts` reduced to ~872 lines; tracker + parity doc paths aligned with `server/routers/sanad/*`.

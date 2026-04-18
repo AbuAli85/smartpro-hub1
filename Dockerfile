@@ -2,8 +2,8 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
+# Install pnpm (version must match packageManager field in package.json)
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 
 # Copy lockfile and manifests only (better layer caching)
 COPY package.json pnpm-lock.yaml ./
@@ -15,7 +15,7 @@ RUN pnpm install --frozen-lockfile --prod=false
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -37,7 +37,7 @@ COPY --from=builder --chown=appuser:nodejs /app/drizzle ./drizzle
 COPY --from=builder --chown=appuser:nodejs /app/package.json ./package.json
 
 # Install production dependencies only (no dev tools)
-RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 COPY pnpm-lock.yaml ./
 COPY patches/ ./patches/
 RUN pnpm install --frozen-lockfile --prod

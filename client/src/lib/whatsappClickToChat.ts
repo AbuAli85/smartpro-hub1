@@ -16,3 +16,12 @@ export function buildWhatsAppMessageHref(phoneDigits: string, message: string): 
   params.set("text", message);
   return `https://api.whatsapp.com/send?${params.toString()}`;
 }
+
+/**
+ * Arabic outreach draft for directory row "Open WhatsApp".
+ * Starts a line with Latin ("SmartPRO") so WhatsApp / RTL clients render mixed text predictably.
+ */
+export function buildSanadDirectoryOutreachBodyAr(centerName: string): string {
+  const name = centerName.trim() || "مركزكم";
+  return `مرحباً،\n\nSmartPRO — نُسجّل اهتمامكم بالانضمام إلى منصة خدمات الأعمال.\n\nالمركز: ${name}`;
+}

@@ -82,7 +82,11 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { fmtDate, fmtDateTime } from "@/lib/dateUtils";
-import { buildWhatsAppMessageHref, toWhatsAppPhoneDigits } from "@/lib/whatsappClickToChat";
+import {
+  buildSanadDirectoryOutreachBodyAr,
+  buildWhatsAppMessageHref,
+  toWhatsAppPhoneDigits,
+} from "@/lib/whatsappClickToChat";
 import {
   CartesianGrid,
   Line,
@@ -95,12 +99,32 @@ import {
 
 type Section = "overview" | "directory" | "demand" | "opportunity" | "compliance";
 
+/** When `governorate_label_raw` is empty, show a readable form of `governorate_key` (e.g. `north_batinah` → "North Batinah"). */
+function humanizeGovernorateKey(key: string | null | undefined): string {
+  const k = (key ?? "").trim();
+  if (!k) return "";
+  return k
+    .split(/[_\s]+/)
+    .filter((part) => part.length > 0)
+    .map((w) => w.charAt(0).toLocaleUpperCase("en") + w.slice(1).toLocaleLowerCase("en"))
+    .join(" ");
+}
+
+function governorateCellLabel(center: { governorateLabelRaw: string | null; governorateKey: string }): string {
+  const label = center.governorateLabelRaw?.trim();
+  if (label) return label;
+  return humanizeGovernorateKey(center.governorateKey) || "—";
+}
+
 function formatDirectoryLocation(c: {
   governorateLabelRaw: string | null;
+  governorateKey: string;
   wilayat: string | null;
   village: string | null;
 }): string {
-  const parts = [c.governorateLabelRaw?.trim(), c.wilayat?.trim(), c.village?.trim()].filter(
+  const gov = governorateCellLabel(c);
+  const govPart = gov === "—" ? "" : gov;
+  const parts = [govPart, c.wilayat?.trim(), c.village?.trim()].filter(
     (p): p is string => Boolean(p && p.length > 0),
   );
   return parts.join(" · ");
@@ -1181,8 +1205,9 @@ function DirectorySurface() {
                     <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Next action
                     </TableHead>
-                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
-                      Contact readiness
+                    <TableHead className="sticky top-0 z-30 h-12 max-w-[5.5rem] border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase leading-tight tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))] whitespace-normal">
+                      <span className="block">Contact</span>
+                      <span className="block">readiness</span>
                     </TableHead>
                     <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-end align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Actions
@@ -1239,7 +1264,7 @@ function DirectorySurface() {
                         dir="auto"
                         className="whitespace-normal px-2 py-2.5 align-top text-xs leading-snug text-muted-foreground [overflow-wrap:anywhere]"
                       >
-                        {center.governorateLabelRaw?.trim() || "—"}
+                        {governorateCellLabel(center)}
                       </TableCell>
                       <TableCell className="px-2 py-2.5 align-top text-xs tabular-nums text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                         {pipeline?.lastContactedAt ? fmtDateTime(pipeline.lastContactedAt) : "—"}
@@ -1280,10 +1305,7 @@ function DirectorySurface() {
                             {(() => {
                               const digits = toWhatsAppPhoneDigits(center.contactNumber);
                               const waHref = digits
-                                ? buildWhatsAppMessageHref(
-                                    digits,
-                                    `مرحباً،\nنُسجّل اهتمامكم بالانضمام إلى SmartPRO.\nالمركز: ${center.centerName}`,
-                                  )
+                                ? buildWhatsAppMessageHref(digits, buildSanadDirectoryOutreachBodyAr(center.centerName))
                                 : null;
                               return (
                                 <>
@@ -1487,9 +1509,7 @@ function DirectorySurface() {
                   {detail.data.center.centerName}
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {detail.data.center.governorateLabelRaw}
-                  {detail.data.center.wilayat ? ` · ${detail.data.center.wilayat}` : ""}
-                  {detail.data.center.village ? ` · ${detail.data.center.village}` : ""}
+                  {formatDirectoryLocation(detail.data.center)}
                 </p>
               </div>
 
@@ -2778,8 +2798,8 @@ function ComplianceSurface() {
                 <SelectContent>
                   <SelectItem value="__">Select…</SelectItem>
                   {(centers?.rows ?? []).map(({ center }) => (
-                    <SelectItem key={center.id} value={String(center.id)}>
-                      {center.centerName} — {center.governorateLabelRaw}
+                    <SelectItem key={center.id} value={String(center.id)} textValue={`${center.centerName} ${governorateCellLabel(center)}`}>
+                      {center.centerName} — {governorateCellLabel(center)}
                     </SelectItem>
                   ))}
                 </SelectContent>

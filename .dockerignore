@@ -46,7 +46,10 @@ data/
 drizzle/meta/
 
 # Migration utility scripts (one-time use, not runtime)
-scripts/
+# Exclude scripts/ contents from context size, but keep the server bundle step
+# invoked by `pnpm build` (see package.json).
+scripts/*
+!scripts/bundle-server.mjs
 check-migrations.mjs
 apply-migration*.mjs
 fix-users*.mjs

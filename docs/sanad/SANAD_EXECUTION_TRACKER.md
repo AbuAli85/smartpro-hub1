@@ -218,11 +218,13 @@ Execution control panel for Option C MVP. **Order:** P1 → P2 → P3 only (no p
 
 - **Operational noise spot-check (DoD):** [`WORKSTREAM_I_OPERATIONAL_NOISE_SPOTCHECK.md`](./WORKSTREAM_I_OPERATIONAL_NOISE_SPOTCHECK.md) — auditable table + procedure before marking the **noise** DoD checkbox.
 - **Directory visual QA (post-install):** [`SANAD_DIRECTORY_VISUAL_QA_CHECKLIST.md`](./SANAD_DIRECTORY_VISUAL_QA_CHECKLIST.md) — layout/accessibility pass after `pnpm install` succeeds and `pnpm check` / `pnpm test` run.
+- **P4 strategy memo (next step):** [`P4_CONTROL_TOWER_DECISION_MEMO.md`](./P4_CONTROL_TOWER_DECISION_MEMO.md) — decision framework for Option A (parallel) vs Option B (Control Tower merge).
 
 ---
 
 ## Changelog
 
+- **2026-04-20:** Added [`P4_CONTROL_TOWER_DECISION_MEMO.md`](./P4_CONTROL_TOWER_DECISION_MEMO.md) for post-MVP Option A vs B decision governance.
 - **2026-04-20:** Added runbooks [`WORKSTREAM_I_OPERATIONAL_NOISE_SPOTCHECK.md`](./WORKSTREAM_I_OPERATIONAL_NOISE_SPOTCHECK.md) and [`SANAD_DIRECTORY_VISUAL_QA_CHECKLIST.md`](./SANAD_DIRECTORY_VISUAL_QA_CHECKLIST.md); linked from Workstream I.
 - **2026-04-20 (P3 ship):** Workstream I — P3: `SanadDailyQueueCard`, directory `highlight` handling, `sanadIntel` i18n (`en-OM` / `ar-OM` scaffold); parent DoD items updated where met; staging noise check remains open.
 - **2026-04-20 (P2 ship):** Workstream I — P2 implemented: `dailyActionQueue` tRPC, `dailyActionQueueQueries.ts`, `sanadQueueRowMapping.ts`, `generateSanadActionQueue.ts`, unit tests + midnight boundary, `SANAD_DAILY_QUEUE_DEEPLINK.md`; merge checklist marked complete.

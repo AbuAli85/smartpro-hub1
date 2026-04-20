@@ -214,10 +214,16 @@ Execution control panel for Option C MVP. **Order:** P1 → P2 → P3 only (no p
 - ROI / finance / `getPnlSummary` coupling.
 - Skipping tests for signal overlap, dedupe, cap, or RBAC.
 
+### Operational closure (runbooks)
+
+- **Operational noise spot-check (DoD):** [`WORKSTREAM_I_OPERATIONAL_NOISE_SPOTCHECK.md`](./WORKSTREAM_I_OPERATIONAL_NOISE_SPOTCHECK.md) — auditable table + procedure before marking the **noise** DoD checkbox.
+- **Directory visual QA (post-install):** [`SANAD_DIRECTORY_VISUAL_QA_CHECKLIST.md`](./SANAD_DIRECTORY_VISUAL_QA_CHECKLIST.md) — layout/accessibility pass after `pnpm install` succeeds and `pnpm check` / `pnpm test` run.
+
 ---
 
 ## Changelog
 
+- **2026-04-20:** Added runbooks [`WORKSTREAM_I_OPERATIONAL_NOISE_SPOTCHECK.md`](./WORKSTREAM_I_OPERATIONAL_NOISE_SPOTCHECK.md) and [`SANAD_DIRECTORY_VISUAL_QA_CHECKLIST.md`](./SANAD_DIRECTORY_VISUAL_QA_CHECKLIST.md); linked from Workstream I.
 - **2026-04-20 (P3 ship):** Workstream I — P3: `SanadDailyQueueCard`, directory `highlight` handling, `sanadIntel` i18n (`en-OM` / `ar-OM` scaffold); parent DoD items updated where met; staging noise check remains open.
 - **2026-04-20 (P2 ship):** Workstream I — P2 implemented: `dailyActionQueue` tRPC, `dailyActionQueueQueries.ts`, `sanadQueueRowMapping.ts`, `generateSanadActionQueue.ts`, unit tests + midnight boundary, `SANAD_DAILY_QUEUE_DEEPLINK.md`; merge checklist marked complete.
 - **2026-04-20 (later):** Workstream I — P1 marked done; **P2 design locks** (UTC time, snapshot mapper contract, pure generator, RBAC CTA policy, server cap) + P2 merge checklist + midnight-boundary test note.

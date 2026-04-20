@@ -146,7 +146,7 @@ function directoryLifecycleBadge(ops: SanadLifecycleOpsInput | null | undefined)
 }
 
 const PIPELINE_BADGE_CLASS: Record<SanadCentrePipelineStatus, string> = {
-  imported: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200",
+  imported: "bg-zinc-200/95 text-zinc-900 border-zinc-400/60 dark:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-600",
   contacted: "bg-sky-100 text-sky-900 dark:bg-sky-950/50 dark:text-sky-200",
   prospect: "bg-violet-100 text-violet-900 dark:bg-violet-950/40 dark:text-violet-200",
   invited: "bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
@@ -234,7 +234,14 @@ function contactReadinessBadge(
   if (email) {
     return <Badge variant="secondary" className="font-normal">Phone + email</Badge>;
   }
-  return <Badge variant="outline" className="font-normal">Phone only</Badge>;
+  return (
+    <Badge
+      variant="outline"
+      className="font-normal border-zinc-400/70 bg-zinc-50 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+    >
+      Phone only
+    </Badge>
+  );
 }
 
 function useSection(): Section {
@@ -273,16 +280,31 @@ function AccessDenied() {
 function SectionNav() {
   const section = useSection();
   return (
-    <div className="flex flex-wrap gap-2 border-b pb-4 mb-6">
-      {tabs.map((t) => (
-        <Link key={t.id} href={t.href}>
-          <Button variant={section === t.id ? "default" : "outline"} size="sm" className="gap-2">
-            {t.icon}
-            {t.label}
-          </Button>
-        </Link>
-      ))}
-    </div>
+    <nav className="mb-6 border-b pb-3" aria-label="SANAD intelligence sections">
+      <div className="flex flex-wrap gap-1.5">
+        {tabs.map((t) => {
+          const active = section === t.id;
+          return (
+            <Link key={t.id} href={t.href}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-9 gap-2 rounded-md border px-3 text-sm font-medium shadow-none transition-colors",
+                  active
+                    ? "border-primary/35 bg-primary/[0.09] text-primary hover:bg-primary/[0.14] hover:text-primary"
+                    : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground",
+                )}
+                aria-current={active ? "page" : undefined}
+              >
+                {t.icon}
+                {t.label}
+              </Button>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
@@ -699,6 +721,8 @@ function DirectorySurface() {
   const rangeEnd = offset + rows.length;
   const canPrev = page > 0;
   const canNext = offset + rows.length < total;
+  /** Prefer KPI total when loaded so the onboarding banner matches funnel stats, not only the current filter. */
+  const directoryRegistryApprox = pipeKpis?.totalCentres ?? total;
 
   const detail = trpc.sanad.intelligence.getCenter.useQuery(
     { id: drawerId ?? 0 },
@@ -931,7 +955,7 @@ function DirectorySurface() {
         </div>
         <div className="flex flex-col gap-4">
           <div className="w-full space-y-1.5">
-            <Label className="text-xs font-medium text-foreground">Search</Label>
+            <Label className="text-xs font-semibold tracking-wide text-foreground">Search</Label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <Input
@@ -943,9 +967,9 @@ function DirectorySurface() {
               />
             </div>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid w-full grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="min-w-0 space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Governorate</Label>
+              <Label className="text-xs font-semibold tracking-wide text-foreground">Governorate</Label>
               <Select value={gov || "__all"} onValueChange={(v) => setGov(v === "__all" ? "" : v)}>
                 <SelectTrigger className="h-10 w-full text-sm">
                   <SelectValue placeholder="All" />
@@ -961,7 +985,7 @@ function DirectorySurface() {
               </Select>
             </div>
             <div className="min-w-0 space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Stage</Label>
+              <Label className="text-xs font-semibold tracking-wide text-foreground">Stage</Label>
               <Select
                 value={pipeStage || "__all"}
                 onValueChange={(v) => {
@@ -984,7 +1008,7 @@ function DirectorySurface() {
               </Select>
             </div>
             <div className="min-w-0 space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Owner</Label>
+              <Label className="text-xs font-semibold tracking-wide text-foreground">Owner</Label>
               <Select value={pipeOwnerFilter} onValueChange={setPipeOwnerFilter}>
                 <SelectTrigger className="h-10 w-full text-sm">
                   <SelectValue placeholder="All" />
@@ -1002,44 +1026,46 @@ function DirectorySurface() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col justify-end gap-2 sm:col-span-2 lg:col-span-1">
-              <Label className="text-xs font-medium text-foreground">Needs action only</Label>
-              <div className="flex h-10 items-center gap-2 rounded-md border border-input px-3">
+            <div className="flex min-h-0 flex-col gap-2 sm:col-span-2 lg:col-span-1">
+              <Label className="text-xs font-semibold tracking-wide text-foreground">Needs action only</Label>
+              <div className="flex h-10 w-full min-w-0 items-center gap-2.5 rounded-md border border-input bg-background px-3 shadow-sm">
                 <Switch
                   id="needs-action-only"
                   checked={needsActionOnly}
                   onCheckedChange={(v) => setNeedsActionOnly(Boolean(v))}
                 />
-                <label htmlFor="needs-action-only" className="text-xs text-muted-foreground cursor-pointer">
+                <label htmlFor="needs-action-only" className="cursor-pointer text-xs font-medium text-foreground/85">
                   Due / unassigned work
                 </label>
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-            <span className="text-xs font-medium text-muted-foreground">Queues</span>
-            {(
-              [
-                ["all", "All"],
-                ["unassigned", "Unassigned"],
-                ["new", "New"],
-                ["contacted", "Contacted"],
-                ["invited", "Invited"],
-                ["needs_followup", "Needs follow-up"],
-                ["converted", "Converted"],
-              ] as const
-            ).map(([key, label]) => (
-              <Button
-                key={key}
-                type="button"
-                size="sm"
-                variant={pipelineQuickView === key ? "secondary" : "outline"}
-                className="h-8"
-                onClick={() => setPipelineQuickView(key)}
-              >
-                {label}
-              </Button>
-            ))}
+          <div className="border-t border-border/60 pt-3">
+            <p className="mb-2 text-xs font-semibold tracking-wide text-foreground">Queues</p>
+            <div className="flex w-full min-w-0 flex-wrap justify-start gap-2">
+              {(
+                [
+                  ["all", "All"],
+                  ["unassigned", "Unassigned"],
+                  ["new", "New"],
+                  ["contacted", "Contacted"],
+                  ["invited", "Invited"],
+                  ["needs_followup", "Needs follow-up"],
+                  ["converted", "Converted"],
+                ] as const
+              ).map(([key, label]) => (
+                <Button
+                  key={key}
+                  type="button"
+                  size="sm"
+                  variant={pipelineQuickView === key ? "secondary" : "outline"}
+                  className="h-8 shrink-0"
+                  onClick={() => setPipelineQuickView(key)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -1062,73 +1088,62 @@ function DirectorySurface() {
       ) : null}
 
       {pipeKpis ? (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-4">
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2 pt-4">
-              <CardDescription className="text-[11px]">Total</CardDescription>
-              <CardTitle className="text-xl tabular-nums">{pipeKpis.totalCentres.toLocaleString()}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2 pt-4">
-              <CardDescription className="text-[11px]">Contacted</CardDescription>
-              <CardTitle className="text-xl tabular-nums">{pipeKpis.contacted.toLocaleString()}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2 pt-4">
-              <CardDescription className="text-[11px]">Invited</CardDescription>
-              <CardTitle className="text-xl tabular-nums">{pipeKpis.invited.toLocaleString()}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2 pt-4">
-              <CardDescription className="text-[11px]">Registered</CardDescription>
-              <CardTitle className="text-xl tabular-nums">{pipeKpis.registered.toLocaleString()}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2 pt-4">
-              <CardDescription className="text-[11px]">Active</CardDescription>
-              <CardTitle className="text-xl tabular-nums">{pipeKpis.active.toLocaleString()}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2 pt-4">
-              <CardDescription className="text-[11px]">Conversion</CardDescription>
-              <CardTitle className="text-xl tabular-nums">{pipeKpis.conversionPct}%</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2 pt-4">
-              <CardDescription className="text-[11px]">Unassigned</CardDescription>
-              <CardTitle className="text-xl tabular-nums">{pipeKpis.unassigned.toLocaleString()}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2 pt-4">
-              <CardDescription className="text-[11px]">Overdue follow-ups</CardDescription>
-              <CardTitle className="text-xl tabular-nums">{pipeKpis.overdue.toLocaleString()}</CardTitle>
-            </CardHeader>
-          </Card>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {(
+            [
+              { label: "Total", value: pipeKpis.totalCentres.toLocaleString(), tip: undefined as string | undefined },
+              { label: "Contacted", value: pipeKpis.contacted.toLocaleString(), tip: undefined },
+              { label: "Invited", value: pipeKpis.invited.toLocaleString(), tip: undefined },
+              { label: "Registered", value: pipeKpis.registered.toLocaleString(), tip: undefined },
+              { label: "Active", value: pipeKpis.active.toLocaleString(), tip: undefined },
+              {
+                label: "Conversion",
+                value: `${pipeKpis.conversionPct}%`,
+                tip: "Share of centres that reached Registered or Active vs total directory rows.",
+              },
+              {
+                label: "Unassigned",
+                value: pipeKpis.unassigned.toLocaleString(),
+                tip: "Pipeline rows with no assigned owner (often similar to Total until owners are assigned).",
+              },
+              { label: "Overdue follow-ups", value: pipeKpis.overdue.toLocaleString(), tip: undefined },
+            ] as const
+          ).map((k) => (
+            <Card key={k.label} className="shadow-sm" title={k.tip}>
+              <CardHeader className="space-y-1.5 px-3.5 py-3 sm:px-4">
+                <CardDescription className="text-xs font-semibold text-muted-foreground">{k.label}</CardDescription>
+                <CardTitle className="text-xl font-semibold tabular-nums leading-none tracking-tight text-foreground">
+                  {k.value}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+          ))}
         </div>
       ) : null}
 
-      <div className="flex gap-3 rounded-lg border border-border/80 bg-muted/20 p-4 text-sm text-muted-foreground">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
-        <div className="min-w-0 space-y-2 leading-relaxed">
-          <p className="font-medium text-foreground">Onboarding imported centres (923 registry rows)</p>
+      <div className="flex gap-3.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] p-4 sm:p-5">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />
+        <div className="min-w-0 space-y-2.5 text-sm leading-relaxed text-foreground/90">
+          <p className="text-base font-semibold leading-snug text-foreground">
+            Onboarding imported centres
+            {directoryRegistryApprox > 0 ? (
+              <span className="text-muted-foreground font-normal">
+                {" "}
+                ({directoryRegistryApprox.toLocaleString()} registry rows)
+              </span>
+            ) : null}
+          </p>
           <p>
-            Official directory import fills <span className="text-foreground">Centre / contact / location</span> only.
-            <span className="text-foreground"> Partner status</span> starts as <strong className="font-medium">Registry</strong> until
+            Official directory import fills <span className="font-medium text-foreground">Centre / contact / location</span> only.
+            <span className="font-medium text-foreground"> Partner status</span> starts as <strong className="font-semibold">Registry</strong> until
             your team classifies the relationship.
           </p>
           <p>
-            Suggested flow: outreach → set <strong className="font-medium text-foreground">Prospect</strong> → move{" "}
-            <strong className="font-medium text-foreground">Onboarding</strong> through Intake → Documentation → Licensing review →
-            Licensed. Use <strong className="font-medium text-foreground">Licensing &amp; compliance</strong> for the checklist per
+            Suggested flow: outreach → set <strong className="font-semibold text-foreground">Prospect</strong> → move{" "}
+            <strong className="font-semibold text-foreground">Onboarding</strong> through Intake → Documentation → Licensing review →
+            Licensed. Use <strong className="font-semibold text-foreground">Licensing &amp; compliance</strong> for the checklist per
             centre. Bulk SQL (optional):{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">
+            <code className="rounded-md border border-border/80 bg-background px-1.5 py-0.5 font-mono text-xs text-foreground">
               UPDATE sanad_intel_center_operations SET partner_status = &apos;prospect&apos; WHERE partner_status =
               &apos;unknown&apos;
             </code>{" "}
@@ -1154,7 +1169,7 @@ function DirectorySurface() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</Label>
+                <Label className="whitespace-nowrap text-xs font-semibold text-muted-foreground">Rows per page</Label>
                 <Select
                   value={String(pageSize)}
                   onValueChange={(v) => {
@@ -1272,7 +1287,7 @@ function DirectorySurface() {
                         setDrawerId(center.id);
                       }}
                     >
-                      <TableCell className="whitespace-normal px-3 py-2.5 align-top">
+                      <TableCell className="whitespace-normal px-3 py-3 align-middle">
                         <div dir="auto" className="min-w-0 text-start">
                           <p className="text-sm font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">
                             {center.centerName}
@@ -1288,11 +1303,11 @@ function DirectorySurface() {
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell className="px-2 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="px-2 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
                         {pipelineStatusBadge(pipeline?.pipelineStatus)}
                       </TableCell>
                       <TableCell
-                        className="px-2 py-2.5 align-top text-xs text-foreground"
+                        className="px-2 py-3 align-middle text-xs text-foreground"
                         title={pipelineOwnerEmail ?? undefined}
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -1304,15 +1319,15 @@ function DirectorySurface() {
                       </TableCell>
                       <TableCell
                         dir="auto"
-                        className="whitespace-normal px-2 py-2.5 align-top text-xs leading-snug text-muted-foreground [overflow-wrap:anywhere]"
+                        className="whitespace-normal px-2 py-3 align-middle text-xs leading-snug text-muted-foreground [overflow-wrap:anywhere]"
                       >
                         {governorateCellLabel(center)}
                       </TableCell>
-                      <TableCell className="px-2 py-2.5 align-top text-xs tabular-nums text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="px-2 py-3 align-middle text-xs tabular-nums text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                         {pipeline?.lastContactedAt ? fmtDateTime(pipeline.lastContactedAt) : "—"}
                       </TableCell>
                       <TableCell
-                        className="px-2 py-2.5 align-top text-xs"
+                        className="px-2 py-3 align-middle text-xs"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="space-y-1">
@@ -1329,11 +1344,11 @@ function DirectorySurface() {
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell className="px-2 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="px-2 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
                         {contactReadinessBadge(center, ops ?? undefined)}
                       </TableCell>
                       <TableCell
-                        className="px-2 py-2.5 align-middle text-end whitespace-nowrap"
+                        className="px-2 py-3 align-middle text-end whitespace-nowrap"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <DropdownMenu>
@@ -1342,7 +1357,7 @@ function DirectorySurface() {
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-60">
+                          <DropdownMenuContent align="end" className="max-h-[min(70vh,22rem)] w-60 overflow-y-auto">
                             <DropdownMenuLabel>Outreach</DropdownMenuLabel>
                             {(() => {
                               const digits = toWhatsAppPhoneDigits(center.contactNumber);
@@ -2947,7 +2962,7 @@ export default function AdminSanadIntelligencePage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-2">
+    <div className="mx-auto max-w-7xl space-y-4 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">

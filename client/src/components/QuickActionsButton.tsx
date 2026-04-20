@@ -41,10 +41,14 @@ const QUICK_ACTIONS: QuickAction[] = [
 
 export default function QuickActionsButton() {
   const [open, setOpen] = useState(false);
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { user } = useAuth();
   const { companies } = useActiveCompany();
   if (shouldUsePreRegistrationShell(user, { hasCompanyMembership: companies.length > 0 })) {
+    return null;
+  }
+  /** Dense admin data surfaces already expose row actions; the FAB overlaps table controls. */
+  if (location.startsWith("/admin/sanad")) {
     return null;
   }
 

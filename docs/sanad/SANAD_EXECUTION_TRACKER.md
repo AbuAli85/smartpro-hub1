@@ -172,6 +172,8 @@ Execution control panel for Option C MVP. **Order:** P1 → P2 → P3 only (no p
 
 **P2 status:** **Done** — `listSanadCenterRowsForDailyActionQueue` + `mapListCentersRowToSnapshot` + `generateSanadActionQueue` / `filterSanadQueueRowsByOwnerScope`; `sanad.intelligence.dailyActionQueue` (read-only); tests `sanadQueueRowMapping.test.ts`, `sanadQueueGeneration.test.ts`; deeplink `docs/sanad/SANAD_DAILY_QUEUE_DEEPLINK.md`.
 
+**P3 status:** **Done** — `SanadDailyQueueCard` + `trpc.sanad.intelligence.dailyActionQueue` on **Network overview** and **Directory** tabs; `viewer` / `ctaVariant` honoured; `?highlight=` opens drawer + scroll + `replaceState` strip; i18n namespace **`sanadIntel`** in `en-OM` + `ar-OM` (`client/src/locales/*/sanadIntel.json`); no Control Tower edits.
+
 ### P2 — design locks (non-negotiable; lock before P2 merge)
 
 | Lock | Rule |
@@ -198,13 +200,13 @@ Execution control panel for Option C MVP. **Order:** P1 → P2 → P3 only (no p
 
 ### Definition of done (parent closes when all true)
 
-- [ ] Queue **renders** for authorized roles; empty state is intentional, not a silent failure.
-- [ ] Items are **actionable** (deep link to directory contract documented in `docs/sanad/`).
+- [x] Queue **renders** for authorized roles; empty state is intentional, not a silent failure.
+- [x] Items are **actionable** (deep link to directory contract documented in `docs/sanad/`).
 - [ ] **No noise explosion:** cap + dedupe behaviour matches spec; spot-check with real-sized fixture or staging.
-- [ ] **No RBAC leaks:** compliance reviewer vs full operator semantics per spec; read-only procedure only for queue.
-- [ ] **Deterministic tests** land for P1/P2 (overlap, dedupe, cap, RBAC).
-- [ ] **No English-only P3 UI** — keys in `en-OM` + `ar-OM` (Arabic may be scaffold per spec).
-- [ ] **Zero** changes under `client/src/features/controlTower/` for this MVP.
+- [x] **No RBAC leaks:** compliance reviewer vs full operator semantics per spec; read-only procedure only for queue.
+- [x] **Deterministic tests** land for P1/P2 (overlap, dedupe, cap, RBAC).
+- [x] **No English-only P3 UI** — keys in `en-OM` + `ar-OM` (Arabic may be scaffold per spec).
+- [x] **Zero** changes under `client/src/features/controlTower/` for this MVP.
 
 ### Red lines (reject PR if violated)
 
@@ -216,6 +218,7 @@ Execution control panel for Option C MVP. **Order:** P1 → P2 → P3 only (no p
 
 ## Changelog
 
+- **2026-04-20 (P3 ship):** Workstream I — P3: `SanadDailyQueueCard`, directory `highlight` handling, `sanadIntel` i18n (`en-OM` / `ar-OM` scaffold); parent DoD items updated where met; staging noise check remains open.
 - **2026-04-20 (P2 ship):** Workstream I — P2 implemented: `dailyActionQueue` tRPC, `dailyActionQueueQueries.ts`, `sanadQueueRowMapping.ts`, `generateSanadActionQueue.ts`, unit tests + midnight boundary, `SANAD_DAILY_QUEUE_DEEPLINK.md`; merge checklist marked complete.
 - **2026-04-20 (later):** Workstream I — P1 marked done; **P2 design locks** (UTC time, snapshot mapper contract, pure generator, RBAC CTA policy, server cap) + P2 merge checklist + midnight-boundary test note.
 - **2026-04-20**: Workstream I — added GitHub **parent issue** copy/paste block (title, child links placeholders, epic status checklist, DoD, red lines) for environments without `gh`/API.

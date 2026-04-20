@@ -68,7 +68,11 @@ import {
   getSanadBottleneckKpis,
 } from "../sanad-intelligence/queries";
 import { listSanadCenterRowsForDailyActionQueue } from "../sanad-intelligence/dailyActionQueueQueries";
-import { filterSanadQueueRowsByOwnerScope, generateSanadActionQueue } from "../sanad-intelligence/generateSanadActionQueue";
+import {
+  filterSanadQueueRowsByOwnerScope,
+  generateSanadActionQueue,
+  type SanadActionQueueGeneratorRow,
+} from "../sanad-intelligence/generateSanadActionQueue";
 import { mapListCentersRowToSnapshot } from "../sanad-intelligence/sanadQueueRowMapping";
 import { protectedProcedure, publicProcedure, router, t } from "../_core/trpc";
 import { throwIfSanadIntelSchemaMissing } from "../sanad-intelligence/dbErrors";
@@ -252,14 +256,14 @@ export const sanadIntelligenceRouter = router({
       const uid = ctx.user.id;
       const scope = input?.ownerScope ?? "mine_and_unassigned";
 
-      let genRows = rawRows.map((r) => {
+      let genRows: SanadActionQueueGeneratorRow[] = rawRows.map((r) => {
         const snapshot = mapListCentersRowToSnapshot(r);
         return {
           ...snapshot,
           centerName: r.center.centerName,
-          governorateLabelRaw: r.center.governorateLabelRaw,
-          pipelineOwnerName: r.pipelineOwnerName,
-          pipelineOwnerEmail: r.pipelineOwnerEmail,
+          governorateLabelRaw: r.center.governorateLabelRaw ?? null,
+          pipelineOwnerName: r.pipelineOwnerName ?? null,
+          pipelineOwnerEmail: r.pipelineOwnerEmail ?? null,
         };
       });
 

@@ -18,6 +18,7 @@ import enRenewalWorkflows from "../locales/en-OM/renewalWorkflows.json";
 import enSurvey from "../locales/en-OM/survey.json";
 import enAlerts from "../locales/en-OM/alerts.json";
 import enEngagements from "../locales/en-OM/engagements.json";
+import enSanadIntel from "../locales/en-OM/sanadIntel.json";
 
 // ar-OM resources
 import arCommon from "../locales/ar-OM/common.json";
@@ -35,6 +36,7 @@ import arRenewalWorkflows from "../locales/ar-OM/renewalWorkflows.json";
 import arSurvey from "../locales/ar-OM/survey.json";
 import arAlerts from "../locales/ar-OM/alerts.json";
 import arEngagements from "../locales/ar-OM/engagements.json";
+import arSanadIntel from "../locales/ar-OM/sanadIntel.json";
 
 export const SUPPORTED_LANGUAGES = [
   { code: "en-OM", label: "English", nativeLabel: "English", dir: "ltr" as const },
@@ -61,6 +63,7 @@ export const NAMESPACES = [
   "survey",
   "alerts",
   "engagements",
+  "sanadIntel",
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
@@ -81,6 +84,7 @@ const resources = {
     survey: enSurvey,
     alerts: enAlerts,
     engagements: enEngagements,
+    sanadIntel: enSanadIntel,
   },
   "ar-OM": {
     common: arCommon,
@@ -98,6 +102,7 @@ const resources = {
     survey: arSurvey,
     alerts: arAlerts,
     engagements: arEngagements,
+    sanadIntel: arSanadIntel,
   },
 };
 

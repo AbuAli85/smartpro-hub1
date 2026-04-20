@@ -61,8 +61,9 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useLocation } from "wouter";
+import { SanadDailyQueueCard } from "@/components/sanad/SanadDailyQueueCard";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -545,6 +546,15 @@ function OverviewSurface() {
 /** Default survey slug for intel outreach URLs (keep in sync with `survey.ts` admin intel links). */
 const SANAD_INTEL_OUTREACH_SURVEY_SLUG = "oman-business-sector-2026";
 
+function stripHighlightSearchParam() {
+  const p = new URLSearchParams(window.location.search);
+  if (!p.has("highlight")) return;
+  p.delete("highlight");
+  const qs = p.toString();
+  const path = window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
+  window.history.replaceState(null, "", path);
+}
+
 function DirectorySurface() {
   const { user } = useAuth();
   const fullSanadOps = Boolean(user && canAccessSanadIntelFull(user));
@@ -563,6 +573,16 @@ function DirectorySurface() {
   const [pageSize, setPageSize] = useState<100 | 200 | 500>(100);
   const [page, setPage] = useState(0);
   const [, navigate] = useLocation();
+  const searchStr = useSearch();
+  const highlightAppliedRef = useRef<number | null>(null);
+
+  const highlightCenterId = useMemo(() => {
+    const q = searchStr.startsWith("?") ? searchStr.slice(1) : searchStr;
+    const v = new URLSearchParams(q).get("highlight");
+    if (!v) return null;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [searchStr]);
 
   const pipelineFilter =
     typeof window !== "undefined"
@@ -621,6 +641,24 @@ function DirectorySurface() {
     pipelineQuickView,
     needsActionOnly,
   ]);
+
+  useEffect(() => {
+    if (highlightCenterId == null) {
+      highlightAppliedRef.current = null;
+      return;
+    }
+    if (highlightAppliedRef.current === highlightCenterId) return;
+    highlightAppliedRef.current = highlightCenterId;
+    setDrawerTab("overview");
+    setDrawerId(highlightCenterId);
+    stripHighlightSearchParam();
+    requestAnimationFrame(() => {
+      document.getElementById(`sanad-directory-row-${highlightCenterId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+  }, [highlightCenterId]);
 
   useEffect(() => {
     if (pipelineQuickView !== "all") setPipeStage("");
@@ -1224,6 +1262,7 @@ function DirectorySurface() {
                     return (
                     <TableRow
                       key={center.id}
+                      id={`sanad-directory-row-${center.id}`}
                       className={cn(
                         "cursor-pointer border-b border-border/50 transition-colors hover:bg-muted/50",
                         stale && "bg-amber-500/[0.06]",
@@ -2928,6 +2967,8 @@ export default function AdminSanadIntelligencePage() {
       </div>
 
       <SectionNav />
+
+      {(section === "overview" || section === "directory") && <SanadDailyQueueCard />}
 
       {section === "overview" && <OverviewSurface />}
       {section === "directory" && <DirectorySurface />}

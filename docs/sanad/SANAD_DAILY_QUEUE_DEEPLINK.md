@@ -10,4 +10,6 @@
 
 **Example:** `/admin/sanad/directory?highlight=42`
 
-P3 may add scroll-to-row or drawer open; the minimum supported contract is this query pair so links remain bookmarkable and testable.
+P3 opens the directory **drawer** for the centre, scrolls the row into view when it is on the current page, then **removes** `highlight` via `history.replaceState` so refreshes do not re-trigger the same deep link.
+
+P3 may extend scroll/drawer behaviour further; the minimum supported contract remains this query pair so links stay bookmarkable and testable.

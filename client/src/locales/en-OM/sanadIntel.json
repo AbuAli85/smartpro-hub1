@@ -1,0 +1,45 @@
+{
+  "sanadDailyQueue": {
+    "title": "Today's SANAD actions",
+    "subtitle": "Server-ranked queue from your directory signals.",
+    "empty": "No actions in this view.",
+    "errorTitle": "Queue could not load",
+    "retry": "Retry",
+    "openItem": "Open in directory",
+    "viewOnlyBadge": "View only",
+    "scopeMine": "My queue & unassigned",
+    "scopeAll": "All centres",
+    "generatedAt": "Updated {{time}}",
+    "secondary": "Also: {{list}}",
+    "signals": {
+      "SANAD_UNASSIGNED_PIPELINE": "Assign a pipeline owner",
+      "SANAD_OVERDUE_FOLLOWUP": "Overdue follow-up",
+      "SANAD_DUE_TODAY": "Follow-up due today",
+      "SANAD_STALE_CONTACT": "Stale contact",
+      "SANAD_INVITED_NO_ACCOUNT": "Invited — no account yet",
+      "SANAD_LINKED_NOT_ACTIVATED": "Registered — not activated",
+      "SANAD_STUCK_ONBOARDING": "Stuck in onboarding",
+      "SANAD_LICENSED_NO_OFFICE": "Licensed — no office linked",
+      "SANAD_ACTIVATED_UNLISTED": "Activated — not public listed",
+      "SANAD_LISTED_NO_CATALOGUE": "Listed — no active catalogue",
+      "SANAD_SOLO_OWNER_ROSTER": "Solo owner roster",
+      "SANAD_NO_PHONE": "Missing phone",
+      "SANAD_PHONE_NO_REPLY_EMAIL": "Phone on file — add reply email",
+      "SANAD_RECORD_QUALITY": "Record quality flags"
+    },
+    "cta": {
+      "assign_pipeline_owner": "Assign owner",
+      "update_follow_up": "Update follow-up",
+      "record_contact_or_advance": "Record contact",
+      "invite_onboarding_nudge": "Review invite",
+      "onboarding_escalation": "Review onboarding",
+      "listing_review": "Review listing",
+      "catalogue_setup": "Review catalogue",
+      "roster_expand": "Review roster",
+      "contact_hygiene": "Fix contact details",
+      "data_quality_review": "Review record quality",
+      "open_directory": "Open directory",
+      "view_in_directory": "View in directory"
+    }
+  }
+}

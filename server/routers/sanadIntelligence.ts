@@ -8,6 +8,7 @@ import {
 } from "@shared/sanadDirectoryPipeline";
 import { validateAcceptCenterInvite, validateLinkSanadInviteToAccount } from "@shared/sanadLifecycleTransitions";
 import { canAccessSanadIntelFull, canAccessSanadIntelRead } from "@shared/sanadRoles";
+import { utcDayId } from "@shared/sanadQueueSignals";
 import {
   sanadIntelCenterComplianceItems,
   sanadIntelCenterOperations,
@@ -66,6 +67,9 @@ import {
   getSanadOperationalKpis,
   getSanadBottleneckKpis,
 } from "../sanad-intelligence/queries";
+import { listSanadCenterRowsForDailyActionQueue } from "../sanad-intelligence/dailyActionQueueQueries";
+import { filterSanadQueueRowsByOwnerScope, generateSanadActionQueue } from "../sanad-intelligence/generateSanadActionQueue";
+import { mapListCentersRowToSnapshot } from "../sanad-intelligence/sanadQueueRowMapping";
 import { protectedProcedure, publicProcedure, router, t } from "../_core/trpc";
 import { throwIfSanadIntelSchemaMissing } from "../sanad-intelligence/dbErrors";
 
@@ -128,6 +132,7 @@ const pipelineQuickViewZ = z.enum([
   "needs_followup",
   "converted",
 ]);
+const dailyQueueOwnerScopeZ = z.enum(["all", "mine_and_unassigned"]);
 const onboardingZ = z.enum([
   "not_started",
   "intake",
@@ -221,6 +226,53 @@ export const sanadIntelligenceRouter = router({
         limit: input?.limit ?? 50,
         offset: input?.offset ?? 0,
       });
+    }),
+
+  /** Read-only daily action queue (Option C MVP — P2). Server-side sort + cap; no writes. */
+  dailyActionQueue: sanadIntelReadProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().min(1).max(25).optional(),
+          ownerScope: dailyQueueOwnerScopeZ.optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      /** UTC-normalized comparisons via `@shared/sanadQueueSignals.utcDayId` + generator; avoid mixing MySQL `CURDATE()` in queue logic. */
+      const referenceTime = new Date();
+      const dateBucketYmd = utcDayId(referenceTime);
+      if (!dateBucketYmd) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Invalid server clock" });
+      }
+
+      const rawRows = await listSanadCenterRowsForDailyActionQueue(db as never, {});
+      const uid = ctx.user.id;
+      const scope = input?.ownerScope ?? "mine_and_unassigned";
+
+      let genRows = rawRows.map((r) => {
+        const snapshot = mapListCentersRowToSnapshot(r);
+        return {
+          ...snapshot,
+          centerName: r.center.centerName,
+          governorateLabelRaw: r.center.governorateLabelRaw,
+          pipelineOwnerName: r.pipelineOwnerName,
+          pipelineOwnerEmail: r.pipelineOwnerEmail,
+        };
+      });
+
+      genRows = filterSanadQueueRowsByOwnerScope(genRows, scope, uid);
+
+      const viewer = canAccessSanadIntelFull(ctx.user) ? ("operator" as const) : ("reviewer" as const);
+      const items = generateSanadActionQueue(genRows, referenceTime, {
+        limit: input?.limit,
+        dateBucketYmd,
+        viewer,
+      });
+
+      return { items, generatedAt: referenceTime.toISOString(), ownerScope: scope, viewer };
     }),
 
   centrePipelineKpis: sanadIntelReadProcedure.query(async () => {

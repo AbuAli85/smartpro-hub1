@@ -112,9 +112,113 @@ Baseline review gaps are tracked as workstreams with explicit acceptance criteri
 | **Test evidence** | N/A |
 | **Notes** | Tracker is source of truth for execution status going forward |
 
+## Workstream I — SANAD Intelligence Engine — Option C MVP (P1–P3)
+
+**Parent (GitHub):** create issue titled `SANAD Intelligence Engine — Option C MVP (P1–P3)` and paste URL here: _[parent issue URL]_
+
+### Parent issue — copy/paste for GitHub (when `gh` / API not used)
+
+**Title (exact):** `SANAD Intelligence Engine — Option C MVP (P1–P3)`
+
+**Body (replace `P1_URL` / `P2_URL` / `P3_URL` after child issues exist):**
+
+```markdown
+Execution control panel for Option C MVP. **Order:** P1 → P2 → P3 only (no parallel start).
+
+**Spec (frozen):** design spec v1.1 — Option C; no Control Tower edits through P3.
+
+## Child issues
+
+- P1 (signals module): P1_URL
+- P2 (server generator + `dailyActionQueue` tRPC): P2_URL
+- P3 (UI card + deep links + en/ar i18n scaffold): P3_URL
+
+## Epic status
+
+- [ ] P1 — merged; deterministic signal tests green
+- [ ] P2 — merged; RBAC + read-only queue contract stable
+- [ ] P3 — merged; queue visible; no English-only UI
+
+## Definition of done (close parent when all true)
+
+- Queue **renders** for authorized roles; empty state is intentional, not silent failure.
+- Items are **actionable** (deep links match directory contract in `docs/sanad/`).
+- **No noise explosion:** cap + dedupe per spec; spot-check with fixture or staging.
+- **No RBAC leaks:** compliance reviewer vs full operator per spec; queue procedure read-only.
+- **Deterministic tests** for P1/P2 (overlap, dedupe, cap, RBAC).
+- **No English-only P3 UI** — `en-OM` + `ar-OM` keys (Arabic may be scaffold per spec).
+- **Zero** changes under `client/src/features/controlTower/` for this MVP.
+
+## Red lines (reject PR)
+
+- Control Tower types/files (P1–P3).
+- ROI / finance / `getPnlSummary` coupling.
+- Skipping tests for overlap, dedupe, cap, or RBAC.
+```
+
+**Spec (frozen):** [`SANAD_INTELLIGENCE_ENGINE_DESIGN_SPEC.md`](./SANAD_INTELLIGENCE_ENGINE_DESIGN_SPEC.md) **v1.1** — Option C MVP; no `ActionKind` / `ActionSource` / `ControlTowerDomain` changes through P3.
+
+**Execution order (strict):** **P1 → P2 → P3** — do not parallelize initially (P2 depends on signal output shape; P3 depends on stable read API).
+
+| Phase | Scope | Tracked issue (paste URL) |
+| --- | --- | --- |
+| **P1** | Shared pure signal module + unit tests (`shared/sanadQueueSignals.ts` or agreed name) | _[P1 URL]_ |
+| **P2** | Server queue generator + `sanad.intelligence.dailyActionQueue` (read-only, RBAC-safe) | _[P2 URL]_ |
+| **P3** | UI card (daily actions) + deep links + **en/ar i18n scaffold** (Section 10.2) | _[P3 URL]_ |
+
+**Suggested ownership:** P1 — strongest logic/backend; P2 — backend + RBAC; P3 — frontend + i18n. If one person: still **separate phases / separate PRs**, not one mega-PR.
+
+**P1 status:** **Done** — `shared/sanadQueueSignals.ts` + `shared/sanadQueueSignals.test.ts` (pure module; `utcDayId`; optional office/roster flags only when explicitly supplied).
+
+**P2 status:** **Done** — `listSanadCenterRowsForDailyActionQueue` + `mapListCentersRowToSnapshot` + `generateSanadActionQueue` / `filterSanadQueueRowsByOwnerScope`; `sanad.intelligence.dailyActionQueue` (read-only); tests `sanadQueueRowMapping.test.ts`, `sanadQueueGeneration.test.ts`; deeplink `docs/sanad/SANAD_DAILY_QUEUE_DEEPLINK.md`.
+
+### P2 — design locks (non-negotiable; lock before P2 merge)
+
+| Lock | Rule |
+| --- | --- |
+| **A — Time** | **One canonical clock:** server compares using **UTC**-normalized calendar days (`utcDayId` / aligned `referenceTime`). Do **not** mix JS UTC with MySQL `CURDATE()` session semantics for queue due logic — treat stored timestamps as UTC-normalized for comparison, or document a single DB-side rule if unavoidable. |
+| **B — Snapshot mapping** | **Single function** `mapListCentersRowToSnapshot(row): SanadQueueCenterSnapshot`. Set `officeIsPublicListed`, `officeHasActiveCatalogue`, `rosterIsSoloOwnerOnly` **only** when SQL/join materializes them; **never** infer, guess, or default to `false`. Missing ⇒ `undefined` (preserves P1 no-false-positive contract). Unit-test the mapper. |
+| **C — Generator** | **`generateSanadActionQueue(rows, referenceTime, …)`** (name may match spec): **all** inputs passed in — no DB, no tRPC, no implicit `Date.now()` inside the generator. Router loads rows, calls generator, returns output. |
+| **D — RBAC** | Same **signals** for reviewer vs operator; **output** differs (e.g. view/remind vs assign/update CTAs). Do **not** drop signals or change scores for reviewer — only presentation / CTA policy. |
+| **E — Cap + order** | Sort, per-centre dedupe/primary pick, and **cap (default 15)** enforced **server-side**; UI renders only. |
+
+**P2 — recommended extra test:** **midnight boundary** — same calendar `next_action_due_at`, `referenceTime` just before vs after UTC midnight; assert `SANAD_DUE_TODAY` vs `SANAD_OVERDUE_FOLLOWUP` does not flip incorrectly.
+
+### P2 — merge gate checklist
+
+- [x] Generator deterministic for fixed `referenceTime` + fixture rows.
+- [x] `mapListCentersRowToSnapshot` exists and is unit-tested (undefined vs explicit booleans).
+- [x] UTC / date comparison consistent with lock A (document chosen rule in code or `docs/sanad/` if non-obvious).
+- [x] RBAC: reviewer vs operator behaviour tested (same signals, different CTA / copy policy).
+- [x] No writes; read-only procedure only.
+- [x] No Control Tower imports or schema changes.
+- [x] No UI logic inside generator.
+- [x] Cap applied server-side after global ordering.
+- [x] Midnight boundary test (recommended above).
+
+### Definition of done (parent closes when all true)
+
+- [ ] Queue **renders** for authorized roles; empty state is intentional, not a silent failure.
+- [ ] Items are **actionable** (deep link to directory contract documented in `docs/sanad/`).
+- [ ] **No noise explosion:** cap + dedupe behaviour matches spec; spot-check with real-sized fixture or staging.
+- [ ] **No RBAC leaks:** compliance reviewer vs full operator semantics per spec; read-only procedure only for queue.
+- [ ] **Deterministic tests** land for P1/P2 (overlap, dedupe, cap, RBAC).
+- [ ] **No English-only P3 UI** — keys in `en-OM` + `ar-OM` (Arabic may be scaffold per spec).
+- [ ] **Zero** changes under `client/src/features/controlTower/` for this MVP.
+
+### Red lines (reject PR if violated)
+
+- Control Tower type or file changes (P1–P3).
+- ROI / finance / `getPnlSummary` coupling.
+- Skipping tests for signal overlap, dedupe, cap, or RBAC.
+
 ---
 
 ## Changelog
 
+- **2026-04-20 (P2 ship):** Workstream I — P2 implemented: `dailyActionQueue` tRPC, `dailyActionQueueQueries.ts`, `sanadQueueRowMapping.ts`, `generateSanadActionQueue.ts`, unit tests + midnight boundary, `SANAD_DAILY_QUEUE_DEEPLINK.md`; merge checklist marked complete.
+- **2026-04-20 (later):** Workstream I — P1 marked done; **P2 design locks** (UTC time, snapshot mapper contract, pure generator, RBAC CTA policy, server cap) + P2 merge checklist + midnight-boundary test note.
+- **2026-04-20**: Workstream I — added GitHub **parent issue** copy/paste block (title, child links placeholders, epic status checklist, DoD, red lines) for environments without `gh`/API.
+- **2026-04-19**: Workstream I — Option C MVP (P1–P3) parent tracker + spec link; execution order and DoD aligned with `SANAD_INTELLIGENCE_ENGINE_DESIGN_SPEC.md` v1.1.
 - **2026-04-18**: Initial tracker; added marketplace parity tests, partner/roster integration tests, v2 invite hashing + migration `0076`, invite unit tests, bridge test updates.
 - **2026-04-18 (Week 1 closeout):** Workstream B — extracted `roster`, `catalogue`, `marketplace`, `workspace` sub-routers; `sanadCore.ts` reduced to ~872 lines; tracker + parity doc paths aligned with `server/routers/sanad/*`.

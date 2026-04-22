@@ -21,6 +21,7 @@ import { runEmployeeTaskOverdueNotifications } from "../jobs/employeeTaskOverdue
 import { runSyncExpiredContracts } from "../jobs/syncExpiredContracts";
 import { runSurveyNurtureEmails } from "../jobs/surveyNurture";
 import { runMarkMissedShiftsAbsent } from "../jobs/markMissedShiftsAbsent";
+import { runEnsureOverdueCheckoutIssuesJob } from "../jobs/ensureOverdueCheckoutIssuesJob";
 import { resyncHotEngagementDerivedState } from "../jobs/engagementDerivedRollupRefresh";
 import { registerSentryExpressErrorHandler } from "./sentry";
 
@@ -207,6 +208,29 @@ async function startServer() {
         })
         .catch((e) => console.error("[absent-job] run error:", e));
     }, 30 * 60 * 1000); // every 30 minutes
+  }
+
+  // ── Overdue checkout operational issues (every 15 min) ─────────────────────────
+  // Ensures `overdue_checkout` rows exist without requiring HR to open the UI.
+  // Disable with: DISABLE_OVERDUE_CHECKOUT_ISSUES_JOB=1
+  if (process.env.DISABLE_OVERDUE_CHECKOUT_ISSUES_JOB !== "1") {
+    const FIFTEEN_MIN_MS = 15 * 60 * 1000;
+    void runEnsureOverdueCheckoutIssuesJob()
+      .then((r) => {
+        if (r.errors > 0) {
+          console.log(`[overdue-checkout-job] startup — companies: ${r.companiesScanned}, errors: ${r.errors}`);
+        }
+      })
+      .catch((e) => console.error("[overdue-checkout-job] startup error:", e));
+    setInterval(() => {
+      void runEnsureOverdueCheckoutIssuesJob()
+        .then((r) => {
+          if (r.errors > 0) {
+            console.log(`[overdue-checkout-job] run — companies: ${r.companiesScanned}, errors: ${r.errors}`);
+          }
+        })
+        .catch((e) => console.error("[overdue-checkout-job] run error:", e));
+    }, FIFTEEN_MIN_MS);
   }
 
   // ── Engagement roll-up freshness (every 15 min) ───────────────────────────────

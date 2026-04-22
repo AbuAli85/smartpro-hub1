@@ -66,6 +66,11 @@ import {
   linkAttendanceRecordToPromoterAssignment,
   type PromoterLinkageHint,
 } from "../promoterAssignmentAttendanceLink";
+import {
+  isAttendanceSessionsTableMissingError,
+  logAttendanceSessionsStructured,
+  syncAttendanceSessionsFromAttendanceRecordTx,
+} from "../attendanceSessionFromRecord";
 
 async function requireDb() {
   const db = await getDb();
@@ -79,8 +84,10 @@ const requireAdminOrHR = _requireAdminOrHR;
 // ── Dual-write helpers ────────────────────────────────────────────────────────
 /**
  * Write a new open session row to `attendance_sessions` in parallel with the
- * existing `attendance_records` insert.  Non-fatal: if the table doesn't exist
- * yet (e.g. migration pending) we log and continue.
+ * existing `attendance_records` insert.
+ *
+ * - Missing table (pre-migration): structured warn + `null` insertId — clock row still commits.
+ * - Any other failure: structured error log + **throw** so payroll cannot silently diverge.
  */
 async function insertAttendanceSessionSafe(
   tx: Parameters<Parameters<Awaited<ReturnType<typeof requireDb>>["transaction"]>[0]>[0],
@@ -89,20 +96,26 @@ async function insertAttendanceSessionSafe(
   try {
     const [result] = await tx.insert(attendanceSessions).values(data);
     return (result as { insertId?: number }).insertId ?? null;
-  } catch (err: any) {
-    // Tolerate missing table during migration window; surface other errors.
-    if (/Table.*doesn't exist|Unknown table/i.test(String(err?.message ?? ""))) {
-      console.warn("[attendance_sessions] Table not yet present — skipping session write.");
+  } catch (err: unknown) {
+    if (isAttendanceSessionsTableMissingError(err)) {
+      logAttendanceSessionsStructured("warn", "insert_session_skipped_missing_table", {
+        message: String((err as { message?: string })?.message ?? err),
+      });
       return null;
     }
-    // Re-throw duplicate-key errors so the uniqueness constraint is enforced.
+    logAttendanceSessionsStructured("error", "insert_session_failed", {
+      message: String((err as { message?: string })?.message ?? err),
+    });
     throw err;
   }
 }
 
 /**
  * Close the session row linked to `sourceRecordId` (set status='closed',
- * check_out_at, geo).  Non-fatal if the table is absent.
+ * check_out_at, geo).
+ *
+ * - Missing table: structured warn only (legacy migration window).
+ * - Other errors: **throw** so check-out cannot commit without a matching session close when the table exists.
  */
 async function closeAttendanceSessionSafe(
   tx: Parameters<Parameters<Awaited<ReturnType<typeof requireDb>>["transaction"]>[0]>[0],
@@ -123,11 +136,18 @@ async function closeAttendanceSessionSafe(
         checkOutLng: opts.checkOutLng ?? null,
       })
       .where(eq(attendanceSessions.sourceRecordId, opts.sourceRecordId));
-  } catch (err: any) {
-    if (/Table.*doesn't exist|Unknown table/i.test(String(err?.message ?? ""))) {
-      console.warn("[attendance_sessions] Table not yet present — skipping session close.");
+  } catch (err: unknown) {
+    if (isAttendanceSessionsTableMissingError(err)) {
+      logAttendanceSessionsStructured("warn", "close_session_skipped_missing_table", {
+        sourceRecordId: opts.sourceRecordId,
+        message: String((err as { message?: string })?.message ?? err),
+      });
       return;
     }
+    logAttendanceSessionsStructured("error", "close_session_failed", {
+      sourceRecordId: opts.sourceRecordId,
+      message: String((err as { message?: string })?.message ?? err),
+    });
     throw err;
   }
 }
@@ -2063,6 +2083,11 @@ export const attendanceRouter = router({
               notes: legacyNote,
             });
           }
+        }
+
+        /** Payroll (`attendance_sessions`) must track HR-approved clock corrections. */
+        if (afterArRow) {
+          await syncAttendanceSessionsFromAttendanceRecordTx(tx as any, afterArRow);
         }
 
         const [corAfter] = await tx

@@ -35,19 +35,20 @@ import {
   muscatCalendarYmdFromUtcInstant,
   muscatCalendarWeekdaySun0,
   muscatCalendarYmdNow,
+  muscatDayUtcRangeExclusiveEnd,
+  muscatMinutesSinceMidnight,
+  muscatMonthUtcRangeExclusiveEnd,
   muscatWallDateTimeToUtc,
 } from "@shared/attendanceMuscatTime";
 import { countOverdueOpenCheckoutsOnBoard, muscatShiftWallEndMs } from "@shared/attendanceBoardOverdue";
 import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
-import {
-  ensureOverdueCheckoutOperationalIssuesOpen,
-  syncAttendanceOperationalIssuesFromSnapshot,
-} from "../attendanceOperationalIssueSync";
+import { syncAttendanceOperationalIssuesFromSnapshot } from "../attendanceOperationalIssueSync";
 import {
   derivePayrollHintsFromBoardRow,
   operationalBandFromBoardStatus,
   riskLevelFromBoardStatus,
 } from "@shared/attendanceIntelligence";
+import { computeAndEnsureOverdueCheckoutIssues } from "../overdueCheckoutIssues.service";
 
 async function requireDb() {
   const db = await getDb();
@@ -777,14 +778,17 @@ export const schedulingRouter = router({
         s.workingDays.split(",").map(Number).includes(dow)
       );
 
-      const todayStart = new Date(today + "T00:00:00.000Z");
-      const todayEnd = new Date(today + "T23:59:59.999Z");
-      const allRecords = await db.select().from(attendanceRecords)
-        .where(and(
-          eq(attendanceRecords.companyId, companyId),
-          gte(attendanceRecords.checkIn, todayStart),
-          lte(attendanceRecords.checkIn, todayEnd)
-        ));
+      const { startUtc: boardDayStart, endExclusiveUtc: boardDayEndExclusive } = muscatDayUtcRangeExclusiveEnd(today);
+      const allRecords = await db
+        .select()
+        .from(attendanceRecords)
+        .where(
+          and(
+            eq(attendanceRecords.companyId, companyId),
+            gte(attendanceRecords.checkIn, boardDayStart),
+            lt(attendanceRecords.checkIn, boardDayEndExclusive),
+          ),
+        );
 
       const empRows = await db.select().from(employees).where(eq(employees.companyId, companyId));
       const empById = new Map(empRows.map((e) => [e.id, e]));
@@ -1410,14 +1414,20 @@ export const schedulingRouter = router({
 
       const allSchedules = await db.select().from(employeeSchedules).where(and(...schedConds));
 
-      const monthStart = new Date(`${startDate}T00:00:00.000Z`);
-      const monthEnd = new Date(`${endDate}T23:59:59.999Z`);
-      const records = await db.select().from(attendanceRecords)
-        .where(and(
-          eq(attendanceRecords.companyId, companyId),
-          gte(attendanceRecords.checkIn, monthStart),
-          lte(attendanceRecords.checkIn, monthEnd)
-        ));
+      const { startUtc: monthRangeStart, endExclusiveUtc: monthRangeEndExclusive } = muscatMonthUtcRangeExclusiveEnd(
+        year,
+        month,
+      );
+      const records = await db
+        .select()
+        .from(attendanceRecords)
+        .where(
+          and(
+            eq(attendanceRecords.companyId, companyId),
+            gte(attendanceRecords.checkIn, monthRangeStart),
+            lt(attendanceRecords.checkIn, monthRangeEndExclusive),
+          ),
+        );
 
       const empRows = await db.select().from(employees).where(eq(employees.companyId, companyId));
       const empById = new Map(empRows.map((e) => [e.id, e]));
@@ -1478,7 +1488,7 @@ export const schedulingRouter = router({
 
           if (record) {
             presentDays++;
-            const checkInMins = record.checkIn.getHours() * 60 + record.checkIn.getMinutes();
+            const checkInMins = muscatMinutesSinceMidnight(record.checkIn);
             const shiftStartMins = timeToMinutes(shift?.startTime ?? "08:00");
             const grace = shift?.gracePeriodMinutes ?? 15;
             const isLate = checkInMins > shiftStartMins + grace;
@@ -1525,156 +1535,7 @@ export const schedulingRouter = router({
     .query(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
-      const today = muscatCalendarYmdNow();
-      const dow = muscatCalendarWeekdaySun0();
-      const nowMs = Date.now();
-
-      // Check for holiday — no overdue entries on holidays
-      const holidays = await db.select().from(companyHolidays)
-        .where(and(eq(companyHolidays.companyId, companyId), eq(companyHolidays.holidayDate, today)));
-      if (holidays.length > 0) return { date: today, overdueEmployees: [] };
-
-      // Load all active schedules working today
-      const allSchedules = await db.select().from(employeeSchedules)
-        .where(and(
-          eq(employeeSchedules.companyId, companyId),
-          eq(employeeSchedules.isActive, true),
-          lte(employeeSchedules.startDate, today),
-          or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, today)),
-        ));
-      const workingToday = allSchedules.filter((s) =>
-        s.workingDays.split(",").map(Number).includes(dow)
-      );
-      if (workingToday.length === 0) return { date: today, overdueEmployees: [] };
-
-      // Load related data in bulk
-      const shiftIds = Array.from(new Set(workingToday.map((s) => s.shiftTemplateId)));
-      const siteIds = Array.from(new Set(workingToday.map((s) => s.siteId).filter(Boolean) as number[]));
-      const empUserIds = Array.from(new Set(workingToday.map((s) => s.employeeUserId)));
-
-      const [shiftsAll, sitesAll, empsAll, usersAll] = await Promise.all([
-        shiftIds.length ? db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, shiftIds)) : Promise.resolve([]),
-        siteIds.length ? db.select().from(attendanceSites).where(inArray(attendanceSites.id, siteIds)) : Promise.resolve([]),
-        db.select().from(employees).where(and(eq(employees.companyId, companyId), inArray(employees.userId, empUserIds))),
-        db.select().from(users).where(inArray(users.id, empUserIds)),
-      ]);
-      const shiftById = new Map(shiftsAll.map((s) => [s.id, s]));
-      const siteById = new Map(sitesAll.map((s) => [s.id, s]));
-      const empByUserId = new Map(empsAll.map((e) => [e.userId ?? -1, e]));
-      const userById = new Map(usersAll.map((u) => [u.id, u]));
-
-      // Load today's open attendance records (no check-out) scoped to Muscat day
-      const [y, mo, d] = today.split("-").map(Number);
-      const dayStartUtcMs = Date.UTC(y, mo - 1, d) - 4 * 3600_000; // 00:00 Muscat = 20:00 prev UTC
-      const dayEndUtcMs = dayStartUtcMs + 24 * 3600_000;
-      const openRecords = await db.select().from(attendanceRecords)
-        .where(and(
-          eq(attendanceRecords.companyId, companyId),
-          gte(attendanceRecords.checkIn, new Date(dayStartUtcMs)),
-          lte(attendanceRecords.checkIn, new Date(dayEndUtcMs)),
-          isNull(attendanceRecords.checkOut),
-        ));
-      // Keep the latest open record per employee (keyed by employeeId)
-      const openByEmployeeId = new Map<number, typeof openRecords[number]>();
-      for (const r of openRecords) {
-        const existing = openByEmployeeId.get(r.employeeId);
-        if (!existing || r.checkIn > existing.checkIn) openByEmployeeId.set(r.employeeId, r);
-      }
-
-      // Build overdue list: shift ended + employee still open
-      type OverdueEntry = {
-        employeeId: number | null;
-        employeeUserId: number;
-        employeeDisplayName: string;
-        shiftName: string | null;
-        siteName: string | null;
-        expectedEnd: string;
-        checkInAt: Date;
-        minutesOverdue: number;
-        attendanceRecordId: number;
-      };
-      const overdueMap = new Map<number, OverdueEntry>();
-
-      for (const s of workingToday) {
-        const shift = shiftById.get(s.shiftTemplateId);
-        if (!shift) continue;
-        const shiftEndMs = muscatShiftWallEndMs(today, shift.startTime, shift.endTime);
-        if (nowMs <= shiftEndMs) continue; // shift not yet ended
-        // Resolve the employee row to get the canonical employee.id for the attendance lookup
-        const empRow = empByUserId.get(s.employeeUserId);
-        const resolvedEmpId = empRow?.id;
-        const record = resolvedEmpId != null ? openByEmployeeId.get(resolvedEmpId) : undefined;
-        if (!record) continue; // already checked out or never checked in
-        if (overdueMap.has(s.employeeUserId)) continue; // already captured
-        const user = userById.get(s.employeeUserId);
-        const site = s.siteId ? siteById.get(s.siteId) : null;
-        const displayName =
-          user?.name?.trim() ||
-          (empRow ? `${empRow.firstName} ${empRow.lastName}`.trim() : "") ||
-          `Employee #${s.employeeUserId}`;
-        overdueMap.set(s.employeeUserId, {
-          employeeId: empRow?.id ?? null,
-          employeeUserId: s.employeeUserId,
-          employeeDisplayName: displayName,
-          shiftName: shift.name,
-          siteName: site?.name ?? null,
-          expectedEnd: shift.endTime,
-          checkInAt: record.checkIn,
-          minutesOverdue: Math.floor((nowMs - shiftEndMs) / 60_000),
-          attendanceRecordId: record.id,
-        });
-      }
-
-      let overdueEmployees = Array.from(overdueMap.values()).sort(
-        (a, b) => b.minutesOverdue - a.minutesOverdue
-      );
-
-      await ensureOverdueCheckoutOperationalIssuesOpen(db, {
-        companyId,
-        businessDateYmd: today,
-        items: overdueEmployees.map((e) => ({
-          attendanceRecordId: e.attendanceRecordId,
-          employeeId: e.employeeId,
-        })),
-      });
-
-      const recordIds = overdueEmployees.map((e) => e.attendanceRecordId);
-      if (recordIds.length > 0) {
-        const keys = recordIds.map((id) =>
-          operationalIssueKey({ kind: "overdue_checkout", attendanceRecordId: id }),
-        );
-        const issueRows = await db
-          .select()
-          .from(attendanceOperationalIssues)
-          .where(
-            and(
-              eq(attendanceOperationalIssues.companyId, companyId),
-              inArray(attendanceOperationalIssues.issueKey, keys),
-            ),
-          );
-        const issueByKey = new Map(issueRows.map((r) => [r.issueKey, r]));
-        overdueEmployees = overdueEmployees.map((row) => {
-          const key = operationalIssueKey({
-            kind: "overdue_checkout",
-            attendanceRecordId: row.attendanceRecordId,
-          });
-          const oi = issueByKey.get(key);
-          return {
-            ...row,
-            operationalIssue: oi
-              ? {
-                  issueKey: oi.issueKey,
-                  status: oi.status,
-                  assignedToUserId: oi.assignedToUserId ?? null,
-                }
-              : null,
-          };
-        });
-      } else {
-        overdueEmployees = overdueEmployees.map((row) => ({ ...row, operationalIssue: null as null }));
-      }
-
-      return { date: today, overdueEmployees };
+      return computeAndEnsureOverdueCheckoutIssues(db, companyId);
     }),
 
   /**

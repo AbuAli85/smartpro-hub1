@@ -61,3 +61,37 @@ export function muscatDayUtcRangeExclusiveEnd(ymd: string): { startUtc: Date; en
   const endExclusiveUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000);
   return { startUtc, endExclusiveUtc };
 }
+
+/**
+ * UTC range [startUtc, endExclusiveUtc) covering every instant whose Muscat calendar date
+ * falls in the given Gregorian `year` / `month` (1–12).
+ */
+export function muscatMonthUtcRangeExclusiveEnd(
+  year: number,
+  month: number,
+): { startUtc: Date; endExclusiveUtc: Date } {
+  const mm = String(month).padStart(2, "0");
+  const startYmd = `${year}-${mm}-01`;
+  const startUtc = muscatWallDateTimeToUtc(startYmd, "00:00:00");
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMm = String(nextMonth).padStart(2, "0");
+  const endExclusiveUtc = muscatWallDateTimeToUtc(`${nextYear}-${nextMm}-01`, "00:00:00");
+  return { startUtc, endExclusiveUtc };
+}
+
+/**
+ * Minutes since local midnight in Asia/Muscat for this UTC instant (0–1439).
+ * Use for late-arrival comparison against shift template HH:MM (same wall calendar context).
+ */
+export function muscatMinutesSinceMidnight(d: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Muscat",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const h = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
+  const m = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0", 10);
+  return h * 60 + m;
+}

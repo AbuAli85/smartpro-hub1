@@ -145,6 +145,17 @@ describe("workspace authority on user-facing routers", () => {
     await expect(caller.myHistory({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
+  it("attendance.reconciliationPreflight rejects company_member (HR/admin only)", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 9 },
+      member: { role: "company_member" },
+    } as any);
+    const caller = attendanceRouter.createCaller(makeMemberCtx());
+    await expect(
+      caller.reconciliationPreflight({ companyId: 9, fromYmd: "2026-04-01", toYmd: "2026-04-30" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("analytics.contractsOverview rejects when multiple memberships and companyId omitted", async () => {
     vi.mocked(db.getUserCompanies).mockResolvedValue([
       { company: { id: 1 }, member: {} },

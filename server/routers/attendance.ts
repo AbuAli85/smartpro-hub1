@@ -71,6 +71,10 @@ import {
   logAttendanceSessionsStructured,
   syncAttendanceSessionsFromAttendanceRecordTx,
 } from "../attendanceSessionFromRecord";
+import {
+  evaluatePayrollPreflight,
+  runAttendanceReconciliation,
+} from "../attendanceReconciliation";
 
 async function requireDb() {
   const db = await getDb();
@@ -3147,6 +3151,65 @@ export const attendanceRouter = router({
         windowFrom: windowStart.toISOString(),
         windowTo: windowEnd.toISOString(),
       };
+    }),
+
+  /**
+   * Admin/HR preflight: compares `attendance_records`, `attendance_sessions`, and legacy `attendance`
+   * for a Muscat-inclusive YYYY-MM-DD range. Includes payroll-style `preflight` (safe / warnings / block).
+   */
+  reconciliationPreflight: protectedProcedure
+    .input(
+      z
+        .object({
+          companyId: z.number().optional(),
+          fromYmd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          toYmd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        })
+        .refine((x) => x.fromYmd <= x.toYmd, { message: "fromYmd must be <= toYmd" }),
+    )
+    .query(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const db = await requireDb();
+      const report = await runAttendanceReconciliation(db, {
+        companyId: membership.company.id,
+        fromYmd: input.fromYmd,
+        toYmd: input.toYmd,
+      });
+      const preflight = evaluatePayrollPreflight(report.mismatches);
+      return { ...report, preflight };
+    }),
+
+  /**
+   * Narrow repair: re-sync session row(s) from a single clock row (HR/admin).
+   * Does not fix arbitrary drift; use after correcting `attendance_records` or when session dual-write missed.
+   */
+  repairSessionFromAttendanceRecord: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        attendanceRecordId: z.number(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const db = await requireDb();
+      const [rec] = await db
+        .select()
+        .from(attendanceRecords)
+        .where(
+          and(
+            eq(attendanceRecords.id, input.attendanceRecordId),
+            eq(attendanceRecords.companyId, membership.company.id),
+          ),
+        )
+        .limit(1);
+      if (!rec) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
+      }
+      await db.transaction(async (tx) => {
+        await syncAttendanceSessionsFromAttendanceRecordTx(tx as any, rec);
+      });
+      return { success: true as const, attendanceRecordId: rec.id };
     }),
 });
 

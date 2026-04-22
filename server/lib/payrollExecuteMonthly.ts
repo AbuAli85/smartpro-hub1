@@ -89,6 +89,10 @@ function countExpectedWorkdaysInMonth(
 
 const BLOCKED_RERUN_STATUSES = new Set(["locked", "paid", "approved"]);
 
+/**
+ * Monthly payroll run. Attendance drift checks are not invoked here yet; callers may run
+ * `runAttendanceReconciliation` / `evaluatePayrollPreflight` from `../attendanceReconciliation` for the same period first.
+ */
 export async function executeMonthlyPayroll(db: PayrollDb, params: { companyId: number; month: number; year: number; actorUserId: number }) {
   const { companyId, month, year, actorUserId } = params;
   const monthStart = new Date(year, month - 1, 1);

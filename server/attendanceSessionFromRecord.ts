@@ -5,6 +5,7 @@
  */
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
+import { ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON } from "@shared/attendanceTrpcReasons";
 import { attendanceRecords, attendanceSessions } from "../drizzle/schema";
 import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
 
@@ -33,6 +34,7 @@ export function throwAttendanceSessionsTableRequired(): never {
   throw new TRPCError({
     code: "BAD_REQUEST",
     message: ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE,
+    cause: { reason: ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON },
   });
 }
 

@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON } from "@shared/attendanceTrpcReasons";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   allowMissingAttendanceSessionsTable,
@@ -108,11 +109,16 @@ describe("attendance_sessions missing-table production policy", () => {
     };
 
     await expect(syncAttendanceSessionsFromAttendanceRecordTx(tx as never, baseRecord({}))).rejects.toSatisfy(
-      (e: unknown) =>
-        e instanceof TRPCError &&
-        e.code === "BAD_REQUEST" &&
-        /0034_attendance_sessions/.test(e.message) &&
-        /ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE/.test(e.message),
+      (e: unknown) => {
+        if (!(e instanceof TRPCError)) return false;
+        const cause = e.cause as { reason?: string } | undefined;
+        return (
+          e.code === "BAD_REQUEST" &&
+          cause?.reason === ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON &&
+          /0034_attendance_sessions/.test(e.message) &&
+          /ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE/.test(e.message)
+        );
+      },
     );
     expect(allowMissingAttendanceSessionsTable()).toBe(false);
   });

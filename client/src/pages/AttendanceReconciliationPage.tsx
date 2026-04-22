@@ -16,6 +16,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { isAttendanceSessionsTableRequiredClientError } from "@/lib/attendanceTrpcErrors";
+import { AttendanceSessionsInfraErrorAlert } from "@/components/attendance/AttendanceSessionsInfraErrorAlert";
 import {
   CalendarDays,
   ChevronLeft,
@@ -82,7 +84,11 @@ export default function AttendanceReconciliationPage() {
       void preflight.refetch();
     },
     onError: (e) => {
-      toast.error(e.message);
+      if (isAttendanceSessionsTableRequiredClientError(e)) {
+        toast.warning("Session repair blocked until the attendance_sessions migration is applied.");
+      } else {
+        toast.error(e.message);
+      }
       setRepairingRecordId(null);
     },
   });
@@ -229,7 +235,11 @@ export default function AttendanceReconciliationPage() {
             {preflight.isLoading ? (
               <Skeleton className="h-24 w-full rounded-lg" />
             ) : preflight.isError ? (
-              <p className="text-sm text-destructive">{preflight.error.message}</p>
+              isAttendanceSessionsTableRequiredClientError(preflight.error) ? (
+                <AttendanceSessionsInfraErrorAlert />
+              ) : (
+                <p className="text-sm text-destructive">{preflight.error.message}</p>
+              )
             ) : preflight.data ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">

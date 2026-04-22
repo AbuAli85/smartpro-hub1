@@ -1,3 +1,4 @@
+import { ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON } from "@shared/attendanceTrpcReasons";
 import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
@@ -14,9 +15,31 @@ import { getImplicitWorkspaceCompanyIdForShadow } from "./membership";
 
 type AuthenticatedContext = Omit<TrpcContext, "user"> & { user: SessionUser };
 
+/** Only these values are copied onto the wire as `error.data.reason` (avoid leaking arbitrary `cause`). */
+const TRPC_CLIENT_REASON_ALLOWLIST = new Set<string>([ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON]);
+
+function reasonFromTrpcErrorCause(cause: unknown): string | undefined {
+  if (!cause || typeof cause !== "object") return undefined;
+  const r = (cause as { reason?: unknown }).reason;
+  if (typeof r !== "string" || !TRPC_CLIENT_REASON_ALLOWLIST.has(r)) return undefined;
+  return r;
+}
+
 /** Base tRPC instance (for composing feature-specific middleware). */
 export const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  errorFormatter({ shape, error }) {
+    const reason = error instanceof TRPCError ? reasonFromTrpcErrorCause(error.cause) : undefined;
+    const baseData =
+      shape.data && typeof shape.data === "object" ? (shape.data as Record<string, unknown>) : {};
+    return {
+      ...shape,
+      data: {
+        ...baseData,
+        ...(reason ? { reason } : {}),
+      },
+    };
+  },
 });
 
 export const router = t.router;

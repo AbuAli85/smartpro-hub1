@@ -26,6 +26,8 @@ import {
 import { useLocation } from "wouter";
 import { DateInput } from "@/components/ui/date-input";
 import { useTranslation } from "react-i18next";
+import { isAttendanceSessionsTableRequiredClientError } from "@/lib/attendanceTrpcErrors";
+import { AttendanceSessionsInfraErrorAlert } from "@/components/attendance/AttendanceSessionsInfraErrorAlert";
 
 // â”€â”€â”€ Compliance helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type ComplianceLevel = "expired" | "expiring_30" | "expiring_90" | "ok" | "no_data";
@@ -585,7 +587,11 @@ function RunPayrollTab() {
               {attendancePreflight.isLoading ? (
                 <Skeleton className="h-16 w-full rounded-md" />
               ) : attendancePreflight.isError ? (
-                <p className="text-xs text-destructive">{attendancePreflight.error.message}</p>
+                isAttendanceSessionsTableRequiredClientError(attendancePreflight.error) ? (
+                  <AttendanceSessionsInfraErrorAlert className="text-xs" />
+                ) : (
+                  <p className="text-xs text-destructive">{attendancePreflight.error.message}</p>
+                )
               ) : attendancePreflight.data ? (
                 <>
                   <div className="flex flex-wrap items-center gap-2 text-[11px]">

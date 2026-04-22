@@ -1969,6 +1969,7 @@ CREATE TABLE IF NOT EXISTS `payroll_runs` (
 	`total_net` decimal(14,3) DEFAULT '0',
 	`employee_count` int DEFAULT 0,
 	`notes` text,
+	`attendance_preflight_snapshot` text,
 	`created_by_user_id` int,
 	`approved_by_user_id` int,
 	`approved_at` timestamp,

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { attendanceRecords, attendanceSessions } from "../drizzle/schema";
 import {
+  buildPayrollStoredPreflightSnapshot,
   compareRecordToSessions,
+  evaluatePayrollAttendanceGate,
   evaluatePayrollPreflight,
   muscatInclusiveYmdRangeToUtcHalfOpen,
+  RECONCILIATION_MAX_RECORDS,
 } from "./attendanceReconciliation";
 
 function baseRecord(over: Partial<typeof attendanceRecords.$inferSelect> = {}): typeof attendanceRecords.$inferSelect {
@@ -165,5 +168,94 @@ describe("muscatInclusiveYmdRangeToUtcHalfOpen", () => {
     const { startUtc, endExclusiveUtc } = muscatInclusiveYmdRangeToUtcHalfOpen("2026-04-01", "2026-04-30");
     expect(startUtc.toISOString()).toBe("2026-03-31T20:00:00.000Z");
     expect(endExclusiveUtc.toISOString()).toBe("2026-04-30T20:00:00.000Z");
+  });
+});
+
+describe("evaluatePayrollAttendanceGate", () => {
+  it("denies when preflight is block", () => {
+    const preflight = evaluatePayrollPreflight([
+      {
+        type: "RECORD_CLOSED_MISSING_SESSION",
+        severity: "blocking",
+        companyId: 1,
+        employeeId: 1,
+        summary: "x",
+        details: {},
+      },
+    ]);
+    const g = evaluatePayrollAttendanceGate(preflight, false, {
+      recordsScanMayBeIncomplete: false,
+      blockingCount: 1,
+      warningCount: 0,
+    });
+    expect(g.allow).toBe(false);
+    if (!g.allow) expect(g.kind).toBe("blocking");
+  });
+
+  it("denies warnings without acknowledgment", () => {
+    const preflight = evaluatePayrollPreflight([
+      {
+        type: "RECORD_OPEN_MISSING_SESSION",
+        severity: "warning",
+        companyId: 1,
+        employeeId: 1,
+        summary: "x",
+        details: {},
+      },
+    ]);
+    const g = evaluatePayrollAttendanceGate(preflight, false, {
+      recordsScanMayBeIncomplete: true,
+      blockingCount: 0,
+      warningCount: 1,
+    });
+    expect(g.allow).toBe(false);
+    if (!g.allow) {
+      expect(g.kind).toBe("warnings_need_ack");
+      expect(g.message).toContain("monthly cap");
+    }
+  });
+
+  it("allows warnings when acknowledged", () => {
+    const preflight = evaluatePayrollPreflight([
+      {
+        type: "LEGACY_PRESENT_WITHOUT_RECORD",
+        severity: "warning",
+        companyId: 1,
+        employeeId: 2,
+        summary: "y",
+        details: {},
+      },
+    ]);
+    expect(evaluatePayrollAttendanceGate(preflight, true, { recordsScanMayBeIncomplete: false, blockingCount: 0, warningCount: 1 })).toEqual({
+      allow: true,
+    });
+  });
+});
+
+describe("buildPayrollStoredPreflightSnapshot", () => {
+  it("serializes a compact JSON snapshot for payroll_runs", () => {
+    const raw = buildPayrollStoredPreflightSnapshot(
+      {
+        companyId: 3,
+        fromYmd: "2026-01-01",
+        toYmd: "2026-01-31",
+        windowStartUtc: "",
+        windowEndExclusiveUtc: "",
+        recordsLoadCap: RECONCILIATION_MAX_RECORDS,
+        recordsScanMayBeIncomplete: false,
+        totals: { records: 10, sessions: 10, legacyRows: 0 },
+        mismatches: [],
+        mismatchCountsByType: {},
+        blockingCount: 0,
+        warningCount: 0,
+        affectedEmployeeIds: [],
+      },
+      { decision: "safe", blockingCount: 0, warningCount: 0, reasons: [] },
+      { actorUserId: 99, warningsAcknowledged: false },
+    );
+    const o = JSON.parse(raw) as { v: number; recordsLoadCap: number; recordsScanMayBeIncomplete: boolean };
+    expect(o.v).toBe(1);
+    expect(o.recordsLoadCap).toBe(RECONCILIATION_MAX_RECORDS);
+    expect(o.recordsScanMayBeIncomplete).toBe(false);
   });
 });

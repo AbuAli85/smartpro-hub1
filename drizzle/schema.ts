@@ -2191,6 +2191,8 @@ export const payrollRuns = mysqlTable(
     totalNet: decimal("total_net", { precision: 14, scale: 3 }).default("0"),
     employeeCount: int("employee_count").default(0),
     notes: text("notes"),
+    /** JSON snapshot from `buildPayrollStoredPreflightSnapshot` after attendance reconciliation at execute time. */
+    attendancePreflightSnapshot: text("attendance_preflight_snapshot"),
     createdByUserId: int("created_by_user_id"),
     approvedByUserId: int("approved_by_user_id"),
     approvedAt: timestamp("approved_at"),

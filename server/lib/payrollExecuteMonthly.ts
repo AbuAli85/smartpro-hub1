@@ -20,6 +20,12 @@ import {
   hourlyRateFromBasic,
   computeOvertimePay,
 } from "./payrollExecution";
+import {
+  buildPayrollStoredPreflightSnapshot,
+  evaluatePayrollAttendanceGate,
+  evaluatePayrollPreflight,
+  runAttendanceReconciliation,
+} from "../attendanceReconciliation";
 
 type PayrollDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -90,11 +96,21 @@ function countExpectedWorkdaysInMonth(
 const BLOCKED_RERUN_STATUSES = new Set(["locked", "paid", "approved"]);
 
 /**
- * Monthly payroll run. Attendance drift checks are not invoked here yet; callers may run
- * `runAttendanceReconciliation` / `evaluatePayrollPreflight` from `../attendanceReconciliation` for the same period first.
+ * Monthly payroll run. Runs Muscat-calendar-month attendance reconciliation first; blocks on drift
+ * classified as blocking, and requires `acknowledgeAttendanceReconciliationWarnings` when only warnings remain.
  */
-export async function executeMonthlyPayroll(db: PayrollDb, params: { companyId: number; month: number; year: number; actorUserId: number }) {
-  const { companyId, month, year, actorUserId } = params;
+export async function executeMonthlyPayroll(
+  db: PayrollDb,
+  params: {
+    companyId: number;
+    month: number;
+    year: number;
+    actorUserId: number;
+    /** Set true only after HR review when `attendance.reconciliationPreflight` reports warnings. */
+    acknowledgeAttendanceReconciliationWarnings?: boolean;
+  },
+) {
+  const { companyId, month, year, actorUserId, acknowledgeAttendanceReconciliationWarnings = false } = params;
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd = new Date(year, month, 0, 23, 59, 59);
 
@@ -139,6 +155,31 @@ export async function executeMonthlyPayroll(db: PayrollDb, params: { companyId: 
   if (!empList.length) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "No active employees in company" });
   }
+
+  const attendanceReconReport = await runAttendanceReconciliation(db, {
+    companyId,
+    fromYmd: start,
+    toYmd: end,
+  });
+  const attendancePreflight = evaluatePayrollPreflight(attendanceReconReport.mismatches);
+  const attendanceGate = evaluatePayrollAttendanceGate(
+    attendancePreflight,
+    acknowledgeAttendanceReconciliationWarnings,
+    attendanceReconReport,
+  );
+  if (!attendanceGate.allow) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: attendanceGate.message });
+  }
+
+  const attendancePreflightSnapshotJson = buildPayrollStoredPreflightSnapshot(
+    attendanceReconReport,
+    attendancePreflight,
+    {
+      actorUserId,
+      warningsAcknowledged:
+        attendancePreflight.decision === "warnings" && Boolean(acknowledgeAttendanceReconciliationWarnings),
+    },
+  );
 
   const userIds = empList.map((e) => e.userId).filter((u): u is number => u != null);
   const schedules =
@@ -374,6 +415,7 @@ export async function executeMonthlyPayroll(db: PayrollDb, params: { companyId: 
       totalDeductions: String(roundOmr(totalDeductions)),
       totalNet: String(roundOmr(totalNet)),
       createdByUserId: actorUserId,
+      attendancePreflightSnapshot: attendancePreflightSnapshotJson,
     })
     .where(eq(payrollRuns.id, runId));
 
@@ -386,5 +428,14 @@ export async function executeMonthlyPayroll(db: PayrollDb, params: { companyId: 
     warnings,
     status: "pending_execution" as const,
     createdAt: (finalRun?.createdAt ?? new Date()).toISOString(),
+    attendancePreflight: {
+      decision: attendancePreflight.decision,
+      blockingCount: attendanceReconReport.blockingCount,
+      warningCount: attendanceReconReport.warningCount,
+      recordsScanMayBeIncomplete: attendanceReconReport.recordsScanMayBeIncomplete,
+      recordsLoadCap: attendanceReconReport.recordsLoadCap,
+      warningsAcknowledged:
+        attendancePreflight.decision === "warnings" && Boolean(acknowledgeAttendanceReconciliationWarnings),
+    },
   };
 }

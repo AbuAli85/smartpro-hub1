@@ -43,6 +43,13 @@ export interface AttendanceReconciliationReport {
   toYmd: string;
   windowStartUtc: string;
   windowEndExclusiveUtc: string;
+  /** Max rows loaded from `attendance_records` for this run (safety cap). */
+  recordsLoadCap: number;
+  /**
+   * When true, `totals.records` hit the cap — reconciliation may omit later clock rows in the same window;
+   * do not treat `preflight.safe` as guaranteed for the full calendar period without widening the scan or paging.
+   */
+  recordsScanMayBeIncomplete: boolean;
   totals: { records: number; sessions: number; legacyRows: number };
   mismatches: AttendanceMismatch[];
   mismatchCountsByType: Record<string, number>;
@@ -252,6 +259,72 @@ export function evaluatePayrollPreflight(mismatches: AttendanceMismatch[]): Payr
   return { decision: "safe", blockingCount: 0, warningCount: 0, reasons: [] };
 }
 
+export type PayrollAttendanceGateResult =
+  | { allow: true }
+  | { allow: false; kind: "blocking"; message: string }
+  | { allow: false; kind: "warnings_need_ack"; message: string };
+
+/**
+ * Pure gate used by monthly payroll: hard-stop on blocking drift; warnings require explicit acknowledgment.
+ */
+export function evaluatePayrollAttendanceGate(
+  preflight: PayrollPreflightResult,
+  acknowledgeAttendanceReconciliationWarnings: boolean,
+  report?: Pick<AttendanceReconciliationReport, "recordsScanMayBeIncomplete" | "blockingCount" | "warningCount">,
+): PayrollAttendanceGateResult {
+  const capHint =
+    report?.recordsScanMayBeIncomplete === true
+      ? " Clock-row scan hit the monthly cap; preflight may be incomplete for the full period."
+      : "";
+  if (preflight.decision === "block") {
+    return {
+      allow: false,
+      kind: "blocking",
+      message: `Attendance reconciliation has blocking mismatches (${report?.blockingCount ?? preflight.blockingCount}). Resolve drift before payroll.${capHint} Reasons: ${preflight.reasons.join("; ")}`,
+    };
+  }
+  if (preflight.decision === "warnings" && !acknowledgeAttendanceReconciliationWarnings) {
+    return {
+      allow: false,
+      kind: "warnings_need_ack",
+      message: `Attendance reconciliation reported warnings (${report?.warningCount ?? preflight.warningCount}). Re-run payroll with acknowledgeAttendanceReconciliationWarnings: true after HR review.${capHint} Reasons: ${preflight.reasons.join("; ")}`,
+    };
+  }
+  return { allow: true };
+}
+
+/** Persisted on `payroll_runs.attendance_preflight_snapshot` after a successful execute. */
+export function buildPayrollStoredPreflightSnapshot(
+  report: AttendanceReconciliationReport,
+  preflight: PayrollPreflightResult,
+  opts: { actorUserId: number; warningsAcknowledged: boolean },
+): string {
+  const obj = {
+    v: 1 as const,
+    evaluatedAt: new Date().toISOString(),
+    actorUserId: opts.actorUserId,
+    warningsAcknowledged: opts.warningsAcknowledged,
+    fromYmd: report.fromYmd,
+    toYmd: report.toYmd,
+    preflight,
+    totals: report.totals,
+    mismatchCountsByType: report.mismatchCountsByType,
+    blockingCount: report.blockingCount,
+    warningCount: report.warningCount,
+    recordsLoadCap: report.recordsLoadCap,
+    recordsScanMayBeIncomplete: report.recordsScanMayBeIncomplete,
+    affectedEmployeeIdsPreview: report.affectedEmployeeIds.slice(0, 80),
+    mismatchPreview: report.mismatches.slice(0, 40).map((m) => ({
+      type: m.type,
+      severity: m.severity,
+      employeeId: m.employeeId,
+      businessDate: m.businessDate,
+      summary: m.summary,
+    })),
+  };
+  return JSON.stringify(obj);
+}
+
 export async function runAttendanceReconciliation(
   db: MySql2Database<any>,
   params: { companyId: number; fromYmd: string; toYmd: string },
@@ -292,7 +365,6 @@ export async function runAttendanceReconciliation(
       and(eq(attendance.companyId, companyId), gte(attendance.date, startUtc), lt(attendance.date, endExclusiveUtc)),
     );
 
-  const recordById = new Map(records.map((r) => [r.id, r]));
   const sessionsByRecordId = new Map<number, (typeof attendanceSessions.$inferSelect)[]>();
   for (const s of sessions) {
     if (s.sourceRecordId == null) continue;
@@ -385,6 +457,7 @@ export async function runAttendanceReconciliation(
 
   const blockingCount = mismatches.filter((m) => m.severity === "blocking").length;
   const warningCount = mismatches.filter((m) => m.severity === "warning").length;
+  const recordsScanMayBeIncomplete = records.length >= RECONCILIATION_MAX_RECORDS;
 
   return {
     companyId,
@@ -392,6 +465,8 @@ export async function runAttendanceReconciliation(
     toYmd,
     windowStartUtc: startUtc.toISOString(),
     windowEndExclusiveUtc: endExclusiveUtc.toISOString(),
+    recordsLoadCap: RECONCILIATION_MAX_RECORDS,
+    recordsScanMayBeIncomplete,
     totals: { records: records.length, sessions: sessions.length, legacyRows: legacyRows.length },
     mismatches,
     mismatchCountsByType: countByType(mismatches),

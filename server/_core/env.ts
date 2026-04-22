@@ -59,6 +59,12 @@ export function validateProductionEnvironment(): void {
       paymentWarnings.join(", ")
     );
   }
+  const relaxSessions = process.env.ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE?.trim().toLowerCase();
+  if (relaxSessions === "1" || relaxSessions === "true" || relaxSessions === "yes") {
+    console.warn(
+      "[SmartPRO] ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE is set — clock/session dual-write tolerates a missing attendance_sessions table. Remove after migrations; avoid in production payroll environments.",
+    );
+  }
   if (problems.length) {
     console.error(
       "[SmartPRO] Refusing to start — invalid production environment:",

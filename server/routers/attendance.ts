@@ -67,6 +67,8 @@ import {
   type PromoterLinkageHint,
 } from "../promoterAssignmentAttendanceLink";
 import {
+  allowMissingAttendanceSessionsTable,
+  ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE,
   isAttendanceSessionsTableMissingError,
   logAttendanceSessionsStructured,
   syncAttendanceSessionsFromAttendanceRecordTx,
@@ -90,7 +92,7 @@ const requireAdminOrHR = _requireAdminOrHR;
  * Write a new open session row to `attendance_sessions` in parallel with the
  * existing `attendance_records` insert.
  *
- * - Missing table (pre-migration): structured warn + `null` insertId — clock row still commits.
+ * - Missing table: **throws** unless `ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE` is set (migration hatch); then warn + `null` insertId.
  * - Any other failure: structured error log + **throw** so payroll cannot silently diverge.
  */
 async function insertAttendanceSessionSafe(
@@ -102,10 +104,16 @@ async function insertAttendanceSessionSafe(
     return (result as { insertId?: number }).insertId ?? null;
   } catch (err: unknown) {
     if (isAttendanceSessionsTableMissingError(err)) {
-      logAttendanceSessionsStructured("warn", "insert_session_skipped_missing_table", {
+      if (allowMissingAttendanceSessionsTable()) {
+        logAttendanceSessionsStructured("warn", "insert_session_skipped_missing_table", {
+          message: String((err as { message?: string })?.message ?? err),
+        });
+        return null;
+      }
+      logAttendanceSessionsStructured("error", "insert_session_blocked_missing_table", {
         message: String((err as { message?: string })?.message ?? err),
       });
-      return null;
+      throw new Error(ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE);
     }
     logAttendanceSessionsStructured("error", "insert_session_failed", {
       message: String((err as { message?: string })?.message ?? err),
@@ -118,7 +126,7 @@ async function insertAttendanceSessionSafe(
  * Close the session row linked to `sourceRecordId` (set status='closed',
  * check_out_at, geo).
  *
- * - Missing table: structured warn only (legacy migration window).
+ * - Missing table: **throws** unless `ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE` is set (migration hatch).
  * - Other errors: **throw** so check-out cannot commit without a matching session close when the table exists.
  */
 async function closeAttendanceSessionSafe(
@@ -142,11 +150,18 @@ async function closeAttendanceSessionSafe(
       .where(eq(attendanceSessions.sourceRecordId, opts.sourceRecordId));
   } catch (err: unknown) {
     if (isAttendanceSessionsTableMissingError(err)) {
-      logAttendanceSessionsStructured("warn", "close_session_skipped_missing_table", {
+      if (allowMissingAttendanceSessionsTable()) {
+        logAttendanceSessionsStructured("warn", "close_session_skipped_missing_table", {
+          sourceRecordId: opts.sourceRecordId,
+          message: String((err as { message?: string })?.message ?? err),
+        });
+        return;
+      }
+      logAttendanceSessionsStructured("error", "close_session_blocked_missing_table", {
         sourceRecordId: opts.sourceRecordId,
         message: String((err as { message?: string })?.message ?? err),
       });
-      return;
+      throw new Error(ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE);
     }
     logAttendanceSessionsStructured("error", "close_session_failed", {
       sourceRecordId: opts.sourceRecordId,

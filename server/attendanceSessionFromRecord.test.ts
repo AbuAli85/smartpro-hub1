@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  allowMissingAttendanceSessionsTable,
   isAttendanceSessionsTableMissingError,
   syncAttendanceSessionsFromAttendanceRecordTx,
 } from "./attendanceSessionFromRecord";
@@ -76,9 +77,52 @@ describe("syncAttendanceSessionsFromAttendanceRecordTx", () => {
     expect(payload.checkOutAt).toBeNull();
   });
 
-  it("swallows only missing-table errors", async () => {
+  it("detects MySQL missing-table errors", () => {
     const err = new Error("Table 'x.attendance_sessions' doesn't exist");
     expect(isAttendanceSessionsTableMissingError(err)).toBe(true);
     expect(isAttendanceSessionsTableMissingError(new Error("duplicate"))).toBe(false);
+  });
+});
+
+describe("attendance_sessions missing-table production policy", () => {
+  const PREV = process.env.ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE;
+
+  beforeEach(() => {
+    delete process.env.ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE;
+  });
+
+  afterEach(() => {
+    if (PREV === undefined) delete process.env.ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE;
+    else process.env.ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE = PREV;
+  });
+
+  it("default (strict): sync throws with actionable message", async () => {
+    const missing = new Error("Table 'db.attendance_sessions' doesn't exist");
+    const tx = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockRejectedValue(missing),
+        }),
+      }),
+    };
+
+    await expect(syncAttendanceSessionsFromAttendanceRecordTx(tx as never, baseRecord({}))).rejects.toThrow(
+      /attendance_sessions table is required/i,
+    );
+    expect(allowMissingAttendanceSessionsTable()).toBe(false);
+  });
+
+  it("ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE=1: sync skips without throwing", async () => {
+    process.env.ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE = "1";
+    const missing = new Error("Table 'db.attendance_sessions' doesn't exist");
+    const tx = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockRejectedValue(missing),
+        }),
+      }),
+    };
+
+    await expect(syncAttendanceSessionsFromAttendanceRecordTx(tx as never, baseRecord({}))).resolves.toBeUndefined();
   });
 });

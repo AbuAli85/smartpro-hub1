@@ -11,6 +11,21 @@ export function isAttendanceSessionsTableMissingError(err: unknown): boolean {
   return /Table.*doesn't exist|Unknown table/i.test(String((err as { message?: string })?.message ?? err));
 }
 
+/**
+ * **Default (unset / false):** missing `attendance_sessions` is a **hard error** — session dual-write and
+ * payroll alignment cannot be guaranteed.
+ *
+ * Set `ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE=1` (or `true` / `yes`) **only** on brownfield DBs that have
+ * not yet applied the sessions migration; this restores the legacy warn-and-continue behaviour.
+ */
+export function allowMissingAttendanceSessionsTable(): boolean {
+  const v = process.env.ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
+export const ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE =
+  "The attendance_sessions table is required for payroll-aligned session dual-write. Apply the attendance_sessions migration (e.g. drizzle/0034_attendance_sessions.sql). For migration-only environments, set ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE=1 temporarily — not recommended in production.";
+
 export function logAttendanceSessionsStructured(
   level: "warn" | "error",
   context: string,
@@ -23,7 +38,7 @@ export function logAttendanceSessionsStructured(
 
 /**
  * Upsert session row(s) for one attendance record inside a transaction.
- * - Missing DB table (migration): logs and returns (legacy behaviour).
+ * - Missing DB table: **throws** unless `ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE` is set (migration escape hatch).
  * - Any other failure: throws so the caller cannot commit payroll-drifting clock changes silently.
  *
  * `tx` is `any` so Drizzle `MySqlTransaction` can be passed without circular typing to `../db`.
@@ -71,11 +86,18 @@ export async function syncAttendanceSessionsFromAttendanceRecordTx(
     }
   } catch (err) {
     if (isAttendanceSessionsTableMissingError(err)) {
-      logAttendanceSessionsStructured("warn", "sync_from_record_skipped_missing_table", {
+      if (allowMissingAttendanceSessionsTable()) {
+        logAttendanceSessionsStructured("warn", "sync_from_record_skipped_missing_table", {
+          attendanceRecordId: record.id,
+          message: String((err as { message?: string })?.message ?? err),
+        });
+        return;
+      }
+      logAttendanceSessionsStructured("error", "sync_from_record_blocked_missing_table", {
         attendanceRecordId: record.id,
         message: String((err as { message?: string })?.message ?? err),
       });
-      return;
+      throw new Error(ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE);
     }
     logAttendanceSessionsStructured("error", "sync_from_record_failed", {
       attendanceRecordId: record.id,

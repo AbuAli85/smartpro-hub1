@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from "react";
+﻿import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -14,11 +14,14 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   DollarSign, Users, CheckCircle, Clock, AlertCircle, Play, Download,
   Eye, Plus, RefreshCw, Banknote, Calculator, CreditCard, Settings,
   ChevronRight, FileText, TrendingUp, Pencil, Check, X,
-  ShieldAlert, ShieldCheck, ShieldX, ShieldOff, ExternalLink, Calendar,
+  ShieldAlert, ShieldCheck, ShieldX, ShieldOff, ExternalLink, Calendar, Wrench,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { DateInput } from "@/components/ui/date-input";
@@ -132,6 +135,33 @@ function ComplianceSummaryPanel({ runId }: { runId: number }) {
 }
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+/** Mismatch types where `repairSessionFromAttendanceRecord` can re-sync `attendance_sessions` from the clock row. */
+const REPAIRABLE_ATTENDANCE_MISMATCH_TYPES = new Set([
+  "RECORD_CLOSED_MISSING_SESSION",
+  "RECORD_OPEN_MISSING_SESSION",
+  "SESSION_BUSINESS_DATE_DRIFT",
+  "SESSION_TIME_DRIFT",
+  "SESSION_OPEN_STATE_MISMATCH",
+  "MULTIPLE_SESSIONS_FOR_RECORD",
+]);
+
+function payrollPeriodYmdBounds(year: number, month1to12: number): { fromYmd: string; toYmd: string } {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fromYmd = `${year}-${pad(month1to12)}-01`;
+  const lastDay = new Date(year, month1to12, 0).getDate();
+  const toYmd = `${year}-${pad(month1to12)}-${pad(lastDay)}`;
+  return { fromYmd, toYmd };
+}
+
+function formatPreflightSnapshot(raw: string | null | undefined): string {
+  if (!raw?.trim()) return "";
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
+}
 const fmt = (n: number | string | null | undefined) => `OMR ${Number(n ?? 0).toFixed(3)}`;
 const fmtShort = (n: number | string | null | undefined) => Number(n ?? 0).toFixed(3);
 
@@ -167,6 +197,26 @@ function RunPayrollTab() {
   const [editLine, setEditLine] = useState<any | null>(null);
   const [approveConfirm, setApproveConfirm] = useState<number | null>(null);
   const [markPaidConfirm, setMarkPaidConfirm] = useState<number | null>(null);
+  const [preflightAckWarnings, setPreflightAckWarnings] = useState(false);
+  const [repairingRecordId, setRepairingRecordId] = useState<number | null>(null);
+
+  const payrollDialogBounds = useMemo(
+    () => payrollPeriodYmdBounds(createForm.year, createForm.month),
+    [createForm.year, createForm.month],
+  );
+
+  const attendancePreflight = trpc.attendance.reconciliationPreflight.useQuery(
+    {
+      companyId: activeCompanyId ?? undefined,
+      fromYmd: payrollDialogBounds.fromYmd,
+      toYmd: payrollDialogBounds.toYmd,
+    },
+    { enabled: Boolean(createOpen && activeCompanyId) },
+  );
+
+  useEffect(() => {
+    setPreflightAckWarnings(false);
+  }, [createForm.month, createForm.year]);
 
   const { data: runs, isLoading: runsLoading, refetch: refetchRuns } = trpc.payroll.listRuns.useQuery({ year: selectedYear, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: runDetail, isLoading: runDetailLoading } = trpc.payroll.getRun.useQuery(
@@ -221,13 +271,34 @@ function RunPayrollTab() {
     onError: (e) => toast.error(e.message),
   });
 
+  const repairSessionFromRecord = trpc.attendance.repairSessionFromAttendanceRecord.useMutation({
+    onSuccess: () => {
+      toast.success("Payroll session re-synced from clock record");
+      setRepairingRecordId(null);
+      void attendancePreflight.refetch();
+    },
+    onError: (e) => {
+      toast.error(e.message);
+      setRepairingRecordId(null);
+    },
+  });
+
   const executeMonthly = trpc.payroll.executeMonthly.useMutation({
     onSuccess: (data) => {
+      const pf = data.attendancePreflight;
+      const pfNote =
+        pf?.decision === "warnings" && pf.warningsAcknowledged
+          ? " (payroll ran with acknowledged attendance warnings)"
+          : pf?.recordsScanMayBeIncomplete
+            ? " — attendance scan may be incomplete (row cap)"
+            : "";
       toast.success(
         `Payroll executed — ${data.employeeCount} employees, ${fmt(data.totalAmount)} net` +
-          (data.warnings?.length ? ` (${data.warnings.length} warnings)` : "")
+          (data.warnings?.length ? ` (${data.warnings.length} payroll warnings)` : "") +
+          pfNote
       );
       setCreateOpen(false);
+      setPreflightAckWarnings(false);
       setSelectedRunId(data.payrollRunId);
       refetchRuns();
     },
@@ -314,6 +385,24 @@ function RunPayrollTab() {
 
                       {/* Compliance summary panel */}
                       {selectedRunId && <ComplianceSummaryPanel runId={selectedRunId} />}
+
+                      {(() => {
+                        const snap = (run as { attendancePreflightSnapshot?: string | null }).attendancePreflightSnapshot;
+                        if (!snap?.trim()) return null;
+                        return (
+                        <Collapsible className="rounded-lg border border-border bg-muted/10">
+                          <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-muted/30">
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            Attendance preflight snapshot (stored at execution)
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="px-3 pb-3">
+                            <pre className="text-[10px] whitespace-pre-wrap break-words max-h-52 overflow-y-auto rounded border border-border bg-background/80 p-2">
+                              {formatPreflightSnapshot(snap)}
+                            </pre>
+                          </CollapsibleContent>
+                        </Collapsible>
+                        );
+                      })()}
 
                       {reconciliation && reconciliation.warnings.length > 0 && (
                         <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/15 p-3 space-y-2">
@@ -443,8 +532,14 @@ function RunPayrollTab() {
       )}
 
       {/* Create Run Dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-md">
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) setPreflightAckWarnings(false);
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Play size={18} className="text-primary" /> Run Payroll
@@ -459,6 +554,7 @@ function RunPayrollTab() {
                 <li>âœ“ Active salary loans auto-deducted</li>
                 <li>âœ“ Unpaid leave days auto-deducted (Ã· 26 working days)</li>
                 <li>âœ“ Payslips generated for each employee</li>
+                <li>âœ“ Attendance reconciliation preflight for the same month (blocks payroll on integrity issues)</li>
               </ul>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -477,6 +573,149 @@ function RunPayrollTab() {
                 </Select>
               </div>
             </div>
+
+            {/* Attendance reconciliation preflight (same Muscat month as payroll) */}
+            <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold">Attendance preflight</p>
+                {attendancePreflight.isFetching && !attendancePreflight.isLoading ? (
+                  <RefreshCw size={12} className="animate-spin text-muted-foreground" />
+                ) : null}
+              </div>
+              {attendancePreflight.isLoading ? (
+                <Skeleton className="h-16 w-full rounded-md" />
+              ) : attendancePreflight.isError ? (
+                <p className="text-xs text-destructive">{attendancePreflight.error.message}</p>
+              ) : attendancePreflight.data ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <Badge
+                      variant="outline"
+                      className={
+                        attendancePreflight.data.preflight.decision === "safe"
+                          ? "border-green-600 text-green-700 bg-green-50 dark:bg-green-950/40"
+                          : attendancePreflight.data.preflight.decision === "warnings"
+                            ? "border-amber-600 text-amber-800 bg-amber-50 dark:bg-amber-950/30"
+                            : "border-red-600 text-red-800 bg-red-50 dark:bg-red-950/30"
+                      }
+                    >
+                      {attendancePreflight.data.preflight.decision === "safe"
+                        ? "Safe to run"
+                        : attendancePreflight.data.preflight.decision === "warnings"
+                          ? "Warnings — acknowledgment required"
+                          : "Blocked — fix attendance drift"}
+                    </Badge>
+                    <span className="text-muted-foreground">
+                      {payrollDialogBounds.fromYmd} → {payrollDialogBounds.toYmd} (Muscat month)
+                    </span>
+                  </div>
+                  {attendancePreflight.data.recordsScanMayBeIncomplete ? (
+                    <p className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-50/80 dark:bg-amber-950/25 rounded px-2 py-1 border border-amber-200 dark:border-amber-800">
+                      {`Clock-row scan hit the configured cap (${attendancePreflight.data.recordsLoadCap}). Results may not cover the full month — treat a "safe" result cautiously until HR widens the window or reduces volume.`}
+                    </p>
+                  ) : null}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-muted-foreground">
+                    <span>Records: {attendancePreflight.data.totals.records}</span>
+                    <span>Sessions: {attendancePreflight.data.totals.sessions}</span>
+                    <span>Legacy rows: {attendancePreflight.data.totals.legacyRows}</span>
+                    <span>
+                      Blocking: {attendancePreflight.data.blockingCount} · Warnings: {attendancePreflight.data.warningCount}
+                    </span>
+                  </div>
+                  {attendancePreflight.data.preflight.reasons.length > 0 ? (
+                    <ul className="text-[11px] text-muted-foreground space-y-0.5 list-disc pl-4">
+                      {attendancePreflight.data.preflight.reasons.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {attendancePreflight.data.mismatches.length > 0 ? (
+                    <ScrollArea className="h-40 rounded-md border border-border bg-background">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="h-8">
+                            <TableHead className="text-[10px] w-[72px]">Sev.</TableHead>
+                            <TableHead className="text-[10px]">Type</TableHead>
+                            <TableHead className="text-[10px] w-14">Emp.</TableHead>
+                            <TableHead className="text-[10px]">Summary</TableHead>
+                            <TableHead className="text-[10px] w-16 text-right">Fix</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {attendancePreflight.data.mismatches.slice(0, 80).map((row, idx) => {
+                            const rid = row.attendanceRecordId ?? null;
+                            const canRepair = rid != null && REPAIRABLE_ATTENDANCE_MISMATCH_TYPES.has(row.type);
+                            return (
+                              <TableRow key={idx} className="text-[10px]">
+                                <TableCell>
+                                  <span className={row.severity === "blocking" ? "text-red-600 font-medium" : "text-amber-700"}>
+                                    {row.severity}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="font-mono text-[9px] max-w-[120px] truncate" title={row.type}>
+                                  {row.type}
+                                </TableCell>
+                                <TableCell>{row.employeeId ?? "—"}</TableCell>
+                                <TableCell className="max-w-[200px] truncate" title={row.summary}>
+                                  {row.summary}
+                                </TableCell>
+                                <TableCell className="text-right p-1">
+                                  {canRepair ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-1.5 gap-0.5"
+                                      title="Re-sync payroll session from this clock row"
+                                      disabled={repairSessionFromRecord.isPending}
+                                      onClick={() => {
+                                        setRepairingRecordId(rid);
+                                        repairSessionFromRecord.mutate({
+                                          attendanceRecordId: rid,
+                                          companyId: activeCompanyId ?? undefined,
+                                        });
+                                      }}
+                                    >
+                                      {repairSessionFromRecord.isPending && repairingRecordId === rid ? (
+                                        <RefreshCw size={11} className="animate-spin" />
+                                      ) : (
+                                        <Wrench size={11} />
+                                      )}
+                                    </Button>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  ) : null}
+                  {attendancePreflight.data.preflight.decision === "warnings" ? (
+                    <label className="flex items-start gap-2 text-xs cursor-pointer pt-1">
+                      <Checkbox
+                        checked={preflightAckWarnings}
+                        onCheckedChange={(v) => setPreflightAckWarnings(v === true)}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        I have reviewed the attendance warnings above and authorize payroll for this period with these warnings noted.
+                      </span>
+                    </label>
+                  ) : null}
+                  {attendancePreflight.data.preflight.decision === "block" ? (
+                    <p className="text-[11px] text-red-700 dark:text-red-300">
+                      Payroll cannot run until blocking mismatches are resolved (or repaired where applicable). Use row actions or fix data in HR attendance tools, then refresh this check by changing month away and back.
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">Open this dialog with an active company to load preflight.</p>
+              )}
+            </div>
+
             <div>
               <Label>Notes (optional)</Label>
               <Input placeholder="e.g. Includes Eid bonus" value={createForm.notes}
@@ -488,14 +727,26 @@ function RunPayrollTab() {
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:ml-auto">
               <Button
                 variant="secondary"
-                onClick={() =>
+                onClick={() => {
+                  const decision = attendancePreflight.data?.preflight.decision;
                   executeMonthly.mutate({
                     month: createForm.month,
                     year: createForm.year,
                     companyId: activeCompanyId ?? undefined,
-                  })
+                    ...(decision === "warnings"
+                      ? { acknowledgeAttendanceReconciliationWarnings: preflightAckWarnings }
+                      : {}),
+                  });
+                }}
+                disabled={
+                  executeMonthly.isPending ||
+                  !activeCompanyId ||
+                  attendancePreflight.isLoading ||
+                  attendancePreflight.isError ||
+                  !attendancePreflight.data ||
+                  attendancePreflight.data.preflight.decision === "block" ||
+                  (attendancePreflight.data.preflight.decision === "warnings" && !preflightAckWarnings)
                 }
-                disabled={executeMonthly.isPending || !activeCompanyId}
                 className="gap-2"
               >
                 {executeMonthly.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Calculator size={14} />}

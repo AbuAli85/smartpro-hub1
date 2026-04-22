@@ -36,6 +36,7 @@ import {
   Radar,
   Receipt,
   RefreshCw,
+  Scale,
   Settings,
   Shield,
   ShieldAlert,
@@ -338,6 +339,14 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
             "Anomaly report",
             "/hr/attendance-anomalies",
             ShieldAlert,
+            { intent: "workspace" },
+          ),
+          leaf(
+            "people.attendanceReconciliation",
+            "attendanceReconciliation",
+            "Reconciliation",
+            "/hr/attendance-reconciliation",
+            Scale,
             { intent: "workspace" },
           ),
           leaf("people.monthlyReport", "monthlyReport", "Monthly report", "/hr/monthly-report", BarChart2, {

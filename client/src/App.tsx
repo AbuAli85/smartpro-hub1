@@ -114,6 +114,7 @@ const EmployeePortalPage = lazy(() => import("./pages/EmployeePortalPage"));
 const AttendCheckInPage = lazy(() => import("./pages/AttendCheckInPage"));
 const AttendanceSitesPage = lazy(() => import("./pages/AttendanceSitesPage"));
 const AttendanceAnomaliesPage = lazy(() => import("./pages/AttendanceAnomaliesPage"));
+const AttendanceReconciliationPage = lazy(() => import("./pages/AttendanceReconciliationPage"));
 const EmployeeRequestsAdminPage = lazy(() => import("./pages/EmployeeRequestsAdminPage"));
 const ShiftTemplatesPage = lazy(() => import("./pages/ShiftTemplatesPage"));
 const EmployeeSchedulesPage = lazy(() => import("./pages/EmployeeSchedulesPage"));
@@ -217,6 +218,7 @@ function AppRoutes() {
         <Route path="/hr/attendance" component={HRAttendancePage} />
         <Route path="/hr/attendance-sites" component={AttendanceSitesPage} />
         <Route path="/hr/attendance-anomalies" component={AttendanceAnomaliesPage} />
+        <Route path="/hr/attendance-reconciliation" component={AttendanceReconciliationPage} />
         <Route path="/hr/employee-requests" component={EmployeeRequestsAdminPage} />
         <Route path="/hr/shift-templates" component={ShiftTemplatesPage} />
         <Route path="/hr/employee-schedules" component={EmployeeSchedulesPage} />

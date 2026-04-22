@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, or, isNull, inArray, gte, lte } from "drizzle-orm";
+import { eq, and, desc, or, isNull, inArray, gte, lte, lt } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import {
   employees, attendance, leaveRequests, payrollRecords,
@@ -20,7 +20,11 @@ import {
 } from "@shared/profileChangeRequestFieldKey";
 import { normalizeProfileFieldLabelForKey } from "@shared/profileChangeRequestFieldLabel";
 import { evaluateCheckoutOutcomeByShiftTimes } from "@shared/attendanceCheckoutPolicy";
-import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
+import {
+  muscatCalendarYmdFromUtcInstant,
+  muscatCalendarYmdNow,
+  muscatMonthUtcRangeExclusiveEnd,
+} from "@shared/attendanceMuscatTime";
 import { createNotification, getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireWorkspaceMembership } from "../_core/membership";
@@ -31,8 +35,6 @@ import { OMAN_LEAVE_PORTAL_DEFAULTS } from "@shared/omanLeavePolicyDefaults";
 import { mergeLeavePolicyCaps } from "@shared/leavePolicyCaps";
 import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanceDayContext";
 import { buildEmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
-import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
-
 /** @deprecated Use OMAN_LEAVE_PORTAL_DEFAULTS from @shared/omanLeavePolicyDefaults — re-exported for callers. */
 export const DEFAULT_LEAVE_ENTITLEMENTS = OMAN_LEAVE_PORTAL_DEFAULTS;
 
@@ -865,8 +867,8 @@ export const employeePortalRouter = router({
       if (!myEmp) return { records: [], summary: { total: 0, hoursWorked: 0 } };
       const db = await requireDb();
       const [year, month] = input.month.split("-").map(Number);
-      const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 1);
+      const { startUtc: monthPunchStartUtc, endExclusiveUtc: monthPunchEndExclusiveUtc } =
+        muscatMonthUtcRangeExclusiveEnd(year, month);
 
       // Explicit column list to avoid selecting columns that may not yet be
       // present in the DB (e.g. schedule_id added by a pending migration).
@@ -890,8 +892,8 @@ export const employeePortalRouter = router({
         .where(and(
           eq(attendanceRecords.companyId, m.companyId),
           eq(attendanceRecords.employeeId, myEmp.id),
-          gte(attendanceRecords.checkIn, start),
-          lte(attendanceRecords.checkIn, end),
+          gte(attendanceRecords.checkIn, monthPunchStartUtc),
+          lt(attendanceRecords.checkIn, monthPunchEndExclusiveUtc),
         ))
         .orderBy(desc(attendanceRecords.checkIn));
 
@@ -919,9 +921,11 @@ export const employeePortalRouter = router({
           ));
 
         // Build a map: date (YYYY-MM-DD) → applicable shifts for that day
-        const monthEnd = new Date(end.getTime() - 1); // last ms of month
-        for (let d = new Date(start); d <= monthEnd; d.setDate(d.getDate() + 1)) {
-          const ymd = d.toISOString().split("T")[0]!;
+        const lastDayNum = new Date(year, month, 0).getDate();
+        const pad2 = (n: number) => String(n).padStart(2, "0");
+        for (let day = 1; day <= lastDayNum; day++) {
+          const ymd = `${year}-${pad2(month)}-${pad2(day)}`;
+          const d = new Date(year, month - 1, day);
           const dayOfWeek = d.getDay(); // 0=Sun, 1=Mon, ...
           const applicable = scheduleRows.filter((s) => {
             if (s.startDate > ymd) return false;

@@ -10,9 +10,10 @@ import {
   employeeSchedules,
   shiftTemplates,
 } from "../../drizzle/schema";
-import { eq, and, gte, lte, count, inArray, desc, isNotNull } from "drizzle-orm";
+import { eq, and, gte, lte, lt, count, inArray, desc, isNotNull } from "drizzle-orm";
 import { resolveStatsCompanyFilter } from "../_core/tenant";
 import type { User } from "../../drizzle/schema";
+import { muscatCalendarYmdFromUtcInstant, muscatMonthUtcRangeExclusiveEnd } from "@shared/attendanceMuscatTime";
 
 /** Oman Labour Law Art. 68 — maximum working hours per day (exclusive of breaks). */
 const OMAN_MAX_DAILY_HOURS = 9;
@@ -284,6 +285,8 @@ export const complianceRouter = router({
    * Only closed punches are evaluated (check_out IS NOT NULL).
    * Break minutes are taken from the linked shift template where available;
    * defaults to 0 if not linked (conservative — more flags, not fewer).
+   *
+   * The requested `YYYY-MM` selects punches by **Muscat calendar month** on `check_in` (same window as payroll/billing).
    */
   getOvertimeFlags: protectedProcedure
     .input(
@@ -303,18 +306,13 @@ export const complianceRouter = router({
       const [yStr, mStr] = monthStr.split("-");
       const year = Number(yStr);
       const month = Number(mStr);
-      const mm = String(month).padStart(2, "0");
-      const startDate = `${year}-${mm}-01`;
-      const lastDay = new Date(year, month, 0).getDate();
-      const endDate = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
-
-      const monthStart = new Date(`${startDate}T00:00:00.000Z`);
-      const monthEnd = new Date(`${endDate}T23:59:59.999Z`);
+      const { startUtc: punchWindowStartUtc, endExclusiveUtc: punchWindowEndExclusiveUtc } =
+        muscatMonthUtcRangeExclusiveEnd(year, month);
 
       // Load closed punches for the period
       const recConds = [
-        gte(attendanceRecords.checkIn, monthStart),
-        lte(attendanceRecords.checkIn, monthEnd),
+        gte(attendanceRecords.checkIn, punchWindowStartUtc),
+        lt(attendanceRecords.checkIn, punchWindowEndExclusiveUtc),
         isNotNull(attendanceRecords.checkOut),
       ];
       if (!scope.aggregateAllTenants) recConds.push(eq(attendanceRecords.companyId, scope.companyId));
@@ -375,8 +373,6 @@ export const complianceRouter = router({
       };
 
       const flags: OvertimeFlag[] = [];
-
-      const { muscatCalendarYmdFromUtcInstant } = await import("@shared/attendanceMuscatTime");
 
       for (const rec of records) {
         if (!rec.checkOut) continue;
@@ -517,18 +513,16 @@ export const complianceRouter = router({
 
       // 5. Daily hours cap (Oman Labour Law Art. 68 — max 9 hours/day excl. break)
       const scoreNow = new Date();
-      const scoreY = scoreNow.getFullYear();
-      const scoreM = scoreNow.getMonth() + 1;
-      const scoreMm = String(scoreM).padStart(2, "0");
-      const scoreStartStr = `${scoreY}-${scoreMm}-01`;
-      const scoreLastDay = new Date(scoreY, scoreM, 0).getDate();
-      const scoreEndStr = `${scoreY}-${scoreMm}-${String(scoreLastDay).padStart(2, "0")}`;
-      const scoreMonthStart = new Date(`${scoreStartStr}T00:00:00.000Z`);
-      const scoreMonthEnd = new Date(`${scoreEndStr}T23:59:59.999Z`);
+      const scoreYmd = muscatCalendarYmdFromUtcInstant(scoreNow);
+      const [scoreYStr, scoreMStr] = scoreYmd.split("-");
+      const scoreY = Number(scoreYStr);
+      const scoreM = Number(scoreMStr);
+      const { startUtc: scorePunchStartUtc, endExclusiveUtc: scorePunchEndExclusiveUtc } =
+        muscatMonthUtcRangeExclusiveEnd(scoreY, scoreM);
 
       const currentMonthConds = [
-        gte(attendanceRecords.checkIn, scoreMonthStart),
-        lte(attendanceRecords.checkIn, scoreMonthEnd),
+        gte(attendanceRecords.checkIn, scorePunchStartUtc),
+        lt(attendanceRecords.checkIn, scorePunchEndExclusiveUtc),
         isNotNull(attendanceRecords.checkOut),
       ];
       if (!scope.aggregateAllTenants) currentMonthConds.push(eq(attendanceRecords.companyId, scope.companyId));

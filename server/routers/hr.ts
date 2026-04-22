@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { mergeLeavePolicyCaps } from "../../shared/leavePolicyCaps";
 import { normalizeWpsValidationPeriod, validateEmployeeWpsReadiness } from "../../shared/employeeWps";
-import { eq, and, desc, asc, gte, lte, count, sum, or, isNull, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, lt, count, sum, or, isNull, isNotNull, inArray } from "drizzle-orm";
 import {
   companies,
   workPermits,
@@ -65,7 +65,7 @@ import {
   ATTENDANCE_AUDIT_SOURCE,
 } from "@shared/attendanceAuditTaxonomy";
 import { attendancePayloadJson, insertAttendanceAuditRow } from "../attendanceAudit";
-import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
+import { muscatCalendarYmdFromUtcInstant, muscatMonthUtcRangeExclusiveEnd } from "@shared/attendanceMuscatTime";
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -981,6 +981,7 @@ export const hrRouter = router({
 
   /**
    * Payroll-oriented monthly export: per-employee attendance vs schedule (clock records + shift templates).
+   * Clock rows in the export use **Muscat calendar month** boundaries for the selected `YYYY-MM` (same basis as billing invoice summary).
    */
   exportMonthlyAttendance: protectedProcedure
     .input(
@@ -1046,16 +1047,16 @@ export const hrRouter = router({
         : [];
       const siteById = new Map(schedSites.map((s) => [s.id, s]));
 
-      const monthStart = new Date(`${startDate}T00:00:00.000Z`);
-      const monthEnd = new Date(`${endDate}T23:59:59.999Z`);
+      const { startUtc: punchWindowStartUtc, endExclusiveUtc: punchWindowEndExclusiveUtc } =
+        muscatMonthUtcRangeExclusiveEnd(year, month);
       const records = await db
         .select()
         .from(attendanceRecords)
         .where(
           and(
             eq(attendanceRecords.companyId, cid),
-            gte(attendanceRecords.checkIn, monthStart),
-            lte(attendanceRecords.checkIn, monthEnd),
+            gte(attendanceRecords.checkIn, punchWindowStartUtc),
+            lt(attendanceRecords.checkIn, punchWindowEndExclusiveUtc),
           ),
         );
 
@@ -1181,6 +1182,9 @@ export const hrRouter = router({
   /**
    * Per-client / per-site invoice summary: billable days (distinct Muscat dates with closed punch)
    * × contracted daily_rate_omr, with per-promoter breakdown.
+   *
+   * Clock rows are filtered by **Muscat calendar month** for the given `YYYY-MM` label (Asia/Muscat midnight boundaries),
+   * aligned with payroll attendance windows — not UTC midnight on the 1st/last.
    */
   getClientInvoiceSummary: protectedProcedure
     .input(
@@ -1202,8 +1206,8 @@ export const hrRouter = router({
       const lastDay = new Date(year, month, 0).getDate();
       const endDate = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
 
-      const monthStart = new Date(`${startDate}T00:00:00.000Z`);
-      const monthEnd = new Date(`${endDate}T23:59:59.999Z`);
+      const { startUtc: punchWindowStartUtc, endExclusiveUtc: punchWindowEndExclusiveUtc } =
+        muscatMonthUtcRangeExclusiveEnd(year, month);
 
       const records = await db
         .select({
@@ -1217,8 +1221,8 @@ export const hrRouter = router({
         .where(
           and(
             eq(attendanceRecords.companyId, cid),
-            gte(attendanceRecords.checkIn, monthStart),
-            lte(attendanceRecords.checkIn, monthEnd),
+            gte(attendanceRecords.checkIn, punchWindowStartUtc),
+            lt(attendanceRecords.checkIn, punchWindowEndExclusiveUtc),
             isNotNull(attendanceRecords.checkOut),
             isNotNull(attendanceRecords.siteId),
           ),

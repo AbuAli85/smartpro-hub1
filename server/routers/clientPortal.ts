@@ -17,7 +17,8 @@ import {
   attendanceSites, attendanceRecords, promoterAssignments,
   clientServiceInvoices,
 } from "../../drizzle/schema";
-import { eq, and, desc, asc, lte, gte, or, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, lte, gte, lt, or, isNotNull, inArray } from "drizzle-orm";
+import { muscatCalendarYmdFromUtcInstant, muscatMonthUtcRangeExclusiveEnd } from "@shared/attendanceMuscatTime";
 import { clientKeyFromDisplayName } from "../lib/clientServiceInvoiceKeys";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
@@ -260,6 +261,8 @@ export const clientPortalRouter = router({
    *
    * Returns the same shape as hr.getClientInvoiceSummary but scoped to
    * the calling client company, not the staffing company.
+   *
+   * Uses the same **Muscat calendar month** `check_in` window as `hr.getClientInvoiceSummary` for the `YYYY-MM` label.
    */
   getMyStaffingInvoice: protectedProcedure
     .input(
@@ -275,12 +278,8 @@ export const clientPortalRouter = router({
       const [yStr, mStr] = input.month.split("-");
       const year = Number(yStr);
       const month = Number(mStr);
-      const mm = String(month).padStart(2, "0");
-      const startDate = `${year}-${mm}-01`;
-      const lastDay = new Date(year, month, 0).getDate();
-      const endDate = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
-      const monthStart = new Date(`${startDate}T00:00:00.000Z`);
-      const monthEnd = new Date(`${endDate}T23:59:59.999Z`);
+      const { startUtc: punchWindowStartUtc, endExclusiveUtc: punchWindowEndExclusiveUtc } =
+        muscatMonthUtcRangeExclusiveEnd(year, month);
 
       // 1. Find which attendance sites belong to this client company via promoter assignments
       const assignments = await db
@@ -332,8 +331,8 @@ export const clientPortalRouter = router({
         .where(
           and(
             inArray(attendanceRecords.siteId, clientSiteIds),
-            gte(attendanceRecords.checkIn, monthStart),
-            lte(attendanceRecords.checkIn, monthEnd),
+            gte(attendanceRecords.checkIn, punchWindowStartUtc),
+            lt(attendanceRecords.checkIn, punchWindowEndExclusiveUtc),
             isNotNull(attendanceRecords.checkOut),
           ),
         );
@@ -357,8 +356,6 @@ export const clientPortalRouter = router({
       const empById = new Map(empRows.map((e) => [e.id, e]));
 
       // 5. Group: site → employee → distinct Muscat calendar dates
-      const { muscatCalendarYmdFromUtcInstant } = await import("@shared/attendanceMuscatTime");
-
       type EmpEntry = {
         employeeId: number;
         employeeName: string;

@@ -68,10 +68,10 @@ import {
 } from "../promoterAssignmentAttendanceLink";
 import {
   allowMissingAttendanceSessionsTable,
-  ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE,
   isAttendanceSessionsTableMissingError,
   logAttendanceSessionsStructured,
   syncAttendanceSessionsFromAttendanceRecordTx,
+  throwAttendanceSessionsTableRequired,
 } from "../attendanceSessionFromRecord";
 import {
   evaluatePayrollPreflight,
@@ -113,7 +113,7 @@ async function insertAttendanceSessionSafe(
       logAttendanceSessionsStructured("error", "insert_session_blocked_missing_table", {
         message: String((err as { message?: string })?.message ?? err),
       });
-      throw new Error(ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE);
+      throwAttendanceSessionsTableRequired();
     }
     logAttendanceSessionsStructured("error", "insert_session_failed", {
       message: String((err as { message?: string })?.message ?? err),
@@ -161,7 +161,7 @@ async function closeAttendanceSessionSafe(
         sourceRecordId: opts.sourceRecordId,
         message: String((err as { message?: string })?.message ?? err),
       });
-      throw new Error(ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE);
+      throwAttendanceSessionsTableRequired();
     }
     logAttendanceSessionsStructured("error", "close_session_failed", {
       sourceRecordId: opts.sourceRecordId,

@@ -3,6 +3,7 @@
  * (e.g. HR-approved corrections). Dual-write on QR/manual remains the primary insert path;
  * this module repairs / updates session rows when clock rows change without a matching session write.
  */
+import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { attendanceRecords, attendanceSessions } from "../drizzle/schema";
 import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
@@ -23,8 +24,17 @@ export function allowMissingAttendanceSessionsTable(): boolean {
   return v === "1" || v === "true" || v === "yes";
 }
 
+/** Human-readable deployment guidance (also used in tRPC `message` for admin UIs). */
 export const ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE =
-  "The attendance_sessions table is required for payroll-aligned session dual-write. Apply the attendance_sessions migration (e.g. drizzle/0034_attendance_sessions.sql). For migration-only environments, set ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE=1 temporarily — not recommended in production.";
+  "The payroll session table `attendance_sessions` is missing from this database. Apply the sessions migration (repo: drizzle/0034_attendance_sessions.sql, or your deployment equivalent), then restart. Until then, clock-in/out and session sync cannot complete in strict mode. Brownfield only, until migrated: set environment variable ALLOW_MISSING_ATTENDANCE_SESSIONS_TABLE=1 to temporarily relax checks — remove after migration; do not use for production payroll.";
+
+/** Throws a tRPC error so clients show a clear admin message instead of a generic 500. */
+export function throwAttendanceSessionsTableRequired(): never {
+  throw new TRPCError({
+    code: "BAD_REQUEST",
+    message: ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE,
+  });
+}
 
 export function logAttendanceSessionsStructured(
   level: "warn" | "error",
@@ -97,7 +107,7 @@ export async function syncAttendanceSessionsFromAttendanceRecordTx(
         attendanceRecordId: record.id,
         message: String((err as { message?: string })?.message ?? err),
       });
-      throw new Error(ATTENDANCE_SESSIONS_TABLE_REQUIRED_MESSAGE);
+      throwAttendanceSessionsTableRequired();
     }
     logAttendanceSessionsStructured("error", "sync_from_record_failed", {
       attendanceRecordId: record.id,

@@ -19,6 +19,11 @@ import {
 } from "../../drizzle/schema";
 import { collectWpsRowsForExport, buildSifCompliantWpsPayload } from "../lib/wpsService";
 import { executeMonthlyPayroll, monthYmdRange } from "../lib/payrollExecuteMonthly";
+import {
+  assertAuthoritativePayrollForApprove,
+  assertAuthoritativePayrollForFinancialExport,
+  assertAuthoritativePayrollForMarkPaid,
+} from "../lib/payrollAuthoritative";
 import { estimateGratuityArticle39, omr as omrBilling } from "../lib/billingEngine";
 import {
   recordPayrollRunApprovedAudit,
@@ -146,6 +151,7 @@ async function generateWpsBankFileForRun(db: DbNonNull, m: { companyId: number }
     .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.companyId, m.companyId)))
     .limit(1);
   if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+  assertAuthoritativePayrollForFinancialExport(run, "export WPS");
   const allowed = new Set(["pending_execution", "approved", "paid", "wps_generated", "ready_for_upload", "processing"]);
   if (!allowed.has(run.status)) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Run is not ready for WPS export" });
@@ -484,6 +490,7 @@ export const payrollRouter = router({
         status: "draft",
         employeeCount: empList.length,
         notes: input.notes,
+        previewOnly: true,
       });
       const runId = (runResult as any).insertId as number;
       // Fetch salary configs (latest per employee)
@@ -615,6 +622,13 @@ export const payrollRouter = router({
       requireNotAuditor(m.role, "External Auditors cannot modify payroll line items.");
       const [line] = await db.select().from(payrollLineItems).where(and(eq(payrollLineItems.id, input.lineId), eq(payrollLineItems.companyId, m.companyId))).limit(1);
       if (!line) throw new TRPCError({ code: "NOT_FOUND", message: "Line item not found" });
+      const [parentRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, line.payrollRunId)).limit(1);
+      if (parentRun?.previewOnly) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Salary preview runs are read-only. Use Execute Payroll for an authoritative run before editing line items.",
+        });
+      }
       // Recalculate
       const basic = Number(line.basicSalary);
       const housing = input.housingAllowance ?? Number(line.housingAllowance ?? 0);
@@ -664,11 +678,15 @@ export const payrollRouter = router({
           id: payrollRuns.id,
           periodMonth: payrollRuns.periodMonth,
           periodYear: payrollRuns.periodYear,
+          status: payrollRuns.status,
+          previewOnly: payrollRuns.previewOnly,
+          attendancePreflightSnapshot: payrollRuns.attendancePreflightSnapshot,
         })
         .from(payrollRuns)
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)))
         .limit(1);
       if (!runBefore) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
+      assertAuthoritativePayrollForApprove(runBefore);
       await db.update(payrollRuns).set({ status: "approved", approvedByUserId: ctx.user.id, approvedAt: new Date() })
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)));
       await recordPayrollRunApprovedAudit(db as never, {
@@ -696,11 +714,21 @@ export const payrollRouter = router({
           id: payrollRuns.id,
           periodMonth: payrollRuns.periodMonth,
           periodYear: payrollRuns.periodYear,
+          status: payrollRuns.status,
+          previewOnly: payrollRuns.previewOnly,
+          attendancePreflightSnapshot: payrollRuns.attendancePreflightSnapshot,
         })
         .from(payrollRuns)
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)))
         .limit(1);
       if (!runBefore) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
+      assertAuthoritativePayrollForMarkPaid(runBefore);
+      if (runBefore.status !== "approved" && runBefore.status !== "wps_generated" && runBefore.status !== "ready_for_upload") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Payroll run must be approved (or WPS-ready) before it can be marked paid.",
+        });
+      }
       await db.update(payrollRuns).set({ status: "paid", paidAt: new Date() })
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)));
       await db.update(payrollLineItems).set({ status: "paid" }).where(
@@ -727,7 +755,13 @@ export const payrollRouter = router({
       const [row] = await db
         .select({
           line: payrollLineItems,
-          run: { periodMonth: payrollRuns.periodMonth, periodYear: payrollRuns.periodYear },
+          run: {
+            periodMonth: payrollRuns.periodMonth,
+            periodYear: payrollRuns.periodYear,
+            previewOnly: payrollRuns.previewOnly,
+            status: payrollRuns.status,
+            attendancePreflightSnapshot: payrollRuns.attendancePreflightSnapshot,
+          },
           emp: { firstName: employees.firstName, lastName: employees.lastName, nationality: employees.nationality },
         })
         .from(payrollLineItems)
@@ -736,6 +770,9 @@ export const payrollRouter = router({
         .where(and(eq(payrollLineItems.id, input.lineId), eq(payrollLineItems.companyId, m.companyId)))
         .limit(1);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Line item not found" });
+      if (row.run) {
+        assertAuthoritativePayrollForFinancialExport(row.run, "generate payslips");
+      }
       const html = buildPayslipHtml({
         companyName: "Company",
         employeeName: `${row.emp?.firstName ?? ""} ${row.emp?.lastName ?? ""}`.trim(),
@@ -815,7 +852,11 @@ export const payrollRouter = router({
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.companyId, m.companyId)).orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth)).limit(12);
       const totalPaidYTD = runs.filter(r => r.status === "paid").reduce((s, r) => s + Number(r.totalNet ?? 0), 0);
-      const pendingApproval = runs.filter(r => r.status === "draft" || r.status === "processing").length;
+      const pendingApproval = runs.filter(
+        (r) =>
+          !r.previewOnly &&
+          (r.status === "pending_execution" || r.status === "processing" || r.status === "draft"),
+      ).length;
       const lastRun = runs[0] ?? null;
       return { totalPaidYTD, pendingApproval, lastRun, recentRuns: runs.slice(0, 6) };
     }),

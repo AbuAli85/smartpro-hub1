@@ -1,5 +1,6 @@
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lt } from "drizzle-orm";
 import { attendance } from "../../drizzle/schema";
+import { muscatMonthUtcRangeExclusiveEnd } from "@shared/attendanceMuscatTime";
 import { getDb } from "../db.client";
 
 export async function getAttendance(companyId: number, month?: string, employeeId?: number) {
@@ -9,10 +10,9 @@ export async function getAttendance(companyId: number, month?: string, employeeI
   if (employeeId != null) conditions.push(eq(attendance.employeeId, employeeId));
   if (month) {
     const [year, mon] = month.split("-").map(Number);
-    const start = new Date(year, mon - 1, 1, 0, 0, 0, 0);
-    const end = new Date(year, mon, 0, 23, 59, 59, 999);
-    conditions.push(gte(attendance.date, start));
-    conditions.push(lte(attendance.date, end));
+    const { startUtc, endExclusiveUtc } = muscatMonthUtcRangeExclusiveEnd(year, mon);
+    conditions.push(gte(attendance.date, startUtc));
+    conditions.push(lt(attendance.date, endExclusiveUtc));
   }
   return db
     .select()

@@ -80,6 +80,20 @@ export function muscatMonthUtcRangeExclusiveEnd(
   return { startUtc, endExclusiveUtc };
 }
 
+/** Number of calendar days in the given Muscat/Gregorian month (same as civil calendar in Oman). */
+export function muscatDaysInCalendarMonth(year: number, month: number): number {
+  const { startUtc, endExclusiveUtc } = muscatMonthUtcRangeExclusiveEnd(year, month);
+  return Math.round((endExclusiveUtc.getTime() - startUtc.getTime()) / 86_400_000);
+}
+
+/**
+ * Weekday (Sun=0 … Sat=6) for a Muscat wall calendar `YYYY-MM-DD`, evaluated at local noon to avoid UTC edge skew.
+ */
+export function muscatCalendarWeekdaySun0ForYmd(ymd: string): number {
+  const noonUtc = muscatWallDateTimeToUtc(ymd, "12:00:00");
+  return muscatCalendarWeekdaySun0(noonUtc);
+}
+
 /**
  * Minutes since local midnight in Asia/Muscat for this UTC instant (0–1439).
  * Use for late-arrival comparison against shift template HH:MM (same wall calendar context).

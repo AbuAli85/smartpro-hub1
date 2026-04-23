@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  muscatCalendarWeekdaySun0ForYmd,
   muscatCalendarYmdFromUtcInstant,
   muscatDayUtcRangeExclusiveEnd,
+  muscatDaysInCalendarMonth,
   muscatMinutesSinceMidnight,
   muscatMonthUtcRangeExclusiveEnd,
   muscatWallDateTimeToUtc,
@@ -35,6 +37,23 @@ describe("muscatMonthUtcRangeExclusiveEnd", () => {
     expect(muscatCalendarYmdFromUtcInstant(startUtc)).toBe("2026-12-01");
     // 2027-01-01 00:00 Muscat == 2026-12-31 20:00 UTC
     expect(endExclusiveUtc.toISOString()).toBe("2026-12-31T20:00:00.000Z");
+  });
+});
+
+describe("muscatDaysInCalendarMonth", () => {
+  it("returns 30 for April and 31 for March", () => {
+    expect(muscatDaysInCalendarMonth(2026, 4)).toBe(30);
+    expect(muscatDaysInCalendarMonth(2026, 3)).toBe(31);
+  });
+
+  it("returns 28 for February 2026", () => {
+    expect(muscatDaysInCalendarMonth(2026, 2)).toBe(28);
+  });
+});
+
+describe("muscatCalendarWeekdaySun0ForYmd", () => {
+  it("matches Thursday for 2026-04-23 (Muscat noon anchor)", () => {
+    expect(muscatCalendarWeekdaySun0ForYmd("2026-04-23")).toBe(4);
   });
 });
 

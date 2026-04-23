@@ -358,11 +358,16 @@ function RunPayrollTab() {
                         <p className="text-xs text-muted-foreground">{run.employeeCount} employees</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4">
                       <div className="text-right hidden sm:block">
                         <p className="text-xs text-muted-foreground">Total Net</p>
                         <p className="font-bold text-green-600">{fmt(run.totalNet)}</p>
                       </div>
+                      {(run as { previewOnly?: boolean }).previewOnly ? (
+                        <Badge variant="outline" className="text-amber-800 border-amber-300 bg-amber-50 dark:bg-amber-950/40">
+                          Preview only
+                        </Badge>
+                      ) : null}
                       <Badge className={`gap-1 ${sc.color}`}>{sc.icon}{sc.label}</Badge>
                       <ChevronRight size={16} className={`text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
                     </div>
@@ -474,7 +479,15 @@ function RunPayrollTab() {
                                         </Button>
                                         <Button size="icon" variant="ghost" className="h-7 w-7"
                                           onClick={() => generatePayslip.mutate({ lineId: line.id })}
-                                          disabled={generatePayslip.isPending}>
+                                          disabled={
+                                            generatePayslip.isPending ||
+                                            Boolean((runDetail?.run as { previewOnly?: boolean })?.previewOnly)
+                                          }
+                                          title={
+                                            (runDetail?.run as { previewOnly?: boolean })?.previewOnly
+                                              ? "Payslips are not available for salary preview runs"
+                                              : undefined
+                                          }>
                                           <FileText size={13} />
                                         </Button>
                                       </div>
@@ -489,7 +502,13 @@ function RunPayrollTab() {
 
                       {/* Action buttons */}
                       <div className="flex flex-wrap gap-2 pt-2">
-                        {run.status === "draft" && (() => {
+                        {(run as { previewOnly?: boolean }).previewOnly && run.status === "draft" ? (
+                          <p className="text-xs text-muted-foreground max-w-xl">
+                            This row is a <strong>salary preview</strong> only (no attendance reconciliation). It cannot be approved, exported as WPS, or used as official payroll. Use{" "}
+                            <strong>Execute Payroll</strong> in the Run Payroll dialog for the authoritative run.
+                          </p>
+                        ) : null}
+                        {run.status === "pending_execution" && !(run as { previewOnly?: boolean }).previewOnly ? (() => {
                           const hasExpired = (runCompliance?.summary?.expired ?? 0) > 0;
                           return (
                             <div className="flex items-center gap-2">
@@ -501,12 +520,12 @@ function RunPayrollTab() {
                               </Button>
                               {hasExpired && (
                                 <span className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-                                  <ShieldX size={12} /> {runCompliance!.summary.expired} expired doc{runCompliance!.summary.expired > 1 ? "s" : ""} â€” renew to approve
+                                  <ShieldX size={12} /> {runCompliance!.summary.expired} expired doc{runCompliance!.summary.expired > 1 ? "s" : ""} — renew to approve
                                 </span>
                               )}
                             </div>
                           );
-                        })()}
+                        })() : null}
                         {(run.status === "approved" || run.status === "wps_generated") && (
                           <Button size="sm" variant="outline" className="gap-2 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
                             onClick={() => setMarkPaidConfirm(run.id)}>
@@ -516,7 +535,8 @@ function RunPayrollTab() {
                         {(run.status === "approved" ||
                           run.status === "paid" ||
                           run.status === "pending_execution" ||
-                          run.status === "wps_generated") && (
+                          run.status === "wps_generated") &&
+                          !(run as { previewOnly?: boolean }).previewOnly && (
                           <Button size="sm" variant="outline" className="gap-2"
                             onClick={() => generateWps.mutate({ payrollRunId: run.id, companyId: activeCompanyId ?? undefined })}
                             disabled={generateWps.isPending}>
@@ -598,14 +618,19 @@ function RunPayrollTab() {
                     <Badge
                       variant="outline"
                       className={
-                        attendancePreflight.data.preflight.decision === "safe"
+                        (attendancePreflight.data as { payrollBlockedByIncompleteScan?: boolean }).payrollBlockedByIncompleteScan ||
+                        attendancePreflight.data.preflight.decision === "block"
+                          ? "border-red-600 text-red-800 bg-red-50 dark:bg-red-950/30"
+                          : attendancePreflight.data.preflight.decision === "safe"
                           ? "border-green-600 text-green-700 bg-green-50 dark:bg-green-950/40"
                           : attendancePreflight.data.preflight.decision === "warnings"
                             ? "border-amber-600 text-amber-800 bg-amber-50 dark:bg-amber-950/30"
                             : "border-red-600 text-red-800 bg-red-50 dark:bg-red-950/30"
                       }
                     >
-                      {attendancePreflight.data.preflight.decision === "safe"
+                      {(attendancePreflight.data as { payrollBlockedByIncompleteScan?: boolean }).payrollBlockedByIncompleteScan
+                        ? "Blocked — incomplete scan (cap)"
+                        : attendancePreflight.data.preflight.decision === "safe"
                         ? "Safe to run"
                         : attendancePreflight.data.preflight.decision === "warnings"
                           ? "Warnings — acknowledgment required"
@@ -616,8 +641,8 @@ function RunPayrollTab() {
                     </span>
                   </div>
                   {attendancePreflight.data.recordsScanMayBeIncomplete ? (
-                    <p className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-50/80 dark:bg-amber-950/25 rounded px-2 py-1 border border-amber-200 dark:border-amber-800">
-                      {`Clock-row scan hit the configured cap (${attendancePreflight.data.recordsLoadCap}). Results may not cover the full month — treat a "safe" result cautiously until HR widens the window or reduces volume.`}
+                    <p className="text-[11px] text-red-800 dark:text-red-200 bg-red-50/80 dark:bg-red-950/25 rounded px-2 py-1 border border-red-200 dark:border-red-800">
+                      {`Execute Payroll is blocked: clock rows hit the safety cap (${attendancePreflight.data.recordsLoadCap}) and the month was not fully scanned. Warnings cannot bypass this — reduce volume, raise the cap with paging, or contact support.`}
                     </p>
                   ) : null}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-muted-foreground">
@@ -699,7 +724,8 @@ function RunPayrollTab() {
                       </Table>
                     </ScrollArea>
                   ) : null}
-                  {attendancePreflight.data.preflight.decision === "warnings" ? (
+                  {attendancePreflight.data.preflight.decision === "warnings" &&
+                  !(attendancePreflight.data as { payrollBlockedByIncompleteScan?: boolean }).payrollBlockedByIncompleteScan ? (
                     <label className="flex items-start gap-2 text-xs cursor-pointer pt-1">
                       <Checkbox
                         checked={preflightAckWarnings}
@@ -711,9 +737,12 @@ function RunPayrollTab() {
                       </span>
                     </label>
                   ) : null}
-                  {attendancePreflight.data.preflight.decision === "block" ? (
+                  {(attendancePreflight.data.preflight.decision === "block" ||
+                    (attendancePreflight.data as { payrollBlockedByIncompleteScan?: boolean }).payrollBlockedByIncompleteScan) ? (
                     <p className="text-[11px] text-red-700 dark:text-red-300">
-                      Payroll cannot run until blocking mismatches are resolved (or repaired where applicable). Use row actions or fix data in HR attendance tools, then refresh this check by changing month away and back.
+                      {(attendancePreflight.data as { payrollBlockedByIncompleteScan?: boolean }).payrollBlockedByIncompleteScan
+                        ? "Payroll execution requires a full-period attendance scan. Incomplete scans cannot be acknowledged away."
+                        : "Payroll cannot run until blocking mismatches are resolved (or repaired where applicable). Use row actions or fix data in HR attendance tools, then refresh this check by changing month away and back."}
                     </p>
                   ) : null}
                 </>
@@ -750,6 +779,7 @@ function RunPayrollTab() {
                   attendancePreflight.isLoading ||
                   attendancePreflight.isError ||
                   !attendancePreflight.data ||
+                  (attendancePreflight.data as { payrollBlockedByIncompleteScan?: boolean }).payrollBlockedByIncompleteScan ||
                   attendancePreflight.data.preflight.decision === "block" ||
                   (attendancePreflight.data.preflight.decision === "warnings" && !preflightAckWarnings)
                 }
@@ -758,9 +788,15 @@ function RunPayrollTab() {
                 {executeMonthly.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Calculator size={14} />}
                 Execute Payroll for {MONTHS[createForm.month - 1]} {createForm.year}
               </Button>
-              <Button onClick={() => createRun.mutate({ ...createForm, companyId: activeCompanyId ?? undefined })} disabled={createRun.isPending} className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => createRun.mutate({ ...createForm, companyId: activeCompanyId ?? undefined })}
+                disabled={createRun.isPending || !activeCompanyId}
+                className="gap-2"
+                title="Creates a draft estimate only — not for approval, WPS, payslips, or official payroll."
+              >
                 {createRun.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
-                Quick draft run
+                Salary preview (non-authoritative)
               </Button>
             </div>
           </DialogFooter>

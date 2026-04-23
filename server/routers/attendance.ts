@@ -45,6 +45,7 @@ import { attendancePayloadJson, insertAttendanceAuditRow, logAttendanceAuditSafe
 import {
   muscatCalendarYmdNow,
   muscatCalendarYmdFromUtcInstant,
+  muscatCalendarWeekdaySun0,
   muscatDayUtcRangeExclusiveEnd,
   muscatWallDateTimeToUtc,
 } from "@shared/attendanceMuscatTime";
@@ -248,7 +249,7 @@ async function inferScheduleIdForTimestamp(
 ): Promise<number | null> {
   const { companyId, employeeUserId, requestedAt } = opts;
   const businessDate = muscatCalendarYmdFromUtcInstant(requestedAt);
-  const dow = new Date(businessDate + "T12:00:00").getDay();
+  const dow = muscatCalendarWeekdaySun0(muscatWallDateTimeToUtc(businessDate, "12:00:00"));
 
   const schedules = await db
     .select()
@@ -978,7 +979,7 @@ export const attendanceRouter = router({
 
       const businessDate = muscatCalendarYmdNow();
       const now = new Date();
-      const dow = new Date(businessDate + "T12:00:00").getDay();
+      const dow = muscatCalendarWeekdaySun0(muscatWallDateTimeToUtc(businessDate, "12:00:00"));
 
       // ── Load schedules (same dual-lookup as resolveEmployeeAttendanceDayContext) ──
       const querySchedules = (empUserId: number) =>
@@ -3191,7 +3192,8 @@ export const attendanceRouter = router({
         toYmd: input.toYmd,
       });
       const preflight = evaluatePayrollPreflight(report.mismatches);
-      return { ...report, preflight };
+      const payrollBlockedByIncompleteScan = report.recordsScanMayBeIncomplete === true;
+      return { ...report, preflight, payrollBlockedByIncompleteScan };
     }),
 
   /**

@@ -2193,6 +2193,11 @@ export const payrollRuns = mysqlTable(
     notes: text("notes"),
     /** JSON snapshot from `buildPayrollStoredPreflightSnapshot` after attendance reconciliation at execute time. */
     attendancePreflightSnapshot: text("attendance_preflight_snapshot"),
+    /**
+     * When true, this run was created by the salary preview path (`createRun`) only — not attendance-reconciled,
+     * must not be approved, paid, or exported as official payroll.
+     */
+    previewOnly: boolean("preview_only").notNull().default(false),
     createdByUserId: int("created_by_user_id"),
     approvedByUserId: int("approved_by_user_id"),
     approvedAt: timestamp("approved_at"),

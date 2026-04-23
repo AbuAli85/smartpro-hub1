@@ -122,7 +122,7 @@ export function compareRecordToSessions(
   if (sessionList.length > 1) {
     out.push({
       type: "MULTIPLE_SESSIONS_FOR_RECORD",
-      severity: "warning",
+      severity: "blocking",
       companyId,
       employeeId: record.employeeId,
       businessDate: expectedBd,
@@ -270,24 +270,35 @@ export type PayrollAttendanceGateResult =
 export function evaluatePayrollAttendanceGate(
   preflight: PayrollPreflightResult,
   acknowledgeAttendanceReconciliationWarnings: boolean,
-  report?: Pick<AttendanceReconciliationReport, "recordsScanMayBeIncomplete" | "blockingCount" | "warningCount">,
+  report?: Pick<
+    AttendanceReconciliationReport,
+    "recordsScanMayBeIncomplete" | "blockingCount" | "warningCount" | "recordsLoadCap"
+  >,
 ): PayrollAttendanceGateResult {
-  const capHint =
-    report?.recordsScanMayBeIncomplete === true
-      ? " Clock-row scan hit the monthly cap; preflight may be incomplete for the full period."
-      : "";
+  /** Payroll cannot proceed unless the full-period clock scan completed (no row cap truncation). */
+  if (report?.recordsScanMayBeIncomplete === true) {
+    const cap = report.recordsLoadCap ?? RECONCILIATION_MAX_RECORDS;
+    return {
+      allow: false,
+      kind: "blocking",
+      message:
+        `Payroll is blocked because attendance reconciliation did not scan the full period: clock rows hit the safety cap (${cap} rows). ` +
+        `Widen the reconciliation implementation, raise the cap with paging, or shorten the period — partial scans cannot be acknowledged away. ` +
+        `Preflight: ${preflight.reasons.join("; ") || "none"}.`,
+    };
+  }
   if (preflight.decision === "block") {
     return {
       allow: false,
       kind: "blocking",
-      message: `Attendance reconciliation has blocking mismatches (${report?.blockingCount ?? preflight.blockingCount}). Resolve drift before payroll.${capHint} Reasons: ${preflight.reasons.join("; ")}`,
+      message: `Attendance reconciliation has blocking mismatches (${report?.blockingCount ?? preflight.blockingCount}). Resolve drift before payroll. Reasons: ${preflight.reasons.join("; ")}`,
     };
   }
   if (preflight.decision === "warnings" && !acknowledgeAttendanceReconciliationWarnings) {
     return {
       allow: false,
       kind: "warnings_need_ack",
-      message: `Attendance reconciliation reported warnings (${report?.warningCount ?? preflight.warningCount}). Re-run payroll with acknowledgeAttendanceReconciliationWarnings: true after HR review.${capHint} Reasons: ${preflight.reasons.join("; ")}`,
+      message: `Attendance reconciliation reported warnings (${report?.warningCount ?? preflight.warningCount}). Re-run payroll with acknowledgeAttendanceReconciliationWarnings: true after HR review. Reasons: ${preflight.reasons.join("; ")}`,
     };
   }
   return { allow: true };
@@ -432,7 +443,7 @@ export async function runAttendanceReconciliation(
       if (anyClosed) {
         mismatches.push({
           type: "LEGACY_ROW_MISMATCH",
-          severity: "warning",
+          severity: "blocking",
           companyId,
           employeeId: leg.employeeId,
           businessDate: day,
@@ -444,7 +455,7 @@ export async function runAttendanceReconciliation(
     } else if (status !== "absent" && !hasClock) {
       mismatches.push({
         type: "LEGACY_PRESENT_WITHOUT_RECORD",
-        severity: "warning",
+        severity: "blocking",
         companyId,
         employeeId: leg.employeeId,
         businessDate: day,

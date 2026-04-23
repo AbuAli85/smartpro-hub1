@@ -99,10 +99,10 @@ describe("compareRecordToSessions", () => {
     expect(m.some((x) => x.type === "SESSION_TIME_DRIFT" && x.severity === "blocking")).toBe(true);
   });
 
-  it("flags warning for multiple sessions on same source_record_id", () => {
+  it("flags blocking for multiple sessions on same source_record_id", () => {
     const r = baseRecord();
     const m = compareRecordToSessions(r, [baseSession({ id: 1 }), baseSession({ id: 2 })]);
-    expect(m.some((x) => x.type === "MULTIPLE_SESSIONS_FOR_RECORD" && x.severity === "warning")).toBe(true);
+    expect(m.some((x) => x.type === "MULTIPLE_SESSIONS_FOR_RECORD" && x.severity === "blocking")).toBe(true);
   });
 
   it("flags blocking on open/closed mismatch", () => {
@@ -185,6 +185,7 @@ describe("evaluatePayrollAttendanceGate", () => {
     ]);
     const g = evaluatePayrollAttendanceGate(preflight, false, {
       recordsScanMayBeIncomplete: false,
+      recordsLoadCap: 8000,
       blockingCount: 1,
       warningCount: 0,
     });
@@ -204,21 +205,71 @@ describe("evaluatePayrollAttendanceGate", () => {
       },
     ]);
     const g = evaluatePayrollAttendanceGate(preflight, false, {
-      recordsScanMayBeIncomplete: true,
+      recordsScanMayBeIncomplete: false,
+      recordsLoadCap: 8000,
       blockingCount: 0,
       warningCount: 1,
     });
     expect(g.allow).toBe(false);
     if (!g.allow) {
       expect(g.kind).toBe("warnings_need_ack");
-      expect(g.message).toContain("monthly cap");
     }
   });
 
-  it("allows warnings when acknowledged", () => {
+  it("blocks payroll when reconciliation scan is incomplete regardless of acknowledgment", () => {
+    const preflight = evaluatePayrollPreflight([]);
+    const g = evaluatePayrollAttendanceGate(preflight, true, {
+      recordsScanMayBeIncomplete: true,
+      recordsLoadCap: 8000,
+      blockingCount: 0,
+      warningCount: 0,
+    });
+    expect(g.allow).toBe(false);
+    if (!g.allow) {
+      expect(g.kind).toBe("blocking");
+      expect(g.message).toContain("blocked");
+      expect(g.message).toContain("8000");
+    }
+  });
+
+  it("blocks warnings path when incomplete scan even if acknowledgment true", () => {
+    const preflight = evaluatePayrollPreflight([
+      {
+        type: "RECORD_OPEN_MISSING_SESSION",
+        severity: "warning",
+        companyId: 1,
+        employeeId: 1,
+        summary: "x",
+        details: {},
+      },
+    ]);
+    const g = evaluatePayrollAttendanceGate(preflight, true, {
+      recordsScanMayBeIncomplete: true,
+      recordsLoadCap: 8000,
+      blockingCount: 0,
+      warningCount: 1,
+    });
+    expect(g.allow).toBe(false);
+    if (!g.allow) expect(g.kind).toBe("blocking");
+  });
+
+  it("allows warnings when acknowledged and scan is complete", () => {
     const preflight = evaluatePayrollPreflight([
       {
         type: "LEGACY_PRESENT_WITHOUT_RECORD",
+        severity: "blocking",
+        companyId: 1,
+        employeeId: 2,
+        summary: "y",
+        details: {},
+      },
+    ]);
+    expect(evaluatePayrollAttendanceGate(preflight, true, { recordsScanMayBeIncomplete: false, recordsLoadCap: 8000, blockingCount: 1, warningCount: 0 }).allow).toBe(
+      false,
+    );
+    const preflightWarn = evaluatePayrollPreflight([
+      {
+        type: "RECORD_OPEN_MISSING_SESSION",
         severity: "warning",
         companyId: 1,
         employeeId: 2,
@@ -226,9 +277,14 @@ describe("evaluatePayrollAttendanceGate", () => {
         details: {},
       },
     ]);
-    expect(evaluatePayrollAttendanceGate(preflight, true, { recordsScanMayBeIncomplete: false, blockingCount: 0, warningCount: 1 })).toEqual({
-      allow: true,
-    });
+    expect(
+      evaluatePayrollAttendanceGate(preflightWarn, true, {
+        recordsScanMayBeIncomplete: false,
+        recordsLoadCap: 8000,
+        blockingCount: 0,
+        warningCount: 1,
+      }),
+    ).toEqual({ allow: true });
   });
 });
 

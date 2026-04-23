@@ -65,7 +65,12 @@ import {
   ATTENDANCE_AUDIT_SOURCE,
 } from "@shared/attendanceAuditTaxonomy";
 import { attendancePayloadJson, insertAttendanceAuditRow } from "../attendanceAudit";
-import { muscatCalendarYmdFromUtcInstant, muscatMonthUtcRangeExclusiveEnd } from "@shared/attendanceMuscatTime";
+import {
+  muscatCalendarWeekdaySun0ForYmd,
+  muscatCalendarYmdFromUtcInstant,
+  muscatMinutesSinceMidnight,
+  muscatMonthUtcRangeExclusiveEnd,
+} from "@shared/attendanceMuscatTime";
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -187,7 +192,7 @@ async function countScheduledWorkSlotsForCompanyMonth(
     for (let d = 1; d <= lastDay; d++) {
       const dateStr = `${year}-${mm}-${String(d).padStart(2, "0")}`;
       if (holidayDates.has(dateStr)) continue;
-      const dow = new Date(`${dateStr}T12:00:00Z`).getDay();
+      const dow = muscatCalendarWeekdaySun0ForYmd(dateStr);
       if (!s.workingDays.split(",").map(Number).includes(dow)) continue;
       if (s.startDate > dateStr) continue;
       if (s.endDate != null && s.endDate < dateStr) continue;
@@ -1112,7 +1117,7 @@ export const hrRouter = router({
 
         for (let d = 1; d <= lastDay; d++) {
           const dateStr = `${year}-${mm}-${String(d).padStart(2, "0")}`;
-          const dow = new Date(`${dateStr}T12:00:00Z`).getDay();
+          const dow = muscatCalendarWeekdaySun0ForYmd(dateStr);
           if (holidayDates.has(dateStr)) continue;
 
           const daySched = empSchedules.find(
@@ -1136,7 +1141,7 @@ export const hrRouter = router({
           const record = recordMap.get(`${empRow.id}-${dateStr}`);
           if (record) {
             presentDays++;
-            const checkInMins = record.checkIn.getHours() * 60 + record.checkIn.getMinutes();
+            const checkInMins = muscatMinutesSinceMidnight(new Date(record.checkIn));
             const shiftStartMins = timeToMinutes(shift?.startTime ?? "08:00");
             const grace = shift?.gracePeriodMinutes ?? 15;
             const isLate = checkInMins > shiftStartMins + grace;

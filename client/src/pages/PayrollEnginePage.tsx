@@ -293,17 +293,22 @@ export default function PayrollEnginePage() {
                         <Button size="sm" variant="ghost" onClick={() => setSelectedRunId(run.id)} className="gap-1 text-xs">
                           <Eye size={12} /> View
                         </Button>
-                        {run.status === "draft" && (
+                        {run.status === "pending_execution" && !(run as { previewOnly?: boolean }).previewOnly && (
                           <Button size="sm" variant="ghost" onClick={() => approveRun.mutate({ runId: run.id, companyId: activeCompanyId ?? undefined })} className="gap-1 text-xs text-indigo-600">
                             <CheckCircle size={12} /> Approve
                           </Button>
                         )}
+                        {(run as { previewOnly?: boolean }).previewOnly ? (
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 px-1">Preview</span>
+                        ) : null}
                         {run.status === "approved" && (
                           <Button size="sm" variant="ghost" onClick={() => markPaid.mutate({ runId: run.id, companyId: activeCompanyId ?? undefined })} className="gap-1 text-xs text-green-600">
                             <Banknote size={12} /> Mark Paid
                           </Button>
                         )}
-                        {(run.status === "approved" || run.status === "paid") && !run.wpsFileUrl && (
+                        {(run.status === "approved" || run.status === "paid") &&
+                          !run.wpsFileUrl &&
+                          !(run as { previewOnly?: boolean }).previewOnly && (
                           <Button size="sm" variant="ghost" onClick={() => generateWps.mutate({ runId: run.id, companyId: activeCompanyId ?? undefined })} className="gap-1 text-xs text-purple-600">
                             <FileText size={12} /> WPS
                           </Button>
@@ -329,11 +334,16 @@ export default function PayrollEnginePage() {
                   <p className="text-sm text-muted-foreground">{runDetail.lines.length} employees</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {runDetail.run.status === "draft" && (
+                  {runDetail.run.status === "pending_execution" && !(runDetail.run as { previewOnly?: boolean }).previewOnly && (
                     <Button onClick={() => approveRun.mutate({ runId: runDetail.run.id, companyId: activeCompanyId ?? undefined })} variant="outline" className="gap-2">
                       <CheckCircle size={14} /> Approve Run
                     </Button>
                   )}
+                  {(runDetail.run as { previewOnly?: boolean }).previewOnly ? (
+                    <p className="text-xs text-muted-foreground max-w-md">
+                      Salary preview only — not for approval or WPS. Use payroll processing → Execute Payroll for an authoritative run.
+                    </p>
+                  ) : null}
                   {runDetail.run.status === "approved" && (
                     <>
                       <Button onClick={() => markPaid.mutate({ runId: runDetail.run.id, companyId: activeCompanyId ?? undefined })} className="gap-2 bg-green-600 hover:bg-green-700">
@@ -649,10 +659,10 @@ export default function PayrollEnginePage() {
       {/* Create Run Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>New Payroll Run</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Salary preview (non-authoritative)</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              A new payroll run will automatically pull all active employees and pre-fill their salaries, allowances, and PASI deductions. You can adjust individual line items before approving.
+              Creates a <strong>draft preview</strong> from salary configs and unpaid leave only. It is <strong>not</strong> attendance-reconciled and cannot be approved, paid, or exported as official payroll. Use the payroll processing page → <strong>Execute Payroll</strong> for the authoritative path.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -680,9 +690,9 @@ export default function PayrollEnginePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={() => createRun.mutate({ ...createForm, companyId: activeCompanyId ?? undefined })} disabled={createRun.isPending} className="gap-2">
+            <Button onClick={() => createRun.mutate({ ...createForm, companyId: activeCompanyId ?? undefined })} disabled={createRun.isPending} className="gap-2" variant="outline">
               {createRun.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
-              Generate Run
+              Create preview draft
             </Button>
           </DialogFooter>
         </DialogContent>

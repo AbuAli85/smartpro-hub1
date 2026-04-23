@@ -1970,6 +1970,7 @@ CREATE TABLE IF NOT EXISTS `payroll_runs` (
 	`employee_count` int DEFAULT 0,
 	`notes` text,
 	`attendance_preflight_snapshot` text,
+	`preview_only` tinyint(1) NOT NULL DEFAULT 0,
 	`created_by_user_id` int,
 	`approved_by_user_id` int,
 	`approved_at` timestamp,

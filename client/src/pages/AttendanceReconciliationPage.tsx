@@ -246,22 +246,28 @@ export default function AttendanceReconciliationPage() {
                   <Badge
                     variant="outline"
                     className={
-                      preflight.data.preflight.decision === "safe"
+                      (preflight.data as { payrollBlockedByIncompleteScan?: boolean }).payrollBlockedByIncompleteScan ||
+                      preflight.data.preflight.decision === "block"
+                        ? "border-red-600 text-red-800 bg-red-50 dark:bg-red-950/30"
+                        : preflight.data.preflight.decision === "safe"
                         ? "border-green-600 text-green-700 bg-green-50 dark:bg-green-950/40"
                         : preflight.data.preflight.decision === "warnings"
                           ? "border-amber-600 text-amber-800 bg-amber-50 dark:bg-amber-950/30"
                           : "border-red-600 text-red-800 bg-red-50 dark:bg-red-950/30"
                     }
                   >
-                    Payroll gate: {preflight.data.preflight.decision}
+                    Payroll gate:{" "}
+                    {(preflight.data as { payrollBlockedByIncompleteScan?: boolean }).payrollBlockedByIncompleteScan
+                      ? "block (incomplete scan)"
+                      : preflight.data.preflight.decision}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
                     Blocking {preflight.data.blockingCount} · Warnings {preflight.data.warningCount}
                   </span>
                 </div>
                 {preflight.data.recordsScanMayBeIncomplete ? (
-                  <p className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50/80 dark:bg-amber-950/25 rounded-md px-3 py-2 border border-amber-200 dark:border-amber-800">
-                    {`Clock-row scan may be incomplete (cap ${preflight.data.recordsLoadCap}). Treat a "safe" result cautiously for very large months.`}
+                  <p className="text-xs text-red-800 dark:text-red-200 bg-red-50/80 dark:bg-red-950/25 rounded-md px-3 py-2 border border-red-200 dark:border-red-800">
+                    {`Execute Payroll is blocked: scan hit the cap (${preflight.data.recordsLoadCap} clock rows). The month is incomplete — this cannot be bypassed with warning acknowledgment.`}
                   </p>
                 ) : null}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">

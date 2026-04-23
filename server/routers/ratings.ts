@@ -68,6 +68,12 @@ export const ratingsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // AUTH FIRST: guard before DB
+      const companyId = await requireActiveCompanyId(
+        ctx.user.id,
+        input.companyId,
+        ctx.user as User
+      );
       const db = await getDb();
       if (!db)
         throw new TRPCError({
@@ -85,12 +91,6 @@ export const ratingsRouter = router({
           code: "NOT_FOUND",
           message: "Sanad centre not found",
         });
-
-      const companyId = await requireActiveCompanyId(
-        ctx.user.id,
-        input.companyId,
-        ctx.user as User
-      );
 
       // Prevent duplicate review per company per office
       const [existing] = await db
@@ -365,20 +365,20 @@ export const ratingsRouter = router({
         moderationNote: z.string().max(500).optional(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "DB unavailable",
-        });
-
+     .mutation(async ({ ctx, input }) => {
+      // AUTH FIRST: guard before DB
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Admin access required",
         });
       }
+      const db = await getDb();
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "DB unavailable",
+        });
 
       await db
         .update(sanadRatings)
@@ -411,14 +411,14 @@ export const ratingsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return { ratings: [], total: 0 };
 
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Admin access required",
         });
+      const db = await getDb();
+      if (!db) return { ratings: [], total: 0 };
       }
 
       const conditions: ReturnType<typeof eq>[] = [];
@@ -471,14 +471,14 @@ export const ratingsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return null;
 
       const companyId = await requireActiveCompanyId(
         ctx.user.id,
         input.companyId,
         ctx.user as User
       );
+      const db = await getDb();
+      if (!db) return null;
 
       const [rating] = await db
         .select()

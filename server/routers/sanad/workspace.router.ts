@@ -108,21 +108,26 @@ export const sanadWorkspaceProcedures = {
   getMyOfficeProfile: protectedProcedure
     .input(z.object({ officeId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      if (!db) return null;
-      if (canAccessGlobalAdminProcedures(ctx.user)) {
+      // AUTH FIRST: pure platform check before DB
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        // Non-platform: fetch from user's offices (no DB guard needed)
+        const db = await getDb();
+        if (!db) return null;
+        const offices = await getSanadOfficesForUser(db as never, ctx.user.id);
         if (input?.officeId) {
-          const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, input.officeId)).limit(1);
-      const db = await getDb();
-          return office ?? null;
+          return offices.find((o) => o.id === input.officeId) ?? null;
         }
-        const [office] = await db.select().from(sanadOffices).limit(1);
+        return offices[0] ?? null;
+      }
+      // Platform admin path
+      const db = await getDb();
+      if (!db) return null;
+      if (input?.officeId) {
+        const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, input.officeId)).limit(1);
         return office ?? null;
       }
-      const offices = await getSanadOfficesForUser(db as never, ctx.user.id);
-      if (input?.officeId) {
-        return offices.find((o) => o.id === input.officeId) ?? null;
-      }
-      return offices[0] ?? null;
+      const [office] = await db.select().from(sanadOffices).limit(1);
+      return office ?? null;
     }),
 
   /** Create or update the Sanad office profile for the current user's company */

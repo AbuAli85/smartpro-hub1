@@ -157,24 +157,26 @@ export const quotationsRouter = router({
         companyId: z.number().optional(),
       }),
     )
-    .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return [];
-
+     .query(async ({ ctx, input }) => {
+      // AUTH FIRST: guard before DB
       const conditions = [];
       if (input.status) conditions.push(eq(serviceQuotations.status, input.status));
+      let cid: number | undefined;
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      }
+      const db = await getDb();
+      if (!db) return [];
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         if (input.companyId != null) conditions.push(eq(serviceQuotations.companyId, input.companyId));
       } else {
-        const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         conditions.push(
           or(
-            eq(serviceQuotations.companyId, cid),
+            eq(serviceQuotations.companyId, cid!),
             and(isNull(serviceQuotations.companyId), eq(serviceQuotations.createdBy, ctx.user.id)),
           )!,
         );
       }
-
       return db
         .select()
         .from(serviceQuotations)
@@ -467,6 +469,11 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
   getSummary: protectedProcedure
     .input(optionalActiveWorkspace.optional())
     .query(async ({ ctx, input }) => {
+    // AUTH FIRST: guard before DB
+    let companyId: number | undefined;
+    if (!canAccessGlobalAdminProcedures(ctx.user)) {
+      companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+    }
     const db = await getDb();
     if (!db) return { total: 0, draft: 0, sent: 0, accepted: 0, declined: 0, totalValueOmr: 0 };
 
@@ -483,10 +490,7 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
       : await base
           .where(
             or(
-              eq(
-                serviceQuotations.companyId,
-                await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user),
-              ),
+              eq(serviceQuotations.companyId, companyId!),
               and(isNull(serviceQuotations.companyId), eq(serviceQuotations.createdBy, ctx.user.id)),
             )!,
           )

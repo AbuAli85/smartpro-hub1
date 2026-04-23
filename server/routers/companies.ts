@@ -394,6 +394,7 @@ export const companiesRouter = router({
       const companyId = companyIdFromCreateResult(insertResult);
 
       let teammatesAdded = 0;
+      const db = await getDb();
       if (db) {
         // Creator always becomes company admin of the new company
         const [alreadyMember] = await db
@@ -417,7 +418,6 @@ export const companiesRouter = router({
             .from(users)
             .where(eq(users.email, ownerEmail.toLowerCase()))
             .limit(1);
-      const db = await getDb();
           if (ownerUser && ownerUser.id !== ctx.user.id) {
             // Check not already a member
             const [ownerMember] = await db
@@ -560,6 +560,8 @@ export const companiesRouter = router({
         await assertCompanyAdmin(ctx.user.id, membership.company.id);
         companyId = membership.company.id;
       }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [target] = await db
         .select({ userId: companyMembers.userId, role: companyMembers.role })
         .from(companyMembers)
@@ -584,8 +586,6 @@ export const companiesRouter = router({
         nextRole: input.role,
         platformOperator: canAccessGlobalAdminProcedures(ctx.user),
       });
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       return { success: true };
     }),
 
@@ -633,6 +633,7 @@ export const companiesRouter = router({
   reactivateMember: protectedProcedure
     .input(z.object({ memberId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      // AUTH FIRST: guard before DB
       let companyId: number;
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         if (input.companyId == null) {
@@ -640,16 +641,18 @@ export const companiesRouter = router({
             code: "BAD_REQUEST",
             message: "Select a company workspace — pass companyId for this operation.",
           });
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         }
-        const c = await getCompanyById(input.companyId);
-        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
-        companyId = c.id;
       } else {
         const membership = await membershipForActiveWorkspace(ctx.user, input.companyId);
         await assertCompanyAdmin(ctx.user.id, membership.company.id);
         companyId = membership.company.id;
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        const c = await getCompanyById(input.companyId!);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+        companyId = c.id;
       }
       const [target] = await db
         .select({ id: companyMembers.id })
@@ -671,6 +674,7 @@ export const companiesRouter = router({
       origin: z.string().url().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // AUTH FIRST: guard before DB
       let companyId: number;
       let companyName: string;
       if (canAccessGlobalAdminProcedures(ctx.user)) {
@@ -679,18 +683,20 @@ export const companiesRouter = router({
             code: "BAD_REQUEST",
             message: "Select a company workspace — pass companyId for this operation.",
           });
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         }
-        const c = await getCompanyById(input.companyId);
-        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
-        companyId = c.id;
-        companyName = c.name ?? "SmartPRO";
       } else {
         const membership = await membershipForActiveWorkspace(ctx.user, input.companyId);
         await assertCompanyAdmin(ctx.user.id, membership.company.id);
         companyId = membership.company.id;
         companyName = membership.company.name ?? "SmartPRO";
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        const c = await getCompanyById(input.companyId!);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+        companyId = c.id;
+        companyName = c.name ?? "SmartPRO";
       }
       const emailNorm = input.email.toLowerCase().trim();
       const [targetUser] = await db
@@ -856,8 +862,7 @@ export const companiesRouter = router({
   listInvites: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-    const db = await getDb();
-    if (!db) return [];
+    // AUTH FIRST: guard before DB
     let targetCompanyId: number;
     if (canAccessGlobalAdminProcedures(ctx.user)) {
       if (input?.companyId == null) {
@@ -866,13 +871,17 @@ export const companiesRouter = router({
           message: "Select a company workspace — pass companyId for this operation.",
         });
       }
-      const c = await getCompanyById(input.companyId);
-      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
-      targetCompanyId = c.id;
     } else {
       const membership = await membershipForActiveWorkspace(ctx.user, input?.companyId);
       await assertCompanyAdmin(ctx.user.id, membership.company.id);
       targetCompanyId = membership.company.id;
+    }
+    const db = await getDb();
+    if (!db) return [];
+    if (canAccessGlobalAdminProcedures(ctx.user)) {
+      const c = await getCompanyById(input!.companyId!);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+      targetCompanyId = c.id;
     }
     return db
       .select({
@@ -896,6 +905,10 @@ export const companiesRouter = router({
   revokeInvite: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
+      // AUTH FIRST: guard before DB (companyId comes from invite row, so DB needed first)
+      const global = canAccessGlobalAdminProcedures(ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [invite] = await db
         .select({ id: companyInvites.id, companyId: companyInvites.companyId, revokedAt: companyInvites.revokedAt })
         .from(companyInvites)
@@ -903,9 +916,6 @@ export const companiesRouter = router({
         .limit(1);
       if (!invite) throw new TRPCError({ code: "NOT_FOUND", message: "Invite not found." });
       if (invite.revokedAt) return { success: true };
-      const global = canAccessGlobalAdminProcedures(ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       if (!global) {
         if (input.companyId != null && input.companyId !== invite.companyId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Invite does not belong to the selected workspace." });
@@ -1050,8 +1060,7 @@ export const companiesRouter = router({
   employeesWithAccess: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const db = await getDb();
-    if (!db) return [];
+    // AUTH FIRST: guard before DB
     let companyId: number;
     if (canAccessGlobalAdminProcedures(ctx.user)) {
       if (input?.companyId == null) {
@@ -1060,13 +1069,17 @@ export const companiesRouter = router({
           message: "Select a company workspace — pass companyId for this operation.",
         });
       }
-      const c = await getCompanyById(input.companyId);
-      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
-      companyId = c.id;
     } else {
       const membership = await membershipForActiveWorkspace(ctx.user, input?.companyId);
       await assertCompanyAdmin(ctx.user.id, membership.company.id);
       companyId = membership.company.id;
+    }
+    const db = await getDb();
+    if (!db) return [];
+    if (canAccessGlobalAdminProcedures(ctx.user)) {
+      const c = await getCompanyById(input!.companyId!);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+      companyId = c.id;
     }
     return fetchEmployeesWithAccessData(db, companyId);
   }),
@@ -1078,8 +1091,7 @@ export const companiesRouter = router({
   accessAnalyticsOverview: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const db = await getDb();
-    if (!db) return null;
+    // AUTH FIRST: guard before DB
     let companyId: number;
     if (canAccessGlobalAdminProcedures(ctx.user)) {
       if (input?.companyId == null) {
@@ -1088,13 +1100,17 @@ export const companiesRouter = router({
           message: "Select a company workspace — pass companyId for this operation.",
         });
       }
-      const c = await getCompanyById(input.companyId);
-      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
-      companyId = c.id;
     } else {
       const membership = await membershipForActiveWorkspace(ctx.user, input?.companyId);
       await assertCompanyAdmin(ctx.user.id, membership.company.id);
       companyId = membership.company.id;
+    }
+    const db = await getDb();
+    if (!db) return null;
+    if (canAccessGlobalAdminProcedures(ctx.user)) {
+      const c = await getCompanyById(input!.companyId!);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+      companyId = c.id;
     }
 
     const employeeRows = await fetchEmployeesWithAccessData(db, companyId);
@@ -1532,13 +1548,13 @@ export const companiesRouter = router({
    * Returns a user-centric view: each user with their memberships per company.
    */
   getAllUsersAcrossCompanies: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) return [];
     // Get all companies the caller has admin access to
     const callerCompanies = await getUserCompanies(ctx.user.id);
     const adminCompanyIds = callerCompanies
       .filter(c => c.member.role === "company_admin" || canAccessGlobalAdminProcedures(ctx.user))
       .map(c => c.company.id);
+    const db = await getDb();
+    if (!db) return [];
     if (adminCompanyIds.length === 0) return [];
     // Get all members across these companies
     const rows = await db

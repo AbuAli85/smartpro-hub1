@@ -4,17 +4,14 @@
  * Tests requireFinanceOrAdmin enforcement on:
  *   - payroll.getSummary
  *   - payroll.getGratuityEstimate
- *   - financeHR.adminListExpenses  ← AUTH INCONSISTENCY (see below)
- *   - financeHR.expenseSummary     ← AUTH INCONSISTENCY (see below)
+ *   - financeHR.adminListExpenses  ← AUTH-FIRST FIXED
+ *   - financeHR.expenseSummary     ← AUTH-FIRST FIXED
  *   - collections.upsertWorkItem
  *
- * AUTH INCONSISTENCY FOUND (documented in rbac-inconsistencies.md):
- *   financeHR.adminListExpenses and financeHR.expenseSummary call:
- *     const db = await getDb();
- *     if (!db) return [];   ← returns empty data WITHOUT checking roles
- *   This means when the DB is unavailable, any authenticated user can call
- *   these procedures and receive an empty (but not forbidden) response.
- *   The auth guard is only reached when the DB is available.
+ * AUTH-FIRST PATCH APPLIED:
+ *   financeHR.adminListExpenses and financeHR.expenseSummary now call
+ *   requireFinanceOrAdmin BEFORE getDb(), so FORBIDDEN is thrown even
+ *   when the DB is unavailable. The previous inconsistency is resolved.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { TrpcContext } from "../_core/context";
@@ -278,25 +275,22 @@ describe("financeHR.adminListExpenses — requireFinanceOrAdmin (DB-available pa
   });
 
   /**
-   * INCONSISTENCY TEST: When DB is unavailable (getDb returns null), the procedure
-   * returns [] without enforcing the role check. This is a security gap.
+   * AUTH-FIRST FIXED: requireFinanceOrAdmin now runs before getDb().
+   * hr_admin is blocked even when DB is unavailable.
    */
-  it("[INCONSISTENCY] returns empty data for hr_admin when DB is unavailable (no FORBIDDEN thrown)", async () => {
+  it("[FIXED] throws FORBIDDEN for hr_admin even when DB is unavailable (AUTH-FIRST)", async () => {
     vi.mocked(db.getUserCompanyById).mockResolvedValue({ company: { id: 1 }, member: { role: "hr_admin" } } as any);
     vi.mocked(db.getUserCompanies).mockResolvedValue([{ company: { id: 1 }, member: { role: "hr_admin" } }] as any);
     vi.mocked(db.getDb).mockResolvedValue(null);
     const caller = financeHRRouter.createCaller(makeCtx());
-    // This resolves [] instead of throwing FORBIDDEN — documents the inconsistency
-    const result = await caller.adminListExpenses({ companyId: 1 });
-    expect(result).toEqual([]);
+    await expect(caller.adminListExpenses({ companyId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 
 // ─── financeHR.expenseSummary ─────────────────────────────────────────────────
 
-describe("financeHR.expenseSummary — requireFinanceOrAdmin (DB-available path)", () => {
-  // NOTE: expenseSummary calls getDb() before auth; due to ESM live-binding constraints
-  // the real db is used after auth passes. We assert auth passes (non-FORBIDDEN error).
+describe("financeHR.expenseSummary — requireFinanceOrAdmin (AUTH-FIRST)", () => {
+  // AUTH-FIRST FIXED: expenseSummary now calls requireFinanceOrAdmin before getDb().
   it("allows finance_admin — auth passes (non-FORBIDDEN error)", async () => {
     mockRole(1, "finance_admin");
     const caller = financeHRRouter.createCaller(makeCtx());
@@ -328,16 +322,15 @@ describe("financeHR.expenseSummary — requireFinanceOrAdmin (DB-available path)
   });
 
   /**
-   * INCONSISTENCY TEST: When DB is unavailable, expenseSummary returns a default
-   * object without enforcing the role check.
+   * AUTH-FIRST FIXED: requireFinanceOrAdmin now runs before getDb().
+   * company_member is blocked even when DB is unavailable.
    */
-  it("[INCONSISTENCY] returns default summary for company_member when DB is unavailable (no FORBIDDEN thrown)", async () => {
+  it("[FIXED] throws FORBIDDEN for company_member even when DB is unavailable (AUTH-FIRST)", async () => {
     vi.mocked(db.getUserCompanyById).mockResolvedValue({ company: { id: 1 }, member: { role: "company_member" } } as any);
     vi.mocked(db.getUserCompanies).mockResolvedValue([{ company: { id: 1 }, member: { role: "company_member" } }] as any);
     vi.mocked(db.getDb).mockResolvedValue(null);
     const caller = financeHRRouter.createCaller(makeCtx());
-    const result = await caller.expenseSummary({ companyId: 1 });
-    expect(result).toMatchObject({ total: 0 });
+    await expect(caller.expenseSummary({ companyId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 
@@ -388,13 +381,15 @@ describe("collections.upsertWorkItem — canActOnCollectionsQueue (company_admin
     await expect(caller.upsertWorkItem(upsertInput)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("blocks cross-tenant access with NOT_FOUND (workspace not found)", async () => {
+  it("blocks cross-tenant access with FORBIDDEN (requireWorkspaceMembership runs first)", async () => {
+    // AUTH-FIRST: requireWorkspaceMembership pre-check now runs before assertCollectionsAccess.
+    // When membership is null, FORBIDDEN is thrown (not NOT_FOUND from the old DB-first path).
     vi.mocked(db.getUserCompanyById).mockResolvedValue(null as any);
     vi.mocked(db.getUserCompanies).mockResolvedValue([]);
     vi.mocked(db.getDb).mockResolvedValue(makeFakeDb());
     vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue(null as any);
     const caller = collectionsRouter.createCaller(makeCtx());
-    await expect(caller.upsertWorkItem({ ...upsertInput, companyId: 99 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(caller.upsertWorkItem({ ...upsertInput, companyId: 99 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("platform_admin bypasses canActOnCollectionsQueue check", async () => {

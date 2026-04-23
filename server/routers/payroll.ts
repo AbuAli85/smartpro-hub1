@@ -1050,11 +1050,13 @@ export const payrollRouter = router({
       deductedAmount: z.number().positive(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [loan] = await db.select().from(salaryLoans).where(eq(salaryLoans.id, input.loanId)).limit(1);
-      if (!loan) throw new TRPCError({ code: "NOT_FOUND", message: "Loan not found" });
-      await requireWorkspaceMembership(ctx.user as User, loan.companyId);
+      // DB must come first here: companyId is not in input, it comes from the loan row
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [loan] = await db.select().from(salaryLoans).where(eq(salaryLoans.id, input.loanId)).limit(1);
+      if (!loan) throw new TRPCError({ code: "NOT_FOUND", message: "Loan not found" });
+      // AUTH: guard runs after DB load because companyId is derived from the loan row
+      await requireWorkspaceMembership(ctx.user as User, loan.companyId);
       const newBalance = Math.max(0, Number(loan.balanceRemaining) - input.deductedAmount);
       const newStatus = newBalance <= 0 ? "completed" : "active";
       await db.update(salaryLoans)

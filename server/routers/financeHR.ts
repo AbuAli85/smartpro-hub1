@@ -259,9 +259,9 @@ export const financeHRRouter = router({
       toDate: z.string().optional(),
     }).optional())
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return [];
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const conditions = [eq(expenseClaims.companyId, companyId)];
       if (input?.status && input.status !== "all") {
         conditions.push(eq(expenseClaims.expenseStatus, input.status as "pending" | "approved" | "rejected" | "cancelled"));
@@ -308,9 +308,9 @@ export const financeHRRouter = router({
   expenseSummary: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), year: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return { total: 0, pending: 0, approved: 0, rejected: 0, byCategory: [] };
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const year = input?.year ?? new Date().getFullYear();
       const fromDate = `${year}-01-01`;
       const toDate = `${year}-12-31`;
@@ -336,9 +336,9 @@ export const financeHRRouter = router({
   financeOverview: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), year: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return null;
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const year = input?.year ?? new Date().getFullYear();
       // Payroll cost per month from payrollRuns
       const payrollData = await db.select().from(payrollRuns)
@@ -392,9 +392,9 @@ export const financeHRRouter = router({
   myTraining: protectedProcedure
     .input(optionalActiveWorkspace.optional())
     .query(async ({ ctx, input }) => {
+    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     const db = await getDb();
     if (!db) return [];
-    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     const emp = await resolveEmployee(ctx.user.id, companyId);
     const empUserId = emp?.id ?? ctx.user.id;
     return db.select().from(trainingRecords)
@@ -507,9 +507,9 @@ export const financeHRRouter = router({
   adminListTraining: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const db = await getDb();
       if (!db) return [];
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       await assertCanReadHrPerformanceOverview(ctx.user, companyId);
       const rows = await db.select({
         training: trainingRecords,
@@ -531,9 +531,9 @@ export const financeHRRouter = router({
   mySelfReviews: protectedProcedure
     .input(optionalActiveWorkspace.optional())
     .query(async ({ ctx, input }) => {
+    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     const db = await getDb();
     if (!db) return [];
-    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     const emp = await resolveEmployee(ctx.user.id, companyId);
     const empUserId = emp?.id ?? ctx.user.id;
     return db.select().from(employeeSelfReviews)
@@ -642,9 +642,9 @@ export const financeHRRouter = router({
   adminListSelfReviews: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const db = await getDb();
       if (!db) return [];
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       await assertCanReadSelfReviews(ctx.user, companyId);
 
       const rows = await db
@@ -748,9 +748,9 @@ export const financeHRRouter = router({
         .optional()
     )
     .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const db = await getDb();
       if (!db) return null;
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       await assertCanReadHrPerformanceOverview(ctx.user, companyId);
       const year = input?.year ?? new Date().getFullYear();
       const month = input?.month ?? new Date().getMonth() + 1;

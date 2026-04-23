@@ -388,16 +388,19 @@ describe("crm", () => {
   });
 
   it("updateContact returns NOT_FOUND when contact belongs to another company", async () => {
-    const { getCrmContactById, getUserCompanies } = await import("./db");
+    const { getCrmContactById, getUserCompanies, getUserCompanyById } = await import("./db");
     vi.mocked(getCrmContactById).mockResolvedValueOnce({ id: 1, companyId: 2 } as any);
-    vi.mocked(getUserCompanies).mockResolvedValueOnce([
-      {
-        company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" },
-        member: { role: "company_member" },
-      } as any,
-    ]);
+    const membership = {
+      company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" },
+      member: { role: "company_admin", isActive: true },
+    } as any;
+    // requireWorkspaceMembership calls requireActiveCompanyId (getUserCompanies) then getUserCompanyById
+    // assertRowBelongsToActiveCompany also calls requireActiveCompanyId (getUserCompanies) then getUserCompanyById
+    // So both must be mocked twice
+    vi.mocked(getUserCompanies).mockResolvedValue([membership]);
+    vi.mocked(getUserCompanyById).mockResolvedValue(membership);
     const caller = appRouter.createCaller(
-      makeCtx({ role: "user", platformRole: "company_member" }),
+      makeCtx({ role: "user", platformRole: "company_admin" }),
     );
     await expect(caller.crm.updateContact({ id: 1, firstName: "X" })).rejects.toMatchObject({
       code: "NOT_FOUND",
@@ -759,7 +762,8 @@ describe("officers router", () => {
   });
 
   it("list returns empty array when DB is unavailable (test env)", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    // officers.list is platform-only; use platform admin context
+    const caller = appRouter.createCaller(makePlatformAdminCtx());
     const result = await caller.officers.list({});
     expect(Array.isArray(result)).toBe(true);
   });
@@ -770,7 +774,8 @@ describe("officers router", () => {
   });
 
   it("stats returns null when DB is unavailable (test env)", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    // officers.stats is platform-only; use platform admin context
+    const caller = appRouter.createCaller(makePlatformAdminCtx());
     const result = await caller.officers.stats();
     expect(result).toBeNull();
   });
@@ -943,6 +948,8 @@ describe("sanad.getPublicProfile", () => {
 
 describe("sanad.submitServiceRequest", () => {
   it("throws INTERNAL_SERVER_ERROR when DB is unavailable (mock env)", async () => {
+    // Seed workspace membership so requireWorkspaceMembership passes; then DB unavailable throws INTERNAL_SERVER_ERROR
+    seedWorkspaceMembershipPair();
     const ctx = makeCtx({ role: "user" });
     await expect(
       appRouter.createCaller(ctx).sanad.submitServiceRequest({

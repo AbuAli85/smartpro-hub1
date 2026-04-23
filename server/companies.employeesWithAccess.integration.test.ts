@@ -61,14 +61,21 @@ function makeFakeDb(params: {
       return {
         from: vi.fn(() => ({
           where: vi.fn(() => {
+            // call 0: assertCompanyAdmin — returns company_admin row with .limit()
             if (call === 0) {
+              return {
+                limit: vi.fn(async () => [{ role: "company_admin" }]),
+              };
+            }
+            // call 1: fetchEmployeesWithAccessData employees query — returns .orderBy()
+            if (call === 1) {
               return {
                 orderBy: vi.fn(async () => params.employeesRows),
               };
             }
-            if (call === 1) return Promise.resolve(params.memberRows);
-            if (call === 2) return Promise.resolve(params.userRows);
-            if (call === 3) return Promise.resolve(inviteRows);
+            if (call === 2) return Promise.resolve(params.memberRows);
+            if (call === 3) return Promise.resolve(params.userRows);
+            if (call === 4) return Promise.resolve(inviteRows);
             return Promise.resolve([]);
           }),
         })),

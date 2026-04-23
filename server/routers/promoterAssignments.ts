@@ -158,6 +158,7 @@ export const promoterAssignmentsRouter = router({
     .query(async ({ ctx, input }) => {
       const activeId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       await requireCanManagePromoterAssignments(ctx.user, activeId);
+
       const db = await getDb();
       if (!db) {
         return {
@@ -202,13 +203,13 @@ export const promoterAssignmentsRouter = router({
   listClientWorkLocations: protectedProcedure
     .input(z.object({ clientCompanyId: z.number().int().positive() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         await requireCanManagePromoterAssignments(ctx.user, input.clientCompanyId);
       }
+      const db = await getDb();
+      if (!db) return [];
       return db
         .select({
           id: attendanceSites.id,
@@ -237,11 +238,9 @@ export const promoterAssignmentsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return [];
+      // AUTH FIRST: guard before DB
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-
       if (isPlatform && input.clientCompanyId == null && !input.forEmployerPerspective) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -268,6 +267,8 @@ export const promoterAssignmentsRouter = router({
       ) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Employer must differ from client company" });
       }
+      const db = await getDb();
+      if (!db) return [];
 
       return db
         .select({
@@ -789,12 +790,12 @@ export const promoterAssignmentsRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (existing.companyId !== activeId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can edit this assignment" });
         }
         await requireCanManagePromoterAssignments(ctx.user, activeId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       }
 
       if (isAssignmentTerminal(existing.assignmentStatus as AssignmentStatus)) {
@@ -985,19 +986,19 @@ export const promoterAssignmentsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-
-      const [row] = await db.select().from(promoterAssignments).where(eq(promoterAssignments.id, input.id)).limit(1);
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found" });
-
+      // AUTH FIRST: pure policy guard before DB
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      let guardedActiveId: number | undefined;
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+        guardedActiveId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+        await requireCanManagePromoterAssignments(ctx.user, guardedActiveId);
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-        if (row.companyId !== activeId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can change assignment status" });
-        }
-        await requireCanManagePromoterAssignments(ctx.user, activeId);
+      const [row] = await db.select().from(promoterAssignments).where(eq(promoterAssignments.id, input.id)).limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found" });
+      if (!isPlatform && guardedActiveId !== undefined && row.companyId !== guardedActiveId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can change assignment status" });
       }
 
       const from = row.assignmentStatus as AssignmentStatus;
@@ -1261,9 +1262,9 @@ export const promoterAssignmentsRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+        await requireCanManagePromoterAssignments(ctx.user, input.clientCompanyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-        await requireCanManagePromoterAssignments(ctx.user, input.clientCompanyId);
       }
 
       if (input.clientCompanyId === input.employerCompanyId) {
@@ -1543,12 +1544,12 @@ export const promoterAssignmentsRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (existing.companyId !== activeId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can edit this assignment" });
         }
         await requireCanManagePromoterAssignments(ctx.user, activeId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       }
 
       const legacyUpdates: Record<string, unknown> = {};

@@ -49,9 +49,9 @@ export const workLogsRouter = router({
   listMine: protectedProcedure
     .input(z.object({ fromDate: z.string().optional(), toDate: z.string().optional() }).merge(optionalActiveWorkspace).optional())
     .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const db = await getDb();
       if (!db) return [];
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const empUserId = await resolveEmpUserId(ctx.user.id, companyId);
       const conditions = [eq(workLogs.companyId, companyId), eq(workLogs.employeeUserId, empUserId)];
       if (input?.fromDate) conditions.push(gte(workLogs.logDate, input.fromDate));
@@ -96,9 +96,9 @@ export const workLogsRouter = router({
   weeklySummary: protectedProcedure
     .input(z.object({ weekStart: z.string() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) return [];
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const empUserId = await resolveEmpUserId(ctx.user.id, companyId);
       const start = new Date(input.weekStart);
       const end = new Date(start);

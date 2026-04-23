@@ -849,10 +849,10 @@ export const operationsRouter = router({
   getAiInsights: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-    const db = await getDb();
-    if (!db) return [];
     const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     const isPlatform = canAccessGlobalAdminProcedures(ctx.user as User);
+    const db = await getDb();
+    if (!db) return [];
     const now = new Date();
     const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
@@ -1153,12 +1153,12 @@ export const operationsRouter = router({
   getOwnerBusinessPulse: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return null;
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
       if (companyId === null) return null;
 
       const membership = await requireWorkspaceMembership(ctx.user as User, companyId);
+      const db = await getDb();
+      if (!db) return null;
       if (membership.role === "company_member" || membership.role === "client") return null;
 
       const openStages = ["lead", "qualified", "proposal", "negotiation"] as const;

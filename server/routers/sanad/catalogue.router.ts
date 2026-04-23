@@ -25,10 +25,11 @@ export const sanadCatalogueProcedures = {
   listServiceCatalogue: protectedProcedure
     .input(z.object({ officeId: z.number() }))
     .query(async ({ input, ctx }) => {
+      // AUTH FIRST: guard before DB
+      const db = await getDb();
       if (!db) return [];
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
-      const db = await getDb();
       }
       return db
         .select()
@@ -54,10 +55,12 @@ export const sanadCatalogueProcedures = {
     )
     .mutation(async ({ input, ctx }) => {
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, input.officeId);
-      const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
       }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       if (input.id) {
         const [prev] = await db
           .select()
@@ -106,6 +109,8 @@ export const sanadCatalogueProcedures = {
   deleteServiceItem: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [row] = await db
         .select()
         .from(sanadServiceCatalogue)
@@ -114,8 +119,6 @@ export const sanadCatalogueProcedures = {
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Catalogue item not found" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
-      const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
       }
       const activeNow = await getActiveCatalogueCountForOffice(db, row.officeId);
       const activeAfter = activeNow - (row.isActive === 1 ? 1 : 0);
@@ -139,10 +142,12 @@ export const sanadCatalogueProcedures = {
     )
     .mutation(async ({ input, ctx }) => {
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, input.officeId);
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      }
       const [result] = await db.insert(sanadServiceCatalogue).values({
         officeId: input.officeId,
         serviceType: input.serviceType,
@@ -171,6 +176,8 @@ export const sanadCatalogueProcedures = {
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [row] = await db
         .select({ officeId: sanadServiceCatalogue.officeId })
         .from(sanadServiceCatalogue)
@@ -179,8 +186,6 @@ export const sanadCatalogueProcedures = {
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Catalogue item not found" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       }
       await db
         .update(sanadServiceCatalogue)
@@ -203,6 +208,8 @@ export const sanadCatalogueProcedures = {
   toggleCatalogueItem: protectedProcedure
     .input(z.object({ id: z.number(), isActive: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [row] = await db
         .select()
         .from(sanadServiceCatalogue)
@@ -211,8 +218,6 @@ export const sanadCatalogueProcedures = {
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Catalogue item not found" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       }
       const activeNow = await getActiveCatalogueCountForOffice(db, row.officeId);
       const wasActive = row.isActive === 1;
@@ -229,6 +234,8 @@ export const sanadCatalogueProcedures = {
   deleteCatalogueItem: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [row] = await db
         .select()
         .from(sanadServiceCatalogue)
@@ -237,8 +244,6 @@ export const sanadCatalogueProcedures = {
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Catalogue item not found" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       }
       const activeNow = await getActiveCatalogueCountForOffice(db, row.officeId);
       const activeAfter = activeNow - (row.isActive === 1 ? 1 : 0);
@@ -250,10 +255,11 @@ export const sanadCatalogueProcedures = {
   getServiceCatalogue: protectedProcedure
     .input(z.object({ officeId: z.number() }))
     .query(async ({ input, ctx }) => {
+      // AUTH FIRST: guard before DB
+      const db = await getDb();
       if (!db) return [];
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
-      const db = await getDb();
       }
       return db
         .select()

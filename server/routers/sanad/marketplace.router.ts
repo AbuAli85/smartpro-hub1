@@ -143,10 +143,10 @@ export const sanadMarketplaceProcedures = {
     )
     .mutation(async ({ input, ctx }) => {
       const { officeId, ...fields } = input;
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeProfileAccess(db as never, ctx.user.id, officeId);
-      const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
       }
       const [current] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1);
       if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Office not found" });

@@ -166,11 +166,13 @@ export const sanadCoreProcedures = {
       let offices: Awaited<ReturnType<typeof getAllSanadOffices>>;
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         offices = await getAllSanadOffices();
-      const db = await getDb();
-      } else if (db) {
-        offices = await getSanadOfficesForUser(db as never, ctx.user.id);
       } else {
-        offices = [];
+        const db = await getDb();
+        if (!db) {
+          offices = [];
+        } else {
+          offices = await getSanadOfficesForUser(db as never, ctx.user.id);
+        }
       }
       let results = offices as any[];
       if (input?.providerType) results = results.filter((o: any) => o.providerType === input.providerType);
@@ -194,12 +196,12 @@ export const sanadCoreProcedures = {
     .query(async ({ input, ctx }) => {
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         const offices = await getAllSanadOffices();
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         const office = (offices as any[]).find((o: any) => o.id === input.id);
         if (!office) throw new TRPCError({ code: "NOT_FOUND", message: "Service provider not found" });
         return office;
       }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await assertSanadOfficeAccess(db as never, ctx.user.id, input.id);
       const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, input.id)).limit(1);
       if (!office) throw new TRPCError({ code: "NOT_FOUND", message: "Service provider not found" });
@@ -406,10 +408,11 @@ export const sanadCoreProcedures = {
   officeDashboard: protectedProcedure
     .input(z.object({ officeId: z.number() }))
     .query(async ({ input, ctx }) => {
+      // AUTH FIRST: guard before DB
+      const db = await getDb();
       if (!db) return null;
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         const role = await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
-      const db = await getDb();
         if (!canViewSensitiveOfficeDashboard(role)) {
           throw new TRPCError({
             code: "FORBIDDEN",
@@ -534,10 +537,11 @@ export const sanadCoreProcedures = {
   officerPerformance: protectedProcedure
     .input(z.object({ officeId: z.number() }))
     .query(async ({ input, ctx }) => {
+      // AUTH FIRST: guard before DB
+      const db = await getDb();
       if (!db) return [];
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         const role = await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
-      const db = await getDb();
         if (!canViewSensitiveOfficeDashboard(role)) {
           throw new TRPCError({
             code: "FORBIDDEN",
@@ -697,10 +701,11 @@ export const sanadCoreProcedures = {
   workOrderStats: protectedProcedure
     .input(z.object({ officeId: z.number() }))
     .query(async ({ input, ctx }) => {
+      // AUTH FIRST: guard before DB
+      const db = await getDb();
       if (!db) return { byServiceType: [], byStatus: [], recentOrders: [] };
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         const role = await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
-      const db = await getDb();
         if (!canViewSensitiveOfficeDashboard(role)) {
           throw new TRPCError({
             code: "FORBIDDEN",
@@ -805,10 +810,10 @@ export const sanadCoreProcedures = {
   listServiceRequests: protectedProcedure
     .input(z.object({ officeId: z.number(), status: z.string().optional() }))
     .query(async ({ input, ctx }) => {
+      const db = await getDb();
       if (!db) return [];
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
-      const db = await getDb();
       }
       const conditions = [eq(sanadServiceRequests.officeId, input.officeId)];
       if (input.status) conditions.push(eq(sanadServiceRequests.status, input.status as any));
@@ -828,6 +833,8 @@ export const sanadCoreProcedures = {
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [reqRow] = await db
         .select()
         .from(sanadServiceRequests)
@@ -838,8 +845,6 @@ export const sanadCoreProcedures = {
       }
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeAccess(db as never, ctx.user.id, reqRow.officeId);
-      const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
       }
       await db
         .update(sanadServiceRequests)
@@ -850,9 +855,10 @@ export const sanadCoreProcedures = {
 
   // ─── Legacy aliases (backward compat) ────────────────────────────────────
   listOffices: protectedProcedure.query(async ({ ctx }) => {
-    if (!db) return [];
+    // AUTH FIRST: platform check is pure, no DB needed
     if (canAccessGlobalAdminProcedures(ctx.user)) return getAllSanadOffices();
     const db = await getDb();
+    if (!db) return [];
     return getSanadOfficesForUser(db as never, ctx.user.id);
   }),
   listApplications: protectedProcedure

@@ -73,6 +73,7 @@ export const promoterAssignmentOpsRouter = router({
   executionSummary: protectedProcedure.input(optionalActiveWorkspace.optional()).query(async ({ ctx, input }) => {
     const activeId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     await requireCanViewPromoterOps(ctx.user, activeId);
+    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     const db = await getDb();
     if (!db) {
       return {
@@ -85,7 +86,6 @@ export const promoterAssignmentOpsRouter = router({
         mismatchIssueCountToday: 0,
       };
     }
-    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     return getPromoterExecutionSummary(db, { activeCompanyId: activeId, isPlatformAdmin: isPlatform });
   }),
 

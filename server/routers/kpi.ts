@@ -83,8 +83,7 @@ async function recalcAchievement(
     commission = achieved * commissionRate;
   }
 
-  const db2 = await requireDb();
-  const existing = await db2.select({ id: kpiAchievements.id }).from(kpiAchievements).where(
+  const existing = await db.select({ id: kpiAchievements.id }).from(kpiAchievements).where(
     and(
       eq(kpiAchievements.companyId, companyId),
       eq(kpiAchievements.employeeUserId, employeeUserId),

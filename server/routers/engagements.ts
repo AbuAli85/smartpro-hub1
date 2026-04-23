@@ -111,9 +111,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { items: [] as (typeof engagements.$inferSelect)[], total: 0 };
-      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const offset = (input.page - 1) * input.pageSize;
       const rows = await db
         .select()
@@ -273,8 +273,6 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return { items: [], total: 0 };
       const u = ctx.user as User;
       if (seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u)) {
         return listEngagementsForOps(db, {
@@ -287,6 +285,8 @@ export const engagementsRouter = router({
         });
       }
       const m = await requireWorkspaceMembership(u, input.companyId);
+      const db = await getDb();
+      if (!db) return { items: [], total: 0 };
       if (!canUseEngagementOps(m.role, u)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions for ops queue" });
       }
@@ -302,6 +302,15 @@ export const engagementsRouter = router({
 
   getOpsSummary: protectedProcedure.input(optionalActiveWorkspace)
     .query(async ({ ctx, input }) => {
+      // AUTH FIRST: guard before DB
+      const u = ctx.user as User;
+      let m: Awaited<ReturnType<typeof requireWorkspaceMembership>> | null = null;
+      if (!seesPlatformOperatorNav(u) && !canAccessGlobalAdminProcedures(u)) {
+        m = await requireWorkspaceMembership(u, input.companyId);
+        if (!canUseEngagementOps(m.role, u)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions for ops summary" });
+        }
+      }
       const db = await getDb();
       const emptyCounts: Record<OpsBucket, number> = {
         all: 0,
@@ -317,15 +326,10 @@ export const engagementsRouter = router({
         docs_pending_review: 0,
       };
       if (!db) return { counts: emptyCounts, latestDerivedStateSyncedAt: null as Date | null };
-      const u = ctx.user as User;
       if (seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u)) {
         return getEngagementsOpsSummary(db, { scope: "platform", companyId: input.companyId ?? null });
       }
-      const m = await requireWorkspaceMembership(u, input.companyId);
-      if (!canUseEngagementOps(m.role, u)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions for ops summary" });
-      }
-      return getEngagementsOpsSummary(db, { scope: "tenant", companyId: m.companyId });
+      return getEngagementsOpsSummary(db, { scope: "tenant", companyId: m!.companyId });
     }),
 
   /**
@@ -373,8 +377,6 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return { items: [], total: 0 };
       const u = ctx.user as User;
       if (seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u)) {
         return listMyEngagementQueue(db, {
@@ -385,6 +387,8 @@ export const engagementsRouter = router({
         });
       }
       const m = await requireWorkspaceMembership(u, input.companyId);
+      const db = await getDb();
+      if (!db) return { items: [], total: 0 };
       if (!canUseEngagementOps(m.role, u)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions for ops queue" });
       }
@@ -530,8 +534,7 @@ export const engagementsRouter = router({
   listInternalNotes: protectedProcedure
     .input(z.object({ engagementId: z.number().int().positive() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return { items: [] };
+      // AUTH FIRST: guard before DB
       const u = ctx.user as User;
       const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
       let companyId: number;
@@ -547,6 +550,8 @@ export const engagementsRouter = router({
         }
         companyId = m.companyId;
       }
+      const db = await getDb();
+      if (!db) return { items: [] };
       const items = await listEngagementInternalNotes(db, input.engagementId, companyId);
       return { items };
     }),
@@ -727,9 +732,9 @@ export const engagementsRouter = router({
   listTasks: protectedProcedure
     .input(z.object({ engagementId: z.number().int().positive() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { items: [] };
-      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       await assertEngagementInCompany(db, input.engagementId, companyId);
       const items = await db
         .select()
@@ -829,9 +834,9 @@ export const engagementsRouter = router({
   listMessages: protectedProcedure
     .input(z.object({ engagementId: z.number().int().positive() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { items: [] };
-      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       await assertEngagementInCompany(db, input.engagementId, companyId);
       const items = await db
         .select()
@@ -843,9 +848,9 @@ export const engagementsRouter = router({
 
   /** Workspace thread + legacy client_message notifications (read-only legacy). */
   listUnifiedMessages: protectedProcedure.input(optionalActiveWorkspace.optional()).query(async ({ ctx, input }) => {
+    const { companyId } = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
     const db = await getDb();
     if (!db) return { items: [] };
-    const { companyId } = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
     const items = await listUnifiedThread(db, companyId, ctx.user.id);
     return { items };
   }),
@@ -961,9 +966,9 @@ export const engagementsRouter = router({
   listDocuments: protectedProcedure
     .input(z.object({ engagementId: z.number().int().positive() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { items: [] };
-      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       await assertEngagementInCompany(db, input.engagementId, companyId);
       const items = await db
         .select()

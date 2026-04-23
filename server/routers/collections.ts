@@ -20,6 +20,7 @@ import { getDb } from "../db";
 import { sendPaymentReminderEmail } from "../email";
 import { ENV } from "../_core/env";
 import { resolveStatsCompanyFilter } from "../_core/tenant";
+import { requireWorkspaceMembership } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
 import { canActOnCollectionsQueue } from "../executionCapabilities";
 import { getCompanyById, getUserCompanyById } from "../repositories/companies.repository";
@@ -76,13 +77,21 @@ export const collectionsRouter = router({
   getAgingSnapshot: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      // AUTH FIRST: guard before DB
       const filter = await resolveStatsCompanyFilter(ctx.user as User, input?.companyId);
       if (filter.aggregateAllTenants) {
         if (!canAccessGlobalAdminProcedures(ctx.user)) {
           throw new TRPCError({ code: "FORBIDDEN" });
+        }
+      } else {
+        // assertCollectionsAccess is DB-backed; pre-check with pure membership first
+        if (!canAccessGlobalAdminProcedures(ctx.user)) {
+          await requireWorkspaceMembership(ctx.user as User, filter.companyId);
+        }
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-        }
+      if (filter.aggregateAllTenants) {
         return buildAgedReceivablesSnapshotAllTenants(db);
       }
       await assertCollectionsAccess(ctx, filter.companyId);
@@ -93,14 +102,23 @@ export const collectionsRouter = router({
   getOverdueLines: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      // AUTH FIRST: guard before DB
       const filter = await resolveStatsCompanyFilter(ctx.user as User, input?.companyId);
       const companyId = filter.aggregateAllTenants ? undefined : filter.companyId;
-      if (!filter.aggregateAllTenants) {
-        await assertCollectionsAccess(ctx, filter.companyId);
-      } else if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN" });
+      if (filter.aggregateAllTenants) {
+        if (!canAccessGlobalAdminProcedures(ctx.user)) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+      } else {
+        // assertCollectionsAccess is DB-backed; pre-check with pure membership first
+        if (!canAccessGlobalAdminProcedures(ctx.user)) {
+          await requireWorkspaceMembership(ctx.user as User, filter.companyId);
+        }
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!filter.aggregateAllTenants) {
+        await assertCollectionsAccess(ctx, filter.companyId);
       }
       const rows = await listOverdueReceivableDetailRows(db, { companyId });
       return rows.map((r) => ({
@@ -118,15 +136,20 @@ export const collectionsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
+      // AUTH FIRST: guard before DB
       const filter = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (filter.aggregateAllTenants) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Choose a company workspace to load the action queue.",
         });
       }
+      // assertCollectionsAccess is DB-backed; pre-check with pure membership first
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await requireWorkspaceMembership(ctx.user as User, filter.companyId);
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await assertCollectionsAccess(ctx, filter.companyId);
       return listCollectionsExecutionQueue(db, filter.companyId, input.limit);
     }),
@@ -142,6 +165,10 @@ export const collectionsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // AUTH FIRST: pure membership check before DB (assertCollectionsAccess is DB-backed)
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await assertCollectionsAccess(ctx, input.companyId);
@@ -173,6 +200,10 @@ export const collectionsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // AUTH FIRST: pure membership check before DB (assertCollectionsAccess is DB-backed)
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await assertCollectionsAccess(ctx, input.companyId);
@@ -243,6 +274,10 @@ export const collectionsRouter = router({
           message:
             "WhatsApp collections template not configured. Set WHATSAPP_TEMPLATE_COLLECTION_REMINDER (and Cloud API credentials).",
         });
+      }
+      // AUTH FIRST: pure membership check before DB (assertCollectionsAccess is DB-backed)
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await requireWorkspaceMembership(ctx.user as User, input.companyId);
       }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });

@@ -3,11 +3,13 @@ import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { employeeTasks, employees, engagementTasks, users } from "../../drizzle/schema";
+import type { User } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { assertEngagementInCompany } from "../services/engagementsService";
 import { syncEngagementDerivedState } from "../services/engagements/deriveEngagementState";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { requireHrOrAdmin } from "../_core/policy";
 import { sendEmployeeNotification, notifyAssignerTaskCompleted } from "./employeePortal";
 import { assertAdminStatusTransition, statusUpdateSideEffects, type TaskStatus } from "../taskLifecycle";
 
@@ -147,7 +149,7 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const { companyId: _cid, engagementId, clientVisible, ...rest } = input;
       const now = new Date();
@@ -216,7 +218,7 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== companyId)
@@ -327,7 +329,7 @@ export const tasksRouter = router({
   deleteTask: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== companyId)

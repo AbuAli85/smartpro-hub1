@@ -30,6 +30,7 @@ import {
   updateCrmDeal,
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
+import { requireAnyOperatorRole } from "../_core/policy";
 
 async function resolveCrmCompanyId(
   ctx: { user: { id: number; role?: string | null; platformRole?: string | null } },
@@ -40,6 +41,18 @@ async function resolveCrmCompanyId(
     throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required when you have no company membership" });
   }
   return requireActiveCompanyId(ctx.user.id, inputCompanyId, ctx.user as User);
+}
+
+/** Resolves companyId for CRM mutations while enforcing operator-level role. */
+async function requireCrmMutationAccess(
+  ctx: { user: User },
+  inputCompanyId?: number
+): Promise<number> {
+  if (canAccessGlobalAdminProcedures(ctx.user)) {
+    return resolveCrmCompanyId(ctx, inputCompanyId);
+  }
+  const m = await requireAnyOperatorRole(ctx.user, inputCompanyId);
+  return m.companyId;
 }
 
 export const crmRouter = router({
@@ -80,7 +93,7 @@ export const crmRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      const companyId = await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
       const { companyId: _omit, ...rest } = input;
       await createCrmContact({ ...rest, companyId, ownerId: ctx.user.id });
       return { success: true };
@@ -103,6 +116,7 @@ export const crmRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
       const row = await getCrmContactById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
       await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Contact", input.companyId);
@@ -139,7 +153,7 @@ export const crmRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      const companyId = await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
       if (input.contactId != null) {
         const c = await getCrmContactById(input.contactId);
         if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
@@ -172,6 +186,7 @@ export const crmRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
       const row = await getCrmDealById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
       await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Deal", input.companyId ?? row.companyId);
@@ -531,7 +546,7 @@ export const crmRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      const companyId = await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
       if (input.contactId != null) {
         const c = await getCrmContactById(input.contactId);
         if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });

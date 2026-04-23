@@ -10,6 +10,7 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, isNull, lt, desc, count, sql } from "drizzle-orm";
 import { resolvePlatformOrCompanyScope } from "../_core/tenant";
+import { requireHrOrAdmin } from "../_core/policy";
 import type { User } from "../../drizzle/schema";
 
 export const slaRouter = router({
@@ -132,12 +133,15 @@ export const slaRouter = router({
         caseId: z.number(),
         serviceType: z.string(),
         priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+        companyId: z.number().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      // Platform admins bypass; company users must hold hr_admin | company_admin.
+      await requireHrOrAdmin(ctx.user as User, input.companyId);
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
       const [caseRow] = await db
         .select({ id: governmentServiceCases.id })
@@ -183,11 +187,13 @@ export const slaRouter = router({
 
   // ── Resolve Tracking ─────────────────────────────────────────────────────────
   resolve: protectedProcedure
-    .input(z.object({ caseId: z.number() }))
+    .input(z.object({ caseId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      // Platform admins bypass; company users must hold hr_admin | company_admin.
+      await requireHrOrAdmin(ctx.user as User, input.companyId);
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
       const [caseRow] = await db
         .select({ id: governmentServiceCases.id })

@@ -14,6 +14,7 @@ import { storagePut } from "../storage";
 import { invokeLLM } from "../_core/llm";
 import { publicProcedure } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { requireHrOrAdmin } from "../_core/policy";
 import type { User } from "../../drizzle/schema";
 
 function randomSuffix() {
@@ -22,8 +23,14 @@ function randomSuffix() {
 
 const recruitmentWorkspace = z.object({ companyId: z.number().optional() });
 
+/** Read-only workspace resolver — for queries accessible to all members. */
 async function recruitmentCompanyId(user: User, explicit?: number | null) {
   return requireActiveCompanyId(user.id, explicit, user);
+}
+
+/** Mutation gate — requires hr_admin or company_admin. */
+async function requireRecruitmentAdmin(user: User, explicit?: number | null) {
+  return requireHrOrAdmin(user, explicit);
 }
 
 export const recruitmentRouter = router({
@@ -91,7 +98,7 @@ export const recruitmentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
@@ -137,7 +144,7 @@ export const recruitmentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
@@ -164,7 +171,7 @@ export const recruitmentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
@@ -285,7 +292,7 @@ export const recruitmentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
@@ -361,7 +368,7 @@ export const recruitmentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
@@ -424,7 +431,7 @@ export const recruitmentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
@@ -498,7 +505,7 @@ export const recruitmentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
@@ -588,7 +595,7 @@ export const recruitmentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
@@ -616,7 +623,7 @@ export const recruitmentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
@@ -790,7 +797,7 @@ export const recruitmentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
@@ -904,7 +911,7 @@ Return a JSON object with:
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await recruitmentCompanyId(
+      const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );

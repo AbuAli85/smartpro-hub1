@@ -19,6 +19,8 @@ import {
 } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { requireHrOrAdmin } from "../_core/policy";
+import type { User } from "../../drizzle/schema";
 import {
   computeAdminBoardRowStatus,
   type AdminBoardRowStatus,
@@ -186,7 +188,7 @@ export const schedulingRouter = router({
       color: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [result] = await db.insert(shiftTemplates).values({
         companyId,
@@ -213,7 +215,7 @@ export const schedulingRouter = router({
       color: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const { id, companyId: _cid, ...updates } = input;
       await db.update(shiftTemplates).set(updates)
@@ -224,7 +226,7 @@ export const schedulingRouter = router({
   deleteShiftTemplate: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       await db.update(shiftTemplates).set({ isActive: false })
         .where(and(eq(shiftTemplates.id, input.id), eq(shiftTemplates.companyId, companyId)));
@@ -304,7 +306,7 @@ export const schedulingRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [result] = await db.insert(employeeSchedules).values({
         companyId,
@@ -334,7 +336,7 @@ export const schedulingRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const { id, companyId: _cid, workingDays, ...rest } = input;
       const updates: Record<string, unknown> = { ...rest };
@@ -347,7 +349,7 @@ export const schedulingRouter = router({
   deleteSchedule: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       await db.update(employeeSchedules).set({ isActive: false })
         .where(and(eq(employeeSchedules.id, input.id), eq(employeeSchedules.companyId, companyId)));
@@ -497,7 +499,7 @@ export const schedulingRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
 
       const overlapErr = await validateShiftSegments(db, input.shiftTemplateIds);
@@ -558,7 +560,7 @@ export const schedulingRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
 
       // Load existing group
@@ -655,7 +657,7 @@ export const schedulingRouter = router({
   deleteScheduleGroup: protectedProcedure
     .input(z.object({ groupId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       await db.update(employeeScheduleGroups).set({ isActive: false })
         .where(and(eq(employeeScheduleGroups.id, input.groupId), eq(employeeScheduleGroups.companyId, companyId)));
@@ -689,7 +691,7 @@ export const schedulingRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [result] = await db.insert(companyHolidays).values({
         companyId,
@@ -705,7 +707,7 @@ export const schedulingRouter = router({
   deleteHoliday: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       await db.delete(companyHolidays)
         .where(and(eq(companyHolidays.id, input.id), eq(companyHolidays.companyId, companyId)));
@@ -715,7 +717,7 @@ export const schedulingRouter = router({
   seedOmanHolidays: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), year: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const y = input.year;
       /** Oman public holidays — Islamic dates vary; some entries are approximate per civil calendar seed. */
@@ -1552,7 +1554,7 @@ export const schedulingRouter = router({
       customMessage: z.string().max(1000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
 
       // Verify the employee belongs to this company

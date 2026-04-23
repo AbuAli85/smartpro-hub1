@@ -13,6 +13,7 @@ import type { User } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { requireAnyOperatorRole } from "../_core/policy";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
 
 // ─── Completeness scoring ─────────────────────────────────────────────────────
@@ -221,7 +222,7 @@ export const automationRouter = router({
   installTemplate: protectedProcedure
     .input(z.object({ templateKey: z.string() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -263,7 +264,7 @@ export const automationRouter = router({
       }).merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [result] = await db.insert(automationRules).values({
@@ -311,7 +312,7 @@ export const automationRouter = router({
       }).merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -353,7 +354,7 @@ export const automationRouter = router({
   deleteRule: protectedProcedure
     .input(z.object({ id: z.number() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -368,7 +369,7 @@ export const automationRouter = router({
   toggleRule: protectedProcedure
     .input(z.object({ id: z.number(), isActive: z.boolean() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -384,7 +385,7 @@ export const automationRouter = router({
   dryRunRule: protectedProcedure
     .input(z.object({ id: z.number() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -416,7 +417,7 @@ export const automationRouter = router({
   muteRule: protectedProcedure
     .input(z.object({ id: z.number(), muted: z.boolean() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db
@@ -430,7 +431,7 @@ export const automationRouter = router({
   snoozeRule: protectedProcedure
     .input(z.object({ id: z.number(), snoozeUntil: z.number().nullable() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db
@@ -591,7 +592,7 @@ export const automationRouter = router({
   runRules: protectedProcedure
     .input(z.object({ dryRun: z.boolean().default(false) }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -855,7 +856,7 @@ export const automationRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       if (input.entityType === "employee") {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -881,7 +882,7 @@ export const automationRouter = router({
   processEvents: protectedProcedure
     .input(optionalActiveWorkspace.optional())
     .mutation(async ({ ctx, input }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+    const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     try {
@@ -939,7 +940,7 @@ export const automationRouter = router({
   exportLogsCsv: protectedProcedure
     .input(z.object({ ruleId: z.number().optional(), days: z.number().default(30) }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
       try {
         const mysql = require("mysql2/promise");
         const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -976,7 +977,7 @@ export const automationRouter = router({
   exportRuleHistoryCsv: protectedProcedure
     .input(optionalActiveWorkspace.optional())
     .mutation(async ({ ctx, input }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+    const { companyId } = await requireAnyOperatorRole(ctx.user as User, input?.companyId);
     try {
       const mysql = require("mysql2/promise");
       const conn = mysql.createPool(process.env.DATABASE_URL);

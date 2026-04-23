@@ -13,7 +13,7 @@ import {
   sanadApplications,
   sanadOffices,
 } from "../../drizzle/schema";
-import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
+import { adminProcedure, platformOperatorReadProcedure, protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
 import { requireWorkspaceMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
@@ -42,7 +42,7 @@ async function enrichOfficer(officer: typeof omaniProOfficers.$inferSelect & { s
 
 export const officersRouter = router({
   // ── Platform stats ─────────────────────────────────────────────────────────
-  stats: protectedProcedure.query(async () => {
+  stats: platformOperatorReadProcedure.query(async () => {
     const db = await getDb();
     if (!db) return null;
 
@@ -88,7 +88,7 @@ export const officersRouter = router({
   }),
 
   // ── List officers ──────────────────────────────────────────────────────────
-  list: protectedProcedure
+  list: platformOperatorReadProcedure
     .input(
       z.object({
         status: z.enum(["active", "inactive", "on_leave", "terminated"]).optional(),
@@ -130,7 +130,7 @@ export const officersRouter = router({
     }),
 
   // ── Get single officer ─────────────────────────────────────────────────────
-  getById: protectedProcedure
+  getById: platformOperatorReadProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();

@@ -5,6 +5,7 @@ import { announcements, announcementReads, employees } from "../../drizzle/schem
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireWorkspaceMembership } from "../_core/membership";
+import { requireHrOrAdmin } from "../_core/policy";
 import type { User } from "../../drizzle/schema";
 
 async function requireDb() {
@@ -13,6 +14,7 @@ async function requireDb() {
   return db;
 }
 
+/** Read-only workspace resolver — queries accessible to all company members. */
 async function getMembership(user: User, companyId?: number | null) {
   const m = await requireWorkspaceMembership(user, companyId);
   return { company: { id: m.companyId }, member: { role: m.role } };
@@ -72,10 +74,10 @@ export const announcementsRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user, input.companyId);
+      const membership = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [result] = await db.insert(announcements).values({
-        companyId: membership.company.id,
+        companyId: membership.companyId,
         createdByUserId: ctx.user.id,
         title: input.title,
         body: input.body,
@@ -130,10 +132,10 @@ export const announcementsRouter = router({
   deleteAnnouncement: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user, input.companyId);
+      const membership = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [existing] = await db.select().from(announcements).where(eq(announcements.id, input.id));
-      if (!existing || existing.companyId !== membership.company.id)
+      if (!existing || existing.companyId !== membership.companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Announcement not found" });
       await db.update(announcements).set({ isDeleted: true }).where(eq(announcements.id, input.id));
       return { success: true };

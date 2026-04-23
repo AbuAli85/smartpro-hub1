@@ -6,6 +6,7 @@ import { seedSuggestedDepartmentRows } from "../departments/seedSuggestedDepartm
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireWorkspaceMembership } from "../_core/membership";
+import { requireHrOrAdmin } from "../_core/policy";
 import type { User } from "../../drizzle/schema";
 
 async function requireDb() {
@@ -14,6 +15,7 @@ async function requireDb() {
   return db;
 }
 
+/** Read-only workspace resolver — for queries that any member may read. */
 async function getMembership(user: User, companyId?: number | null) {
   const m = await requireWorkspaceMembership(user, companyId);
   return { company: { id: m.companyId }, member: { role: m.role } };
@@ -53,12 +55,11 @@ export const orgStructureRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+      const membership = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const { companyId: _cid, ...rest } = input;
       const [result] = await db.insert(departments).values({
-        companyId: membership.company.id,
+        companyId: membership.companyId,
         name: rest.name,
         nameAr: rest.nameAr,
         description: rest.description,
@@ -71,10 +72,9 @@ export const orgStructureRouter = router({
   seedSuggestedDepartments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+      const membership = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
-      return seedSuggestedDepartmentRows(db, membership.company.id);
+      return seedSuggestedDepartmentRows(db, membership.companyId);
     }),
 
   updateDepartment: protectedProcedure
@@ -87,11 +87,10 @@ export const orgStructureRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const membership = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [existing] = await db.select().from(departments).where(eq(departments.id, input.id));
-      if (!existing || existing.companyId !== membership.company.id)
+      if (!existing || existing.companyId !== membership.companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Department not found" });
       const { id, companyId: _cid, ...data } = input;
       await db.update(departments).set(data as any).where(eq(departments.id, id));
@@ -101,11 +100,10 @@ export const orgStructureRouter = router({
   deleteDepartment: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const membership = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [existing] = await db.select().from(departments).where(eq(departments.id, input.id));
-      if (!existing || existing.companyId !== membership.company.id)
+      if (!existing || existing.companyId !== membership.companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Department not found" });
       await db.update(departments).set({ isActive: false }).where(eq(departments.id, input.id));
       return { success: true };
@@ -136,12 +134,11 @@ export const orgStructureRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const membership = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const { companyId: _cid, ...rest } = input;
       const [result] = await db.insert(positions).values({
-        companyId: membership.company.id,
+        companyId: membership.companyId,
         title: rest.title,
         titleAr: rest.titleAr,
         departmentId: rest.departmentId,
@@ -160,11 +157,10 @@ export const orgStructureRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const membership = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [existing] = await db.select().from(positions).where(eq(positions.id, input.id));
-      if (!existing || existing.companyId !== membership.company.id)
+      if (!existing || existing.companyId !== membership.companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Position not found" });
       const { id, companyId: _cid, ...data } = input;
       await db.update(positions).set(data as any).where(eq(positions.id, id));
@@ -174,11 +170,10 @@ export const orgStructureRouter = router({
   deletePosition: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const membership = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [existing] = await db.select().from(positions).where(eq(positions.id, input.id));
-      if (!existing || existing.companyId !== membership.company.id)
+      if (!existing || existing.companyId !== membership.companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Position not found" });
       await db.update(positions).set({ isActive: false }).where(eq(positions.id, input.id));
       return { success: true };

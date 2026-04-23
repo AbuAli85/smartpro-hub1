@@ -33,6 +33,13 @@ function buildDateRange(year: number, month: number): { startDate: string; endDa
 
 // ── Tests ─────────────────────────────────────────────────────────────────
 
+describe("scheduling router (load regression)", () => {
+  it("loads scheduling router module without ReferenceError (e.g. missing drizzle `lt`)", async () => {
+    const mod = await import("./routers/scheduling");
+    expect(mod.schedulingRouter).toBeDefined();
+  });
+});
+
 describe("employeeRowFromScheduleRef", () => {
   it("resolves by employees.id when that is what the schedule stores", () => {
     const row = { id: 42, userId: 7 as number | null, firstName: "A", lastName: "B" };

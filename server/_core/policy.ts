@@ -49,6 +49,10 @@ export {
 } from "./visibilityScope";
 export type { VisibilityScope } from "./visibilityScope";
 
+// Capability layer: role × scope → what the caller may do + field redaction
+export { deriveCapabilities, applyEmployeePayloadPolicy } from "./capabilities";
+export type { Capabilities, MemberRole, EmployeeSensitiveFields } from "./capabilities";
+
 /** Roles that are permitted to perform administrative mutations within a company. */
 export type TenantMutationRole = "company_admin" | "hr_admin" | "finance_admin";
 

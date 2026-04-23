@@ -43,9 +43,9 @@ export const paymentsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role, "External Auditors cannot create payment sessions.");
       const [inv] = await db
         .select()
@@ -135,9 +135,9 @@ export const paymentsRouter = router({
         })
     )
     .query(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const cond =
         input.paymentGatewaySessionId != null
           ? eq(paymentGatewaySessions.id, input.paymentGatewaySessionId)
@@ -154,9 +154,9 @@ export const paymentsRouter = router({
   listByInvoice: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), invoiceId: z.number() }))
     .query(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const [inv] = await db
         .select({ id: clientServiceInvoices.id })
         .from(clientServiceInvoices)
@@ -182,9 +182,9 @@ export const paymentsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role, "External Auditors cannot record payments.");
       const [inv] = await db
         .select()
@@ -211,9 +211,9 @@ export const paymentsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role, "External Auditors cannot refund payments.");
 
       const [row] = await db
@@ -274,9 +274,9 @@ export const paymentsRouter = router({
   getAgingReport: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const rows = await db
         .select({
           balanceOmr: clientServiceInvoices.balanceOmr,

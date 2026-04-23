@@ -33,8 +33,8 @@ export const accountabilityPerformanceRouter = router({
   getAccountability: protectedProcedure
     .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       await assertCanReadPersonScorecard(ctx.user, companyId, input.employeeId);
 
       const emp = await loadEmployeeForCompany(db, companyId, input.employeeId);
@@ -82,8 +82,8 @@ export const accountabilityPerformanceRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
       const m = await requireWorkspaceMembership(ctx.user, input.companyId);
+      const db = await requireDb();
       requireNotAuditor(m.role);
       await assertCanManageAccountability(ctx.user, m.companyId);
 
@@ -145,8 +145,8 @@ export const accountabilityPerformanceRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       await assertCanReadPersonScorecard(ctx.user, companyId, input.employeeId);
 
       const now = new Date();
@@ -170,8 +170,8 @@ export const accountabilityPerformanceRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       await assertCanReadPersonPerformance(ctx.user, companyId);
 
       const now = new Date();

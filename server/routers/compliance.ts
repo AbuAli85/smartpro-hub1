@@ -31,10 +31,9 @@ export const complianceRouter = router({
   getOmanisationStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { total: 0, omani: 0, pct: 0, targetPct: 35, gap: 0, byDepartment: [] };
-
-      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const conditions = [eq(employees.status, "active")];
       if (!scope.aggregateAllTenants) conditions.push(eq(employees.companyId, scope.companyId));
 
@@ -80,10 +79,9 @@ export const complianceRouter = router({
   getPasiStatus: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), month: z.number().optional(), year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { employees: [], totalContribution: 0, status: "not_calculated" };
-
-      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const now = new Date();
       const month = input.month ?? now.getMonth() + 1;
       const year = input.year ?? now.getFullYear();
@@ -141,10 +139,9 @@ export const complianceRouter = router({
   getWpsStatus: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), month: z.number().optional(), year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { status: "not_generated", wpsFileUrl: null, month: 0, year: 0 };
-
-      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const now = new Date();
       const month = input.month ?? now.getMonth() + 1;
       const year = input.year ?? now.getFullYear();
@@ -196,10 +193,9 @@ export const complianceRouter = router({
   getPermitMatrix: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { byDepartment: [], summary: { valid: 0, expiring: 0, expired: 0, total: 0 } };
-
-      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const now = new Date();
       const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
@@ -300,10 +296,9 @@ export const complianceRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { month: "", flags: [], summary: { totalViolationDays: 0, affectedEmployees: 0 } };
-
-      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
 
       const now = new Date();
       const monthStr = input.month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -423,10 +418,9 @@ export const complianceRouter = router({
   getComplianceScore: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { score: 0, grade: "N/A", checks: [] };
-
-      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const now = new Date();
       const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 

@@ -108,11 +108,11 @@ export const sanadWorkspaceProcedures = {
   getMyOfficeProfile: protectedProcedure
     .input(z.object({ officeId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const db = await getDb();
       if (!db) return null;
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         if (input?.officeId) {
           const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, input.officeId)).limit(1);
+      const db = await getDb();
           return office ?? null;
         }
         const [office] = await db.select().from(sanadOffices).limit(1);
@@ -150,8 +150,6 @@ export const sanadWorkspaceProcedures = {
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const officeId = input.officeId;
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         if (!officeId) {
@@ -189,6 +187,8 @@ export const sanadWorkspaceProcedures = {
       }) as Record<string, unknown>;
       if (existing.length === 0 && !canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "SANAD office not found for your account." });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       }
       if (existing.length > 0) {
         const projected = { ...existing[0], ...payload } as typeof sanadOffices.$inferSelect;

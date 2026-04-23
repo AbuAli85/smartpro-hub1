@@ -326,28 +326,28 @@ describe("recruitment.createJob — requireHrOrAdmin (via requireRecruitmentAdmi
    * because getDb() throws before requireRecruitmentAdmin is reached.
    * The intended FORBIDDEN is documented but cannot be asserted at unit level.
    */
-  it("[INCONSISTENCY] finance_admin gets INTERNAL_SERVER_ERROR (intended: FORBIDDEN)", async () => {
+  it("blocks finance_admin with FORBIDDEN", async () => {
     mockRole(1, "finance_admin");
     const caller = recruitmentRouter.createCaller(makeCtx());
-    await expect(caller.createJob(jobInput)).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    await expect(caller.createJob(jobInput)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("[INCONSISTENCY] company_member gets INTERNAL_SERVER_ERROR (intended: FORBIDDEN)", async () => {
+  it("blocks company_member with FORBIDDEN", async () => {
     mockRole(1, "company_member");
     const caller = recruitmentRouter.createCaller(makeCtx());
-    await expect(caller.createJob(jobInput)).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    await expect(caller.createJob(jobInput)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("[INCONSISTENCY] reviewer gets INTERNAL_SERVER_ERROR (intended: FORBIDDEN)", async () => {
+  it("blocks reviewer with FORBIDDEN", async () => {
     mockRole(1, "reviewer");
     const caller = recruitmentRouter.createCaller(makeCtx());
-    await expect(caller.createJob(jobInput)).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    await expect(caller.createJob(jobInput)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("[INCONSISTENCY] cross-tenant gets INTERNAL_SERVER_ERROR (intended: FORBIDDEN)", async () => {
+  it("blocks cross-tenant access with FORBIDDEN", async () => {
     mockCrossTenant();
     const caller = recruitmentRouter.createCaller(makeCtx());
-    await expect(caller.createJob(jobInput)).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    await expect(caller.createJob(jobInput)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("platform_admin bypasses role check — auth passes (non-FORBIDDEN error from db layer)", async () => {
@@ -370,21 +370,21 @@ describe("recruitment.deleteJob — requireHrOrAdmin (via requireRecruitmentAdmi
     await expect(caller.deleteJob({ id: 1, companyId: 1 })).rejects.not.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("[INCONSISTENCY] finance_admin gets INTERNAL_SERVER_ERROR (intended: FORBIDDEN)", async () => {
+  it("blocks finance_admin with FORBIDDEN", async () => {
     mockRole(1, "finance_admin");
     const caller = recruitmentRouter.createCaller(makeCtx());
-    await expect(caller.deleteJob({ id: 1, companyId: 1 })).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    await expect(caller.deleteJob({ id: 1, companyId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("[INCONSISTENCY] company_member gets INTERNAL_SERVER_ERROR (intended: FORBIDDEN)", async () => {
+  it("blocks company_member with FORBIDDEN", async () => {
     mockRole(1, "company_member");
     const caller = recruitmentRouter.createCaller(makeCtx());
-    await expect(caller.deleteJob({ id: 1, companyId: 1 })).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    await expect(caller.deleteJob({ id: 1, companyId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("[INCONSISTENCY] cross-tenant gets INTERNAL_SERVER_ERROR (intended: FORBIDDEN)", async () => {
+  it("blocks cross-tenant access with FORBIDDEN", async () => {
     mockCrossTenant();
     const caller = recruitmentRouter.createCaller(makeCtx());
-    await expect(caller.deleteJob({ id: 1, companyId: 1 })).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    await expect(caller.deleteJob({ id: 1, companyId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

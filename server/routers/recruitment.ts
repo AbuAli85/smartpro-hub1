@@ -96,12 +96,12 @@ export const recruitmentRouter = router({
         .merge(recruitmentWorkspace)
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [result] = await db.insert(jobPostings).values({
         companyId,
         title: input.title,
@@ -142,12 +142,12 @@ export const recruitmentRouter = router({
         .merge(recruitmentWorkspace)
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { id, salaryMin, salaryMax, applicationDeadline, companyId: _workspace, ...rest } =
         input;
       await db
@@ -169,12 +169,12 @@ export const recruitmentRouter = router({
   deleteJob: protectedProcedure
     .input(z.object({ id: z.number() }).merge(recruitmentWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db
         .delete(jobPostings)
         .where(
@@ -290,12 +290,12 @@ export const recruitmentRouter = router({
         .merge(recruitmentWorkspace)
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db
         .update(jobApplications)
         .set({ stage: input.stage, notes: input.notes })
@@ -366,12 +366,12 @@ export const recruitmentRouter = router({
         .merge(recruitmentWorkspace)
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [appRow] = await db
         .select({ id: jobApplications.id, jobId: jobApplications.jobId })
         .from(jobApplications)
@@ -429,12 +429,12 @@ export const recruitmentRouter = router({
         .merge(recruitmentWorkspace)
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { id, scheduledAt, companyId: _cw, ...rest } = input;
       await db
         .update(interviewSchedules)
@@ -503,12 +503,12 @@ export const recruitmentRouter = router({
         .merge(recruitmentWorkspace)
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [appRow] = await db
         .select({ id: jobApplications.id, jobId: jobApplications.jobId })
         .from(jobApplications)
@@ -593,12 +593,12 @@ export const recruitmentRouter = router({
   sendOffer: protectedProcedure
     .input(z.object({ id: z.number() }).merge(recruitmentWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db
         .update(offerLetters)
         .set({ status: "sent", sentAt: new Date() })
@@ -621,12 +621,12 @@ export const recruitmentRouter = router({
         .merge(recruitmentWorkspace)
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [offer] = await db
         .select()
         .from(offerLetters)
@@ -795,12 +795,12 @@ export const recruitmentRouter = router({
         .merge(recruitmentWorkspace)
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [appRow] = await db
         .select({
           app: jobApplications,
@@ -909,12 +909,12 @@ Return a JSON object with:
         .merge(recruitmentWorkspace)
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { companyId } = await requireRecruitmentAdmin(
         ctx.user as User,
         input.companyId
       );
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [appRow] = await db
         .select({
           app: jobApplications,

@@ -125,8 +125,8 @@ export const kpiRouter = router({
   listMyTargets: protectedProcedure
     .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
       return db.select().from(kpiTargets).where(
@@ -144,8 +144,8 @@ export const kpiRouter = router({
   getMyProgress: protectedProcedure
     .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
 
@@ -197,8 +197,8 @@ export const kpiRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       await db.insert(kpiDailyLogs).values({
         companyId,
         employeeUserId: ctx.user.id,
@@ -248,8 +248,8 @@ export const kpiRouter = router({
       companyId: z.number().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
       const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -268,8 +268,8 @@ export const kpiRouter = router({
   deleteLog: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       const log = await db.select().from(kpiDailyLogs).where(
         and(eq(kpiDailyLogs.id, input.id), eq(kpiDailyLogs.employeeUserId, ctx.user.id), eq(kpiDailyLogs.companyId, companyId))
       ).limit(1);
@@ -282,8 +282,8 @@ export const kpiRouter = router({
   getMyCommission: protectedProcedure
     .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
       return db.select({
@@ -318,8 +318,8 @@ export const kpiRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       await assertCanManageKpiTargets(ctx.user, companyId);
 
       if (input.id !== undefined) {
@@ -439,8 +439,8 @@ export const kpiRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       await assertCanManageKpiTargets(ctx.user, companyId);
 
       const [row] = await db
@@ -478,8 +478,8 @@ export const kpiRouter = router({
   deleteTarget: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       await assertCanManageKpiTargets(ctx.user, companyId);
 
       const [row] = await db
@@ -517,8 +517,8 @@ export const kpiRouter = router({
   adminGetTeamProgress: protectedProcedure
     .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       await assertCanReadKpiTargets(ctx.user, companyId);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
@@ -561,8 +561,8 @@ export const kpiRouter = router({
   getLeaderboard: protectedProcedure
     .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       await assertCanReadKpiTargets(ctx.user, companyId);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
@@ -605,8 +605,8 @@ export const kpiRouter = router({
       companyId: z.number().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       await assertCanReadKpiTargets(ctx.user, companyId);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;

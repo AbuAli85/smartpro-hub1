@@ -134,8 +134,8 @@ export const renewalWorkflowsRouter = router({
       isActive: z.boolean().optional(),
     }).optional())
     .query(async ({ ctx, input }) => {
-      const db = requireDb(await getDb());
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+      const db = requireDb(await getDb());
       const rows = await db
         .select()
         .from(renewalWorkflowRules)
@@ -167,10 +167,10 @@ export const renewalWorkflowsRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = requireDb(await getDb());
       const scope = await resolvePlatformOrCompanyScope(ctx.user as User);
       // Non-platform users must hold company_admin to manage workflow rules.
       if (scope !== null) await requireCompanyAdmin(ctx.user as User, input.companyId);
+      const db = requireDb(await getDb());
       const effectiveCompanyId = scope === null ? (input.companyId ?? null) : scope;
 
       const [result] = await db.insert(renewalWorkflowRules).values({
@@ -205,14 +205,13 @@ export const renewalWorkflowsRouter = router({
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = requireDb(await getDb());
       const { id, ...rest } = input;
-      const [rule] = await db.select().from(renewalWorkflowRules).where(eq(renewalWorkflowRules.id, id)).limit(1);
-      if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
-
       const companyScope = await resolvePlatformOrCompanyScope(ctx.user as User);
       // Non-platform users must hold company_admin.
       if (companyScope !== null) await requireCompanyAdmin(ctx.user as User);
+      const db = requireDb(await getDb());
+      const [rule] = await db.select().from(renewalWorkflowRules).where(eq(renewalWorkflowRules.id, id)).limit(1);
+      if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
       if (companyScope !== null) {
         if (rule.companyId === null || rule.companyId !== companyScope) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
@@ -226,12 +225,12 @@ export const renewalWorkflowsRouter = router({
   deleteRule: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const db = requireDb(await getDb());
-      const [rule] = await db.select().from(renewalWorkflowRules).where(eq(renewalWorkflowRules.id, input.id)).limit(1);
-      if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
       const companyScope = await resolvePlatformOrCompanyScope(ctx.user as User);
       // Non-platform users must hold company_admin.
       if (companyScope !== null) await requireCompanyAdmin(ctx.user as User);
+      const db = requireDb(await getDb());
+      const [rule] = await db.select().from(renewalWorkflowRules).where(eq(renewalWorkflowRules.id, input.id)).limit(1);
+      if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
       if (companyScope !== null) {
         if (rule.companyId === null || rule.companyId !== companyScope) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
@@ -249,8 +248,8 @@ export const renewalWorkflowsRouter = router({
       page: z.number().int().min(1).default(1),
     }).optional())
     .query(async ({ ctx, input }) => {
-      const db = requireDb(await getDb());
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+      const db = requireDb(await getDb());
       const limit = input?.pageSize ?? 50;
       const offset = ((input?.page ?? 1) - 1) * limit;
 
@@ -495,8 +494,8 @@ export const renewalWorkflowsRouter = router({
 
   // ── Dashboard stats ────────────────────────────────────────────────────────
   getDashboard: protectedProcedure.query(async ({ ctx }) => {
-    const db = requireDb(await getDb());
     const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+    const db = requireDb(await getDb());
 
     const totalRulesRows = await db
       .select({ count: sql<number>`count(*)` })

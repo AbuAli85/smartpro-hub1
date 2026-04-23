@@ -231,11 +231,11 @@ Generate a complete, professional contract document with all standard clauses fo
       signerRole: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const c = await getContractById(input.contractId);
       if (!c) throw new TRPCError({ code: "NOT_FOUND" });
       await assertRowBelongsToActiveCompany(ctx.user, c.companyId, "Contract", c.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [result] = await db.insert(contractSignatures).values({
         contractId: input.contractId,
         signerName: input.signerName,
@@ -380,11 +380,11 @@ Generate a complete, professional contract document with all standard clauses fo
   exportSignedHtml: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const contract = await getContractById(input.id);
       if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
       await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract", contract.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const cid = contract.companyId!;
       const signers = await db.select().from(contractSignatures)
         .where(eq(contractSignatures.contractId, input.id))

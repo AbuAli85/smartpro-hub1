@@ -777,8 +777,6 @@ export const promoterAssignmentsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const [existing] = await db
         .select()
@@ -791,6 +789,8 @@ export const promoterAssignmentsRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (existing.companyId !== activeId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can edit this assignment" });
         }
@@ -985,8 +985,6 @@ export const promoterAssignmentsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const [row] = await db.select().from(promoterAssignments).where(eq(promoterAssignments.id, input.id)).limit(1);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found" });
@@ -994,6 +992,8 @@ export const promoterAssignmentsRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (row.companyId !== activeId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can change assignment status" });
         }
@@ -1201,8 +1201,6 @@ export const promoterAssignmentsRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.string().min(1) }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const [row] = await db
@@ -1215,6 +1213,8 @@ export const promoterAssignmentsRouter = router({
 
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await requireCanManagePromoterAssignments(ctx.user, activeId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (row.companyId !== activeId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can delete this assignment" });
         }
@@ -1257,12 +1257,12 @@ export const promoterAssignmentsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         await requireCanManagePromoterAssignments(ctx.user, input.clientCompanyId);
       }
 
@@ -1527,8 +1527,6 @@ export const promoterAssignmentsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const [existing] = await db
         .select({
@@ -1545,6 +1543,8 @@ export const promoterAssignmentsRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (existing.companyId !== activeId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can edit this assignment" });
         }

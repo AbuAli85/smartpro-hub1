@@ -91,12 +91,12 @@ export const quotationsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const companyId = canAccessGlobalAdminProcedures(ctx.user)
         ? input.companyId ?? null
         : await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const { crmDealId, crmContactId } = await resolveQuotationCrmLinks(db, companyId, {
         crmDealId: input.crmDealId ?? null,

@@ -100,9 +100,9 @@ export const promoterFinancialOpsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await requirePromoterFinance(ctx.user, activeId);
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       const result = await createPromoterPayrollRunFromStaging(db, {
         activeCompanyId: activeId,
         isPlatformAdmin: isPlatform,
@@ -233,9 +233,9 @@ export const promoterFinancialOpsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await requirePromoterFinance(ctx.user, activeId);
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       try {
         return await createPromoterInvoicesFromStaging(db, {
           activeCompanyId: activeId,
@@ -308,9 +308,9 @@ export const promoterFinancialOpsRouter = router({
     .query(async ({ ctx, input }) => {
       const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await requirePromoterFinance(ctx.user, activeId);
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       return getProfitabilitySummary(db, {
         activeCompanyId: activeId,
         isPlatformAdmin: isPlatform,

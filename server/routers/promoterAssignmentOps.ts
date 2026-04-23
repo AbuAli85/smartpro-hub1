@@ -92,9 +92,9 @@ export const promoterAssignmentOpsRouter = router({
   mismatchSummary: protectedProcedure.input(mismatchPeriodInput).query(async ({ ctx, input }) => {
     const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
     await requireCanViewPromoterOps(ctx.user, activeId);
+    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     return getMismatchSummary(db, {
       activeCompanyId: activeId,
       isPlatformAdmin: isPlatform,
@@ -106,9 +106,9 @@ export const promoterAssignmentOpsRouter = router({
   mismatchDetail: protectedProcedure.input(mismatchDetailInput).query(async ({ ctx, input }) => {
     const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
     await requireCanViewPromoterOps(ctx.user, activeId);
+    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     return getMismatchDetailRows(db, {
       activeCompanyId: activeId,
       isPlatformAdmin: isPlatform,
@@ -126,9 +126,9 @@ export const promoterAssignmentOpsRouter = router({
   payrollStaging: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
     await requireCanViewPromoterOps(ctx.user, activeId);
+    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     const rows = await getPayrollStagingRows(db, {
       activeCompanyId: activeId,
       isPlatformAdmin: isPlatform,
@@ -159,9 +159,9 @@ export const promoterAssignmentOpsRouter = router({
   billingStaging: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
     await requireCanViewPromoterOps(ctx.user, activeId);
+    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     const rows = await getBillingStagingRows(db, {
       activeCompanyId: activeId,
       isPlatformAdmin: isPlatform,

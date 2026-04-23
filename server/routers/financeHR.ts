@@ -198,9 +198,9 @@ export const financeHRRouter = router({
       receiptUrl: z.string().optional(),
     }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
       await db.insert(expenseClaims).values({
@@ -235,9 +235,9 @@ export const financeHRRouter = router({
   cancelExpense: protectedProcedure
     .input(z.object({ id: z.number() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
       await db.update(expenseClaims)
@@ -291,9 +291,9 @@ export const financeHRRouter = router({
       adminNotes: z.string().optional(),
     }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await db.update(expenseClaims)
         .set({
           expenseStatus: input.action,
@@ -408,9 +408,9 @@ export const financeHRRouter = router({
       status: z.enum(["assigned", "in_progress", "completed", "overdue"]),
     }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
       const [row] = await db
@@ -459,9 +459,9 @@ export const financeHRRouter = router({
       category: z.enum(["technical", "compliance", "leadership", "safety", "soft_skills", "other"]).default("other"),
     }))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanManageTraining(ctx.user, companyId);
 
       await db.transaction(async (tx) => {
@@ -549,9 +549,9 @@ export const financeHRRouter = router({
       selfGoals: z.string().min(10),
     }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
       await db.insert(employeeSelfReviews).values({
@@ -575,9 +575,9 @@ export const financeHRRouter = router({
       certificateUrl: z.string().max(1000).optional().nullable(),
     }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanManageTraining(ctx.user, companyId);
 
       const [row] = await db.select().from(trainingRecords).where(eq(trainingRecords.id, input.id)).limit(1);
@@ -676,9 +676,9 @@ export const financeHRRouter = router({
       reviewStatus: z.enum(["draft", "submitted", "reviewed", "acknowledged"]).optional(),
     }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanReviewSelfReviews(ctx.user, companyId);
 
       const [row] = await db.select().from(employeeSelfReviews).where(eq(employeeSelfReviews.id, input.id)).limit(1);

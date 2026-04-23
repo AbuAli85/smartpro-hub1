@@ -27,9 +27,9 @@ export const workLogsRouter = router({
       category: z.enum(["development", "meeting", "admin", "support", "training", "other"]).default("other"),
     }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const empUserId = await resolveEmpUserId(ctx.user.id, companyId);
       await db.insert(workLogs).values({
         companyId,
@@ -71,9 +71,9 @@ export const workLogsRouter = router({
       category: z.enum(["development", "meeting", "admin", "support", "training", "other"]).optional(),
     }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const empUserId = await resolveEmpUserId(ctx.user.id, companyId);
       const { id, category, ...rest } = input;
       const updates: Record<string, unknown> = { ...rest };
@@ -85,9 +85,9 @@ export const workLogsRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const empUserId = await resolveEmpUserId(ctx.user.id, companyId);
       await db.delete(workLogs).where(and(eq(workLogs.id, input.id), eq(workLogs.employeeUserId, empUserId)));
       return { success: true };

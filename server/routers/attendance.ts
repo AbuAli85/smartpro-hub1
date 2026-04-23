@@ -335,7 +335,6 @@ export const attendanceRouter = router({
       lng: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
       // Resolve site
       const [site] = await db
         .select()
@@ -455,6 +454,7 @@ export const attendanceRouter = router({
       let memberRole: string;
       try {
         const wm = await requireWorkspaceMembership(ctx.user as User, site.companyId);
+      const db = await requireDb();
         memberRole = wm.role;
       } catch (err) {
         await logAttendanceAuditSafe({
@@ -1230,7 +1230,6 @@ export const attendanceRouter = router({
       }
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
 
       let site: typeof attendanceSites.$inferSelect;
 
@@ -1281,6 +1280,7 @@ export const attendanceRouter = router({
       }
 
       const membership = await requireWorkspaceMembership(ctx.user as User, site.companyId);
+      const db = await requireDb();
 
       // Check for duplicate pending request today
       const todayStart = new Date();

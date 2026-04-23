@@ -59,9 +59,9 @@ export const deploymentEconomicsRouter = router({
     list: protectedProcedure
       .input(z.object({ companyId: z.number().optional(), limit: z.number().min(1).max(200).default(100) }))
       .query(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         return db
           .select()
           .from(billingCustomers)
@@ -73,9 +73,9 @@ export const deploymentEconomicsRouter = router({
     getById: protectedProcedure
       .input(z.object({ companyId: z.number().optional(), id: z.number() }))
       .query(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [row] = await db
           .select()
           .from(billingCustomers)
@@ -98,9 +98,9 @@ export const deploymentEconomicsRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [ins] = await db.insert(billingCustomers).values({
           companyId: m.companyId,
           partyId: input.partyId ?? null,
@@ -138,9 +138,9 @@ export const deploymentEconomicsRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [prev] = await db
           .select()
           .from(billingCustomers)
@@ -174,9 +174,9 @@ export const deploymentEconomicsRouter = router({
     setStatus: protectedProcedure
       .input(z.object({ companyId: z.number().optional(), id: z.number(), status: z.enum(["active", "inactive"]) }))
       .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [prev] = await db
           .select()
           .from(billingCustomers)
@@ -210,9 +210,9 @@ export const deploymentEconomicsRouter = router({
         })
       )
       .query(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         if (input.billingCustomerId != null) {
           return db
             .select()
@@ -237,9 +237,9 @@ export const deploymentEconomicsRouter = router({
     getById: protectedProcedure
       .input(z.object({ companyId: z.number().optional(), id: z.number() }))
       .query(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [row] = await db
           .select()
           .from(customerDeployments)
@@ -263,9 +263,9 @@ export const deploymentEconomicsRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         await assertBillingCustomerOwned(db, m.companyId, input.billingCustomerId);
         if (input.primaryAttendanceSiteId != null) {
           await assertSiteOwned(db, m.companyId, input.primaryAttendanceSiteId);
@@ -308,9 +308,9 @@ export const deploymentEconomicsRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [prev] = await db
           .select()
           .from(customerDeployments)
@@ -353,9 +353,9 @@ export const deploymentEconomicsRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [prev] = await db
           .select()
           .from(customerDeployments)
@@ -383,9 +383,9 @@ export const deploymentEconomicsRouter = router({
     listForDeployment: protectedProcedure
       .input(z.object({ companyId: z.number().optional(), customerDeploymentId: z.number() }))
       .query(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [dep] = await db
           .select({ id: customerDeployments.id })
           .from(customerDeployments)
@@ -417,9 +417,9 @@ export const deploymentEconomicsRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [dep] = await db
           .select()
           .from(customerDeployments)
@@ -461,9 +461,9 @@ export const deploymentEconomicsRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [prev] = await db
           .select()
           .from(billingRateRules)
@@ -496,9 +496,9 @@ export const deploymentEconomicsRouter = router({
     setEffectiveTo: protectedProcedure
       .input(z.object({ companyId: z.number().optional(), id: z.number(), effectiveTo: z.string() }))
       .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [prev] = await db
           .select()
           .from(billingRateRules)
@@ -536,9 +536,9 @@ export const deploymentEconomicsRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [dep] = await db
           .select()
           .from(customerDeployments)
@@ -571,9 +571,9 @@ export const deploymentEconomicsRouter = router({
     listForDeployment: protectedProcedure
       .input(z.object({ companyId: z.number().optional(), customerDeploymentId: z.number() }))
       .query(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
         const [dep] = await db
           .select({ id: customerDeployments.id })
           .from(customerDeployments)

@@ -210,8 +210,6 @@ export const operationsRouter = router({
     )
     .output(z.array(roleActionQueueItemSchema))
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       let memberRole: string | null = null;
       if (!canAccessGlobalAdminProcedures(ctx.user as User)) {
@@ -242,6 +240,8 @@ export const operationsRouter = router({
         || memberRole === "finance_admin"
         || memberRole === "reviewer"
         || memberRole === "external_auditor";
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const now = new Date();
       const in14d = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
@@ -497,8 +497,6 @@ export const operationsRouter = router({
   getDailySnapshot: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     const canReadHrAudit =
       companyId === null ? true : await canReadHrPerformanceAuditSensitiveRows(ctx.user as User, companyId);
@@ -697,6 +695,8 @@ export const operationsRouter = router({
     const totalOpenCases = openCases.reduce((s, r) => s + Number(r.cnt), 0);
 
     const isPlatformOperator = canAccessGlobalAdminProcedures(ctx.user as User);
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
     const casesActionRequiredQuery = db
       .select({ cnt: count() })
@@ -1006,9 +1006,9 @@ export const operationsRouter = router({
     .input(z.object({ companyId: z.number().optional() }).optional())
     .output(getSmartDashboardOutputSchema.nullable())
     .query(async ({ ctx, input }) => {
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     const db = await getDb();
     if (!db) return null;
-    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     if (!companyId) return null;
     const now = new Date();
     const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -1082,10 +1082,10 @@ export const operationsRouter = router({
   getTodaysTasks: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     const db = await getDb();
     if (!db) return { casesDue: [], pendingLeaveApprovals: [], pendingPayrollApprovals: [], totalTasks: 0 };
 
-    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     const now = new Date();
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
@@ -1438,11 +1438,11 @@ export const operationsRouter = router({
       ]),
     )
     .query(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input.companyId);
       if (companyId === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Company required" });
       const membership = await requireWorkspaceMembership(ctx.user as User, companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (membership.role === "company_member" || membership.role === "client") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient access" });
       }
@@ -1465,11 +1465,11 @@ export const operationsRouter = router({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input.companyId);
       if (companyId === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Company required" });
       const membership = await requireWorkspaceMembership(ctx.user as User, companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (membership.role === "company_member" || membership.role === "client") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient access" });
       }
@@ -1510,11 +1510,11 @@ export const operationsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input.companyId);
       if (companyId === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Company required" });
       const membership = await requireWorkspaceMembership(ctx.user as User, companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (membership.role === "company_member" || membership.role === "client") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient access" });
       }

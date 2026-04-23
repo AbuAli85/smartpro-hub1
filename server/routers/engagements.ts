@@ -129,18 +129,18 @@ export const engagementsRouter = router({
   getById: protectedProcedure
     .input(z.object({ engagementId: z.number().int().positive() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       return buildEngagementDetail(db, input.engagementId, companyId);
     }),
 
   createFromSource: protectedProcedure
     .input(createFromSourceWithWorkspace)
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       const { companyId: _ws, ...src } = input;
       return createEngagementFromSource(
@@ -174,9 +174,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       await addEngagementLink(
         db,
@@ -210,9 +210,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       await applyEngagementWorkflowTransition(db, {
         engagementId: input.engagementId,
@@ -245,9 +245,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       await applyEngagementWorkflowTransition(db, {
         engagementId: input.engagementId,
@@ -333,8 +333,6 @@ export const engagementsRouter = router({
    * Same cohort as the server interval job; bounded for safety.
    */
   refreshRollups: protectedProcedure.input(optionalActiveWorkspace.optional()).mutation(async ({ ctx, input }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const u = ctx.user as User;
     if (seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u)) {
       const companyId = input?.companyId ?? null;
@@ -345,6 +343,8 @@ export const engagementsRouter = router({
       return { ...r, finishedAt: new Date() };
     }
     const m = await requireWorkspaceMembership(u, input?.companyId);
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     if (!canUseEngagementOps(m.role, u)) {
       throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions to refresh rollups" });
     }
@@ -355,9 +355,9 @@ export const engagementsRouter = router({
   removeLink: protectedProcedure
     .input(z.object({ linkId: z.number().int().positive() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       await removeEngagementLink(db, m.companyId, ctx.user.id, input.linkId);
       return { success: true as const };
@@ -407,8 +407,6 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const u = ctx.user as User;
       const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
       let companyId: number;
@@ -419,6 +417,8 @@ export const engagementsRouter = router({
         companyId = input.companyId;
       } else {
         const m = await requireWorkspaceMembership(u, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         requireNotAuditor(m.role);
         if (!canUseEngagementOps(m.role, u)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Cannot assign owner" });
@@ -461,8 +461,6 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const u = ctx.user as User;
       const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
       let companyId: number;
@@ -473,6 +471,8 @@ export const engagementsRouter = router({
         companyId = input.companyId;
       } else {
         const m = await requireWorkspaceMembership(u, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         requireNotAuditor(m.role);
         if (!canUseEngagementOps(m.role, u)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Cannot change priority" });
@@ -499,8 +499,6 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const u = ctx.user as User;
       const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
       let companyId: number;
@@ -511,6 +509,8 @@ export const engagementsRouter = router({
         companyId = input.companyId;
       } else {
         const m = await requireWorkspaceMembership(u, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         requireNotAuditor(m.role);
         if (!canUseEngagementOps(m.role, u)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Cannot escalate" });
@@ -556,8 +556,6 @@ export const engagementsRouter = router({
       z.object({ engagementId: z.number().int().positive(), body: z.string().min(1).max(8000) }).merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const u = ctx.user as User;
       const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
       let companyId: number;
@@ -568,6 +566,8 @@ export const engagementsRouter = router({
         companyId = input.companyId;
       } else {
         const m = await requireWorkspaceMembership(u, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         requireNotAuditor(m.role);
         if (!canReviewDocuments(m.role, u)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Cannot add internal notes" });
@@ -589,8 +589,6 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const u = ctx.user as User;
       const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
       let companyId: number;
@@ -601,6 +599,8 @@ export const engagementsRouter = router({
         companyId = input.companyId;
       } else {
         const m = await requireWorkspaceMembership(u, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         requireNotAuditor(m.role);
         if (!canReviewDocuments(m.role, u)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only staff can send payment instructions" });
@@ -629,9 +629,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       await assertEngagementInCompany(db, input.engagementId, m.companyId);
       await submitTransferProof(db, {
@@ -656,8 +656,6 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const u = ctx.user as User;
       const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
       let companyId: number;
@@ -668,6 +666,8 @@ export const engagementsRouter = router({
         companyId = input.companyId;
       } else {
         const m = await requireWorkspaceMembership(u, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         requireNotAuditor(m.role);
         if (!canReviewDocuments(m.role, u)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only staff can verify proofs" });
@@ -696,8 +696,6 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const u = ctx.user as User;
       const isPlatform = seesPlatformOperatorNav(u) || canAccessGlobalAdminProcedures(u);
       let companyId: number;
@@ -708,6 +706,8 @@ export const engagementsRouter = router({
         companyId = input.companyId;
       } else {
         const m = await requireWorkspaceMembership(u, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         requireNotAuditor(m.role);
         if (!canReviewDocuments(m.role, u)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only staff can mark reconciled" });
@@ -750,9 +750,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       const [t] = await db
         .select()
@@ -792,9 +792,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       await assertEngagementInCompany(db, input.engagementId, m.companyId);
       if (input.linkedEmployeeTaskId != null) {
@@ -861,9 +861,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       if (input.engagementId != null) {
         await assertEngagementInCompany(db, input.engagementId, m.companyId);
@@ -938,9 +938,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (input.legacyNotification) {
         await db
           .update(notifications)
@@ -993,9 +993,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       await assertEngagementInCompany(db, input.engagementId, m.companyId);
       const [ins] = await db.insert(engagementDocuments).values({
@@ -1076,9 +1076,9 @@ export const engagementsRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       const id = await createRenewalEngagement(db, m.companyId, ctx.user.id, input.workPermitId, input.notes);
       return { engagementId: id };
@@ -1087,9 +1087,9 @@ export const engagementsRouter = router({
   startContractSigning: protectedProcedure
     .input(z.object({ contractId: z.number().int().positive() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(m.role);
       const [c] = await db
         .select()
@@ -1116,12 +1116,12 @@ export const engagementsRouter = router({
     }),
 
   backfillFromTenant: protectedProcedure.input(optionalActiveWorkspace.optional()).mutation(async ({ ctx, input }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
     requireNotAuditor(m.role);
     if (m.role !== "company_admin" && !seesPlatformOperatorNav(ctx.user) && !canAccessGlobalAdminProcedures(ctx.user as User)) {
       throw new TRPCError({ code: "FORBIDDEN", message: "Only workspace owners can run a full backfill" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     }
     return backfillEngagementsForCompany(db, m.companyId, ctx.user.id);
   }),

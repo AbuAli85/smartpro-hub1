@@ -41,8 +41,8 @@ export const workspaceRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
       const membership = await getUserCompanyById(ctx.user.id, companyId);
       const now = new Date();
       const year = input.year ?? now.getFullYear();
@@ -75,8 +75,8 @@ export const workspaceRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
       const m = await requireWorkspaceMembership(ctx.user, input.companyId);
+      const db = await requireDb();
       requireNotAuditor(m.role);
       await assertCanManageInterventionOnEmployee(db, ctx.user, m.companyId, input.employeeId);
 
@@ -137,8 +137,8 @@ export const workspaceRouter = router({
   closeIntervention: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
       const m = await requireWorkspaceMembership(ctx.user, input.companyId);
+      const db = await requireDb();
       requireNotAuditor(m.role);
       const companyId = m.companyId;
 

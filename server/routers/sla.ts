@@ -89,10 +89,9 @@ export const slaRouter = router({
 
   // ── Get Breaches ─────────────────────────────────────────────────────────────
   getBreaches: protectedProcedure.query(async ({ ctx }) => {
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
     const db = await getDb();
     if (!db) return [];
-
-    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
     const now = new Date();
 
     const breaches = await db
@@ -137,12 +136,12 @@ export const slaRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       // Platform admins bypass; company users must hold hr_admin | company_admin.
       await requireHrOrAdmin(ctx.user as User, input.companyId);
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [caseRow] = await db
         .select({ id: governmentServiceCases.id })
         .from(governmentServiceCases)
@@ -189,12 +188,12 @@ export const slaRouter = router({
   resolve: protectedProcedure
     .input(z.object({ caseId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       // Platform admins bypass; company users must hold hr_admin | company_admin.
       await requireHrOrAdmin(ctx.user as User, input.companyId);
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [caseRow] = await db
         .select({ id: governmentServiceCases.id })
         .from(governmentServiceCases)
@@ -219,10 +218,9 @@ export const slaRouter = router({
   getCaseSlaStatus: protectedProcedure
     .input(z.object({ caseId: z.number() }))
     .query(async ({ input, ctx }) => {
+      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
       const db = await getDb();
       if (!db) return null;
-
-      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
       const [caseRow] = await db
         .select({ id: governmentServiceCases.id })
         .from(governmentServiceCases)
@@ -261,10 +259,9 @@ export const slaRouter = router({
 
   // ── Performance Summary ───────────────────────────────────────────────────────
   getPerformanceSummary: protectedProcedure.query(async ({ ctx }) => {
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
     const db = await getDb();
     if (!db) return { total: 0, resolved: 0, breached: 0, onTime: 0, breachRate: 0, onTimeRate: 0 };
-
-    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
 
     const scopeWhere = companyId ? eq(governmentServiceCases.companyId, companyId) : undefined;
 

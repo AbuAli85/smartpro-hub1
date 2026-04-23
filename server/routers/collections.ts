@@ -76,12 +76,12 @@ export const collectionsRouter = router({
   getAgingSnapshot: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const filter = await resolveStatsCompanyFilter(ctx.user as User, input?.companyId);
       if (filter.aggregateAllTenants) {
         if (!canAccessGlobalAdminProcedures(ctx.user)) {
           throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         }
         return buildAgedReceivablesSnapshotAllTenants(db);
       }
@@ -93,14 +93,14 @@ export const collectionsRouter = router({
   getOverdueLines: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const filter = await resolveStatsCompanyFilter(ctx.user as User, input?.companyId);
       const companyId = filter.aggregateAllTenants ? undefined : filter.companyId;
       if (!filter.aggregateAllTenants) {
         await assertCollectionsAccess(ctx, filter.companyId);
       } else if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       }
       const rows = await listOverdueReceivableDetailRows(db, { companyId });
       return rows.map((r) => ({
@@ -118,9 +118,9 @@ export const collectionsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const filter = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const filter = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       if (filter.aggregateAllTenants) {
         throw new TRPCError({
           code: "BAD_REQUEST",

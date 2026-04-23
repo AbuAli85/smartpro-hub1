@@ -262,9 +262,9 @@ export const payrollRouter = router({
   listRuns: protectedProcedure
     .input(z.object({ year: z.number().optional(), status: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const conditions = [eq(payrollRuns.companyId, companyId)];
       if (input.year) conditions.push(eq(payrollRuns.periodYear, input.year));
       if (input.status) conditions.push(eq(payrollRuns.status, input.status as any));
@@ -280,9 +280,9 @@ export const payrollRouter = router({
   listEmployeePayrollHistory: protectedProcedure
     .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const [emp] = await db
         .select({ id: employees.id })
         .from(employees)
@@ -339,9 +339,9 @@ export const payrollRouter = router({
   getRun: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, companyId))).limit(1);
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
       const runWithFlag = { ...run, authoritativePayroll: isAuthoritativePayrollRun(run) };
@@ -368,9 +368,9 @@ export const payrollRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot execute payroll.");
       return executeMonthlyPayroll(db, {
@@ -386,9 +386,9 @@ export const payrollRouter = router({
   reconciliation: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const [run] = await db
         .select()
         .from(payrollRuns)
@@ -468,9 +468,9 @@ export const payrollRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot create payroll runs.");
       // Check for duplicate run
@@ -615,9 +615,9 @@ export const payrollRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot modify payroll line items.");
       const [line] = await db.select().from(payrollLineItems).where(and(eq(payrollLineItems.id, input.lineId), eq(payrollLineItems.companyId, m.companyId))).limit(1);
@@ -667,9 +667,9 @@ export const payrollRouter = router({
   approveRun: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot approve payroll runs.");
       if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can approve payroll" });
@@ -703,9 +703,9 @@ export const payrollRouter = router({
   markPaid: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot mark payroll as paid.");
       if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can mark payroll paid" });
@@ -748,9 +748,9 @@ export const payrollRouter = router({
   generatePayslip: protectedProcedure
     .input(z.object({ lineId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [row] = await db
         .select({
@@ -822,9 +822,9 @@ export const payrollRouter = router({
   generateWpsFile: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const full = await generateWpsBankFileForRun(db, m, input.runId);
       return { url: full.downloadUrl };
@@ -834,9 +834,9 @@ export const payrollRouter = router({
   generateWPSFile: protectedProcedure
     .input(z.object({ payrollRunId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot generate WPS files.");
       return generateWpsBankFileForRun(db, m, input.payrollRunId);
@@ -846,9 +846,9 @@ export const payrollRouter = router({
   getSummary: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.companyId, companyId)).orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth)).limit(12);
       const annotate = (r: (typeof runs)[number]) => ({ ...r, authoritativePayroll: isAuthoritativePayrollRun(r) });
       const totalPaidYTD = runs.filter((r) => r.status === "paid").reduce((s, r) => s + Number(r.totalNet ?? 0), 0);
@@ -870,9 +870,9 @@ export const payrollRouter = router({
   getGratuityEstimate: protectedProcedure
     .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const [emp] = await db
         .select()
         .from(employees)
@@ -903,9 +903,9 @@ export const payrollRouter = router({
   listSalaryConfigs: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const configs = await db
         .select({
           id: employeeSalaryConfigs.id,
@@ -946,9 +946,9 @@ export const payrollRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       // verify employee belongs to company
       const [emp] = await db.select({ id: employees.id }).from(employees)
@@ -984,9 +984,9 @@ export const payrollRouter = router({
   listLoans: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const loans = await db
         .select({
           id: salaryLoans.id,
@@ -1021,9 +1021,9 @@ export const payrollRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [emp] = await db.select({ id: employees.id }).from(employees)
         .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)));
@@ -1050,11 +1050,11 @@ export const payrollRouter = router({
       deductedAmount: z.number().positive(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [loan] = await db.select().from(salaryLoans).where(eq(salaryLoans.id, input.loanId)).limit(1);
       if (!loan) throw new TRPCError({ code: "NOT_FOUND", message: "Loan not found" });
       await requireWorkspaceMembership(ctx.user as User, loan.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const newBalance = Math.max(0, Number(loan.balanceRemaining) - input.deductedAmount);
       const newStatus = newBalance <= 0 ? "completed" : "active";
       await db.update(salaryLoans)
@@ -1067,8 +1067,6 @@ export const payrollRouter = router({
   cancelLoan: protectedProcedure
     .input(z.object({ loanId: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [loanRow] = await db
         .select({ companyId: salaryLoans.companyId })
         .from(salaryLoans)
@@ -1076,6 +1074,8 @@ export const payrollRouter = router({
         .limit(1);
       if (!loanRow) throw new TRPCError({ code: "NOT_FOUND", message: "Loan not found" });
       const m = await requireWorkspaceMembership(ctx.user as User, loanRow.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       await db.update(salaryLoans)
         .set({ status: "cancelled" })
         .where(and(eq(salaryLoans.id, input.loanId), eq(salaryLoans.companyId, m.companyId)));
@@ -1089,9 +1089,9 @@ export const payrollRouter = router({
   getComplianceFlags: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
 
       const now = new Date();
       const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -1172,8 +1172,6 @@ export const payrollRouter = router({
   getRunCompliance: protectedProcedure
     .input(z.object({ runId: z.number() }))
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [runProbe] = await db
         .select({ companyId: payrollRuns.companyId })
         .from(payrollRuns)
@@ -1181,6 +1179,8 @@ export const payrollRouter = router({
         .limit(1);
       if (!runProbe) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
       const { companyId } = await requireFinanceOrAdmin(ctx.user as User, runProbe.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
       const lines = await db.select({ employeeId: payrollLineItems.employeeId })
         .from(payrollLineItems)

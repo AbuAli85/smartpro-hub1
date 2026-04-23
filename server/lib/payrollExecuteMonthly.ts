@@ -34,6 +34,12 @@ import {
 
 type PayrollDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
+/**
+ * When `process.env.PAYROLL_EXECUTE_INJECT_FAILURE_AFTER` equals this value, `executeMonthlyPayroll` throws
+ * right after the first `payroll_line_items` insert so MySQL integration tests can assert full rollback.
+ */
+export const PAYROLL_EXECUTE_INJECT_FAILURE_AFTER_LINE_INSERT = "line_insert" as const;
+
 export function monthYmdRange(year: number, month: number) {
   const pad = (n: number) => String(n).padStart(2, "0");
   const start = `${year}-${pad(month)}-01`;
@@ -322,6 +328,8 @@ export async function executeMonthlyPayroll(
     let totalDeductions = 0;
     let totalNet = 0;
 
+    let injectedFailureAfterFirstPayrollLine = false;
+
     const today = new Date();
     const horizon90 = new Date(today.getTime() + 90 * 86400000);
 
@@ -408,6 +416,14 @@ export async function executeMonthlyPayroll(
         bankAccount: emp.bankAccountNumber ?? undefined,
         bankName: emp.bankName ?? undefined,
       });
+
+      if (
+        process.env.PAYROLL_EXECUTE_INJECT_FAILURE_AFTER === PAYROLL_EXECUTE_INJECT_FAILURE_AFTER_LINE_INSERT &&
+        !injectedFailureAfterFirstPayrollLine
+      ) {
+        injectedFailureAfterFirstPayrollLine = true;
+        throw new Error("integration: injected failure after first payroll line insert");
+      }
 
       if (empLoan && loanDeduction > 0) {
         const newBalance = Math.max(0, roundOmr(Number(empLoan.balanceRemaining) - loanDeduction));

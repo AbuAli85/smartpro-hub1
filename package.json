@@ -10,6 +10,7 @@
     "check": "cross-env NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit --pretty false",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:payroll-rollback": "cross-env PAYROLL_ROLLBACK_INTEGRATION_TEST=1 vitest run server/lib/payrollExecuteMonthly.rollback.integration.test.ts",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:backfill-hr-permissions": "tsx server/hrPerformancePermissionsBackfill.ts",
     "sanad-intel:import": "tsx scripts/import-sanad-intelligence.ts",

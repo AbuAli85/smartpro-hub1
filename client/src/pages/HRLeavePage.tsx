@@ -278,11 +278,12 @@ export default function HRLeavePage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const { caps: myCaps } = useMyCapabilities();
+  const { caps: myCaps, loading: capsLoading } = useMyCapabilities();
   const isPlatformAdmin = Boolean(user && canAccessGlobalAdminProcedures(user));
   // canApproveAttendance is true for company_admin and hr_admin — same roles as before.
   // Platform admins bypass via isPlatformAdmin.
-  const isAdmin = isPlatformAdmin || myCaps.canApproveAttendance;
+  // capsLoading guard prevents privileged UI from flashing before capabilities resolve.
+  const isAdmin = !capsLoading && (isPlatformAdmin || myCaps.canApproveAttendance);
 
   // Stats
   const totalPayroll = payrollRecords?.reduce((sum, r) => sum + Number(r.netSalary ?? 0), 0) ?? 0;

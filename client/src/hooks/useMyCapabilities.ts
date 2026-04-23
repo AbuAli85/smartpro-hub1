@@ -20,8 +20,36 @@ import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
+/** Capabilities shape — all fields are boolean. */
+export type Capabilities = {
+  canViewEmployeeList: boolean;
+  canEditEmployeeProfile: boolean;
+  canViewAttendanceForOthers: boolean;
+  canApproveAttendance: boolean;
+  canAssignTask: boolean;
+  canViewComplianceCase: boolean;
+  canViewSalary: boolean;
+  canViewBankingDetails: boolean;
+  canViewIdentityDocs: boolean;
+  canViewPayrollInputs: boolean;
+  canViewHrNotes: boolean;
+  canRunPayroll: boolean;
+  canApprovePayroll: boolean;
+  canMarkPayrollPaid: boolean;
+  canEditPayrollLineItem: boolean;
+  canGenerateWpsFile: boolean;
+  canUploadDocument: boolean;
+  canViewEmployeeDocuments: boolean;
+  canViewComplianceMatrix: boolean;
+  canRunComplianceReports: boolean;
+  canApproveTask: boolean;
+  canViewAttendanceBoard: boolean;
+  canManageAttendanceRecords: boolean;
+  canManagePromoterAssignments: boolean;
+};
+
 /** All capabilities default to false — safe while loading or unauthenticated. */
-const EMPTY_CAPS = {
+const EMPTY_CAPS: Capabilities = {
   canViewEmployeeList: false,
   canEditEmployeeProfile: false,
   canViewAttendanceForOthers: false,
@@ -45,9 +73,8 @@ const EMPTY_CAPS = {
   canApproveTask: false,
   canViewAttendanceBoard: false,
   canManageAttendanceRecords: false,
-} as const;
-
-export type Capabilities = typeof EMPTY_CAPS;
+  canManagePromoterAssignments: false,
+};
 
 export function useMyCapabilities() {
   const { activeCompanyId, loading: companyLoading } = useActiveCompany();
@@ -57,7 +84,8 @@ export function useMyCapabilities() {
     {
       enabled: activeCompanyId != null && !companyLoading,
       // Keep previous data while switching companies to avoid all-false flash
-      keepPreviousData: true,
+      // (tRPC v11 / TanStack Query v5 uses placeholderData instead of keepPreviousData)
+      placeholderData: (prev: Capabilities | undefined) => prev,
       staleTime: 30_000,
     },
   );

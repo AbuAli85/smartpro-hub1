@@ -54,11 +54,12 @@ export default function PromoterFinanceHubPage() {
   const { user } = useAuth();
   const { activeCompanyId, activeCompany } = useActiveCompany();
   const companyId = activeCompanyId ?? undefined;
-  const { caps: myCaps } = useMyCapabilities();
+  const { caps: myCaps, loading: capsLoading } = useMyCapabilities();
   const isPlatformAdmin = Boolean(user && canAccessGlobalAdminProcedures(user));
   /** Matches server `requirePromoterFinanceControl`: approve, export, finalize payroll, issue/mark paid invoices.
-   * canApprovePayroll is true for company_admin and finance_admin — same roles as before. */
-  const canFinanceFinalize = isPlatformAdmin || myCaps.canApprovePayroll || myCaps.canRunPayroll;
+   * canApprovePayroll is true for company_admin and finance_admin — same roles as before.
+   * capsLoading guard prevents privileged buttons from flashing before capabilities resolve. */
+  const canFinanceFinalize = !capsLoading && (isPlatformAdmin || myCaps.canApprovePayroll || myCaps.canRunPayroll);
   const [periodStart, setPeriodStart] = useState(() => monthBounds(new Date()).start);
   const [periodEnd, setPeriodEnd] = useState(() => monthBounds(new Date()).end);
   const [ackKeys, setAckKeys] = useState("");

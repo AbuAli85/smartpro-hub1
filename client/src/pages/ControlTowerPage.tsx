@@ -75,10 +75,11 @@ export default function ControlTowerPage() {
 
   const platformOp = seesPlatformOperatorNav(user);
   const scopeEnabled = activeCompanyId != null && !platformOp;
-  const { caps: myCaps } = useMyCapabilities();
+  const { caps: myCaps, loading: capsLoading } = useMyCapabilities();
   // canViewEmployeeList is true for company_admin, hr_admin, and finance_admin — the same
   // roles that previously had engagementOpsRole access.
-  const engagementOpsRole = myCaps.canViewEmployeeList;
+  // capsLoading guard prevents the engagement KPI section from flashing before capabilities resolve.
+  const engagementOpsRole = !capsLoading && myCaps.canViewEmployeeList;
 
   const utils = trpc.useUtils();
   const { data: engagementQueueKpi } = trpc.engagements.getOpsSummary.useQuery(

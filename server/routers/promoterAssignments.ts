@@ -55,6 +55,8 @@ import {
   type InsertPromoterAssignment,
 } from "../../drizzle/schema";
 import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
+import { deriveCapabilities } from "../_core/capabilities";
+import { resolveVisibilityScope } from "../_core/visibilityScope";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -73,6 +75,8 @@ import {
   setPromoterAssignmentCmsSyncState,
 } from "../promoterAssignmentCmsSync";
 
+// ASSIGNMENT_ROLES kept for reference; requireCanManagePromoterAssignments now
+// delegates to deriveCapabilities().canManagePromoterAssignments for consistency.
 const ASSIGNMENT_ROLES = ["company_admin", "hr_admin"] as const;
 
 const listAssignmentsInput = optionalActiveWorkspace.merge(
@@ -95,12 +99,13 @@ async function requireCanManagePromoterAssignments(
   user: { id: number; role?: string | null; platformRole?: string | null },
   companyId: number
 ): Promise<void> {
+  // Platform admins bypass tenant membership checks.
+  if (canAccessGlobalAdminProcedures(user)) return;
   const m = await requireWorkspaceMembership(user as User, companyId);
   requireNotAuditor(m.role);
-  if (
-    !canAccessGlobalAdminProcedures(user) &&
-    !(ASSIGNMENT_ROLES as readonly string[]).includes(m.role)
-  ) {
+  const scope = await resolveVisibilityScope(user as User, companyId);
+  const caps = deriveCapabilities(m.role, scope);
+  if (!caps.canManagePromoterAssignments) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Only company administrators and HR admins can manage promoter assignments.",

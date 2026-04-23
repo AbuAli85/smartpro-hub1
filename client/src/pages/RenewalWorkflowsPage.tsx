@@ -213,12 +213,13 @@ function RuleFormDialog({
 export default function RenewalWorkflowsPage() {
   const { t, i18n } = useTranslation("renewalWorkflows");
   const { user } = useAuth();
-  const { caps: myCaps } = useMyCapabilities();
+  const { caps: myCaps, loading: capsLoading } = useMyCapabilities();
   const isPlatformAdmin = Boolean(user && canAccessGlobalAdminProcedures(user));
   // canRunComplianceReports is true for company_admin, hr_admin, and finance_admin.
   // Previously only company_admin had this access; the broader capability is intentional
   // (compliance reports are a read-only operation safe for HR/finance admins too).
-  const canRunWorkflowAutomation = isPlatformAdmin || myCaps.canRunComplianceReports;
+  // capsLoading guard prevents workflow-trigger buttons from flashing before capabilities resolve.
+  const canRunWorkflowAutomation = !capsLoading && (isPlatformAdmin || myCaps.canRunComplianceReports);
   const [, navigate] = useLocation();
   const dateLocale = i18n.language === "ar-OM" ? "ar-OM" : "en-GB";
 

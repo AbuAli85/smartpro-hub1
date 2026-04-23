@@ -3,6 +3,7 @@ import type { TrpcContext } from "./_core/context";
 import { promoterAssignmentsRouter } from "./routers/promoterAssignments";
 import * as db from "./db";
 import * as membership from "./_core/membership";
+import * as visibilityScope from "./_core/visibilityScope";
 
 vi.mock("./db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./db")>();
@@ -17,6 +18,17 @@ vi.mock("./_core/membership", async (importOriginal) => {
   return {
     ...actual,
     requireWorkspaceMembership: vi.fn(),
+  };
+});
+
+// resolveVisibilityScope is now called inside requireCanManagePromoterAssignments
+// (which uses deriveCapabilities). Mock it so the DB-unavailable test can pass
+// the auth guard before reaching the summary procedure's own DB check.
+vi.mock("./_core/visibilityScope", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./_core/visibilityScope")>();
+  return {
+    ...actual,
+    resolveVisibilityScope: vi.fn(),
   };
 });
 
@@ -44,6 +56,12 @@ describe("promoterAssignments Phase 1", () => {
     vi.mocked(membership.requireWorkspaceMembership).mockResolvedValue({
       role: "hr_admin",
     } as never);
+    // Provide a company-scoped visibility so deriveCapabilities grants
+    // canManagePromoterAssignments = true for hr_admin.
+    vi.mocked(visibilityScope.resolveVisibilityScope).mockResolvedValue({
+      type: "company",
+      companyId: 10,
+    });
   });
 
   it("summary returns empty shape when database is unavailable", async () => {

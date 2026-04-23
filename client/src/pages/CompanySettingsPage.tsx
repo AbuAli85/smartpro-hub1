@@ -11,6 +11,7 @@
 import React, { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,6 +43,7 @@ import { useTranslation } from "react-i18next";
 export default function CompanySettingsPage() {
   const { t } = useTranslation("common");
   const { activeCompany, loading: companyLoading } = useActiveCompany();
+  const { caps: myCaps, loading: capsLoading } = useMyCapabilities();
   const utils = trpc.useUtils();
 
   // Fetch full company details
@@ -255,7 +257,9 @@ export default function CompanySettingsPage() {
     }
   };
 
-  const canEditNavExtensions = activeCompany?.role === "company_admin";
+  // canEditNavExtensions: company-settings write is gated on canEditEmployeeProfile
+  // (company_admin role) — migrated from raw role === "company_admin" to capability layer
+  const canEditNavExtensions = !capsLoading && myCaps.canEditEmployeeProfile;
 
   const handleSaveExpiry = async () => {
     if (!activeCompany?.id) return;

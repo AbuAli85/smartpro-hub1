@@ -52,6 +52,7 @@ describe("company_admin", () => {
         canViewEmployeeDocuments: true,
         canViewAttendanceBoard: true,
         canManageAttendanceRecords: true,
+        canManagePromoterAssignments: true,
       });
     }
   });
@@ -79,6 +80,7 @@ describe("hr_admin", () => {
     expect(caps.canViewEmployeeDocuments).toBe(true);
     expect(caps.canViewAttendanceBoard).toBe(true);
     expect(caps.canManageAttendanceRecords).toBe(true);
+    expect(caps.canManagePromoterAssignments).toBe(true);
     // Finance domain — HR does NOT have these
     expect(caps.canViewSalary).toBe(false);
     expect(caps.canViewBankingDetails).toBe(false);
@@ -129,6 +131,7 @@ describe("finance_admin", () => {
     expect(caps.canViewHrNotes).toBe(false);
     expect(caps.canUploadDocument).toBe(false);
     expect(caps.canManageAttendanceRecords).toBe(false);
+    expect(caps.canManagePromoterAssignments).toBe(false);
   });
 
   it("scope does not change finance_admin capabilities", () => {
@@ -166,6 +169,7 @@ describe("reviewer", () => {
     expect(caps.canGenerateWpsFile).toBe(false);
     expect(caps.canUploadDocument).toBe(false);
     expect(caps.canManageAttendanceRecords).toBe(false);
+    expect(caps.canManagePromoterAssignments).toBe(false);
     expect(caps.canRunComplianceReports).toBe(false);
   });
 });
@@ -188,6 +192,7 @@ describe("external_auditor", () => {
     expect(caps.canAssignTask).toBe(false);
     expect(caps.canApproveTask).toBe(false);
     expect(caps.canManageAttendanceRecords).toBe(false);
+    expect(caps.canManagePromoterAssignments).toBe(false);
     // No sensitive financial or personal data
     expect(caps.canViewSalary).toBe(false);
     expect(caps.canViewBankingDetails).toBe(false);

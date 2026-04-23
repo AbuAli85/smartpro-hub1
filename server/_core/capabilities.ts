@@ -100,6 +100,10 @@ export interface Capabilities {
   canViewAttendanceBoard: boolean;
   /** Create, edit, or delete attendance records on behalf of employees. */
   canManageAttendanceRecords: boolean;
+
+  // Promoter assignments
+  /** Create, update, or terminate promoter assignment contracts. */
+  canManagePromoterAssignments: boolean;
 }
 
 // ─── Baseline capability sets ─────────────────────────────────────────────────
@@ -128,6 +132,7 @@ const ALL_CAPS: Capabilities = {
   canApproveTask: true,
   canViewAttendanceBoard: true,
   canManageAttendanceRecords: true,
+  canManagePromoterAssignments: true,
 };
 
 const NO_CAPS: Capabilities = {
@@ -154,6 +159,7 @@ const NO_CAPS: Capabilities = {
   canApproveTask: false,
   canViewAttendanceBoard: false,
   canManageAttendanceRecords: false,
+  canManagePromoterAssignments: false,
 };
 
 // ─── Core deriver ─────────────────────────────────────────────────────────────
@@ -189,6 +195,7 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewEmployeeDocuments: true,
         canViewAttendanceBoard: true,
         canManageAttendanceRecords: true,
+        canManagePromoterAssignments: true,
         // salary and banking are finance domain — HR does not see them
         canViewSalary: false,
         canViewBankingDetails: false,

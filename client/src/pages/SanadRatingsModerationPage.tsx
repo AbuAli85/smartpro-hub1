@@ -140,7 +140,8 @@ export default function SanadRatingsModerationPage() {
     );
   }
 
-  const ratings = data?.ratings ?? [];
+  type RatingRow = NonNullable<typeof data>["ratings"][number];
+  const ratings: RatingRow[] = data?.ratings ?? [];
   const total = data?.total ?? 0;
   const published = ratings.filter(r => r.isPublished).length;
   const hidden = ratings.filter(r => !r.isPublished).length;

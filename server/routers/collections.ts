@@ -80,8 +80,12 @@ export const collectionsRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const filter = await resolveStatsCompanyFilter(ctx.user as User, input?.companyId);
       if (filter.aggregateAllTenants) {
+        if (!canAccessGlobalAdminProcedures(ctx.user)) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
         return buildAgedReceivablesSnapshotAllTenants(db);
       }
+      await assertCollectionsAccess(ctx, filter.companyId);
       return buildAgedReceivablesSnapshot(db, filter.companyId);
     }),
 

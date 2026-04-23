@@ -59,6 +59,7 @@ import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
+import { requireFinanceOrAdmin } from "../_core/policy";
 import {
   ATTENDANCE_AUDIT_ACTION,
   ATTENDANCE_AUDIT_ENTITY,
@@ -256,7 +257,7 @@ export const hrRouter = router({
     .input(z.object({ status: z.string().optional(), department: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const { companyId: inputCid, ...filters } = input;
-      const cid = await requireActiveCompanyId(ctx.user.id, inputCid, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, inputCid);
       return getEmployees(cid, filters);
     }),
 
@@ -529,7 +530,7 @@ export const hrRouter = router({
   listApplications: protectedProcedure
     .input(z.object({ jobId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const { companyId } = await requireAdminOrHR(ctx.user as User, input.companyId);
       return getJobApplications(input.jobId, companyId);
     }),
 
@@ -554,7 +555,7 @@ export const hrRouter = router({
   listLeave: protectedProcedure
     .input(z.object({ employeeId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input.companyId);
       return getLeaveRequests(cid, input.employeeId);
     }),
 
@@ -638,7 +639,7 @@ export const hrRouter = router({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       if (input.employeeId != null) {
         const emp = await getEmployeeById(input.employeeId);
         if (!emp || emp.companyId !== cid) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -723,7 +724,7 @@ export const hrRouter = router({
   listReviews: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
+      const { companyId } = await requireAdminOrHR(ctx.user as User, input?.companyId);
       return getPerformanceReviews(companyId);
     }),
 
@@ -761,7 +762,7 @@ export const hrRouter = router({
   departments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return [];
       const rows = await db
@@ -1388,7 +1389,7 @@ export const hrRouter = router({
   getLeaveBalance: protectedProcedure
     .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const caps = await getMergedLeaveCapsForCompanyId(db, cid);
@@ -1420,7 +1421,7 @@ export const hrRouter = router({
   getLeaveBalanceSummary: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+    const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
     const db = await getDb();
     if (!db) return { employees: [], policyCaps: mergeLeavePolicyCaps(null) };
     const policyCaps = await getMergedLeaveCapsForCompanyId(db, cid);
@@ -1456,7 +1457,7 @@ export const hrRouter = router({
   getEmployeeCompleteness: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+    const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
     const emps = await getEmployees(cid);
     const REQUIRED_FIELDS = ["firstName", "lastName", "email", "phone", "nationality", "department", "position", "hireDate", "salary"];
     const OPTIONAL_FIELDS = ["passportNumber", "nationalId", "dateOfBirth", "gender", "pasiNumber", "bankAccountNumber", "emergencyContactName", "workPermitNumber", "visaNumber"];
@@ -1479,7 +1480,7 @@ export const hrRouter = router({
   getStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+    const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
     const emps = await getEmployees(cid);
     const active = emps.filter((e) => e.status === "active");
     const onLeave = emps.filter((e) => e.status === "on_leave");
@@ -1513,7 +1514,7 @@ export const hrRouter = router({
       status: z.enum(["all", "expired", "expiring_soon"]).default("all"),
     }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { rows: [], stats: { total: 0, expired: 0, expiringSoon: 0 } };
 
@@ -1591,7 +1592,7 @@ export const hrRouter = router({
   getDashboardStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
       const emptyResult = {
         todayPresent: 0, todayAbsent: 0, todayTotal: 0,
         pendingLeave: 0, kpiTargetsCount: 0, kpiAvgPct: 0,
@@ -1721,7 +1722,7 @@ export const hrRouter = router({
   listDepartmentMembers: protectedProcedure
     .input(z.object({ departmentName: z.string(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return [];
       return db.select({
@@ -1745,7 +1746,7 @@ export const hrRouter = router({
   listDepartments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return [];
       const depts = await db.select().from(departments).where(and(eq(departments.companyId, cid), eq(departments.isActive, true)));
@@ -1840,7 +1841,7 @@ export const hrRouter = router({
   listPositions: protectedProcedure
     .input(z.object({ departmentId: z.number().optional(), companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return [];
       const conditions: any[] = [eq(positions.companyId, cid), eq(positions.isActive, true)];
@@ -1886,7 +1887,7 @@ export const hrRouter = router({
   getOrgChart: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return { departments: [], unassigned: [] };
 
@@ -2063,7 +2064,7 @@ export const hrRouter = router({
   getWorkforceHealth: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
       const emps = await getEmployees(cid);
       const today = new Date();
       const warnDays = 30;
@@ -2222,7 +2223,7 @@ export const hrRouter = router({
   wpsHistory: protectedProcedure
     .input(z.object({ employeeId: z.number().int().positive(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return [];
       return db

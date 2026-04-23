@@ -33,6 +33,7 @@ import {
 } from "../tenantGovernanceAudit";
 import { storagePut } from "../storage";
 import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
+import { requireFinanceOrAdmin } from "../_core/policy";
 
 /** PASI contribution: 7% employee, 11.5% employer for Omani nationals */
 function calcPasi(basicSalary: number, isOmani: boolean) {
@@ -263,9 +264,8 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
-      const conditions = [eq(payrollRuns.companyId, m.companyId)];
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
+      const conditions = [eq(payrollRuns.companyId, companyId)];
       if (input.year) conditions.push(eq(payrollRuns.periodYear, input.year));
       if (input.status) conditions.push(eq(payrollRuns.status, input.status as any));
       const runs = await db
@@ -282,11 +282,11 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const [emp] = await db
         .select({ id: employees.id })
         .from(employees)
-        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)))
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
         .limit(1);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       const rows = await db
@@ -298,7 +298,7 @@ export const payrollRouter = router({
         })
         .from(payrollLineItems)
         .innerJoin(payrollRuns, eq(payrollLineItems.payrollRunId, payrollRuns.id))
-        .where(and(eq(payrollLineItems.companyId, m.companyId), eq(payrollLineItems.employeeId, input.employeeId)))
+        .where(and(eq(payrollLineItems.companyId, companyId), eq(payrollLineItems.employeeId, input.employeeId)))
         .orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth), desc(payrollLineItems.id))
         .limit(500);
       return rows.map((r) => {
@@ -341,9 +341,8 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
-      const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId))).limit(1);
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
+      const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, companyId))).limit(1);
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
       const runWithFlag = { ...run, authoritativePayroll: isAuthoritativePayrollRun(run) };
       const lines = await db
@@ -353,7 +352,7 @@ export const payrollRouter = router({
         })
         .from(payrollLineItems)
         .leftJoin(employees, eq(payrollLineItems.employeeId, employees.id))
-        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
+        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, companyId)));
       return { run: runWithFlag, lines };
     }),
 
@@ -389,12 +388,11 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const [run] = await db
         .select()
         .from(payrollRuns)
-        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)))
+        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, companyId)))
         .limit(1);
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
       const lines = await db
@@ -404,7 +402,7 @@ export const payrollRouter = router({
         })
         .from(payrollLineItems)
         .leftJoin(employees, eq(payrollLineItems.employeeId, employees.id))
-        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
+        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, companyId)));
       const warnings: Array<{ employeeId: number; message: string }> = [];
       const empIds = lines.map((l) => l.line.employeeId);
       if (empIds.length) {
@@ -418,7 +416,7 @@ export const payrollRouter = router({
           .from(attendanceSessions)
           .where(
             and(
-              eq(attendanceSessions.companyId, m.companyId),
+              eq(attendanceSessions.companyId, companyId),
               eq(attendanceSessions.status, "closed"),
               gte(attendanceSessions.businessDate, start),
               lte(attendanceSessions.businessDate, end),
@@ -850,9 +848,8 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
-      const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.companyId, m.companyId)).orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth)).limit(12);
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
+      const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.companyId, companyId)).orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth)).limit(12);
       const annotate = (r: (typeof runs)[number]) => ({ ...r, authoritativePayroll: isAuthoritativePayrollRun(r) });
       const totalPaidYTD = runs.filter((r) => r.status === "paid").reduce((s, r) => s + Number(r.totalNet ?? 0), 0);
       const pendingApproval = runs.filter(
@@ -875,17 +872,17 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const [emp] = await db
         .select()
         .from(employees)
-        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)))
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
         .limit(1);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       const [cfg] = await db
         .select()
         .from(employeeSalaryConfigs)
-        .where(and(eq(employeeSalaryConfigs.employeeId, input.employeeId), eq(employeeSalaryConfigs.companyId, m.companyId)))
+        .where(and(eq(employeeSalaryConfigs.employeeId, input.employeeId), eq(employeeSalaryConfigs.companyId, companyId)))
         .orderBy(desc(employeeSalaryConfigs.effectiveFrom))
         .limit(1);
       const basic = cfg ? Number(cfg.basicSalary) : Number(emp.salary ?? 0);
@@ -908,8 +905,7 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const configs = await db
         .select({
           id: employeeSalaryConfigs.id,
@@ -929,7 +925,7 @@ export const payrollRouter = router({
         })
         .from(employeeSalaryConfigs)
         .leftJoin(employees, eq(employeeSalaryConfigs.employeeId, employees.id))
-        .where(eq(employeeSalaryConfigs.companyId, m.companyId))
+        .where(eq(employeeSalaryConfigs.companyId, companyId))
         .orderBy(employees.firstName);
       return configs;
     }),
@@ -990,8 +986,7 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const loans = await db
         .select({
           id: salaryLoans.id,
@@ -1009,7 +1004,7 @@ export const payrollRouter = router({
         })
         .from(salaryLoans)
         .leftJoin(employees, eq(salaryLoans.employeeId, employees.id))
-        .where(eq(salaryLoans.companyId, m.companyId))
+        .where(eq(salaryLoans.companyId, companyId))
         .orderBy(desc(salaryLoans.createdAt));
       return loans;
     }),
@@ -1096,8 +1091,7 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
 
       const now = new Date();
       const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -1120,20 +1114,20 @@ export const payrollRouter = router({
         firstName: employees.firstName,
         lastName: employees.lastName,
         nationality: employees.nationality,
-      }).from(employees).where(and(eq(employees.companyId, m.companyId), eq(employees.status, "active")));
+      }).from(employees).where(and(eq(employees.companyId, companyId), eq(employees.status, "active")));
 
       const permits = await db.select({
         employeeId: workPermits.employeeId,
         permitNumber: workPermits.workPermitNumber,
         expiryDate: workPermits.expiryDate,
-      }).from(workPermits).where(eq(workPermits.companyId, m.companyId)).orderBy(desc(workPermits.expiryDate));
+      }).from(workPermits).where(eq(workPermits.companyId, companyId)).orderBy(desc(workPermits.expiryDate));
 
       const docs = await db.select({
         employeeId: employeeDocuments.employeeId,
         documentType: employeeDocuments.documentType,
         expiresAt: employeeDocuments.expiresAt,
       }).from(employeeDocuments).where(and(
-        eq(employeeDocuments.companyId, m.companyId),
+        eq(employeeDocuments.companyId, companyId),
         sql`${employeeDocuments.documentType} IN ('visa','passport','resident_card','mol_work_permit_certificate')`,
         sql`${employeeDocuments.expiresAt} IS NOT NULL`
       )).orderBy(desc(employeeDocuments.expiresAt));
@@ -1186,11 +1180,11 @@ export const payrollRouter = router({
         .where(eq(payrollRuns.id, input.runId))
         .limit(1);
       if (!runProbe) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
-      const m = await requireWorkspaceMembership(ctx.user as User, runProbe.companyId);
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, runProbe.companyId);
 
       const lines = await db.select({ employeeId: payrollLineItems.employeeId })
         .from(payrollLineItems)
-        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
+        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, companyId)));
 
       const employeeIds = lines.map(l => l.employeeId).filter(Boolean) as number[];
       if (!employeeIds.length) return { complianceByEmployee: {}, summary: { total: 0, expired: 0, expiring30: 0, expiring90: 0, ok: 0, noData: 0 } };
@@ -1216,7 +1210,7 @@ export const payrollRouter = router({
         permitNumber: workPermits.workPermitNumber,
         expiryDate: workPermits.expiryDate,
       }).from(workPermits)
-        .where(and(eq(workPermits.companyId, m.companyId), inArray(workPermits.employeeId, employeeIds)))
+        .where(and(eq(workPermits.companyId, companyId), inArray(workPermits.employeeId, employeeIds)))
         .orderBy(desc(workPermits.expiryDate));
 
       const docs = await db.select({
@@ -1224,7 +1218,7 @@ export const payrollRouter = router({
         documentType: employeeDocuments.documentType,
         expiresAt: employeeDocuments.expiresAt,
       }).from(employeeDocuments).where(and(
-        eq(employeeDocuments.companyId, m.companyId),
+        eq(employeeDocuments.companyId, companyId),
         inArray(employeeDocuments.employeeId, employeeIds),
         sql`${employeeDocuments.documentType} IN ('visa','passport','resident_card','mol_work_permit_certificate')`,
         sql`${employeeDocuments.expiresAt} IS NOT NULL`

@@ -12,6 +12,7 @@ import { computeMargin, type FinancialEngineResult } from "../../shared/financia
 import type { User } from "../../drizzle/schema";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { requireFinanceOrAdmin } from "../_core/policy";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { HR_PERF, memberHasHrPerformancePermission } from "@shared/hrPerformancePermissions";
 import {
@@ -260,7 +261,7 @@ export const financeHRRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const conditions = [eq(expenseClaims.companyId, companyId)];
       if (input?.status && input.status !== "all") {
         conditions.push(eq(expenseClaims.expenseStatus, input.status as "pending" | "approved" | "rejected" | "cancelled"));
@@ -309,7 +310,7 @@ export const financeHRRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return { total: 0, pending: 0, approved: 0, rejected: 0, byCategory: [] };
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const year = input?.year ?? new Date().getFullYear();
       const fromDate = `${year}-01-01`;
       const toDate = `${year}-12-31`;
@@ -337,7 +338,7 @@ export const financeHRRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return null;
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input?.companyId);
       const year = input?.year ?? new Date().getFullYear();
       // Payroll cost per month from payrollRuns
       const payrollData = await db.select().from(payrollRuns)
@@ -831,7 +832,7 @@ export const financeHRRouter = router({
       platformOverheadOmr: z.number().min(0).optional(),
     }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return null;
       const now = new Date();
@@ -982,7 +983,7 @@ export const financeHRRouter = router({
       platformOverheadOmrPerMonth: z.number().min(0).optional(),
     }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return [];
       const now = new Date();

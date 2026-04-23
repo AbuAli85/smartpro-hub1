@@ -303,6 +303,9 @@ export const companiesRouter = router({
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
       const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertCompanyAdmin(ctx.user.id, cid);
+      }
       return getCompanyStats(cid);
     }),
 
@@ -492,6 +495,9 @@ export const companiesRouter = router({
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
     const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+    if (!canAccessGlobalAdminProcedures(ctx.user)) {
+      await assertCompanyAdmin(ctx.user.id, cid);
+    }
     return getCompanySubscription(cid);
   }),
 
@@ -502,6 +508,9 @@ export const companiesRouter = router({
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
     const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+    if (!canAccessGlobalAdminProcedures(ctx.user)) {
+      await assertCompanyAdmin(ctx.user.id, cid);
+    }
     const db = await getDb();
     if (!db) return [];
     const rows = await db
@@ -1056,6 +1065,7 @@ export const companiesRouter = router({
       companyId = c.id;
     } else {
       const membership = await membershipForActiveWorkspace(ctx.user, input?.companyId);
+      await assertCompanyAdmin(ctx.user.id, membership.company.id);
       companyId = membership.company.id;
     }
     return fetchEmployeesWithAccessData(db, companyId);
@@ -1083,6 +1093,7 @@ export const companiesRouter = router({
       companyId = c.id;
     } else {
       const membership = await membershipForActiveWorkspace(ctx.user, input?.companyId);
+      await assertCompanyAdmin(ctx.user.id, membership.company.id);
       companyId = membership.company.id;
     }
 
@@ -1356,6 +1367,9 @@ export const companiesRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertCompanyAdmin(ctx.user.id, input.companyId);
+      }
       const [member] = await db
         .select({ role: companyMembers.role })
         .from(companyMembers)
@@ -1613,6 +1627,9 @@ export const companiesRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertCompanyAdmin(ctx.user.id, input.companyId);
+      }
       const [member] = await db
         .select({ role: companyMembers.role })
         .from(companyMembers)
@@ -1675,6 +1692,9 @@ export const companiesRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertCompanyAdmin(ctx.user.id, input.companyId);
+      }
       const [member] = await db
         .select({ role: companyMembers.role })
         .from(companyMembers)

@@ -12,6 +12,8 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, gte, lte, lt, count, inArray, desc, isNotNull } from "drizzle-orm";
 import { resolveStatsCompanyFilter } from "../_core/tenant";
+import { requireHrOrAdmin } from "../_core/policy";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import {
   muscatCalendarYmdFromUtcInstant,
@@ -31,6 +33,10 @@ export const complianceRouter = router({
   getOmanisationStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      // Require HR-or-admin for tenant users; platform admins bypass automatically
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await requireHrOrAdmin(ctx.user as User, input.companyId);
+      }
       const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { total: 0, omani: 0, pct: 0, targetPct: 35, gap: 0, byDepartment: [] };
@@ -79,6 +85,9 @@ export const complianceRouter = router({
   getPasiStatus: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), month: z.number().optional(), year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await requireHrOrAdmin(ctx.user as User, input.companyId);
+      }
       const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { employees: [], totalContribution: 0, status: "not_calculated" };
@@ -139,6 +148,9 @@ export const complianceRouter = router({
   getWpsStatus: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), month: z.number().optional(), year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await requireHrOrAdmin(ctx.user as User, input.companyId);
+      }
       const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { status: "not_generated", wpsFileUrl: null, month: 0, year: 0 };

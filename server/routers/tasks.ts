@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { employeeTasks, employees, engagementTasks, users } from "../../drizzle/schema";
 import type { User } from "../../drizzle/schema";
@@ -9,7 +9,12 @@ import { assertEngagementInCompany } from "../services/engagementsService";
 import { syncEngagementDerivedState } from "../services/engagements/deriveEngagementState";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
-import { requireHrOrAdmin } from "../_core/policy";
+import {
+  requireHrOrAdmin,
+  requireWorkspaceMemberForRead,
+  resolveVisibilityScope,
+  isInScope,
+} from "../_core/policy";
 import { sendEmployeeNotification, notifyAssignerTaskCompleted } from "./employeePortal";
 import { assertAdminStatusTransition, statusUpdateSideEffects, type TaskStatus } from "../taskLifecycle";
 
@@ -81,7 +86,12 @@ function normalizeChecklist(
 }
 
 export const tasksRouter = router({
-  // List tasks — admin sees all, employee sees their own
+  /**
+   * List tasks — visibility is scope-gated:
+   *  company_admin / hr_admin / finance_admin / reviewer → all company tasks
+   *  department manager (company_member with direct reports) → team tasks only
+   *  company_member / employee → own tasks only (assigned to self's employee record)
+   */
   listTasks: protectedProcedure
     .input(z.object({
       employeeId: z.number().optional(),
@@ -90,8 +100,27 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .query(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
       const db = await requireDb();
+      const scope = await resolveVisibilityScope(ctx.user as User, companyId);
+
+      // Build the base WHERE depending on scope
+      let taskWhere: ReturnType<typeof eq> | ReturnType<typeof and>;
+      if (scope.type === "company") {
+        taskWhere = eq(employeeTasks.companyId, companyId);
+      } else if (scope.type === "team") {
+        taskWhere = and(
+          eq(employeeTasks.companyId, companyId),
+          inArray(employeeTasks.assignedToEmployeeId, scope.managedEmployeeIds),
+        ) as any;
+      } else {
+        // self scope
+        if (scope.selfEmployeeId == null) return [];
+        taskWhere = and(
+          eq(employeeTasks.companyId, companyId),
+          eq(employeeTasks.assignedToEmployeeId, scope.selfEmployeeId),
+        ) as any;
+      }
 
       const rows = await db
         .select({
@@ -104,7 +133,7 @@ export const tasksRouter = router({
         .from(employeeTasks)
         .leftJoin(employees, eq(employeeTasks.assignedToEmployeeId, employees.id))
         .leftJoin(taskCompleter, eq(employeeTasks.completedByUserId, taskCompleter.id))
-        .where(eq(employeeTasks.companyId, companyId))
+        .where(taskWhere)
         .orderBy(desc(employeeTasks.createdAt));
 
       let results = rows.map((r) => ({
@@ -114,6 +143,7 @@ export const tasksRouter = router({
         completedByName: r.completedByName ?? null,
       }));
 
+      // Optional caller-supplied filters (still within already-scoped result set)
       if (input.employeeId) results = results.filter((t) => t.assignedToEmployeeId === input.employeeId);
       if (input.status) results = results.filter((t) => t.status === input.status);
       if (input.priority) results = results.filter((t) => t.priority === input.priority);
@@ -121,14 +151,26 @@ export const tasksRouter = router({
       return results;
     }),
 
+  /**
+   * Single task fetch — same scope rules as listTasks.
+   */
   getTask: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [row] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!row || row.companyId !== companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+
+      // Scope check — managers see team, employees see self only
+      const scope = await resolveVisibilityScope(ctx.user as User, companyId);
+      if (scope.type !== "company") {
+        const assignedTo = row.assignedToEmployeeId;
+        if (assignedTo == null || !isInScope(scope, assignedTo))
+          throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+      }
+
       return row;
     }),
 

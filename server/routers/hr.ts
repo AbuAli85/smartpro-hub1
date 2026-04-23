@@ -59,7 +59,15 @@ import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
-import { requireFinanceOrAdmin } from "../_core/policy";
+import {
+  requireFinanceOrAdmin,
+  requireHrOrAdmin,
+  requireWorkspaceMemberForRead,
+  resolveVisibilityScope,
+  buildEmployeeScopeFilter,
+  isInScope,
+  redactEmployeeForScope,
+} from "../_core/policy";
 import {
   ATTENDANCE_AUDIT_ACTION,
   ATTENDANCE_AUDIT_ENTITY,
@@ -94,17 +102,7 @@ function employeeRowFromScheduleRef<E extends { id: number; userId: number | nul
   return empById.get(rawId) ?? empByLoginUserId.get(rawId);
 }
 
-/** HR / company admin only (matches attendance router guard). */
-async function requireAdminOrHR(ctxUser: User, companyId?: number | null) {
-  const cid = await requireActiveCompanyId(ctxUser.id, companyId, ctxUser);
-  const row = await getUserCompanyById(ctxUser.id, cid);
-  const role = row?.member?.role;
-  if (!role) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-  if (role !== "company_admin" && role !== "hr_admin") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });
-  }
-  return { companyId: cid };
-}
+// requireHrOrAdmin removed — use requireHrOrAdmin from _core/policy (includes platform-admin bypass)
 
 function normalizeMemberPermissions(p: unknown): string[] {
   if (!Array.isArray(p)) return [];
@@ -257,16 +255,49 @@ export const hrRouter = router({
     .input(z.object({ status: z.string().optional(), department: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const { companyId: inputCid, ...filters } = input;
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, inputCid);
-      return getEmployees(cid, filters);
+      // HR/Admin → company-wide. Manager (company_member with reports) → team. Everyone else → self.
+      const { companyId: cid, role } = await requireWorkspaceMemberForRead(ctx.user as User, inputCid);
+      const scope = await resolveVisibilityScope(ctx.user as User, cid);
+
+      if (scope.type === "company") {
+        const all = await getEmployees(cid, filters);
+        return all.map((emp: any) => redactEmployeeForScope(emp, scope, role));
+      }
+
+      const db = await getDb();
+      if (!db) return [];
+
+      if (scope.type === "team") {
+        const conds: ReturnType<typeof eq>[] = [
+          eq(employees.companyId, cid),
+          inArray(employees.id, scope.managedEmployeeIds),
+        ];
+        if (filters.status) conds.push(eq(employees.status, filters.status as any));
+        if (filters.department) conds.push(eq(employees.department, filters.department));
+        const rows = await db.select().from(employees).where(and(...conds));
+        return rows.map((emp) => redactEmployeeForScope(emp as any, scope, role));
+      }
+
+      // self scope — return own record only
+      if (scope.selfEmployeeId == null) return [];
+      const [self] = await db.select().from(employees).where(eq(employees.id, scope.selfEmployeeId)).limit(1);
+      return self ? [redactEmployeeForScope(self as any, scope, role)] : [];
     }),
 
-  getEmployee: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
-    const emp = await getEmployeeById(input.id);
-    if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-    await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee", emp.companyId);
-    return emp;
-  }),
+  getEmployee: protectedProcedure
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
+    .query(async ({ input, ctx }) => {
+      const emp = await getEmployeeById(input.id);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      // Resolve workspace — any authenticated member may attempt this; scope decides what they can see
+      const { companyId: cid, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId ?? emp.companyId);
+      if (emp.companyId !== cid)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      const scope = await resolveVisibilityScope(ctx.user as User, cid);
+      if (!isInScope(scope, emp.id))
+        throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      return redactEmployeeForScope(emp as any, scope, role);
+    }),
 
   createEmployee: protectedProcedure
     .input(
@@ -312,9 +343,8 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      requireNotAuditor(membership.role, "External Auditors cannot create employees.");
-      const companyId = membership.companyId;
+      // Only HR admin or company admin may create employees
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const { workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry,
         dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...empData } = input;
       const db = await getDb();
@@ -401,10 +431,10 @@ export const hrRouter = router({
         dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...data } = input;
       const existing = await getEmployeeById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      const workspaceHint = inputCompanyId ?? existing.companyId;
-      const membership = await requireWorkspaceMembership(ctx.user as User, workspaceHint);
-      requireNotAuditor(membership.role, "External Auditors cannot update employees.");
-      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Employee", workspaceHint);
+      // Only HR admin or company admin may update employees
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, inputCompanyId ?? existing.companyId);
+      if (existing.companyId !== companyId)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       const updateData: any = { ...data };
       if (data.salary !== undefined) updateData.salary = String(data.salary);
       if (data.hireDate !== undefined) updateData.hireDate = data.hireDate ? new Date(data.hireDate) : null;
@@ -453,11 +483,16 @@ export const hrRouter = router({
 
   // Get employee with linked work permit details
   getEmployeeWithPermit: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const emp = await getEmployeeById(input.id);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee", emp.companyId);
+      const { companyId: cid, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId ?? emp.companyId);
+      if (emp.companyId !== cid)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      const scope = await resolveVisibilityScope(ctx.user as User, cid);
+      if (!isInScope(scope, emp.id))
+        throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       const db = await getDb();
       let permit = null;
       if (db) {
@@ -467,7 +502,7 @@ export const hrRouter = router({
           .limit(1);
         permit = permits[0] ?? null;
       }
-      return { ...emp, permit };
+      return { ...redactEmployeeForScope(emp as any, scope, role), permit };
     }),
 
   // Job Postings
@@ -530,7 +565,7 @@ export const hrRouter = router({
   listApplications: protectedProcedure
     .input(z.object({ jobId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const { companyId } = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       return getJobApplications(input.jobId, companyId);
     }),
 
@@ -555,7 +590,7 @@ export const hrRouter = router({
   listLeave: protectedProcedure
     .input(z.object({ employeeId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       return getLeaveRequests(cid, input.employeeId);
     }),
 
@@ -724,7 +759,7 @@ export const hrRouter = router({
   listReviews: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const { companyId } = await requireAdminOrHR(ctx.user as User, input?.companyId);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input?.companyId);
       return getPerformanceReviews(companyId);
     }),
 
@@ -762,7 +797,7 @@ export const hrRouter = router({
   departments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return [];
       const rows = await db
@@ -1389,7 +1424,7 @@ export const hrRouter = router({
   getLeaveBalance: protectedProcedure
     .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const caps = await getMergedLeaveCapsForCompanyId(db, cid);
@@ -1421,7 +1456,7 @@ export const hrRouter = router({
   getLeaveBalanceSummary: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
+    const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input?.companyId);
     const db = await getDb();
     if (!db) return { employees: [], policyCaps: mergeLeavePolicyCaps(null) };
     const policyCaps = await getMergedLeaveCapsForCompanyId(db, cid);
@@ -1457,7 +1492,7 @@ export const hrRouter = router({
   getEmployeeCompleteness: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
+    const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input?.companyId);
     const emps = await getEmployees(cid);
     const REQUIRED_FIELDS = ["firstName", "lastName", "email", "phone", "nationality", "department", "position", "hireDate", "salary"];
     const OPTIONAL_FIELDS = ["passportNumber", "nationalId", "dateOfBirth", "gender", "pasiNumber", "bankAccountNumber", "emergencyContactName", "workPermitNumber", "visaNumber"];
@@ -1480,7 +1515,7 @@ export const hrRouter = router({
   getStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
+    const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input?.companyId);
     const emps = await getEmployees(cid);
     const active = emps.filter((e) => e.status === "active");
     const onLeave = emps.filter((e) => e.status === "on_leave");
@@ -1514,7 +1549,7 @@ export const hrRouter = router({
       status: z.enum(["all", "expired", "expiring_soon"]).default("all"),
     }))
     .query(async ({ input, ctx }) => {
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { rows: [], stats: { total: 0, expired: 0, expiringSoon: 0 } };
 
@@ -1592,7 +1627,7 @@ export const hrRouter = router({
   getDashboardStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input?.companyId);
       const emptyResult = {
         todayPresent: 0, todayAbsent: 0, todayTotal: 0,
         pendingLeave: 0, kpiTargetsCount: 0, kpiAvgPct: 0,
@@ -1722,7 +1757,7 @@ export const hrRouter = router({
   listDepartmentMembers: protectedProcedure
     .input(z.object({ departmentName: z.string(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return [];
       return db.select({
@@ -1746,7 +1781,7 @@ export const hrRouter = router({
   listDepartments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return [];
       const depts = await db.select().from(departments).where(and(eq(departments.companyId, cid), eq(departments.isActive, true)));
@@ -1841,7 +1876,7 @@ export const hrRouter = router({
   listPositions: protectedProcedure
     .input(z.object({ departmentId: z.number().optional(), companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return [];
       const conditions: any[] = [eq(positions.companyId, cid), eq(positions.isActive, true)];
@@ -1887,7 +1922,7 @@ export const hrRouter = router({
   getOrgChart: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return { departments: [], unassigned: [] };
 
@@ -2064,7 +2099,7 @@ export const hrRouter = router({
   getWorkforceHealth: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const { companyId: cid } = await requireAdminOrHR(ctx.user as User, input?.companyId);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input?.companyId);
       const emps = await getEmployees(cid);
       const today = new Date();
       const warnDays = 30;

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { requireHrOrAdmin } from "../_core/policy";
 import type { User } from "../../drizzle/schema";
 import {
   companies,
@@ -87,6 +88,11 @@ export const alertsRouter = router({
     )
     .query(async ({ input, ctx }) => {
       const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+      // Tenant users must hold HR-or-admin role to see company-wide document alerts.
+      // Platform admins bypass this check (isGlobal = true).
+      if (!isGlobal) {
+        await requireHrOrAdmin(ctx.user as User, input?.companyId);
+      }
       const tenantCompanyId = isGlobal
         ? undefined
         : await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user as User);
@@ -509,6 +515,9 @@ export const alertsRouter = router({
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
     const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+    if (!isGlobal) {
+      await requireHrOrAdmin(ctx.user as User, input?.companyId);
+    }
     /** Tenant users: resolved workspace. Global users: optional explicit company filter (no filter = all tenants). */
     const filterCompanyId = isGlobal
       ? (input?.companyId ?? null)

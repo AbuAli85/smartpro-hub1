@@ -39,6 +39,16 @@ import { requireActiveCompanyId } from "./tenant";
 import { requireWorkspaceMembership } from "./membership";
 import type { CompanyMember, User } from "../../drizzle/schema";
 
+// Re-export scope helpers so routers only import from one place
+export {
+  resolveVisibilityScope,
+  buildEmployeeScopeFilter,
+  isInScope,
+  redactEmployeeForScope,
+  scopeLabel,
+} from "./visibilityScope";
+export type { VisibilityScope } from "./visibilityScope";
+
 /** Roles that are permitted to perform administrative mutations within a company. */
 export type TenantMutationRole = "company_admin" | "hr_admin" | "finance_admin";
 
@@ -120,4 +130,24 @@ export async function requireAnyOperatorRole(
   companyId?: number | null,
 ): Promise<{ companyId: number; role: CompanyMember["role"] }> {
   return requireTenantRole(user, ["company_admin", "hr_admin", "finance_admin"], companyId);
+}
+
+/**
+ * HR/Admin scope: requires `company_admin` or `hr_admin`, OR any authenticated member
+ * for self-scoped access (the caller's own employee record).
+ *
+ * Returns `{ companyId, role, isSelfOnly }`.  When `isSelfOnly` is true the
+ * caller is a company_member/reviewer/client and can only see their own data —
+ * callers must apply `resolveVisibilityScope` to filter responses accordingly.
+ */
+export async function requireWorkspaceMemberForRead(
+  user: User,
+  companyId?: number | null,
+): Promise<{ companyId: number; role: CompanyMember["role"] }> {
+  // Platform operators always pass
+  if (canAccessGlobalAdminProcedures(user)) {
+    const cid = await requireActiveCompanyId(user.id, companyId, user);
+    return { companyId: cid, role: "company_admin" };
+  }
+  return requireWorkspaceMembership(user, companyId);
 }

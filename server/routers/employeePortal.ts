@@ -34,6 +34,7 @@ import {
   resolveVisibilityScope,
   scopeLabel,
 } from "../_core/policy";
+import { deriveCapabilities } from "../_core/capabilities";
 import type { User } from "../../drizzle/schema";
 import { computePortalOperationalHints } from "@shared/employeePortalOperationalHints";
 import { OMAN_LEAVE_PORTAL_DEFAULTS } from "@shared/omanLeavePolicyDefaults";
@@ -1116,5 +1117,21 @@ export const employeePortalRouter = router({
         visibleCount,
         ...(scope.type === "department" ? { department: scope.department } : {}),
       };
+    }),
+
+  /**
+   * Returns the full Capabilities object for the calling user.
+   * Frontend uses this to conditionally render edit buttons, salary columns,
+   * payroll tabs, and other capability-gated UI without extra round-trips.
+   */
+  myCapabilities: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const { companyId: cid, role } = await requireWorkspaceMemberForRead(
+        ctx.user as User,
+        input.companyId,
+      );
+      const scope = await resolveVisibilityScope(ctx.user as User, cid);
+      return deriveCapabilities(role, scope);
     }),
 });

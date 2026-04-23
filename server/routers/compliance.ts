@@ -19,6 +19,7 @@ import {
   requireWorkspaceMemberForRead,
   resolveVisibilityScope,
 } from "../_core/policy";
+import { deriveCapabilities } from "../_core/capabilities";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import {
@@ -53,7 +54,8 @@ export const complianceRouter = router({
         // Tenant user: resolve workspace + scope; managers and above can access
         const { companyId: cid } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
         const visScope = await resolveVisibilityScope(ctx.user as User, cid);
-        if (visScope.type === "self") {
+        const caps = deriveCapabilities(role, visScope);
+        if (!caps.canViewComplianceMatrix) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "Compliance stats require HR admin, manager, or department head access.",
@@ -110,7 +112,11 @@ export const complianceRouter = router({
     .input(z.object({ companyId: z.number().optional(), month: z.number().optional(), year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        await requireAnyOperatorRole(ctx.user as User, input.companyId);
+        const { companyId: _cid, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+        const visScope = await resolveVisibilityScope(ctx.user as User, _cid);
+        const caps = deriveCapabilities(role, visScope);
+        if (!caps.canRunComplianceReports)
+          throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required for PASI status" });
       }
       const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
@@ -173,7 +179,11 @@ export const complianceRouter = router({
     .input(z.object({ companyId: z.number().optional(), month: z.number().optional(), year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        await requireAnyOperatorRole(ctx.user as User, input.companyId);
+        const { companyId: _cid, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+        const visScope = await resolveVisibilityScope(ctx.user as User, _cid);
+        const caps = deriveCapabilities(role, visScope);
+        if (!caps.canRunComplianceReports)
+          throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required for WPS status" });
       }
       const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
@@ -241,7 +251,8 @@ export const complianceRouter = router({
       } else {
         const { companyId: cid } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
         const visScope = await resolveVisibilityScope(ctx.user as User, cid);
-        if (visScope.type === "self") {
+        const caps = deriveCapabilities(role, visScope);
+        if (!caps.canViewComplianceMatrix) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Permit matrix requires manager or HR admin access." });
         }
         empConditions.push(eq(employees.companyId, cid));

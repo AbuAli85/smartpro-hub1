@@ -36,6 +36,35 @@ function makeHrCtx(): TrpcContext {
   };
 }
 
+/**
+ * Returns a fake DB where:
+ *  - call 0 (resolveVisibilityScope → companyMembers query): returns hr_admin membership row
+ *  - call 1+ (business logic query): returns `subsequentResult`
+ *
+ * This satisfies the two-phase pattern introduced by requireAttendanceAdmin:
+ *   requireAdminOrHR → resolveVisibilityScope (DB call 0) → business logic (DB call 1+)
+ */
+function makeDbWithMembership(subsequentResult: unknown[] = [], extra: Record<string, unknown> = {}) {
+  let callCount = 0;
+  const fakeSelect = vi.fn(() => ({
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({
+        limit: vi.fn(() => {
+          const result = callCount === 0
+            ? Promise.resolve([{ role: "hr_admin" }])  // companyMembers row for resolveVisibilityScope
+            : Promise.resolve(subsequentResult);
+          callCount++;
+          return result;
+        }),
+      })),
+    })),
+  }));
+  return {
+    select: fakeSelect,
+    ...extra,
+  };
+}
+
 describe("attendance.forceCheckout", () => {
   beforeEach(() => {
     vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue({
@@ -45,15 +74,9 @@ describe("attendance.forceCheckout", () => {
   });
 
   it("throws NOT_FOUND when attendance record is missing for this company", async () => {
-    vi.mocked(db.getDb).mockResolvedValue({
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve([])),
-          })),
-        })),
-      })),
-    } as never);
+    vi.mocked(db.getDb).mockResolvedValue(
+      makeDbWithMembership([]) as never,
+    );
 
     const caller = attendanceRouter.createCaller(makeHrCtx());
     await expect(
@@ -66,25 +89,17 @@ describe("attendance.forceCheckout", () => {
   });
 
   it("throws BAD_REQUEST when session is already closed", async () => {
-    vi.mocked(db.getDb).mockResolvedValue({
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() =>
-              Promise.resolve([
-                {
-                  id: 5,
-                  companyId: 10,
-                  employeeId: 3,
-                  checkOut: new Date(),
-                  checkIn: new Date(),
-                },
-              ]),
-            ),
-          })),
-        })),
-      })),
-    } as never);
+    vi.mocked(db.getDb).mockResolvedValue(
+      makeDbWithMembership([
+        {
+          id: 5,
+          companyId: 10,
+          employeeId: 3,
+          checkOut: new Date(),
+          checkIn: new Date(),
+        },
+      ]) as never,
+    );
 
     const caller = attendanceRouter.createCaller(makeHrCtx());
     await expect(
@@ -106,16 +121,9 @@ describe("attendance.setOperationalIssueStatus validation", () => {
   });
 
   it("rejects resolve without a long enough note", async () => {
-    vi.mocked(db.getDb).mockResolvedValue({
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve([])),
-          })),
-        })),
-      })),
-      transaction: vi.fn(),
-    } as never);
+    vi.mocked(db.getDb).mockResolvedValue(
+      makeDbWithMembership([], { transaction: vi.fn() }) as never,
+    );
 
     const caller = attendanceRouter.createCaller(makeHrCtx());
     await expect(
@@ -140,16 +148,9 @@ describe("attendance.setOperationalIssueStatus company scope", () => {
   });
 
   it("throws NOT_FOUND when the correction is not in the active company", async () => {
-    vi.mocked(db.getDb).mockResolvedValue({
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve([])),
-          })),
-        })),
-      })),
-      transaction: vi.fn(),
-    } as never);
+    vi.mocked(db.getDb).mockResolvedValue(
+      makeDbWithMembership([], { transaction: vi.fn() }) as never,
+    );
 
     const caller = attendanceRouter.createCaller(makeHrCtx());
     await expect(
@@ -173,15 +174,9 @@ describe("attendance.getOperationalIssueHistory", () => {
   });
 
   it("throws NOT_FOUND when no operational issue row exists for this company and key", async () => {
-    vi.mocked(db.getDb).mockResolvedValue({
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve([])),
-          })),
-        })),
-      })),
-    } as never);
+    vi.mocked(db.getDb).mockResolvedValue(
+      makeDbWithMembership([]) as never,
+    );
 
     const caller = attendanceRouter.createCaller(makeHrCtx());
     await expect(

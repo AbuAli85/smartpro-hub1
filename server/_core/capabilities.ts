@@ -66,6 +66,28 @@ export interface Capabilities {
   canViewPayrollInputs: boolean;
   /** See HR notes, performance notes, and disciplinary records. */
   canViewHrNotes: boolean;
+
+  // Documents
+  /** Upload or modify company and employee documents (auditors are read-only). */
+  canUploadDocument: boolean;
+  /** Read employee document records (identity docs, permits, contracts). */
+  canViewEmployeeDocuments: boolean;
+
+  // Compliance
+  /** Access the full permit / compliance matrix across the team or company. */
+  canViewComplianceMatrix: boolean;
+  /** Run or view PASI / WPS / overtime compliance reports. */
+  canRunComplianceReports: boolean;
+
+  // Tasks
+  /** Approve, reject, or close tasks assigned to employees in scope. */
+  canApproveTask: boolean;
+
+  // Attendance (admin-side)
+  /** View the live attendance board and per-employee attendance records. */
+  canViewAttendanceBoard: boolean;
+  /** Create, edit, or delete attendance records on behalf of employees. */
+  canManageAttendanceRecords: boolean;
 }
 
 // ─── Baseline capability sets ─────────────────────────────────────────────────
@@ -82,6 +104,13 @@ const ALL_CAPS: Capabilities = {
   canViewIdentityDocs: true,
   canViewPayrollInputs: true,
   canViewHrNotes: true,
+  canUploadDocument: true,
+  canViewEmployeeDocuments: true,
+  canViewComplianceMatrix: true,
+  canRunComplianceReports: true,
+  canApproveTask: true,
+  canViewAttendanceBoard: true,
+  canManageAttendanceRecords: true,
 };
 
 const NO_CAPS: Capabilities = {
@@ -96,6 +125,13 @@ const NO_CAPS: Capabilities = {
   canViewIdentityDocs: false,
   canViewPayrollInputs: false,
   canViewHrNotes: false,
+  canUploadDocument: false,
+  canViewEmployeeDocuments: false,
+  canViewComplianceMatrix: false,
+  canRunComplianceReports: false,
+  canApproveTask: false,
+  canViewAttendanceBoard: false,
+  canManageAttendanceRecords: false,
 };
 
 // ─── Core deriver ─────────────────────────────────────────────────────────────
@@ -120,10 +156,17 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewAttendanceForOthers: true,
         canApproveAttendance: true,
         canAssignTask: true,
+        canApproveTask: true,
         canViewComplianceCase: true,
+        canViewComplianceMatrix: true,
+        canRunComplianceReports: true,
         canViewPayrollInputs: true,
         canViewIdentityDocs: true,    // needed for onboarding / visa processing
         canViewHrNotes: true,
+        canUploadDocument: true,
+        canViewEmployeeDocuments: true,
+        canViewAttendanceBoard: true,
+        canManageAttendanceRecords: true,
         // salary and banking are finance domain — HR does not see them
         canViewSalary: false,
         canViewBankingDetails: false,
@@ -134,16 +177,23 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         ...NO_CAPS,
         canViewEmployeeList: true,
         canViewAttendanceForOthers: true, // payroll attendance inputs
+        canViewAttendanceBoard: true,     // read-only attendance board for payroll
         canViewPayrollInputs: true,
         canViewSalary: true,
         canViewBankingDetails: true,
+        canRunComplianceReports: true,    // PASI / WPS reports are finance domain
+        canViewEmployeeDocuments: true,   // finance needs contract / permit visibility
         // finance does not edit profiles, run compliance, or read HR / identity data
         canEditEmployeeProfile: false,
         canApproveAttendance: false,
         canAssignTask: false,
+        canApproveTask: false,
         canViewComplianceCase: false,
+        canViewComplianceMatrix: false,
         canViewIdentityDocs: false,
         canViewHrNotes: false,
+        canUploadDocument: false,
+        canManageAttendanceRecords: false,
       };
 
     case "reviewer":
@@ -151,7 +201,10 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         ...NO_CAPS,
         canViewEmployeeList: true,
         canViewAttendanceForOthers: true,
+        canViewAttendanceBoard: true,
         canViewComplianceCase: true,
+        canViewComplianceMatrix: true,
+        canViewEmployeeDocuments: true,   // reviewers may inspect documents
         // read-only structural view — no payroll, no mutations, no personal fields
       };
 
@@ -160,8 +213,12 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         ...NO_CAPS,
         canViewEmployeeList: true,     // visible but heavily redacted via payload policy
         canViewAttendanceForOthers: true,
+        canViewAttendanceBoard: true,
         canViewComplianceCase: true,   // summary-level only; router applies additional filter
+        canViewComplianceMatrix: true, // read-only permit matrix
+        canViewEmployeeDocuments: true, // read-only; no upload
         // no salary, banking, identity, payroll inputs, or HR notes
+        canUploadDocument: false,
       };
 
     case "company_member": {
@@ -171,9 +228,12 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         ...NO_CAPS,
         canViewEmployeeList: hasAuthority,
         canViewAttendanceForOthers: hasAuthority,
+        canViewAttendanceBoard: hasAuthority,
         canApproveAttendance: hasAuthority,
         canAssignTask: hasAuthority,
-        // members never access salary, banking, identity, payroll, compliance, or HR notes
+        canApproveTask: hasAuthority,
+        canViewComplianceMatrix: hasAuthority,
+        // members never access salary, banking, identity, payroll, compliance reports, or HR notes
       };
     }
 

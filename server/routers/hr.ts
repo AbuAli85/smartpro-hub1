@@ -68,6 +68,7 @@ import {
   isInScope,
   redactEmployeeForScope,
 } from "../_core/policy";
+import { deriveCapabilities, applyEmployeePayloadPolicy } from "../_core/capabilities";
 import {
   ATTENDANCE_AUDIT_ACTION,
   ATTENDANCE_AUDIT_ENTITY,
@@ -259,9 +260,18 @@ export const hrRouter = router({
       const { companyId: cid, role } = await requireWorkspaceMemberForRead(ctx.user as User, inputCid);
       const scope = await resolveVisibilityScope(ctx.user as User, cid);
 
+      const caps = deriveCapabilities(role, scope);
+      if (!caps.canViewEmployeeList) {
+        // self scope — return own record only
+        const db = await getDb();
+        if (!db || scope.selfEmployeeId == null) return [];
+        const [self] = await db.select().from(employees).where(eq(employees.id, scope.selfEmployeeId)).limit(1);
+        return self ? [applyEmployeePayloadPolicy(self as any, caps)] : [];
+      }
+
       if (scope.type === "company") {
         const all = await getEmployees(cid, filters);
-        return all.map((emp: any) => redactEmployeeForScope(emp, scope, role));
+        return all.map((emp: any) => applyEmployeePayloadPolicy(emp, caps));
       }
 
       const db = await getDb();
@@ -275,13 +285,13 @@ export const hrRouter = router({
         if (filters.status) conds.push(eq(employees.status, filters.status as any));
         if (filters.department) conds.push(eq(employees.department, filters.department));
         const rows = await db.select().from(employees).where(and(...conds));
-        return rows.map((emp) => redactEmployeeForScope(emp as any, scope, role));
+        return rows.map((emp) => applyEmployeePayloadPolicy(emp as any, caps));
       }
 
-      // self scope — return own record only
+      // department scope
       if (scope.selfEmployeeId == null) return [];
       const [self] = await db.select().from(employees).where(eq(employees.id, scope.selfEmployeeId)).limit(1);
-      return self ? [redactEmployeeForScope(self as any, scope, role)] : [];
+      return self ? [applyEmployeePayloadPolicy(self as any, caps)] : [];
     }),
 
   getEmployee: protectedProcedure
@@ -296,7 +306,8 @@ export const hrRouter = router({
       const scope = await resolveVisibilityScope(ctx.user as User, cid);
       if (!isInScope(scope, emp.id))
         throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      return redactEmployeeForScope(emp as any, scope, role);
+      const caps = deriveCapabilities(role, scope);
+      return applyEmployeePayloadPolicy(emp as any, caps);
     }),
 
   createEmployee: protectedProcedure
@@ -493,6 +504,7 @@ export const hrRouter = router({
       const scope = await resolveVisibilityScope(ctx.user as User, cid);
       if (!isInScope(scope, emp.id))
         throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      const caps = deriveCapabilities(role, scope);
       const db = await getDb();
       let permit = null;
       if (db) {
@@ -502,7 +514,7 @@ export const hrRouter = router({
           .limit(1);
         permit = permits[0] ?? null;
       }
-      return { ...redactEmployeeForScope(emp as any, scope, role), permit };
+      return { ...applyEmployeePayloadPolicy(emp as any, caps), permit };
     }),
 
   // Job Postings

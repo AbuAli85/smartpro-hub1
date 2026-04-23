@@ -5,6 +5,8 @@ import { getDb } from "../db";
 import { companyDocuments, employeeDocuments, employees, type User } from "../../drizzle/schema";
 import { storagePut } from "../storage";
 import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
+import { resolveVisibilityScope } from "../_core/policy";
+import { deriveCapabilities } from "../_core/capabilities";
 import { protectedProcedure, router } from "../_core/trpc";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -74,7 +76,10 @@ export const documentsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      requireNotAuditor(membership.role);
+      const _scope1 = await resolveVisibilityScope(ctx.user as User, membership.companyId);
+      const _caps1 = deriveCapabilities(membership.role, _scope1);
+      if (!_caps1.canUploadDocument)
+        throw new TRPCError({ code: "FORBIDDEN", message: "Auditors cannot upload documents" });
 
       let fileUrl: string | undefined;
       let fileKey: string | undefined;
@@ -130,7 +135,10 @@ export const documentsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      requireNotAuditor(membership.role);
+      const _scope2 = await resolveVisibilityScope(ctx.user as User, membership.companyId);
+      const _caps2 = deriveCapabilities(membership.role, _scope2);
+      if (!_caps2.canUploadDocument)
+        throw new TRPCError({ code: "FORBIDDEN", message: "Auditors cannot modify documents" });
 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -172,7 +180,10 @@ export const documentsRouter = router({
     .input(z.object({ id: z.number().int().positive(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      requireNotAuditor(membership.role);
+      const _scope3 = await resolveVisibilityScope(ctx.user as User, membership.companyId);
+      const _caps3 = deriveCapabilities(membership.role, _scope3);
+      if (!_caps3.canUploadDocument)
+        throw new TRPCError({ code: "FORBIDDEN", message: "Auditors cannot delete documents" });
 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -277,7 +288,10 @@ export const documentsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      requireNotAuditor(membership.role);
+      const _scope4 = await resolveVisibilityScope(ctx.user as User, membership.companyId);
+      const _caps4 = deriveCapabilities(membership.role, _scope4);
+      if (!_caps4.canUploadDocument)
+        throw new TRPCError({ code: "FORBIDDEN", message: "Auditors cannot upload employee documents" });
 
       const buffer = Buffer.from(input.fileBase64, "base64");
       const ext = input.fileName.split(".").pop() ?? "pdf";
@@ -320,7 +334,10 @@ export const documentsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      requireNotAuditor(membership.role);
+      const _scope5 = await resolveVisibilityScope(ctx.user as User, membership.companyId);
+      const _caps5 = deriveCapabilities(membership.role, _scope5);
+      if (!_caps5.canUploadDocument)
+        throw new TRPCError({ code: "FORBIDDEN", message: "Auditors cannot update employee documents" });
 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -567,7 +584,10 @@ export const documentsRouter = router({
     .input(z.object({ id: z.number().int().positive(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      requireNotAuditor(membership.role);
+      const _scope6 = await resolveVisibilityScope(ctx.user as User, membership.companyId);
+      const _caps6 = deriveCapabilities(membership.role, _scope6);
+      if (!_caps6.canUploadDocument)
+        throw new TRPCError({ code: "FORBIDDEN", message: "Auditors cannot delete employee documents" });
 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });

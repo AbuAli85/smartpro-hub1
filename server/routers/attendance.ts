@@ -21,6 +21,8 @@ import { createAttendanceRecordTx, getDb } from "../db";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { requireWorkspaceMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { resolveVisibilityScope } from "../_core/policy";
+import { deriveCapabilities } from "../_core/capabilities";
 import type { User } from "../../drizzle/schema";
 import { sitesRouter, SITE_TYPES, siteInputSchema } from "./attendance/sites.router";
 import {
@@ -87,6 +89,16 @@ async function requireDb() {
 
 // Alias imported helper so existing usages inside this file require no other changes.
 const requireAdminOrHR = _requireAdminOrHR;
+
+/** Capability-aware guard: replaces raw requireAdminOrHR with canApproveAttendance check. */
+async function requireAttendanceAdmin(user: User, companyId?: number | null) {
+  const result = await _requireAdminOrHR(user, companyId);
+  const scope = await resolveVisibilityScope(user, result.companyId);
+  const caps = deriveCapabilities(result.role, scope);
+  if (!caps.canApproveAttendance)
+    throw new TRPCError({ code: "FORBIDDEN", message: "Attendance management requires HR Admin or Company Admin" });
+  return { ...result, caps };
+}
 
 // ── Dual-write helpers ────────────────────────────────────────────────────────
 /**
@@ -1125,7 +1137,7 @@ export const attendanceRouter = router({
   adminBoard: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), date: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const companyId = membership.company.id;
       const db = await requireDb();
 
@@ -1183,7 +1195,7 @@ export const attendanceRouter = router({
       limit: z.number().min(1).max(100).default(30),
     }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       return db
         .select()
@@ -1378,7 +1390,7 @@ export const attendanceRouter = router({
       limit: z.number().min(1).max(200).default(50),
     }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
 
       const conditions = [eq(manualCheckinRequests.companyId, membership.company.id)];
@@ -1452,7 +1464,7 @@ export const attendanceRouter = router({
       adminNote: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
 
       // Try full select first; fall back to base columns if migration is pending.
@@ -1653,7 +1665,7 @@ export const attendanceRouter = router({
       adminNote: z.string().min(5, "Please provide a reason for rejection"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
 
       const [req] = await db
@@ -1866,7 +1878,7 @@ export const attendanceRouter = router({
       limit: z.number().min(1).max(200).default(50),
     }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const conditions = [eq(attendanceCorrections.companyId, membership.company.id)];
       if (input.status !== "all") conditions.push(eq(attendanceCorrections.status, input.status));
@@ -1907,7 +1919,7 @@ export const attendanceRouter = router({
       adminNote: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [req] = await db
         .select()
@@ -2160,7 +2172,7 @@ export const attendanceRouter = router({
       adminNote: z.string().min(5, "Please provide a reason"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [req] = await db
         .select()
@@ -2243,7 +2255,7 @@ export const attendanceRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
 
       const conditions = [eq(attendanceAudit.companyId, membership.company.id)];
@@ -2431,7 +2443,7 @@ export const attendanceRouter = router({
       dryRun: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
 
       // Find all (employeeId, scheduleId) pairs that have more than one open session.
@@ -2545,7 +2557,7 @@ export const attendanceRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       return db
         .select()
@@ -2568,7 +2580,7 @@ export const attendanceRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const uniq = [...new Set(input.issueKeys)];
       if (uniq.length === 0) return [];
@@ -2602,7 +2614,7 @@ export const attendanceRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const bundle = await loadOperationalIssueHistoryBundle(db, {
         companyId: membership.companyId,
@@ -2660,7 +2672,7 @@ export const attendanceRouter = router({
         }),
     )
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const issueKey = operationalIssueKey({
         kind: input.kind,
@@ -2890,7 +2902,7 @@ export const attendanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [rec] = await db
         .select()
@@ -3033,7 +3045,7 @@ export const attendanceRouter = router({
       limit: z.number().min(1).max(500).default(100),
     }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
 
       const now = new Date();
@@ -3184,7 +3196,7 @@ export const attendanceRouter = router({
         .refine((x) => x.fromYmd <= x.toYmd, { message: "fromYmd must be <= toYmd" }),
     )
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const report = await runAttendanceReconciliation(db, {
         companyId: membership.company.id,
@@ -3208,7 +3220,7 @@ export const attendanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [rec] = await db
         .select()

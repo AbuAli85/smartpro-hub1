@@ -15,10 +15,22 @@ import {
   resolveVisibilityScope,
   isInScope,
 } from "../_core/policy";
+import { deriveCapabilities } from "../_core/capabilities";
 import { sendEmployeeNotification, notifyAssignerTaskCompleted } from "./employeePortal";
 import { assertAdminStatusTransition, statusUpdateSideEffects, type TaskStatus } from "../taskLifecycle";
 
 const taskCompleter = alias(users, "taskCompleter");
+
+/**
+ * Pure role-only pre-check for task mutations (create / update / delete).
+ * Only company_admin and hr_admin may perform these; all other roles are
+ * denied immediately without touching the DB — this avoids an unnecessary
+ * resolveVisibilityScope() call for clearly-denied callers.
+ */
+function requireTaskMutationRole(role: string, action: string): void {
+  if (role !== "company_admin" && role !== "hr_admin")
+    throw new TRPCError({ code: "FORBIDDEN", message: `HR Admin or Company Admin required to ${action} tasks` });
+}
 
 async function requireDb() {
   const db = await getDb();
@@ -100,18 +112,24 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .query(async ({ input, ctx }) => {
-      const { companyId } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+      const { companyId, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
       const db = await requireDb();
       const scope = await resolveVisibilityScope(ctx.user as User, companyId);
+      const caps = deriveCapabilities(role, scope);
 
-      // Build the base WHERE depending on scope
+      // Build the base WHERE depending on capability
       let taskWhere: ReturnType<typeof eq> | ReturnType<typeof and>;
-      if (scope.type === "company") {
+      if (caps.canViewEmployeeList && scope.type === "company") {
         taskWhere = eq(employeeTasks.companyId, companyId);
-      } else if (scope.type === "team") {
+      } else if (caps.canViewEmployeeList && scope.type === "team") {
         taskWhere = and(
           eq(employeeTasks.companyId, companyId),
           inArray(employeeTasks.assignedToEmployeeId, scope.managedEmployeeIds),
+        ) as any;
+      } else if (caps.canViewEmployeeList && scope.type === "department") {
+        taskWhere = and(
+          eq(employeeTasks.companyId, companyId),
+          inArray(employeeTasks.assignedToEmployeeId, scope.departmentEmployeeIds),
         ) as any;
       } else {
         // self scope
@@ -157,15 +175,16 @@ export const tasksRouter = router({
   getTask: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const { companyId } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+      const { companyId, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [row] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!row || row.companyId !== companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
 
-      // Scope check — managers see team, employees see self only
+      // Scope check via capability — managers see team, employees see self only
       const scope = await resolveVisibilityScope(ctx.user as User, companyId);
-      if (scope.type !== "company") {
+      const caps = deriveCapabilities(role, scope);
+      if (!caps.canViewEmployeeList) {
         const assignedTo = row.assignedToEmployeeId;
         if (assignedTo == null || !isInScope(scope, assignedTo))
           throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
@@ -191,7 +210,10 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
+      const { companyId, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+      requireTaskMutationRole(role, "assign");
+      const scope = await resolveVisibilityScope(ctx.user as User, companyId);
+      const caps = deriveCapabilities(role, scope);
       const db = await requireDb();
       const { companyId: _cid, engagementId, clientVisible, ...rest } = input;
       const now = new Date();
@@ -260,7 +282,10 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
+      const { companyId, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+      requireTaskMutationRole(role, "update");
+      const scope = await resolveVisibilityScope(ctx.user as User, companyId);
+      const caps = deriveCapabilities(role, scope);
       const db = await requireDb();
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== companyId)
@@ -371,7 +396,10 @@ export const tasksRouter = router({
   deleteTask: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
+      const { companyId, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+      requireTaskMutationRole(role, "delete");
+      const scope = await resolveVisibilityScope(ctx.user as User, companyId);
+      const caps = deriveCapabilities(role, scope);
       const db = await requireDb();
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== companyId)

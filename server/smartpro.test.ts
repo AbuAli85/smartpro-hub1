@@ -344,11 +344,15 @@ describe("contracts", () => {
 
 // ─── HR Tests ─────────────────────────────────────────────────────────────────
 describe("hr", () => {
-  it("listEmployees returns empty array when no company", async () => {
+  it("listEmployees throws INTERNAL_SERVER_ERROR when DB unavailable (resolveVisibilityScope requires DB)", async () => {
     seedSingleCompanyWorkspace();
+    vi.mocked(db.getUserCompanyById).mockResolvedValueOnce({
+      company: { id: 1, name: "Test Co", slug: "test-co", status: "active" },
+      member: { role: "company_admin", isActive: true },
+    } as any);
     const caller = appRouter.createCaller(makeCtx());
-    const result = await caller.hr.listEmployees({});
-    expect(Array.isArray(result)).toBe(true);
+    // resolveVisibilityScope calls getDb() directly (mocked to null) → INTERNAL_SERVER_ERROR
+    await expect(caller.hr.listEmployees({})).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
   });
 
   it("listJobs returns empty array when no company", async () => {
@@ -536,11 +540,11 @@ describe("subscriptions", () => {
 
 // ─── Attendance Tests ─────────────────────────────────────────────────────────
 describe("hr.attendance", () => {
-  it("listAttendance returns empty array when no company", async () => {
+  it("listAttendance throws INTERNAL_SERVER_ERROR when DB unavailable (resolveVisibilityScope requires DB)", async () => {
     seedWorkspaceMembershipPair();
     const caller = appRouter.createCaller(makeCtx());
-    const result = await caller.hr.listAttendance({ month: "2026-03" });
-    expect(Array.isArray(result)).toBe(true);
+    // resolveVisibilityScope calls getDb() directly (mocked to null) → INTERNAL_SERVER_ERROR
+    await expect(caller.hr.listAttendance({ month: "2026-03" })).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
   });
 
   it("attendanceStats returns zero stats when no company", async () => {

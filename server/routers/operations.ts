@@ -497,6 +497,8 @@ export const operationsRouter = router({
   getDailySnapshot: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     const canReadHrAudit =
       companyId === null ? true : await canReadHrPerformanceAuditSensitiveRows(ctx.user as User, companyId);
@@ -695,8 +697,6 @@ export const operationsRouter = router({
     const totalOpenCases = openCases.reduce((s, r) => s + Number(r.cnt), 0);
 
     const isPlatformOperator = canAccessGlobalAdminProcedures(ctx.user as User);
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
     const casesActionRequiredQuery = db
       .select({ cnt: count() })

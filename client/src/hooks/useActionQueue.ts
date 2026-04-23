@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import type { RouterOutputs } from "@/lib/trpc";
 import type { ActionQueueStatus } from "@/features/controlTower/actionQueueTypes";
 import type { ActionQueueItemExecutionView } from "@/features/controlTower/escalationTypes";
@@ -75,13 +76,21 @@ export function useActionQueue(options: UseActionQueueOptions = {}): ActionQueue
   const { activeCompanyId, activeCompany } = useActiveCompany();
   const platformOp = seesPlatformOperatorNav(user);
 
+  const { caps: myCaps } = useMyCapabilities();
+
+  // Derive the queue view from capabilities rather than raw role strings.
+  // The server also derives roleView from the membership role, so this is
+  // a pure UI hint for prioritization — not an authorization decision.
   const roleView = useMemo((): "ceo" | "admin" | "hr" | "finance" | "compliance" => {
     const role = activeCompany?.role;
-    if (role === "finance_admin") return "finance";
-    if (role === "hr_admin") return "hr";
+    // Compliance-only roles (reviewer / external_auditor) — no payroll or HR write access.
     if (role === "reviewer" || role === "external_auditor") return "compliance";
+    // Finance-focused: can run/approve payroll but not HR management.
+    if (myCaps.canRunPayroll || myCaps.canApprovePayroll) return "finance";
+    // HR-focused: can approve attendance / leave but not payroll.
+    if (myCaps.canApproveAttendance && !myCaps.canRunPayroll) return "hr";
     return "admin";
-  }, [activeCompany?.role]);
+  }, [activeCompany?.role, myCaps.canRunPayroll, myCaps.canApprovePayroll, myCaps.canApproveAttendance]);
 
   const scopeEnabled = hookEnabled && activeCompanyId != null && !platformOp;
 

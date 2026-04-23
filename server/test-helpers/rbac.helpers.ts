@@ -5,6 +5,7 @@
  * the HR, payroll, finance, company-config, collections, org-structure,
  * tasks, recruitment, and automation domains.
  */
+import { expect } from "vitest";
 import type { TrpcContext } from "../_core/context";
 
 // ─── Context factories ────────────────────────────────────────────────────────
@@ -30,7 +31,7 @@ export function makeCtx(
     ...overrides,
   };
   return {
-    user,
+    user: user as unknown as NonNullable<TrpcContext["user"]>,
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
     res: { clearCookie: () => {} } as unknown as TrpcContext["res"],
   };

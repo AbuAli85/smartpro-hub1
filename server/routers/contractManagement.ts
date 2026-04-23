@@ -199,7 +199,6 @@ export const contractManagementRouter = router({
     .query(async ({ ctx, input }) => {
       const activeId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       await requireCanManageContracts(ctx.user, activeId);
-
       const db = await getDb();
       if (!db) return { clientOptions: [], employerOptions: [] };
       if (canAccessGlobalAdminProcedures(ctx.user)) {
@@ -384,10 +383,10 @@ export const contractManagementRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      await requireCanManageContracts(ctx.user, activeId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      await requireCanManageContracts(ctx.user, activeId);
       const partyId = await createManagedExternalParty(db, {
         managedByCompanyId: activeId,
         displayNameEn: input.displayNameEn,
@@ -413,11 +412,11 @@ export const contractManagementRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators can review party links" });
       }
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       return assessPartyLinkSafety(db, input.partyId, input.platformCompanyId);
     }),
 
@@ -432,10 +431,11 @@ export const contractManagementRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
       }
-      const db = await getDb();
       if (!db) return [];
       return listBusinessPartiesForAdmin(db, {
         filter: input.filter,
@@ -475,11 +475,11 @@ export const contractManagementRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators can link parties" });
       }
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const assessment = await assessPartyLinkSafety(db, input.partyId, input.platformCompanyId);
       if (!assessment.canProceed) {
@@ -528,10 +528,11 @@ export const contractManagementRouter = router({
   adminDuplicatePartyRegistrationGroups: protectedProcedure
     .input(z.object({ limit: z.number().int().min(1).max(100).optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
       }
-      const db = await getDb();
       if (!db) return [];
       return listDuplicateRegistrationPartyGroups(db, input?.limit ?? 40);
     }),
@@ -544,11 +545,11 @@ export const contractManagementRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
       }
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       return previewPartyMerge(db, input.sourcePartyId, input.targetPartyId);
     }),
 
@@ -561,11 +562,11 @@ export const contractManagementRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
       }
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       try {
         await executePartyMerge(db, {
           sourcePartyId: input.sourcePartyId,
@@ -584,11 +585,11 @@ export const contractManagementRouter = router({
   previewPartyPlatformUnlink: protectedProcedure
     .input(z.object({ partyId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
       }
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       return previewPartyPlatformUnlink(db, input.partyId);
     }),
 
@@ -600,11 +601,11 @@ export const contractManagementRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
       }
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       try {
         await executePartyPlatformUnlink(db, {
           partyId: input.partyId,
@@ -636,6 +637,8 @@ export const contractManagementRouter = router({
   kpis: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
     const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     const activeId = isPlatform ? 0 : await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
@@ -697,6 +700,8 @@ export const contractManagementRouter = router({
   getById: protectedProcedure
     .input(z.object({ id: z.string().uuid() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const result = await getOutsourcingContractById(db, input.id);
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
@@ -704,8 +709,6 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -744,11 +747,11 @@ export const contractManagementRouter = router({
   createPromoterAssignment: protectedProcedure
     .input(createPromoterAssignmentInput)
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       const activeId = isPlatform ? null : await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       if (!isPlatform) {
         if (input.creationPerspective === "employer") {
@@ -990,6 +993,8 @@ export const contractManagementRouter = router({
   update: protectedProcedure
     .input(updatePromoterAssignmentInput)
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const result = await getOutsourcingContractById(db, input.id);
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
@@ -997,8 +1002,6 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1122,6 +1125,8 @@ export const contractManagementRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const result = await getOutsourcingContractById(db, input.id);
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
@@ -1129,8 +1134,6 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1186,6 +1189,8 @@ export const contractManagementRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const original = await getOutsourcingContractById(db, input.originalContractId);
       if (!original) throw new TRPCError({ code: "NOT_FOUND", message: "Original contract not found" });
@@ -1193,8 +1198,6 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1337,6 +1340,8 @@ export const contractManagementRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const original = await getOutsourcingContractById(db, input.baseContractId);
       if (!original) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
@@ -1344,8 +1349,6 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1496,6 +1499,8 @@ export const contractManagementRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const result = await getOutsourcingContractById(db, input.id);
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
@@ -1503,8 +1508,6 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1569,6 +1572,8 @@ export const contractManagementRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const contractRow = await getOutsourcingContractById(db, input.contractId);
       if (!contractRow) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
@@ -1581,8 +1586,6 @@ export const contractManagementRouter = router({
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         uploaderCompanyId = activeId;
         await requireCanManageContracts(ctx.user, activeId);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
         if (
           !activeCompanyInvolvedInContract(
@@ -1678,6 +1681,8 @@ export const contractManagementRouter = router({
   deleteDocument: protectedProcedure
     .input(z.object({ documentId: z.string().uuid() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const doc = await getContractDocumentById(db, input.documentId);
       if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
@@ -1693,8 +1698,6 @@ export const contractManagementRouter = router({
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         await requireCanManageContracts(ctx.user, activeId);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
         const contract = await getOutsourcingContractById(db, doc.contractId);
         if (!contract) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
@@ -1723,6 +1726,8 @@ export const contractManagementRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const result = await getOutsourcingContractById(db, input.id);
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
@@ -1730,8 +1735,6 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1756,6 +1759,8 @@ export const contractManagementRouter = router({
   getTimeline: protectedProcedure
     .input(z.object({ id: z.string().uuid() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const result = await getOutsourcingContractById(db, input.id);
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
@@ -1763,8 +1768,6 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         if (
           !activeCompanyInvolvedInContract(
             activeId,

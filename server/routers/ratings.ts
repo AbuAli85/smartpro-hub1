@@ -411,15 +411,14 @@ export const ratingsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Admin access required",
         });
+      }
       const db = await getDb();
       if (!db) return { ratings: [], total: 0 };
-      }
 
       const conditions: ReturnType<typeof eq>[] = [];
       if (input.publishedOnly === true)

@@ -264,7 +264,7 @@ export const hrRouter = router({
       if (!caps.canViewEmployeeList) {
         // self scope — return own record only
         const db = await getDb();
-        if (!db || scope.selfEmployeeId == null) return [];
+        if (!db || scope.type !== "self" || scope.selfEmployeeId == null) return [];
         const [self] = await db.select().from(employees).where(eq(employees.id, scope.selfEmployeeId)).limit(1);
         return self ? [applyEmployeePayloadPolicy(self as any, caps)] : [];
       }
@@ -289,6 +289,7 @@ export const hrRouter = router({
       }
 
       // department scope
+      if (scope.type !== "department" && scope.type !== "self") return [];
       if (scope.selfEmployeeId == null) return [];
       const [self] = await db.select().from(employees).where(eq(employees.id, scope.selfEmployeeId)).limit(1);
       return self ? [applyEmployeePayloadPolicy(self as any, caps)] : [];

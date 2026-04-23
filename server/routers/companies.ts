@@ -593,6 +593,8 @@ export const companiesRouter = router({
   removeMember: protectedProcedure
     .input(z.object({ memberId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       let companyId: number;
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         if (input.companyId == null) {
@@ -624,8 +626,6 @@ export const companiesRouter = router({
         targetUserId: target.userId,
         platformOperator: canAccessGlobalAdminProcedures(ctx.user),
       });
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       return { success: true };
     }),
 
@@ -634,7 +634,7 @@ export const companiesRouter = router({
     .input(z.object({ memberId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       // AUTH FIRST: guard before DB
-      let companyId: number;
+      let companyId = 0;
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         if (input.companyId == null) {
           throw new TRPCError({
@@ -675,8 +675,8 @@ export const companiesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       // AUTH FIRST: guard before DB
-      let companyId: number;
-      let companyName: string;
+      let companyId = 0;
+      let companyName = "";
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         if (input.companyId == null) {
           throw new TRPCError({
@@ -784,6 +784,8 @@ export const companiesRouter = router({
       origin: z.string().url(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       let companyId: number;
       let companyName: string;
       if (canAccessGlobalAdminProcedures(ctx.user)) {
@@ -838,8 +840,6 @@ export const companiesRouter = router({
           role: input.role,
           platformOperator: canAccessGlobalAdminProcedures(ctx.user),
         });
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       }
       const inviteUrl = `${input.origin}/invite/${token}`;
       await notifyOwner({
@@ -863,7 +863,7 @@ export const companiesRouter = router({
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
     // AUTH FIRST: guard before DB
-    let targetCompanyId: number;
+    let targetCompanyId = 0;
     if (canAccessGlobalAdminProcedures(ctx.user)) {
       if (input?.companyId == null) {
         throw new TRPCError({
@@ -1061,7 +1061,7 @@ export const companiesRouter = router({
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
     // AUTH FIRST: guard before DB
-    let companyId: number;
+    let companyId = 0;
     if (canAccessGlobalAdminProcedures(ctx.user)) {
       if (input?.companyId == null) {
         throw new TRPCError({
@@ -1092,7 +1092,7 @@ export const companiesRouter = router({
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
     // AUTH FIRST: guard before DB
-    let companyId: number;
+    let companyId = 0;
     if (canAccessGlobalAdminProcedures(ctx.user)) {
       if (input?.companyId == null) {
         throw new TRPCError({
@@ -1381,10 +1381,10 @@ export const companiesRouter = router({
   getExpirySettings: protectedProcedure
     .input(z.object({ companyId: z.number() }))
     .query(async ({ ctx, input }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        await assertCompanyAdmin(ctx.user.id, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertCompanyAdmin(ctx.user.id, input.companyId);
       }
       const [member] = await db
         .select({ role: companyMembers.role })
@@ -1466,6 +1466,8 @@ export const companiesRouter = router({
       origin: z.string().url().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       // Verify caller is admin in the source company (where the employee lives)
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
@@ -1496,8 +1498,6 @@ export const companiesRouter = router({
             .from(companyMembers)
             .where(and(eq(companyMembers.userId, ctx.user.id), eq(companyMembers.companyId, grant.companyId), eq(companyMembers.isActive, true)))
             .limit(1);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
           if (!adminCheck || adminCheck.role !== "company_admin") {
             results.push({ companyId: grant.companyId, companyName: targetMembership.company.name, action: "skipped", message: "You are not an admin of this company." });
             continue;
@@ -1618,12 +1618,12 @@ export const companiesRouter = router({
       companyId: z.number(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const callerMembership = await getUserCompanyById(ctx.user.id, input.companyId);
       if (!callerMembership?.member || callerMembership.member.role !== "company_admin") {
         if (!canAccessGlobalAdminProcedures(ctx.user)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only company admins can revoke access" });
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         }
       }
       await db.update(companyMembers)
@@ -1641,10 +1641,10 @@ export const companiesRouter = router({
   getRoleRedirectSettings: protectedProcedure
     .input(z.object({ companyId: z.number() }))
     .query(async ({ ctx, input }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        await assertCompanyAdmin(ctx.user.id, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertCompanyAdmin(ctx.user.id, input.companyId);
       }
       const [member] = await db
         .select({ role: companyMembers.role })
@@ -1678,6 +1678,8 @@ export const companiesRouter = router({
       ),
     }))
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [member] = await db
         .select({ role: companyMembers.role })
         .from(companyMembers)
@@ -1690,8 +1692,6 @@ export const companiesRouter = router({
       const isAdmin = member?.role === "company_admin" || (member?.role as string) === "owner";
       if (!isAdmin && !canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only company admins can update role redirect settings." });
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       }
       await db.update(companies)
         .set({ roleRedirectSettings: input.settings })
@@ -1706,10 +1706,10 @@ export const companiesRouter = router({
   getRoleNavExtensions: protectedProcedure
     .input(z.object({ companyId: z.number() }))
     .query(async ({ ctx, input }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        await assertCompanyAdmin(ctx.user.id, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertCompanyAdmin(ctx.user.id, input.companyId);
       }
       const [member] = await db
         .select({ role: companyMembers.role })
@@ -1740,6 +1740,8 @@ export const companiesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [member] = await db
         .select({ role: companyMembers.role })
         .from(companyMembers)
@@ -1754,8 +1756,6 @@ export const companiesRouter = router({
       const isAdmin = member?.role === "company_admin" || (member?.role as string) === "owner";
       if (!isAdmin && !canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only company admins can update navigation extensions." });
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       }
       const cleaned = sanitizeRoleNavExtensions(input.extensions);
       await db.update(companies).set({ roleNavExtensions: cleaned }).where(eq(companies.id, input.companyId));

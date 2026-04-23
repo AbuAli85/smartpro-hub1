@@ -52,7 +52,7 @@ export const complianceRouter = router({
         if (!statsScope.aggregateAllTenants) conditions.push(eq(employees.companyId, statsScope.companyId));
       } else {
         // Tenant user: resolve workspace + scope; managers and above can access
-        const { companyId: cid } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+        const { companyId: cid, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
         const visScope = await resolveVisibilityScope(ctx.user as User, cid);
         const caps = deriveCapabilities(role, visScope);
         if (!caps.canViewComplianceMatrix) {
@@ -249,7 +249,7 @@ export const complianceRouter = router({
         const statsScope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
         if (!statsScope.aggregateAllTenants) empConditions.push(eq(employees.companyId, statsScope.companyId));
       } else {
-        const { companyId: cid } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+        const { companyId: cid, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
         const visScope = await resolveVisibilityScope(ctx.user as User, cid);
         const caps = deriveCapabilities(role, visScope);
         if (!caps.canViewComplianceMatrix) {

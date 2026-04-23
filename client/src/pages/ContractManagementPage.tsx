@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import {
   usePromoterAssignmentForm,
 } from "@/components/contracts/usePromoterAssignmentForm";
@@ -255,6 +256,8 @@ export default function ContractManagementPage() {
   const { t } = useTranslation("common");
   const { activeCompany } = useActiveCompany();
   const activeCompanyId = activeCompany?.id ?? null;
+  const { caps: myCaps, loading: capsLoading } = useMyCapabilities();
+  const canCreate = !capsLoading && myCaps.canManagePromoterAssignments;
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -367,7 +370,7 @@ export default function ContractManagementPage() {
               Visible to both parties.
             </p>
           </div>
-          <CreateContractDialog onSuccess={refetch} />
+          {canCreate && <CreateContractDialog onSuccess={refetch} />}
         </div>
 
         {/* Alerts */}

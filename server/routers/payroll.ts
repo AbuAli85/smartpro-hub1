@@ -1080,6 +1080,8 @@ export const payrollRouter = router({
   cancelLoan: protectedProcedure
     .input(z.object({ loanId: z.number() }))
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [loanRow] = await db
         .select({ companyId: salaryLoans.companyId })
         .from(salaryLoans)
@@ -1087,8 +1089,6 @@ export const payrollRouter = router({
         .limit(1);
       if (!loanRow) throw new TRPCError({ code: "NOT_FOUND", message: "Loan not found" });
       const m = await requireWorkspaceMembership(ctx.user as User, loanRow.companyId);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       await db.update(salaryLoans)
         .set({ status: "cancelled" })
         .where(and(eq(salaryLoans.id, input.loanId), eq(salaryLoans.companyId, m.companyId)));
@@ -1185,6 +1185,8 @@ export const payrollRouter = router({
   getRunCompliance: protectedProcedure
     .input(z.object({ runId: z.number() }))
     .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [runProbe] = await db
         .select({ companyId: payrollRuns.companyId })
         .from(payrollRuns)
@@ -1192,8 +1194,6 @@ export const payrollRouter = router({
         .limit(1);
       if (!runProbe) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
       const { companyId } = await requireFinanceOrAdmin(ctx.user as User, runProbe.companyId);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
       const lines = await db.select({ employeeId: payrollLineItems.employeeId })
         .from(payrollLineItems)

@@ -133,7 +133,7 @@ export const tasksRouter = router({
         ) as any;
       } else {
         // self scope
-        if (scope.selfEmployeeId == null) return [];
+        if (scope.type !== "self" || scope.selfEmployeeId == null) return [];
         taskWhere = and(
           eq(employeeTasks.companyId, companyId),
           eq(employeeTasks.assignedToEmployeeId, scope.selfEmployeeId),

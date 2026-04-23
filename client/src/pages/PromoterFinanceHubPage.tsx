@@ -33,6 +33,7 @@ import { VIEW_COPY } from "@shared/promoterFinancialViewSemantics";
 import { formatWarningAckForDisplay } from "@shared/promoterFinancialWarningAck";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 
 function monthBounds(d: Date): { start: string; end: string } {
   const y = d.getFullYear();
@@ -53,12 +54,11 @@ export default function PromoterFinanceHubPage() {
   const { user } = useAuth();
   const { activeCompanyId, activeCompany } = useActiveCompany();
   const companyId = activeCompanyId ?? undefined;
-  /** Matches server `requirePromoterFinanceControl`: approve, export, finalize payroll, issue/mark paid invoices. */
-  const canFinanceFinalize = Boolean(
-    (user && canAccessGlobalAdminProcedures(user)) ||
-      activeCompany?.role === "company_admin" ||
-      activeCompany?.role === "finance_admin",
-  );
+  const { caps: myCaps } = useMyCapabilities();
+  const isPlatformAdmin = Boolean(user && canAccessGlobalAdminProcedures(user));
+  /** Matches server `requirePromoterFinanceControl`: approve, export, finalize payroll, issue/mark paid invoices.
+   * canApprovePayroll is true for company_admin and finance_admin — same roles as before. */
+  const canFinanceFinalize = isPlatformAdmin || myCaps.canApprovePayroll || myCaps.canRunPayroll;
   const [periodStart, setPeriodStart] = useState(() => monthBounds(new Date()).start);
   const [periodEnd, setPeriodEnd] = useState(() => monthBounds(new Date()).end);
   const [ackKeys, setAckKeys] = useState("");

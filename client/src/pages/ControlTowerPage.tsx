@@ -34,6 +34,7 @@ import { buildOperatingBriefWithVariant } from "@/features/controlTower/operatin
 import { getBriefVariantConfig } from "@/features/controlTower/briefVariantConfig";
 import { DEFAULT_BRIEF_VARIANT, type OperatingBriefVariant } from "@/features/controlTower/briefVariants";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import { formatEscalationSummaryLine, summarizeEscalationFromItems } from "@/features/controlTower/escalationMeta";
 import { buildSnapshotFromItems } from "@/features/controlTower/snapshot";
 import { getPreviousSnapshot, saveSnapshot } from "@/features/controlTower/snapshotStore";
@@ -74,11 +75,10 @@ export default function ControlTowerPage() {
 
   const platformOp = seesPlatformOperatorNav(user);
   const scopeEnabled = activeCompanyId != null && !platformOp;
-
-  const engagementOpsRole =
-    activeCompany?.role === "company_admin" ||
-    activeCompany?.role === "hr_admin" ||
-    activeCompany?.role === "finance_admin";
+  const { caps: myCaps } = useMyCapabilities();
+  // canViewEmployeeList is true for company_admin, hr_admin, and finance_admin — the same
+  // roles that previously had engagementOpsRole access.
+  const engagementOpsRole = myCaps.canViewEmployeeList;
 
   const utils = trpc.useUtils();
   const { data: engagementQueueKpi } = trpc.engagements.getOpsSummary.useQuery(

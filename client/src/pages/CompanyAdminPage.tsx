@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
-import { isCompanyAdminMember } from "@shared/clientNav";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -164,8 +164,13 @@ export default function CompanyAdminPage() {
   const [removeDialog, setRemoveDialog] = useState<{ memberId: number; name: string } | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
 
-  const isAdmin =
-    canAccessGlobalAdminProcedures(user ?? {}) || isCompanyAdminMember(myMembership?.role ?? null);
+  const { caps: myCaps, loading: capsLoading } = useMyCapabilities();
+  // Platform admins bypass the capability check (they are not company members but still need access).
+  // For company-scoped users, use canEditEmployeeProfile as the proxy for "company_admin" — it is
+  // only true for company_admin and hr_admin, which are the two roles that can manage members.
+  // Gate on !companyLoading && !capsLoading to prevent admin-UI flash during membership fetch.
+  const isPlatformAdmin = Boolean(user && canAccessGlobalAdminProcedures(user));
+  const isAdmin = !companyLoading && !capsLoading && (isPlatformAdmin || myCaps.canEditEmployeeProfile);
 
   const { data: pendingInvites, refetch: refetchInvites } = trpc.companies.listInvites.useQuery(
     { companyId: activeCompanyId ?? undefined },

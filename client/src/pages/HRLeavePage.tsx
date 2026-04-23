@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
-import { isCompanyAdminMember, isHrAdminMember } from "@shared/clientNav";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
@@ -278,14 +278,11 @@ export default function HRLeavePage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const memberRole = activeCompany?.role ?? null;
-  const isAdmin = useMemo(
-    () =>
-      canAccessGlobalAdminProcedures(user ?? {}) ||
-      isCompanyAdminMember(memberRole) ||
-      isHrAdminMember(memberRole),
-    [user, memberRole],
-  );
+  const { caps: myCaps } = useMyCapabilities();
+  const isPlatformAdmin = Boolean(user && canAccessGlobalAdminProcedures(user));
+  // canApproveAttendance is true for company_admin and hr_admin — same roles as before.
+  // Platform admins bypass via isPlatformAdmin.
+  const isAdmin = isPlatformAdmin || myCaps.canApproveAttendance;
 
   // Stats
   const totalPayroll = payrollRecords?.reduce((sum, r) => sum + Number(r.netSalary ?? 0), 0) ?? 0;

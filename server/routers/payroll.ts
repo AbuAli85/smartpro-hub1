@@ -23,6 +23,7 @@ import {
   assertAuthoritativePayrollForApprove,
   assertAuthoritativePayrollForFinancialExport,
   assertAuthoritativePayrollForMarkPaid,
+  isAuthoritativePayrollRun,
 } from "../lib/payrollAuthoritative";
 import { estimateGratuityArticle39, omr as omrBilling } from "../lib/billingEngine";
 import {
@@ -272,7 +273,7 @@ export const payrollRouter = router({
         .from(payrollRuns)
         .where(and(...conditions))
         .orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth));
-      return runs;
+      return runs.map((r) => ({ ...r, authoritativePayroll: isAuthoritativePayrollRun(r) }));
     }),
 
   /** Per-employee payroll line history from canonical `payroll_line_items` (replaces legacy HR payroll list for UI). */
@@ -344,6 +345,7 @@ export const payrollRouter = router({
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId))).limit(1);
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
+      const runWithFlag = { ...run, authoritativePayroll: isAuthoritativePayrollRun(run) };
       const lines = await db
         .select({
           line: payrollLineItems,
@@ -352,7 +354,7 @@ export const payrollRouter = router({
         .from(payrollLineItems)
         .leftJoin(employees, eq(payrollLineItems.employeeId, employees.id))
         .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
-      return { run, lines };
+      return { run: runWithFlag, lines };
     }),
 
   /** Full monthly payroll execution (attendance-aware, PASI on gross, WPS-oriented). */
@@ -851,14 +853,20 @@ export const payrollRouter = router({
       const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.companyId, m.companyId)).orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth)).limit(12);
-      const totalPaidYTD = runs.filter(r => r.status === "paid").reduce((s, r) => s + Number(r.totalNet ?? 0), 0);
+      const annotate = (r: (typeof runs)[number]) => ({ ...r, authoritativePayroll: isAuthoritativePayrollRun(r) });
+      const totalPaidYTD = runs.filter((r) => r.status === "paid").reduce((s, r) => s + Number(r.totalNet ?? 0), 0);
       const pendingApproval = runs.filter(
         (r) =>
           !r.previewOnly &&
           (r.status === "pending_execution" || r.status === "processing" || r.status === "draft"),
       ).length;
-      const lastRun = runs[0] ?? null;
-      return { totalPaidYTD, pendingApproval, lastRun, recentRuns: runs.slice(0, 6) };
+      const lastRun = runs[0] ? annotate(runs[0]) : null;
+      return {
+        totalPaidYTD,
+        pendingApproval,
+        lastRun,
+        recentRuns: runs.slice(0, 6).map(annotate),
+      };
     }),
 
   /** End-of-service gratuity estimate — Oman Labour Law Art. 39 (planning; not legal advice). */

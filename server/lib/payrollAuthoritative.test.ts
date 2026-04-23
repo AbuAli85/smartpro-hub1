@@ -4,7 +4,23 @@ import {
   assertAuthoritativePayrollForApprove,
   assertAuthoritativePayrollForFinancialExport,
   assertAuthoritativePayrollForMarkPaid,
+  isAuthoritativePayrollRun,
 } from "./payrollAuthoritative";
+
+describe("isAuthoritativePayrollRun", () => {
+  it("is false for preview rows", () => {
+    expect(isAuthoritativePayrollRun({ previewOnly: true, attendancePreflightSnapshot: "{}" })).toBe(false);
+  });
+
+  it("is false when snapshot missing even if not preview", () => {
+    expect(isAuthoritativePayrollRun({ previewOnly: false, attendancePreflightSnapshot: null })).toBe(false);
+    expect(isAuthoritativePayrollRun({ previewOnly: false, attendancePreflightSnapshot: "  " })).toBe(false);
+  });
+
+  it("is true when not preview and snapshot present", () => {
+    expect(isAuthoritativePayrollRun({ previewOnly: false, attendancePreflightSnapshot: '{"v":1}' })).toBe(true);
+  });
+});
 
 describe("payrollAuthoritative guards", () => {
   it("approve rejects preview-only runs", () => {

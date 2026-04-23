@@ -368,6 +368,11 @@ function RunPayrollTab() {
                           Preview only
                         </Badge>
                       ) : null}
+                      {(run as { authoritativePayroll?: boolean }).authoritativePayroll ? (
+                        <Badge variant="outline" className="text-emerald-800 border-emerald-400 bg-emerald-50 dark:bg-emerald-950/40">
+                          Authoritative payroll
+                        </Badge>
+                      ) : null}
                       <Badge className={`gap-1 ${sc.color}`}>{sc.icon}{sc.label}</Badge>
                       <ChevronRight size={16} className={`text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
                     </div>

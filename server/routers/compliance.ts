@@ -13,7 +13,11 @@ import {
 import { eq, and, gte, lte, lt, count, inArray, desc, isNotNull } from "drizzle-orm";
 import { resolveStatsCompanyFilter } from "../_core/tenant";
 import type { User } from "../../drizzle/schema";
-import { muscatCalendarYmdFromUtcInstant, muscatMonthUtcRangeExclusiveEnd } from "@shared/attendanceMuscatTime";
+import {
+  muscatCalendarYmdFromUtcInstant,
+  muscatCalendarYmdNow,
+  muscatMonthUtcRangeExclusiveEnd,
+} from "@shared/attendanceMuscatTime";
 
 /** Oman Labour Law Art. 68 — maximum working hours per day (exclusive of breaks). */
 const OMAN_MAX_DAILY_HOURS = 9;
@@ -485,12 +489,16 @@ export const complianceRouter = router({
         meta: { count: expiringCount, days: 30 },
       });
 
-      // 4. WPS compliance (current month payroll paid)
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
+      // 4. WPS compliance (current **Muscat calendar** month; authoritative runs only — snapshot + not preview)
+      const muscatTodayYmd = muscatCalendarYmdNow(now);
+      const [currentYearStr, currentMonthStr] = muscatTodayYmd.split("-");
+      const currentYear = Number(currentYearStr);
+      const currentMonth = Number(currentMonthStr);
       const payrollConditions = [
         eq(payrollRuns.periodMonth, currentMonth),
         eq(payrollRuns.periodYear, currentYear),
+        eq(payrollRuns.previewOnly, false),
+        isNotNull(payrollRuns.attendancePreflightSnapshot),
       ];
       if (!scope.aggregateAllTenants) payrollConditions.push(eq(payrollRuns.companyId, scope.companyId));
       const [latestRun] = await db

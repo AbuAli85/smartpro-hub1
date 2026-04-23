@@ -104,7 +104,10 @@ const BLOCKED_RERUN_STATUSES = new Set(["locked", "paid", "approved"]);
 
 /**
  * Monthly payroll run — single authoritative path.
- * Runs inside one DB transaction: Muscat-month attendance reconciliation, gate, payroll rows, snapshot, loan updates.
+ *
+ * **Transactional integrity:** The entire block below runs inside `db.transaction`. Any thrown error after
+ * reconciliation passes (including mid–line-item loop) rolls back inserts/updates/deletes for this call — no
+ * partial authoritative payroll, totals, or snapshot. (Verify in staging with a deliberate throw if needed.)
  */
 export async function executeMonthlyPayroll(
   db: PayrollDb,

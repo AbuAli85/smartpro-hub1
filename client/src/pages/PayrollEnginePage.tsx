@@ -281,6 +281,11 @@ export default function PayrollEnginePage() {
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor[run.status] ?? ""}`}>
                         {run.status}
                       </span>
+                      {(run as { authoritativePayroll?: boolean }).authoritativePayroll ? (
+                        <span className="block text-[10px] text-emerald-700 dark:text-emerald-400 mt-1 font-medium">Authoritative</span>
+                      ) : (run as { previewOnly?: boolean }).previewOnly ? (
+                        <span className="block text-[10px] text-amber-700 dark:text-amber-300 mt-1">Preview</span>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       {run.wpsFileUrl
@@ -298,9 +303,6 @@ export default function PayrollEnginePage() {
                             <CheckCircle size={12} /> Approve
                           </Button>
                         )}
-                        {(run as { previewOnly?: boolean }).previewOnly ? (
-                          <span className="text-[10px] text-amber-700 dark:text-amber-300 px-1">Preview</span>
-                        ) : null}
                         {run.status === "approved" && (
                           <Button size="sm" variant="ghost" onClick={() => markPaid.mutate({ runId: run.id, companyId: activeCompanyId ?? undefined })} className="gap-1 text-xs text-green-600">
                             <Banknote size={12} /> Mark Paid
@@ -332,6 +334,11 @@ export default function PayrollEnginePage() {
                     {MONTHS[(runDetail.run.periodMonth ?? 1) - 1]} {runDetail.run.periodYear} — Payroll Detail
                   </h2>
                   <p className="text-sm text-muted-foreground">{runDetail.lines.length} employees</p>
+                  {(runDetail.run as { authoritativePayroll?: boolean }).authoritativePayroll ? (
+                    <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mt-1">Authoritative payroll (reconciled + snapshot)</p>
+                  ) : (runDetail.run as { previewOnly?: boolean }).previewOnly ? (
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">Salary preview — not for official payroll</p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {runDetail.run.status === "pending_execution" && !(runDetail.run as { previewOnly?: boolean }).previewOnly && (

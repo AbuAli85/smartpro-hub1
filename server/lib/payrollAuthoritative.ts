@@ -6,6 +6,16 @@ export type PayrollRunRowForPolicy = {
   attendancePreflightSnapshot?: string | null;
 };
 
+/**
+ * Durable classification for reporting/dashboards: not a preview row and has a stored attendance preflight snapshot
+ * from `executeMonthlyPayroll`. (Legacy ambiguous rows: `preview_only = 0` but empty snapshot → not authoritative.)
+ */
+export function isAuthoritativePayrollRun(
+  run: Pick<PayrollRunRowForPolicy, "previewOnly" | "attendancePreflightSnapshot">,
+): boolean {
+  return Boolean(!run.previewOnly && run.attendancePreflightSnapshot?.trim());
+}
+
 /** Authoritative payroll = produced by `executeMonthlyPayroll` (reconciliation + snapshot), not salary preview. */
 export function assertAuthoritativePayrollForApprove(run: PayrollRunRowForPolicy): void {
   if (run.previewOnly) {

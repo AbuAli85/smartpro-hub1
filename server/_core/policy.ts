@@ -155,3 +155,23 @@ export async function requireWorkspaceMemberForRead(
   }
   return requireWorkspaceMembership(user, companyId);
 }
+
+// ─── Payroll guard ────────────────────────────────────────────────────────────
+
+/**
+ * Payroll access: requires `company_admin` or `finance_admin`.
+ *
+ * Returns `{ companyId, role }`.  Callers should then call
+ * `deriveCapabilities(role, scope)` to check specific payroll action capabilities
+ * (canRunPayroll, canApprovePayroll, canMarkPayrollPaid, canEditPayrollLineItem,
+ * canGenerateWpsFile).
+ *
+ * `company_admin` has all payroll capabilities.
+ * `finance_admin` can run, edit line items, and generate WPS — but NOT approve or mark paid.
+ */
+export async function requirePayrollAdmin(
+  user: User,
+  companyId?: number | null,
+): Promise<{ companyId: number; role: CompanyMember["role"] }> {
+  return requireTenantRole(user, ["company_admin", "finance_admin"], companyId);
+}

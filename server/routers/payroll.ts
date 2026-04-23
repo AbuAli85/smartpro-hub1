@@ -32,8 +32,13 @@ import {
   recordPayslipExportedAudit,
 } from "../tenantGovernanceAudit";
 import { storagePut } from "../storage";
-import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
-import { requireFinanceOrAdmin } from "../_core/policy";
+import { requireWorkspaceMembership } from "../_core/membership";
+import {
+  requireFinanceOrAdmin,
+  requirePayrollAdmin,
+  deriveCapabilities,
+  resolveVisibilityScope,
+} from "../_core/policy";
 
 /** PASI contribution: 7% employee, 11.5% employer for Omani nationals */
 function calcPasi(basicSalary: number, isOmani: boolean) {
@@ -368,11 +373,12 @@ export const payrollRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
+      const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+      if (!caps.canRunPayroll) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to execute payroll." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
-      requireNotAuditor(m.role, "External Auditors cannot execute payroll.");
       return executeMonthlyPayroll(db, {
         companyId: m.companyId,
         month: input.month,
@@ -468,11 +474,12 @@ export const payrollRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
+      const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+      if (!caps.canRunPayroll) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to create payroll runs." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
-      requireNotAuditor(m.role, "External Auditors cannot create payroll runs.");
       // Check for duplicate run
       const [existing] = await db.select({ id: payrollRuns.id }).from(payrollRuns)
         .where(and(eq(payrollRuns.companyId, m.companyId), eq(payrollRuns.periodMonth, input.month), eq(payrollRuns.periodYear, input.year)))
@@ -615,11 +622,12 @@ export const payrollRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
+      const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+      if (!caps.canEditPayrollLineItem) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to edit payroll line items." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
-      requireNotAuditor(m.role, "External Auditors cannot modify payroll line items.");
       const [line] = await db.select().from(payrollLineItems).where(and(eq(payrollLineItems.id, input.lineId), eq(payrollLineItems.companyId, m.companyId))).limit(1);
       if (!line) throw new TRPCError({ code: "NOT_FOUND", message: "Line item not found" });
       const [parentRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, line.payrollRunId)).limit(1);
@@ -667,12 +675,12 @@ export const payrollRouter = router({
   approveRun: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
+      const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+      if (!caps.canApprovePayroll) throw new TRPCError({ code: "FORBIDDEN", message: "Only company admins can approve payroll runs." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
-      requireNotAuditor(m.role, "External Auditors cannot approve payroll runs.");
-      if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can approve payroll" });
       const [runBefore] = await db
         .select({
           id: payrollRuns.id,
@@ -703,12 +711,12 @@ export const payrollRouter = router({
   markPaid: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
+      const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+      if (!caps.canMarkPayrollPaid) throw new TRPCError({ code: "FORBIDDEN", message: "Only company admins can mark payroll as paid." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
-      requireNotAuditor(m.role, "External Auditors cannot mark payroll as paid.");
-      if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can mark payroll paid" });
       const [runBefore] = await db
         .select({
           id: payrollRuns.id,
@@ -822,10 +830,12 @@ export const payrollRouter = router({
   generateWpsFile: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
+      const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+      if (!caps.canGenerateWpsFile) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to generate WPS files." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const full = await generateWpsBankFileForRun(db, m, input.runId);
       return { url: full.downloadUrl };
     }),
@@ -834,11 +844,12 @@ export const payrollRouter = router({
   generateWPSFile: protectedProcedure
     .input(z.object({ payrollRunId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
+      const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+      if (!caps.canGenerateWpsFile) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to generate WPS files." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
-      requireNotAuditor(m.role, "External Auditors cannot generate WPS files.");
       return generateWpsBankFileForRun(db, m, input.payrollRunId);
     }),
 

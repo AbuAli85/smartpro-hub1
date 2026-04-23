@@ -16,15 +16,15 @@
  *
  * Role capability matrix (see deriveCapabilities for canonical source):
  *
- *                          │ viewList │ edit │ approveAtt │ assignTask │ compliance │ salary │ banking │ identity │ hrNotes │
- *  company_admin           │    ✓     │  ✓   │     ✓      │     ✓      │     ✓      │   ✓    │    ✓    │    ✓     │    ✓    │
- *  hr_admin                │    ✓     │  ✓   │     ✓      │     ✓      │     ✓      │   –    │    –    │    ✓     │    ✓    │
- *  finance_admin           │    ✓     │  –   │     –      │     –      │     –      │   ✓    │    ✓    │    –     │    –    │
- *  reviewer                │    ✓     │  –   │     –      │     –      │     ✓      │   –    │    –    │    –     │    –    │
- *  external_auditor        │    ✓     │  –   │     –      │     –      │     ✓      │   –    │    –    │    –     │    –    │
- *  company_member (dept)   │    ✓     │  –   │     ✓      │     ✓      │     –      │   –    │    –    │    –     │    –    │
- *  company_member (team)   │    ✓     │  –   │     ✓      │     ✓      │     –      │   –    │    –    │    –     │    –    │
- *  company_member (self)   │    –     │  –   │     –      │     –      │     –      │   –    │    –    │    –     │    –    │
+ *                          │ viewList │ edit │ approveAtt │ assignTask │ compliance │ salary │ banking │ identity │ hrNotes │ runPayroll │ approvePayroll │ markPaid │ editLine │ genWps │
+ *  company_admin           │    ✓     │  ✓   │     ✓      │     ✓      │     ✓      │   ✓    │    ✓    │    ✓     │    ✓    │     ✓      │       ✓        │    ✓     │    ✓     │   ✓    │
+ *  hr_admin                │    ✓     │  ✓   │     ✓      │     ✓      │     ✓      │   –    │    –    │    ✓     │    ✓    │     –      │       –        │    –     │    –     │   –    │
+ *  finance_admin           │    ✓     │  –   │     –      │     –      │     –      │   ✓    │    ✓    │    –     │    –    │     ✓      │       –        │    –     │    ✓     │   ✓    │
+ *  reviewer                │    ✓     │  –   │     –      │     –      │     ✓      │   –    │    –    │    –     │    –    │     –      │       –        │    –     │    –     │   –    │
+ *  external_auditor        │    ✓     │  –   │     –      │     –      │     ✓      │   –    │    –    │    –     │    –    │     –      │       –        │    –     │    –     │   –    │
+ *  company_member (dept)   │    ✓     │  –   │     ✓      │     ✓      │     –      │   –    │    –    │    –     │    –    │     –      │       –        │    –     │    –     │   –    │
+ *  company_member (team)   │    ✓     │  –   │     ✓      │     ✓      │     –      │   –    │    –    │    –     │    –    │     –      │       –        │    –     │    –     │   –    │
+ *  company_member (self)   │    –     │  –   │     –      │     –      │     –      │   –    │    –    │    –     │    –    │     –      │       –        │    –     │    –     │   –    │
  */
 
 import type { VisibilityScope } from "./visibilityScope";
@@ -67,6 +67,18 @@ export interface Capabilities {
   /** See HR notes, performance notes, and disciplinary records. */
   canViewHrNotes: boolean;
 
+  // Payroll actions
+  /** Execute or create a payroll run (draft or authoritative). */
+  canRunPayroll: boolean;
+  /** Approve a payroll run (move it from draft/reviewed → approved). */
+  canApprovePayroll: boolean;
+  /** Mark an approved payroll run as paid. */
+  canMarkPayrollPaid: boolean;
+  /** Edit individual payroll line items (allowances, deductions, overrides). */
+  canEditPayrollLineItem: boolean;
+  /** Generate WPS / SIF bank-transfer files for payroll disbursement. */
+  canGenerateWpsFile: boolean;
+
   // Documents
   /** Upload or modify company and employee documents (auditors are read-only). */
   canUploadDocument: boolean;
@@ -104,6 +116,11 @@ const ALL_CAPS: Capabilities = {
   canViewIdentityDocs: true,
   canViewPayrollInputs: true,
   canViewHrNotes: true,
+  canRunPayroll: true,
+  canApprovePayroll: true,
+  canMarkPayrollPaid: true,
+  canEditPayrollLineItem: true,
+  canGenerateWpsFile: true,
   canUploadDocument: true,
   canViewEmployeeDocuments: true,
   canViewComplianceMatrix: true,
@@ -125,6 +142,11 @@ const NO_CAPS: Capabilities = {
   canViewIdentityDocs: false,
   canViewPayrollInputs: false,
   canViewHrNotes: false,
+  canRunPayroll: false,
+  canApprovePayroll: false,
+  canMarkPayrollPaid: false,
+  canEditPayrollLineItem: false,
+  canGenerateWpsFile: false,
   canUploadDocument: false,
   canViewEmployeeDocuments: false,
   canViewComplianceMatrix: false,
@@ -170,6 +192,12 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         // salary and banking are finance domain — HR does not see them
         canViewSalary: false,
         canViewBankingDetails: false,
+        // payroll actions are finance domain — HR cannot run, approve, or disburse
+        canRunPayroll: false,
+        canApprovePayroll: false,
+        canMarkPayrollPaid: false,
+        canEditPayrollLineItem: false,
+        canGenerateWpsFile: false,
       };
 
     case "finance_admin":
@@ -183,6 +211,13 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewBankingDetails: true,
         canRunComplianceReports: true,    // PASI / WPS reports are finance domain
         canViewEmployeeDocuments: true,   // finance needs contract / permit visibility
+        // payroll actions — finance_admin can run and edit but NOT approve or mark paid
+        // (approval and disbursement require company_admin sign-off)
+        canRunPayroll: true,
+        canApprovePayroll: false,
+        canMarkPayrollPaid: false,
+        canEditPayrollLineItem: true,
+        canGenerateWpsFile: true,
         // finance does not edit profiles, run compliance, or read HR / identity data
         canEditEmployeeProfile: false,
         canApproveAttendance: false,
@@ -217,13 +252,16 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewComplianceCase: true,   // summary-level only; router applies additional filter
         canViewComplianceMatrix: true, // read-only permit matrix
         canViewEmployeeDocuments: true, // read-only; no upload
-        // no salary, banking, identity, payroll inputs, or HR notes
+        // no salary, banking, identity, payroll inputs, HR notes, or payroll actions
         canUploadDocument: false,
       };
 
     case "company_member": {
-      // Scope determines whether member has managerial authority
-      const hasAuthority = scope.type === "department" || scope.type === "team";
+      // Scope determines whether member has managerial authority.
+      // "company" scope means the member manages across the whole company (e.g. a department head
+      // whose scope resolves to company-wide).  "department" and "team" are the typical
+      // middle-management cases.  "self" means self-service only.
+      const hasAuthority = scope.type === "company" || scope.type === "department" || scope.type === "team";
       return {
         ...NO_CAPS,
         canViewEmployeeList: hasAuthority,

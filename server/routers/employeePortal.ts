@@ -29,6 +29,11 @@ import { createNotification, getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireWorkspaceMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
+import {
+  requireWorkspaceMemberForRead,
+  resolveVisibilityScope,
+  scopeLabel,
+} from "../_core/policy";
 import type { User } from "../../drizzle/schema";
 import { computePortalOperationalHints } from "@shared/employeePortalOperationalHints";
 import { OMAN_LEAVE_PORTAL_DEFAULTS } from "@shared/omanLeavePolicyDefaults";
@@ -1073,5 +1078,43 @@ export const employeePortalRouter = router({
         shiftCheckIn: dayCtx.shiftCheckIn,
         shiftCheckOut: dayCtx.shiftCheckOut,
       });
+    }),
+
+  /**
+   * Returns the caller's resolved visibility scope for the active company.
+   * Use this on the client to determine nav surface and capability guards:
+   *   - scopeType: "company" | "department" | "team" | "self"
+   *   - isManager: true when the caller has team or department scope
+   *
+   * Pass `isManager` into ClientNavOptions so getRoleDefaultRoute and
+   * clientNavItemVisible reflect the correct manager surface.
+   */
+  myScopeInfo: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const { companyId: cid, role } = await requireWorkspaceMemberForRead(
+        ctx.user as User,
+        input.companyId,
+      );
+      const scope = await resolveVisibilityScope(ctx.user as User, cid);
+
+      const isManager = scope.type === "team" || scope.type === "department";
+      const selfEmployeeId =
+        scope.type !== "company" ? (scope.selfEmployeeId ?? null) : null;
+      const visibleCount =
+        scope.type === "company" ? null :
+        scope.type === "department" ? scope.departmentEmployeeIds.length :
+        scope.type === "team" ? scope.managedEmployeeIds.length :
+        selfEmployeeId != null ? 1 : 0;
+
+      return {
+        scopeType: scope.type as "company" | "department" | "team" | "self",
+        scopeLabel: scopeLabel(scope),
+        isManager,
+        role,
+        selfEmployeeId,
+        visibleCount,
+        ...(scope.type === "department" ? { department: scope.department } : {}),
+      };
     }),
 });

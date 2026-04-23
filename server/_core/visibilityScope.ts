@@ -4,18 +4,17 @@
  * Resolves how much company data a caller may see — the "scope layer" that sits
  * above pure role enforcement and models the real company hierarchy:
  *
- *   company  →  team  →  self
+ *   company  →  department  →  team  →  self
  *
  * Rules (in priority order):
  *  1. Platform admins (canAccessGlobalAdminProcedures) → always "company"
  *  2. company_admin, hr_admin, finance_admin, reviewer, external_auditor → "company"
- *  3. company_member whose employee record is the managerId of ≥1 active employee → "team"
- *  4. company_member with no direct reports → "self"
+ *  3. company_member who is the headEmployeeId of any active department → "department"
+ *  4. company_member whose employee record is the managerId of ≥1 active employee → "team"
+ *  5. company_member with no direct reports and not a department head → "self"
  *
- * "team" scope includes the manager themselves plus all employees whose
- * `employees.managerId = selfEmployeeId`.  It is NOT recursive (only direct
- * reports) to keep query complexity predictable.  If you need depth-2+ you can
- * call `expandTeamScope` on the returned id set.
+ * "department" scope covers all active employees in the headed department(s).
+ * "team" scope covers the manager + their direct reports (not recursive).
  *
  * Usage in a router:
  *
@@ -27,7 +26,7 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
-import { employees, companyMembers } from "../../drizzle/schema";
+import { employees, companyMembers, departments } from "../../drizzle/schema";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 
@@ -44,6 +43,16 @@ const COMPANY_SCOPE_ROLES = new Set([
 
 export type VisibilityScope =
   | { type: "company"; companyId: number }
+  | {
+      /** Department head: sees all active employees in their headed department(s). */
+      type: "department";
+      companyId: number;
+      selfEmployeeId: number;
+      /** Department name(s) this employee heads. */
+      department: string;
+      /** All active employee IDs in the department + selfEmployeeId. */
+      departmentEmployeeIds: number[];
+    }
   | {
       type: "team";
       companyId: number;
@@ -112,7 +121,40 @@ export async function resolveVisibilityScope(
 
   const selfEmpId = selfEmployee.id;
 
-  // Direct reports of this employee
+  // Check if this employee is the head of any active department → "department" scope
+  const headedDepts = await db
+    .select({ id: departments.id, name: departments.name })
+    .from(departments)
+    .where(
+      and(
+        eq(departments.companyId, companyId),
+        eq(departments.headEmployeeId, selfEmpId),
+        eq(departments.isActive, true),
+      ),
+    );
+
+  if (headedDepts.length > 0) {
+    const deptNames = headedDepts.map((d) => d.name);
+    const deptEmployees = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(
+        and(
+          eq(employees.companyId, companyId),
+          inArray(employees.department, deptNames),
+          eq(employees.status, "active"),
+        ),
+      );
+    return {
+      type: "department",
+      companyId,
+      selfEmployeeId: selfEmpId,
+      department: deptNames.join(", "),
+      departmentEmployeeIds: [...new Set([selfEmpId, ...deptEmployees.map((e) => e.id)])],
+    };
+  }
+
+  // Direct reports of this employee → "team" scope
   const reports = await db
     .select({ id: employees.id })
     .from(employees)
@@ -151,6 +193,8 @@ export function buildEmployeeScopeFilter(
   switch (scope.type) {
     case "company":
       return eq(table.companyId, scope.companyId);
+    case "department":
+      return inArray(table.id, scope.departmentEmployeeIds);
     case "team":
       return inArray(table.id, scope.managedEmployeeIds);
     case "self":
@@ -170,6 +214,8 @@ export function isInScope(scope: VisibilityScope, targetEmployeeId: number): boo
   switch (scope.type) {
     case "company":
       return true;
+    case "department":
+      return scope.departmentEmployeeIds.includes(targetEmployeeId);
     case "team":
       return scope.managedEmployeeIds.includes(targetEmployeeId);
     case "self":
@@ -203,7 +249,7 @@ export function redactEmployeeForScope<T extends SensitiveFields>(
   memberRole: string,
 ): T {
   const isAuditor = memberRole === "external_auditor";
-  const isManager = scope.type === "team";
+  const isManager = scope.type === "team" || scope.type === "department";
 
   if (!isAuditor && !isManager) return emp;
 
@@ -229,6 +275,8 @@ export function scopeLabel(scope: VisibilityScope): string {
   switch (scope.type) {
     case "company":
       return "company";
+    case "department":
+      return `department (${scope.department}, ${scope.departmentEmployeeIds.length} members)`;
     case "team":
       return `team (${scope.managedEmployeeIds.length} members)`;
     case "self":

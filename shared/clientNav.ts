@@ -262,6 +262,25 @@ const REVIEWER_SURFACE_HREFS = new Set<string>([
   "/marketplace",
 ]);
 
+/**
+ * Extra surfaces a company_member gains when they are a team manager or department head.
+ * These are additive on top of FIELD_EMPLOYEE_HREFS.
+ */
+const MANAGER_SURFACE_HREFS = new Set<string>([
+  "/workspace",
+  "/my-portal",
+  "/my-team",
+  "/my-team/import",
+  "/preferences",
+  "/dashboard",
+  "/control-tower",
+  "/hr/tasks",
+  "/compliance",
+  "/analytics",
+  "/organization",
+  "/",
+]);
+
 const EXTERNAL_AUDITOR_SURFACE_HREFS = new Set<string>([
   "/dashboard",
   "/control-tower",
@@ -327,6 +346,18 @@ function reviewerSurfaceAllowed(href: string): boolean {
   return false;
 }
 
+function managerSurfaceAllowed(href: string): boolean {
+  if (MANAGER_SURFACE_HREFS.has(href)) return true;
+  if (href.startsWith("/my-portal")) return true;
+  if (href.startsWith("/my-team")) return true;
+  if (href.startsWith("/preferences")) return true;
+  if (href.startsWith("/workspace")) return true;
+  if (href.startsWith("/compliance")) return true;
+  if (href.startsWith("/analytics")) return true;
+  if (href === "/organization" || href.startsWith("/organization/")) return true;
+  return false;
+}
+
 function externalAuditorSurfaceAllowed(href: string): boolean {
   if (isHrModuleHref(href)) return true;
   if (href.startsWith("/engagements")) return true;
@@ -354,7 +385,13 @@ function membershipScopedNavDenies(
   if (!user) return false;
   if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user)) return false;
   const mr = options?.memberRole ?? null;
-  if (isCompanyAdminMember(mr) || isFieldEmployee(mr) || isCustomerPortalMemberRole(mr)) return false;
+  if (isCompanyAdminMember(mr) || isCustomerPortalMemberRole(mr)) return false;
+
+  // company_member who is a team manager or department head gets an expanded surface
+  if (isFieldEmployee(mr) && options?.isManager) {
+    return !managerSurfaceAllowed(href);
+  }
+  if (isFieldEmployee(mr)) return false;
 
   if (readsAsHrManager(mr)) {
     return !hrManagerSurfaceAllowed(href);
@@ -436,13 +473,14 @@ export function getMemberRoleColor(memberRole?: string | null): string {
 
 /**
  * Get the default landing page for a company member role.
+ * Pass `isManager: true` when the company_member has active direct reports or heads a department.
  */
-export function getRoleDefaultRoute(memberRole?: string | null): string {
+export function getRoleDefaultRoute(memberRole?: string | null, isManager?: boolean): string {
   switch (memberRole) {
     case "company_admin": return "/control-tower";
     case "hr_admin": return "/hr/employees";
     case "finance_admin": return "/payroll";
-    case "company_member": return "/my-portal";
+    case "company_member": return isManager ? "/my-team" : "/my-portal";
     case "reviewer": return "/control-tower";
     case "external_auditor": return "/control-tower";
     case "client": return "/client";
@@ -469,6 +507,12 @@ export type ClientNavOptions = {
    * in Company Settings → Role navigation extensions (`companies.roleNavExtensions`).
    */
   navExtraAllowedHrefs?: string[] | null;
+  /**
+   * True when a company_member has active direct reports or is a department head
+   * (team or department scope). Unlocks /my-team and scoped compliance views.
+   * Populated from the myScopeInfo tRPC query.
+   */
+  isManager?: boolean;
 };
 
 /**

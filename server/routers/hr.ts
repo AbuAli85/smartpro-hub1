@@ -812,14 +812,32 @@ export const hrRouter = router({
   listAttendance: protectedProcedure
     .input(z.object({ month: z.string().optional(), companyId: z.number().optional(), employeeId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
+      const { companyId: cid } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+      const scope = await resolveVisibilityScope(ctx.user as User, cid);
+
       if (input.employeeId != null) {
-        const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         const emp = await getEmployeeById(input.employeeId);
-        if (!emp || emp.companyId !== cid) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+        if (!emp || emp.companyId !== cid)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+        if (!isInScope(scope, emp.id))
+          throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
         return getAttendance(cid, input.month, input.employeeId);
       }
-      const cid = await requireHrAdminOrDelegatedReports(ctx.user as User, input.companyId);
-      return getAttendance(cid, input.month);
+
+      // Company-scope (HR admin, company_admin) → full listing
+      if (scope.type === "company") {
+        return getAttendance(cid, input.month);
+      }
+
+      // Narrower scope: fetch attendance for each visible employee individually
+      const visibleIds =
+        scope.type === "department" ? scope.departmentEmployeeIds :
+        scope.type === "team" ? scope.managedEmployeeIds :
+        scope.selfEmployeeId != null ? [scope.selfEmployeeId] : [];
+
+      if (!visibleIds.length) return [];
+      const chunks = await Promise.all(visibleIds.map((id) => getAttendance(cid, input.month, id)));
+      return chunks.flat();
     }),
 
   createAttendance: protectedProcedure

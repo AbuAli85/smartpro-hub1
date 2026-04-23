@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
@@ -12,7 +13,12 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, gte, lte, lt, count, inArray, desc, isNotNull } from "drizzle-orm";
 import { resolveStatsCompanyFilter } from "../_core/tenant";
-import { requireHrOrAdmin } from "../_core/policy";
+import {
+  requireHrOrAdmin,
+  requireAnyOperatorRole,
+  requireWorkspaceMemberForRead,
+  resolveVisibilityScope,
+} from "../_core/policy";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import {
@@ -33,15 +39,33 @@ export const complianceRouter = router({
   getOmanisationStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      // Require HR-or-admin for tenant users; platform admins bypass automatically
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        await requireHrOrAdmin(ctx.user as User, input.companyId);
-      }
-      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { total: 0, omani: 0, pct: 0, targetPct: 35, gap: 0, byDepartment: [] };
-      const conditions = [eq(employees.status, "active")];
-      if (!scope.aggregateAllTenants) conditions.push(eq(employees.companyId, scope.companyId));
+
+      const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+      const conditions: any[] = [eq(employees.status, "active")];
+
+      if (isGlobal) {
+        // Platform admin: use aggregate company filter (may see all tenants)
+        const statsScope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
+        if (!statsScope.aggregateAllTenants) conditions.push(eq(employees.companyId, statsScope.companyId));
+      } else {
+        // Tenant user: resolve workspace + scope; managers and above can access
+        const { companyId: cid } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+        const visScope = await resolveVisibilityScope(ctx.user as User, cid);
+        if (visScope.type === "self") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Compliance stats require HR admin, manager, or department head access.",
+          });
+        }
+        conditions.push(eq(employees.companyId, cid));
+        if (visScope.type === "team") {
+          conditions.push(inArray(employees.id, visScope.managedEmployeeIds));
+        } else if (visScope.type === "department") {
+          conditions.push(inArray(employees.id, visScope.departmentEmployeeIds));
+        }
+      }
 
       const allEmployees = await db
         .select({
@@ -86,7 +110,7 @@ export const complianceRouter = router({
     .input(z.object({ companyId: z.number().optional(), month: z.number().optional(), year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        await requireHrOrAdmin(ctx.user as User, input.companyId);
+        await requireAnyOperatorRole(ctx.user as User, input.companyId);
       }
       const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
@@ -149,7 +173,7 @@ export const complianceRouter = router({
     .input(z.object({ companyId: z.number().optional(), month: z.number().optional(), year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        await requireHrOrAdmin(ctx.user as User, input.companyId);
+        await requireAnyOperatorRole(ctx.user as User, input.companyId);
       }
       const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
@@ -205,14 +229,31 @@ export const complianceRouter = router({
   getPermitMatrix: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) return { byDepartment: [], summary: { valid: 0, expiring: 0, expired: 0, total: 0 } };
+
+      const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+      const empConditions: any[] = [eq(employees.status, "active")];
+
+      if (isGlobal) {
+        const statsScope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
+        if (!statsScope.aggregateAllTenants) empConditions.push(eq(employees.companyId, statsScope.companyId));
+      } else {
+        const { companyId: cid } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+        const visScope = await resolveVisibilityScope(ctx.user as User, cid);
+        if (visScope.type === "self") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Permit matrix requires manager or HR admin access." });
+        }
+        empConditions.push(eq(employees.companyId, cid));
+        if (visScope.type === "team") {
+          empConditions.push(inArray(employees.id, visScope.managedEmployeeIds));
+        } else if (visScope.type === "department") {
+          empConditions.push(inArray(employees.id, visScope.departmentEmployeeIds));
+        }
+      }
+
       const now = new Date();
       const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-      const empConditions = [eq(employees.status, "active")];
-      if (!scope.aggregateAllTenants) empConditions.push(eq(employees.companyId, scope.companyId));
 
       const allEmployees = await db
         .select({ id: employees.id, department: employees.department, firstName: employees.firstName, lastName: employees.lastName })
@@ -228,7 +269,6 @@ export const complianceRouter = router({
         eq(workPermits.permitStatus, "active"),
         inArray(workPermits.employeeId, empIds),
       ];
-      if (!scope.aggregateAllTenants) permitFilters.push(eq(workPermits.companyId, scope.companyId));
 
       const permits = await db
         .select({

@@ -3,9 +3,9 @@
  * Imports the shared validation logic and the client-side nav definitions
  * so they can be executed in a tRPC procedure and surfaced in the admin UI.
  *
- * NOTE: This file runs in Node (server) context. The client config files use
- * only pure TypeScript / shared utilities — no DOM or browser APIs — so they
- * are safe to import here.
+ * NOTE: This file runs in Node (server) context. `platformNav.tsx` pulls
+ * `lucide-react` (and thus `react`); both must stay in package.json `dependencies`
+ * so production installs satisfy the server bundle’s external imports.
  */
 import { PLATFORM_NAV_GROUP_DEFS } from "../client/src/config/platformNav";
 import { validatePlatformNavMetadata } from "../client/src/config/platformNavIntegrity";

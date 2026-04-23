@@ -2,6 +2,10 @@
  * Moves frontend-only packages from dependencies to devDependencies.
  * These packages are bundled by Vite into dist/public/ and are NOT needed
  * in the production Node.js container, so they bloat the Docker image.
+ *
+ * Keep out of this list: `react` and `lucide-react` — the server bundle imports
+ * `client/src/config/platformNav.tsx` (nav integrity checks) and resolves them at runtime
+ * because `scripts/bundle-server.mjs` uses packages: "external".
  */
 import { readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
@@ -43,8 +47,6 @@ const FRONTEND_ONLY = new Set([
   "@trpc/react-query",
   "@types/pdfkit",
   "embla-carousel-react",
-  "lucide-react",
-  "react",
   "react-day-picker",
   "react-dom",
   "react-hook-form",

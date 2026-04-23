@@ -114,6 +114,9 @@ importers:
       jose:
         specifier: 6.1.0
         version: 6.1.0
+      lucide-react:
+        specifier: ^0.453.0
+        version: 0.453.0(react@19.2.1)
       mysql2:
         specifier: ^3.15.1
         version: 3.15.1
@@ -132,6 +135,9 @@ importers:
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
+      react:
+        specifier: ^19.2.1
+        version: 19.2.1
       resend:
         specifier: ^6.10.0
         version: 6.10.0
@@ -310,9 +316,6 @@ importers:
       jsdom:
         specifier: ^29.0.1
         version: 29.0.1(@noble/hashes@2.2.0)
-      lucide-react:
-        specifier: ^0.453.0
-        version: 0.453.0(react@19.2.1)
       pnpm:
         specifier: ^10.33.0
         version: 10.33.0
@@ -322,9 +325,6 @@ importers:
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
-      react:
-        specifier: ^19.2.1
-        version: 19.2.1
       react-day-picker:
         specifier: ^9.11.1
         version: 9.11.1(react@19.2.1)

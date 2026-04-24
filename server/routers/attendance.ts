@@ -29,6 +29,7 @@ import { deriveCapabilities } from "../_core/capabilities";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { sitesRouter, SITE_TYPES, siteInputSchema } from "./attendance/sites.router";
+import { dailyStateRouter } from "./attendance/dailyState.router";
 import {
   haversineMetres,
   isWithinOperatingHours,
@@ -355,6 +356,11 @@ export const attendanceRouter = router({
   // Procedures: createSite · listSites · toggleSite · updateSite · getSiteByToken · siteTypes
   // Source: ./attendance/sites.router.ts
   ...sitesRouter._def.record,
+
+  // ─── Daily state sub-module (Phase 9A) ───────────────────────────────────
+  // Procedures: getDailyStates
+  // Source: ./attendance/dailyState.router.ts
+  ...dailyStateRouter._def.record,
 
   /**
    * Self-service clock (authoritative write path):

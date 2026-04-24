@@ -1,19 +1,35 @@
 /**
- * Phase 10A — Attendance Client Approval Router.
+ * Attendance Client Approval Router (Phase 10A + 10B).
  *
- * Internal HR/admin approval package model for client/site attendance review.
- * External client portal exposure is Phase 10B.
+ * Phase 10A: Internal HR/admin approval package model.
+ * Phase 10B: Secure client-facing approval via signed JWT tokens.
+ *
+ * Authorization model (Phase 10B — Option B: Secure approval link):
+ *   1. HR submits a batch (draft → submitted).
+ *   2. HR calls generateClientApprovalToken to get a 14-day signed JWT.
+ *   3. HR sends the approval URL to the external client contact (email/WhatsApp).
+ *   4. Client opens /attendance-approval/:token (public page, no login needed).
+ *   5. Public tRPC procedures verify the JWT and scope every DB query to the
+ *      (batchId, companyId) pair embedded in the token — clients cannot access
+ *      any other tenant or batch.
+ *
+ * Data redaction: public token procedures never return companyId, employeeId,
+ * internal audit payloads, payroll figures, or HR-only notes.
  *
  * Tenant isolation: companyId is always derived from the authenticated caller's
- * active workspace — callers cannot supply an arbitrary companyId.
+ * active workspace (protected procedures) or from the verified JWT (public ones).
  *
  * Procedures:
- *   createClientApprovalBatch   — draft batch + items from attendance data
- *   submitClientApprovalBatch   — draft → submitted
- *   approveClientApprovalBatch  — submitted → approved (simulated client for Phase 10A)
- *   rejectClientApprovalBatch   — submitted → rejected (reason required)
- *   listClientApprovalBatches   — list with filters
- *   getClientApprovalBatch      — batch + items detail
+ *   createClientApprovalBatch        — draft batch + items from attendance data
+ *   submitClientApprovalBatch        — draft → submitted
+ *   approveClientApprovalBatch       — submitted → approved (internal HR/admin)
+ *   rejectClientApprovalBatch        — submitted → rejected (internal HR/admin)
+ *   listClientApprovalBatches        — list with filters
+ *   getClientApprovalBatch           — batch + items detail (internal)
+ *   generateClientApprovalToken      — signs a 14-day JWT for a submitted batch
+ *   getClientApprovalBatchByToken    — redacted batch view via JWT (public)
+ *   clientApproveByToken             — approve via JWT (public)
+ *   clientRejectByToken              — reject with reason via JWT (public)
  */
 
 import { TRPCError } from "@trpc/server";
@@ -27,8 +43,14 @@ import {
   employees,
   employeeSchedules,
 } from "../../../drizzle/schema";
-import { protectedProcedure, router } from "../../_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "../../_core/trpc";
 import { requireActiveCompanyId } from "../../_core/tenant";
+import {
+  signClientApprovalToken,
+  verifyClientApprovalToken,
+  CLIENT_APPROVAL_TOKEN_EXPIRY_DAYS,
+} from "../../attendanceApprovalToken";
+import { ENV } from "../../_core/env";
 import {
   canSubmitBatch,
   canApproveBatch,
@@ -549,5 +571,249 @@ export const clientApprovalRouter = router({
         .orderBy(asc(attendanceClientApprovalItems.attendanceDate), asc(attendanceClientApprovalItems.employeeId));
 
       return { batch, items };
+    }),
+
+  // ─── Phase 10B: Token-based client approval ───────────────────────────────
+
+  /**
+   * Generate a signed 14-day JWT that allows an external client to
+   * view and approve/reject one specific submitted batch.
+   *
+   * Only HR/admin can call this; the batch must already be submitted.
+   * The returned approvalUrl is ready to be shared (email, WhatsApp, etc.).
+   */
+  generateClientApprovalToken: protectedProcedure
+    .input(batchIdInput)
+    .mutation(async ({ ctx, input }) => {
+      const user = ctx.user as User;
+      const m = await requireCanViewAttendanceClientApproval(user);
+      const cid = m.companyId;
+      const db = await requireDb();
+
+      const batch = await requireBatchForCompany(db, input.batchId, cid);
+
+      if (batch.status !== "submitted") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Only submitted batches can have an approval token generated. Current status: '${batch.status}'.`,
+        });
+      }
+
+      const token = await signClientApprovalToken({ batchId: batch.id, companyId: cid });
+      if (!token) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Token signing is unavailable (JWT_SECRET too short).",
+        });
+      }
+
+      const base = ENV.appPublicUrl || "";
+      const approvalUrl = base
+        ? `${base}/attendance-approval/${token}`
+        : `/attendance-approval/${token}`;
+
+      return {
+        token,
+        expiresInDays: CLIENT_APPROVAL_TOKEN_EXPIRY_DAYS,
+        approvalUrl,
+      };
+    }),
+
+  /**
+   * Public: resolve a batch from a signed JWT and return a redacted view.
+   * No authentication required — access is scoped to exactly one batch via token.
+   *
+   * Redaction rules: no companyId, employeeId, audit payloads, payroll data,
+   * or internal HR notes. Employee names are safe to expose (display use only).
+   */
+  getClientApprovalBatchByToken: publicProcedure
+    .input(z.object({ token: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const payload = await verifyClientApprovalToken(input.token);
+      if (!payload) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid or expired approval token." });
+      }
+
+      const db = await requireDb();
+
+      const batchRows = await db
+        .select({
+          id: attendanceClientApprovalBatches.id,
+          periodStart: attendanceClientApprovalBatches.periodStart,
+          periodEnd: attendanceClientApprovalBatches.periodEnd,
+          status: attendanceClientApprovalBatches.status,
+          submittedAt: attendanceClientApprovalBatches.submittedAt,
+          approvedAt: attendanceClientApprovalBatches.approvedAt,
+          rejectedAt: attendanceClientApprovalBatches.rejectedAt,
+          rejectionReason: attendanceClientApprovalBatches.rejectionReason,
+          clientComment: attendanceClientApprovalBatches.clientComment,
+        })
+        .from(attendanceClientApprovalBatches)
+        .where(
+          and(
+            eq(attendanceClientApprovalBatches.id, payload.batchId),
+            eq(attendanceClientApprovalBatches.companyId, payload.companyId),
+          )
+        )
+        .limit(1);
+
+      const batch = batchRows[0];
+      if (!batch) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Approval batch not found." });
+      }
+
+      // Load items with employee display name (first + last name only — no IDs exposed)
+      const rawItems = await db
+        .select({
+          id: attendanceClientApprovalItems.id,
+          attendanceDate: attendanceClientApprovalItems.attendanceDate,
+          status: attendanceClientApprovalItems.status,
+          clientComment: attendanceClientApprovalItems.clientComment,
+          employeeFirstName: employees.firstName,
+          employeeLastName: employees.lastName,
+        })
+        .from(attendanceClientApprovalItems)
+        .innerJoin(employees, eq(attendanceClientApprovalItems.employeeId, employees.id))
+        .where(eq(attendanceClientApprovalItems.batchId, payload.batchId))
+        .orderBy(
+          asc(attendanceClientApprovalItems.attendanceDate),
+          asc(employees.firstName),
+          asc(employees.lastName),
+        );
+
+      const items = rawItems.map((r) => ({
+        id: r.id,
+        attendanceDate: r.attendanceDate,
+        status: r.status,
+        clientComment: r.clientComment,
+        employeeDisplayName: `${r.employeeFirstName} ${r.employeeLastName}`.trim(),
+      }));
+
+      return { batch, items };
+    }),
+
+  /**
+   * Public: approve a submitted batch via a signed JWT.
+   * Approves the batch and all pending items.
+   * Audit actor is identified as "client_portal_token" (no user account).
+   */
+  clientApproveByToken: publicProcedure
+    .input(z.object({
+      token: z.string().min(1),
+      clientComment: z.string().max(2000).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const payload = await verifyClientApprovalToken(input.token);
+      if (!payload) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid or expired approval token." });
+      }
+
+      const db = await requireDb();
+      const batch = await requireBatchForCompany(db, payload.batchId, payload.companyId);
+
+      if (!canApproveBatch(batch.status as BatchStatus)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot approve a batch with status '${batch.status}'. Only submitted batches can be approved.`,
+        });
+      }
+
+      const now = new Date();
+      await db
+        .update(attendanceClientApprovalBatches)
+        .set({
+          status: "approved",
+          approvedAt: now,
+          clientComment: input.clientComment ?? null,
+        })
+        .where(eq(attendanceClientApprovalBatches.id, payload.batchId));
+
+      await db
+        .update(attendanceClientApprovalItems)
+        .set({ status: "approved" })
+        .where(
+          and(
+            eq(attendanceClientApprovalItems.batchId, payload.batchId),
+            eq(attendanceClientApprovalItems.status, "pending"),
+          )
+        );
+
+      await logAttendanceAuditSafe({
+        companyId: payload.companyId,
+        actorUserId: 0,
+        actorRole: "client_portal_token",
+        actionType: ATTENDANCE_AUDIT_ACTION.CLIENT_APPROVAL_BATCH_APPROVED,
+        entityType: ATTENDANCE_AUDIT_ENTITY.CLIENT_APPROVAL_BATCH,
+        entityId: payload.batchId,
+        beforePayload: attendancePayloadJson({ status: batch.status }),
+        afterPayload: attendancePayloadJson({
+          status: "approved",
+          approvedAt: now,
+          clientComment: input.clientComment,
+          via: "client_portal_token",
+        }),
+        source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
+      });
+
+      return { batchId: payload.batchId, status: "approved" as const };
+    }),
+
+  /**
+   * Public: reject a submitted batch via a signed JWT.
+   * Rejection reason is required.
+   * Audit actor is identified as "client_portal_token" (no user account).
+   */
+  clientRejectByToken: publicProcedure
+    .input(z.object({
+      token: z.string().min(1),
+      rejectionReason: z.string().min(1, "Rejection reason is required.").max(2000),
+      clientComment: z.string().max(2000).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const payload = await verifyClientApprovalToken(input.token);
+      if (!payload) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid or expired approval token." });
+      }
+
+      const db = await requireDb();
+      const batch = await requireBatchForCompany(db, payload.batchId, payload.companyId);
+
+      if (!canRejectBatch(batch.status as BatchStatus)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot reject a batch with status '${batch.status}'. Only submitted batches can be rejected.`,
+        });
+      }
+
+      const now = new Date();
+      await db
+        .update(attendanceClientApprovalBatches)
+        .set({
+          status: "rejected",
+          rejectedAt: now,
+          rejectionReason: input.rejectionReason,
+          clientComment: input.clientComment ?? null,
+        })
+        .where(eq(attendanceClientApprovalBatches.id, payload.batchId));
+
+      await logAttendanceAuditSafe({
+        companyId: payload.companyId,
+        actorUserId: 0,
+        actorRole: "client_portal_token",
+        actionType: ATTENDANCE_AUDIT_ACTION.CLIENT_APPROVAL_BATCH_REJECTED,
+        entityType: ATTENDANCE_AUDIT_ENTITY.CLIENT_APPROVAL_BATCH,
+        entityId: payload.batchId,
+        beforePayload: attendancePayloadJson({ status: batch.status }),
+        afterPayload: attendancePayloadJson({
+          status: "rejected",
+          rejectedAt: now,
+          rejectionReason: input.rejectionReason,
+          via: "client_portal_token",
+        }),
+        reason: input.rejectionReason,
+        source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
+      });
+
+      return { batchId: payload.batchId, status: "rejected" as const };
     }),
 });

@@ -143,6 +143,7 @@ const RetainPage = lazy(() => import("./pages/RetainPage"));
 const BuyerPortalRoutes = lazy(() => import("./pages/BuyerPortalRoutes"));
 const BuyerPortalLegacyPathPage = lazy(() => import("./pages/BuyerPortalLegacyPathPage"));
 const MfaChallengePage = lazy(() => import("./pages/MfaChallengePage"));
+const AttendanceClientApprovalPage = lazy(() => import("./pages/AttendanceClientApprovalPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // ─── Page loading fallback ────────────────────────────────────────────────────
@@ -182,6 +183,7 @@ function PublicRoutes() {
       <Route path="/auth/mfa" component={MfaChallengePage} />
       <Route path="/contracts/:id/sign" component={ContractSignPage} />
       <Route path="/attend/:token" component={AttendCheckInPage} />
+      <Route path="/attendance-approval/:token" component={AttendanceClientApprovalPage} />
       <Route path="/sanad/join" component={SanadJoinInvitePage} />
       {/* ── Business Sector Survey (public) ────────────────────────────── */}
       <Route path="/survey/:slug/complete" component={SurveyCompletePage} />

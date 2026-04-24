@@ -1198,7 +1198,56 @@
         "rejectionReasonRequired": "Rejection reason is required."
       },
       "conflict": "An active batch already exists for this period.",
-      "noEmployees": "No active employees found for the selected scope."
+      "noEmployees": "No active employees found for the selected scope.",
+      "generateToken": "Generate Approval Link",
+      "tokenGenerated": "Approval link generated.",
+      "tokenExpiry": "Link valid for {{days}} days.",
+      "copyLink": "Copy Link",
+      "linkCopied": "Link copied to clipboard.",
+      "publicView": {
+        "title": "Attendance Approval Request",
+        "subtitle": "Please review the attendance records below and approve or reject.",
+        "period": "Period: {{start}} – {{end}}",
+        "submittedAt": "Submitted on {{date}}",
+        "approvedAt": "Approved on {{date}}",
+        "rejectedAt": "Rejected on {{date}}",
+        "approveButton": "Approve All",
+        "rejectButton": "Reject",
+        "rejectReasonLabel": "Reason for Rejection",
+        "rejectReasonPlaceholder": "Please explain why this attendance record is being rejected…",
+        "rejectReasonRequired": "A rejection reason is required.",
+        "clientCommentLabel": "Additional Comments (optional)",
+        "clientCommentPlaceholder": "Any additional notes for the staffing provider…",
+        "confirmApprove": "Confirm Approval",
+        "confirmReject": "Confirm Rejection",
+        "status": {
+          "submitted": "Awaiting Your Approval",
+          "approved": "Approved",
+          "rejected": "Rejected",
+          "draft": "Not Yet Submitted",
+          "cancelled": "Cancelled"
+        },
+        "itemStatus": {
+          "pending": "Pending",
+          "approved": "Approved",
+          "rejected": "Rejected",
+          "disputed": "Disputed"
+        },
+        "tableHeader": {
+          "employee": "Employee",
+          "date": "Date",
+          "status": "Status",
+          "comment": "Comment"
+        },
+        "emptyItems": "No attendance records in this batch.",
+        "invalidToken": "This approval link is invalid or has expired. Please request a new link.",
+        "notFound": "Approval batch not found.",
+        "decisionRecorded": "Your decision has been recorded. Thank you.",
+        "alreadyDecided": "A decision has already been made on this batch.",
+        "approveSuccess": "Attendance approved successfully.",
+        "rejectSuccess": "Attendance rejected.",
+        "error": "Something went wrong. Please try again or contact support."
+      }
     }
   },
   "leave": {

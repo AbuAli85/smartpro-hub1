@@ -1198,7 +1198,56 @@
         "rejectionReasonRequired": "سبب الرفض مطلوب."
       },
       "conflict": "توجد دفعة نشطة بالفعل لهذه الفترة.",
-      "noEmployees": "لم يُعثر على موظفين نشطين للنطاق المحدد."
+      "noEmployees": "لم يُعثر على موظفين نشطين للنطاق المحدد.",
+      "generateToken": "إنشاء رابط الموافقة",
+      "tokenGenerated": "تم إنشاء رابط الموافقة.",
+      "tokenExpiry": "الرابط صالح لمدة {{days}} أيام.",
+      "copyLink": "نسخ الرابط",
+      "linkCopied": "تم نسخ الرابط إلى الحافظة.",
+      "publicView": {
+        "title": "طلب اعتماد الحضور",
+        "subtitle": "يرجى مراجعة سجلات الحضور أدناه والموافقة عليها أو رفضها.",
+        "period": "الفترة: {{start}} – {{end}}",
+        "submittedAt": "تم الإرسال في {{date}}",
+        "approvedAt": "تم الاعتماد في {{date}}",
+        "rejectedAt": "تم الرفض في {{date}}",
+        "approveButton": "اعتماد الكل",
+        "rejectButton": "رفض",
+        "rejectReasonLabel": "سبب الرفض",
+        "rejectReasonPlaceholder": "يرجى توضيح سبب رفض سجل الحضور هذا…",
+        "rejectReasonRequired": "سبب الرفض مطلوب.",
+        "clientCommentLabel": "ملاحظات إضافية (اختياري)",
+        "clientCommentPlaceholder": "أي ملاحظات إضافية لمزود الخدمة…",
+        "confirmApprove": "تأكيد الموافقة",
+        "confirmReject": "تأكيد الرفض",
+        "status": {
+          "submitted": "في انتظار موافقتك",
+          "approved": "تمت الموافقة",
+          "rejected": "مرفوض",
+          "draft": "لم يُرسل بعد",
+          "cancelled": "ملغى"
+        },
+        "itemStatus": {
+          "pending": "معلّق",
+          "approved": "موافق عليه",
+          "rejected": "مرفوض",
+          "disputed": "متنازع عليه"
+        },
+        "tableHeader": {
+          "employee": "الموظف",
+          "date": "التاريخ",
+          "status": "الحالة",
+          "comment": "ملاحظة"
+        },
+        "emptyItems": "لا توجد سجلات حضور في هذه الدفعة.",
+        "invalidToken": "رابط الموافقة غير صالح أو منتهي الصلاحية. يرجى طلب رابط جديد.",
+        "notFound": "لم يُعثر على دفعة الموافقة.",
+        "decisionRecorded": "تم تسجيل قرارك. شكراً لك.",
+        "alreadyDecided": "تم اتخاذ قرار بالفعل بشأن هذه الدفعة.",
+        "approveSuccess": "تمت الموافقة على الحضور بنجاح.",
+        "rejectSuccess": "تم رفض الحضور.",
+        "error": "حدث خطأ ما. يرجى المحاولة مرة أخرى أو التواصل مع الدعم."
+      }
     }
   },
   "leave": {

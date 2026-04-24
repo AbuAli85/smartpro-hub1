@@ -59,6 +59,8 @@ import { useAttendanceOperationalMutations } from "@/hooks/useAttendanceOperatio
 import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
+import { buildAttendanceActionItems, sortAttendanceActionItems } from "@shared/attendanceActionQueue";
+import type { AttendanceActionQueueCategory, AttendanceActionQueueItem } from "@shared/attendanceActionQueue";
 import { OperationalIssueMetaStrip } from "@/components/attendance/OperationalIssueMetaStrip";
 import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
 // Audit action labels are resolved with t() at render time via attendanceAuditActionLabel()
@@ -1743,6 +1745,28 @@ export default function HRAttendancePage() {
     [actionQueueItemsRaw, queueFilter, authUser?.id],
   );
 
+  const canonicalActionItems = useMemo<AttendanceActionQueueItem[]>(() => {
+    const allItems: AttendanceActionQueueItem[] = [];
+    for (const row of (todayBoardData?.board ?? [])) {
+      if (!row.canonicalStatus || !row.payrollReadiness || !row.canonicalRiskLevel) continue;
+      const items = buildAttendanceActionItems({
+        resolvedState: {
+          status: row.canonicalStatus,
+          payrollReadiness: row.payrollReadiness,
+          riskLevel: row.canonicalRiskLevel,
+          reasonCodes: row.reasonCodes ?? [],
+        },
+        attendanceDate: businessYmd,
+        employeeId: row.employeeId ?? undefined,
+        employeeName: row.employeeDisplayName ?? undefined,
+        attendanceRecordId: row.attendanceRecordId ?? undefined,
+        scheduleId: row.scheduleId ?? undefined,
+      });
+      allItems.push(...items);
+    }
+    return sortAttendanceActionItems(allItems);
+  }, [todayBoardData?.board, businessYmd]);
+
   const handleQueueAction = useCallback((action: AttendanceActionId, item: OperationalExceptionItem) => {
     if (action === ATTENDANCE_ACTION.OPEN_CORRECTIONS) setAttendanceTab("corrections");
     else if (action === ATTENDANCE_ACTION.OPEN_MANUAL_CHECKINS) setAttendanceTab("manual");
@@ -1808,6 +1832,13 @@ export default function HRAttendancePage() {
           onFilterChange={setQueueFilter}
           assigneeNameByUserId={assigneeNameByUserId}
           onAction={(a, item) => handleQueueAction(a, item)}
+          canonicalItems={canonicalActionItems}
+          onCanonicalCta={(category: AttendanceActionQueueCategory) => {
+            if (category === "pending_correction") setAttendanceTab("corrections");
+            else if (category === "pending_manual_checkin" || category === "absent_pending") setAttendanceTab("manual");
+            else if (category === "holiday_attendance" || category === "leave_attendance" || category === "unscheduled_attendance") setAttendanceTab("records");
+            else setAttendanceTab("today");
+          }}
         />
       ) : null}
 

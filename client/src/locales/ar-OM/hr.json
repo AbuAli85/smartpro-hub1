@@ -282,6 +282,63 @@
       "high": "مرتفع",
       "critical": "حرج"
     },
+    "actionQueue": {
+      "title": "قائمة الإجراءات",
+      "payrollBlocking": "يحجب الرواتب",
+      "noPermissionHint": "ليس لديك صلاحية لاتخاذ هذا الإجراء.",
+      "emptyTitle": "لا يوجد شيء في هذا الفلتر",
+      "emptyHint": "جرب \"جميع المشكلات\" أو بدّل الفلتر إذا كنت تتوقع صفوفاً محلولة أو معيّنة.",
+      "filterLabel": "فلتر",
+      "filterAll": "جميع المشكلات",
+      "filterUnresolved": "غير محلولة",
+      "filterAssignedToMe": "معيّنة لي",
+      "filterAcknowledged": "تم الاعتراف",
+      "filterResolved": "محلولة",
+      "canonicalSectionTitle": "إشارات الحالة",
+      "canonicalSectionHint": "مشتق من حالة الحضور القياسية — يجب حل البنود التي تحجب الرواتب قبل تشغيل كشف الرواتب.",
+      "categories": {
+        "missing_checkout": "انصراف مفقود",
+        "pending_correction": "تصحيح معلق",
+        "pending_manual_checkin": "حضور يدوي معلق",
+        "schedule_conflict": "تعارض في الجدول",
+        "holiday_attendance": "حضور في يوم عطلة",
+        "leave_attendance": "حضور أثناء الإجازة",
+        "late_no_arrival": "تأخر — لم يصل بعد",
+        "absent_pending": "غائب (قيد المعالجة)",
+        "unscheduled_attendance": "حضور غير مجدول",
+        "manual_review": "يتطلب مراجعة يدوية"
+      },
+      "descriptions": {
+        "missing_checkout": "سجّل الموظف الحضور ولم يسجّل الانصراف بعد نهاية الوردية.",
+        "pending_correction": "طلب تصحيح وقت في انتظار موافقة الموارد البشرية.",
+        "pending_manual_checkin": "طلب حضور يدوي في انتظار موافقة الموارد البشرية.",
+        "schedule_conflict": "تداخل في الجداول يمنع تحديد الراتب بشكل دقيق.",
+        "holiday_attendance": "سجّل الموظف الحضور في يوم عطلة رسمية.",
+        "leave_attendance": "سجّل الموظف الحضور أثناء إجازة معتمدة.",
+        "late_no_arrival": "انتهى وقت تسجيل الحضور — لم يصل الموظف بعد.",
+        "absent_pending": "انتهت الوردية دون تسجيل حضور؛ قد يوجد طلب يدوي معلق.",
+        "unscheduled_attendance": "تم تسجيل الحضور دون وجود جدول عمل مطابق.",
+        "manual_review": "حالة الحضور تتطلب مراجعة يدوية قبل كشف الرواتب."
+      },
+      "recommendedActions": {
+        "missing_checkout": "أجبر الانصراف أو أنشئ طلب تصحيح.",
+        "pending_correction": "وافق على طلب التصحيح أو ارفضه.",
+        "pending_manual_checkin": "وافق على طلب الحضور اليدوي أو ارفضه.",
+        "schedule_conflict": "أصلح التداخل في الجدول قبل تشغيل كشف الرواتب.",
+        "holiday_attendance": "راجع هذا الحضور في يوم العطلة وصنّفه.",
+        "leave_attendance": "تحقق من صحة الإجازة وصنّف هذا الحضور.",
+        "late_no_arrival": "تواصل مع الموظف أو أنشئ سجل حضور يدوي.",
+        "absent_pending": "راجع طلب الحضور اليدوي المعلق.",
+        "unscheduled_attendance": "تحقق من الحضور وأسنده إلى جدول أو سجّله.",
+        "manual_review": "راجع سجل الحضور وحدّث حالته."
+      },
+      "cta": {
+        "viewLiveBoard": "اللوحة المباشرة",
+        "openCorrections": "التصحيحات",
+        "openManualCheckins": "الحضور اليدوي",
+        "viewRecords": "سجلات الموارد البشرية"
+      }
+    },
     "setupHealth": {
       "title": "إعداد الحضور غير مكتمل",
       "description": "بعض المتطلبات الأساسية مفقودة. أكمل الخطوات التالية قبل أن يعمل تتبع الحضور بشكل صحيح.",

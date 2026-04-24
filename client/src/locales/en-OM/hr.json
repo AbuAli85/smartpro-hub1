@@ -282,6 +282,63 @@
       "high": "High",
       "critical": "Critical"
     },
+    "actionQueue": {
+      "title": "Action Queue",
+      "payrollBlocking": "Payroll Blocking",
+      "noPermissionHint": "You do not have permission to take this action.",
+      "emptyTitle": "Nothing in this filter",
+      "emptyHint": "Try \"All issues\" or switch filters when you expect resolved or assigned rows.",
+      "filterLabel": "Filter",
+      "filterAll": "All issues",
+      "filterUnresolved": "Unresolved",
+      "filterAssignedToMe": "Assigned to me",
+      "filterAcknowledged": "Acknowledged",
+      "filterResolved": "Resolved",
+      "canonicalSectionTitle": "Status signals",
+      "canonicalSectionHint": "Derived from canonical attendance state — payroll blocking items must be resolved before payroll runs.",
+      "categories": {
+        "missing_checkout": "Missing Checkout",
+        "pending_correction": "Correction Pending",
+        "pending_manual_checkin": "Manual Check-in Pending",
+        "schedule_conflict": "Schedule Conflict",
+        "holiday_attendance": "Attendance on Holiday",
+        "leave_attendance": "Attendance During Leave",
+        "late_no_arrival": "Late — No Arrival",
+        "absent_pending": "Absent (Pending)",
+        "unscheduled_attendance": "Unscheduled Attendance",
+        "manual_review": "Manual Review Required"
+      },
+      "descriptions": {
+        "missing_checkout": "Employee checked in but has no checkout after shift end.",
+        "pending_correction": "A time correction request is awaiting HR approval.",
+        "pending_manual_checkin": "A manual check-in request is awaiting HR approval.",
+        "schedule_conflict": "Overlapping schedules prevent unambiguous payroll assignment.",
+        "holiday_attendance": "Employee checked in on a public holiday.",
+        "leave_attendance": "Employee checked in while on approved leave.",
+        "late_no_arrival": "Past check-in deadline — employee has not arrived.",
+        "absent_pending": "Shift ended with no check-in; a manual request may be pending.",
+        "unscheduled_attendance": "Attendance recorded with no matching work schedule.",
+        "manual_review": "Attendance state requires HR review before payroll."
+      },
+      "recommendedActions": {
+        "missing_checkout": "Force checkout or request a correction.",
+        "pending_correction": "Approve or reject the correction request.",
+        "pending_manual_checkin": "Approve or reject the manual check-in request.",
+        "schedule_conflict": "Resolve the schedule overlap before running payroll.",
+        "holiday_attendance": "Review and categorize this holiday attendance.",
+        "leave_attendance": "Review leave validity and categorize this attendance.",
+        "late_no_arrival": "Contact employee or create a manual check-in.",
+        "absent_pending": "Review the pending manual check-in request.",
+        "unscheduled_attendance": "Verify attendance and assign to a schedule or record.",
+        "manual_review": "Review attendance record and update status."
+      },
+      "cta": {
+        "viewLiveBoard": "Live Board",
+        "openCorrections": "Corrections",
+        "openManualCheckins": "Manual Check-ins",
+        "viewRecords": "HR Records"
+      }
+    },
     "setupHealth": {
       "title": "Attendance setup incomplete",
       "description": "Some prerequisites are missing. Complete the steps below before attendance tracking will work correctly.",

@@ -50,6 +50,12 @@ import {
   operationalBandFromBoardStatus,
   riskLevelFromBoardStatus,
 } from "@shared/attendanceIntelligence";
+import {
+  resolveAttendanceDayState,
+  type AttendanceDayStatus,
+  type AttendancePayrollReadiness,
+  type AttendanceDayRiskLevel,
+} from "@shared/attendanceStatus";
 import { computeAndEnsureOverdueCheckoutIssues } from "../overdueCheckoutIssues.service";
 
 async function requireDb() {
@@ -82,6 +88,43 @@ function employeeRowFromScheduleRef<E extends { id: number; userId: number | nul
 
 function todayStr(): string {
   return muscatCalendarYmdNow();
+}
+
+/** Compute canonical Phase-3 fields for a board row using available shift data. */
+function _boardRowCanonicalFields(
+  attendanceDate: string,
+  now: Date,
+  shiftStartTime: string,
+  shiftEndTime: string,
+  gracePeriodMinutes: number,
+  checkInTime: Date | null,
+  checkOutTime: Date | null,
+  holidayFlag: boolean,
+): {
+  canonicalStatus: AttendanceDayStatus;
+  payrollReadiness: AttendancePayrollReadiness;
+  canonicalRiskLevel: AttendanceDayRiskLevel;
+  reasonCodes: string[];
+  isPayrollBlocking: boolean;
+} {
+  const result = resolveAttendanceDayState({
+    attendanceDate,
+    now,
+    scheduleExists: true,
+    shiftStartTime,
+    shiftEndTime,
+    gracePeriodMinutes,
+    checkInTime,
+    checkOutTime,
+    holidayFlag,
+  });
+  return {
+    canonicalStatus: result.status,
+    payrollReadiness: result.payrollReadiness,
+    canonicalRiskLevel: result.riskLevel,
+    reasonCodes: result.reasonCodes,
+    isPayrollBlocking: result.payrollReadiness.startsWith("blocked_"),
+  };
 }
 
 function todayDow(): number {
@@ -1054,6 +1097,7 @@ export const schedulingRouter = router({
             durationMinutes,
             delayMinutes,
           }),
+          ..._boardRowCanonicalFields(today, now, startT, endT, grace, checkInAt, checkOutAt, !!holiday),
         };
       });
 

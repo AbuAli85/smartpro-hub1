@@ -62,20 +62,39 @@ export function seesPlatformOperatorNavFromIdentity(user: IdentityAugmentedUser 
 }
 
 /**
- * Company provisioning flag — still uses legacy `users.platformRole === "company_admin"`
- * until explicitly modeled elsewhere (keeps workforce onboarding behaviour).
+ * Company provisioning flag — grants auto-provisioning on first login.
+ *
+ * Priority:
+ *   1. Global admin via platform_user_roles → always allowed.
+ *   2. User has been migrated to platform_user_roles (array is non-empty) but is NOT a global
+ *      admin → refuse; provisioning is global-admin-only for migrated users.
+ *   3. Legacy fallback: user has no platform_user_roles rows yet — allow provisioning when
+ *      users.platformRole === "company_admin" (onboarding path, transitional only).
  */
 export function isCompanyProvisioningAdminFromIdentity(user: IdentityAugmentedUser): boolean {
   if (canAccessGlobalAdminFromIdentity(user)) return true;
-  if (user.platformRole === "company_admin") return true;
+  const fromTable = (user.platformRoles ?? []).filter(Boolean);
+  if (fromTable.length > 0) return false;
   const pr = (user.platformRole ?? "").trim();
-  /** Transition: mapped membership sometimes surfaces only via legacy column. */
   return pr === "company_admin";
 }
 
+/**
+ * Survey admin access.
+ *
+ * Priority:
+ *   1. Global admin → always allowed.
+ *   2. Platform survey operator (regional_manager, client_services) → allowed.
+ *   3. User has been migrated to platform_user_roles (array is non-empty) → no further fallback;
+ *      survey admin for tenant users must be granted via a platform_user_roles row.
+ *   4. Legacy: users not yet migrated may still have platformRole === "company_admin" and
+ *      previously managed their own surveys. Transitional only — remove after migration.
+ */
 export function canAccessSurveyAdminFromIdentity(user: IdentityAugmentedUser): boolean {
   if (canAccessGlobalAdminFromIdentity(user)) return true;
   if (isPlatformSurveyOperatorFromIdentity(user)) return true;
+  const fromTable = (user.platformRoles ?? []).filter(Boolean);
+  if (fromTable.length > 0) return false;
   const pr = (user.platformRole ?? "").trim();
   return pr === "company_admin";
 }

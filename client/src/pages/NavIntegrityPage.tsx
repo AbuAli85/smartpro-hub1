@@ -1,6 +1,7 @@
 import { useState } from "react"; // used for IssueSection and HubDomainCard expanded state
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -245,7 +246,7 @@ export default function NavIntegrityPage() {
     toast.success("Re-running integrity checks…");
   };
 
-  if (!user || (user.platformRole !== "super_admin" && user.platformRole !== "platform_admin")) {
+  if (!user || !canAccessGlobalAdminProcedures(user)) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-muted-foreground text-sm">Access restricted to platform administrators.</p>

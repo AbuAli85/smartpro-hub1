@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, count, eq, gte, inArray, lt, lte, or, isNull } from "drizzle-orm";
-import { getDb, getUserCompany } from "../db";
+import { getDb } from "../db";
 import {
   shiftTemplates,
   employeeSchedules,

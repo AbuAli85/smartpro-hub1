@@ -52,8 +52,24 @@ describe("canAccessGlobalAdminProcedures", () => {
 });
 
 describe("isCompanyProvisioningAdmin", () => {
-  it("includes company_admin", () => {
-    expect(isCompanyProvisioningAdmin({ role: "user", platformRole: "company_admin" })).toBe(true);
+  it("legacy: allows provisioning when platformRoles is empty and platformRole=company_admin", () => {
+    expect(isCompanyProvisioningAdmin({ role: "user", platformRole: "company_admin", platformRoles: [] })).toBe(true);
+  });
+
+  it("migrated: denies provisioning when platformRoles has entries but no global admin slug", () => {
+    expect(
+      isCompanyProvisioningAdmin({ role: "user", platformRole: "company_admin", platformRoles: ["regional_manager"] }),
+    ).toBe(false);
+  });
+
+  it("global admin always gets provisioning regardless of platformRole value", () => {
+    expect(
+      isCompanyProvisioningAdmin({ role: "user", platformRole: "client", platformRoles: ["super_admin"] }),
+    ).toBe(true);
+  });
+
+  it("user with no platformRoles and no company_admin platformRole is denied", () => {
+    expect(isCompanyProvisioningAdmin({ role: "user", platformRole: "client", platformRoles: [] })).toBe(false);
   });
 });
 

@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql, gte, lte, isNull, not } from "drizzle-orm";
 import { z } from "zod";
-import { getDb, getUserCompany } from "../db";
+import { getDb } from "../db";
 import {
   automationRules,
   automationLogs,

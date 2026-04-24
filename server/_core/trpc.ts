@@ -1,7 +1,9 @@
 import { ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON } from "@shared/attendanceTrpcReasons";
+import { PLATFORM_ADMIN_MFA_REQUIRED_REASON } from "@shared/authTrpcReasons";
 import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
+import { assertPlatformAdminMfaEnabled } from "./platformAdminMfaGate";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
@@ -16,7 +18,10 @@ import { getImplicitWorkspaceCompanyIdForShadow } from "./membership";
 type AuthenticatedContext = Omit<TrpcContext, "user"> & { user: SessionUser };
 
 /** Only these values are copied onto the wire as `error.data.reason` (avoid leaking arbitrary `cause`). */
-const TRPC_CLIENT_REASON_ALLOWLIST = new Set<string>([ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON]);
+const TRPC_CLIENT_REASON_ALLOWLIST = new Set<string>([
+  ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON,
+  PLATFORM_ADMIN_MFA_REQUIRED_REASON,
+]);
 
 function reasonFromTrpcErrorCause(cause: unknown): string | undefined {
   if (!cause || typeof cause !== "object") return undefined;
@@ -121,8 +126,16 @@ export const platformOperatorReadProcedure = t.procedure
  * Cross-tenant platform procedures (officers, platformOps mutations, system.notifyOwner).
  * Uses {@link canAccessGlobalAdminProcedures} (platform_user_roles + legacy fallbacks).
  *
- * TODO (security policy): enforce mandatory 2FA for super_admin / platform_admin using
- * `user_security_settings` + step-up middleware once UI flows are production-ready.
+ * Security layers applied in order:
+ *  1. RBAC – caller must be super_admin or platform_admin (canAccessGlobalAdminProcedures).
+ *  2. 2FA  – caller must have two-factor authentication enabled on their account.
+ *             The live `users.twoFactorEnabled` field is read from the DB on every request;
+ *             the OAuth login flow already enforces the MFA challenge when it is true, so a
+ *             session that passes both checks was established after MFA verification.
+ *
+ * platformOperatorReadProcedure (read-only, broader operator set) intentionally does NOT
+ * require 2FA: it is accessible to regional_manager / client_services / sanad roles whose
+ * 2FA posture is managed separately, and the data it exposes is read-only and lower-risk.
  */
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
@@ -131,6 +144,8 @@ export const adminProcedure = t.procedure.use(
     if (!ctx.user || !canAccessGlobalAdminProcedures(ctx.user)) {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
+
+    assertPlatformAdminMfaEnabled(ctx.user);
 
     return next({
       ctx: ctx as AuthenticatedContext,

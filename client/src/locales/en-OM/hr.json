@@ -1120,6 +1120,28 @@
         "noSchedulesHint": "Use the setup links above to configure employees, sites, and shifts."
       },
       "detailedRecordsLabel": "Detailed Records"
+    },
+    "dailyDigest": {
+      "title": "Daily Digest",
+      "severity": {
+        "normal": "Normal",
+        "attention": "Attention",
+        "critical": "Critical"
+      },
+      "headline": {
+        "normal": "All attendance on track",
+        "attention": "Attendance items need review",
+        "critical": "Payroll-blocking issues detected"
+      },
+      "summaryLine": {
+        "normal": "No outstanding attendance issues for this date.",
+        "attention": "Some attendance records require review or HR action.",
+        "critical": "Payroll-blocking items must be resolved before payroll runs."
+      },
+      "topIssues": "Top Issues",
+      "employeesAffected": "Employees Affected",
+      "payrollBlocked": "Payroll Blocked",
+      "noIssues": "No attendance issues for this date."
     }
   },
   "leave": {

@@ -5,6 +5,7 @@ import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
 import { fmtTime } from "@/lib/dateUtils";
 import type { Capabilities } from "@/hooks/useMyCapabilities";
 import type { AttendanceActionQueueCtaTarget, AttendanceActionQueueCategory } from "@shared/attendanceActionQueue";
+import { buildAttendanceDailyDigest, type AttendanceDailyDigest } from "@shared/attendanceDailyDigest";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Users, CheckCircle2, LogOut, Clock, AlertCircle,
   XCircle, ShieldAlert, Eye, Search, RefreshCw,
-  ArrowRight, Calendar, MapPin,
+  ArrowRight, Calendar, MapPin, Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +50,131 @@ const PAYROLL_BADGE: Record<string, string> = {
   blocked_pending_manual_checkin: "border-red-300 bg-red-50 text-red-800",
   blocked_schedule_conflict: "border-red-300 bg-red-50 text-red-800",
 };
+
+// ---------------------------------------------------------------------------
+// Severity styles for digest panel
+// ---------------------------------------------------------------------------
+
+const DIGEST_SEVERITY_CARD: Record<string, string> = {
+  normal: "border-border bg-muted/30",
+  attention: "border-amber-300 bg-amber-50 dark:bg-amber-950/20",
+  critical: "border-red-400 bg-red-50 dark:bg-red-950/20",
+};
+
+const DIGEST_SEVERITY_BADGE: Record<string, string> = {
+  normal: "border-border text-muted-foreground",
+  attention: "border-amber-400 bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
+  critical: "border-red-400 bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200",
+};
+
+const DIGEST_ISSUE_BADGE: Record<string, string> = {
+  critical: "border-red-300 bg-red-50 text-red-800",
+  high: "border-orange-300 bg-orange-50 text-orange-800",
+  medium: "border-amber-300 bg-amber-50 text-amber-900",
+  low: "border-slate-300 bg-slate-50 text-slate-600",
+};
+
+// ---------------------------------------------------------------------------
+// DigestPanel — compact daily digest card
+// ---------------------------------------------------------------------------
+
+function DigestPanel({ digest }: { digest: AttendanceDailyDigest }) {
+  const { t } = useTranslation("hr");
+  const { severity, totals, topIssues } = digest;
+  const isCritical = severity === "critical";
+
+  return (
+    <Card
+      className={cn("border", DIGEST_SEVERITY_CARD[severity])}
+      data-testid="digest-panel"
+    >
+      <CardContent className="p-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          {/* Left: icon + headline + summary */}
+          <div className="flex items-start gap-2 min-w-0">
+            <Activity
+              className={cn(
+                "h-4 w-4 mt-0.5 shrink-0",
+                isCritical ? "text-red-600" : severity === "attention" ? "text-amber-600" : "text-muted-foreground",
+              )}
+            />
+            <div className="min-w-0 space-y-0.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-sm font-semibold leading-tight">
+                  {t("attendance.dailyDigest.title")}
+                </span>
+                <Badge
+                  variant="outline"
+                  className={cn("text-[10px] h-4 px-1", DIGEST_SEVERITY_BADGE[severity])}
+                  data-testid="digest-severity-badge"
+                >
+                  {t(`attendance.dailyDigest.severity.${severity}`)}
+                </Badge>
+              </div>
+              <p className="text-xs font-medium leading-tight" data-testid="digest-headline">
+                {t(digest.headlineKey)}
+              </p>
+              <p className="text-[11px] text-muted-foreground leading-tight" data-testid="digest-summary-line">
+                {t(digest.summaryLineKey)}
+              </p>
+            </div>
+          </div>
+
+          {/* Right: key metrics */}
+          <div className="flex flex-wrap items-center gap-3 text-xs shrink-0">
+            {totals.payrollBlocked > 0 && (
+              <div className="flex items-center gap-1 text-red-700 dark:text-red-400" data-testid="digest-payroll-blocked">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                <span className="font-semibold">{totals.payrollBlocked}</span>
+                <span className="text-muted-foreground">{t("attendance.dailyDigest.payrollBlocked")}</span>
+              </div>
+            )}
+            {totals.employeesAffected > 0 && (
+              <div className="flex items-center gap-1 text-muted-foreground" data-testid="digest-employees-affected">
+                <Users className="h-3.5 w-3.5" />
+                <span className="font-semibold text-foreground">{totals.employeesAffected}</span>
+                <span>{t("attendance.dailyDigest.employeesAffected")}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Top issues (up to 3) */}
+        {topIssues.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-border/50">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              {t("attendance.dailyDigest.topIssues")}
+            </p>
+            <div className="flex flex-wrap gap-1.5" data-testid="digest-top-issues">
+              {topIssues.slice(0, 3).map((issue) => (
+                <div
+                  key={issue.category}
+                  className={cn(
+                    "flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]",
+                    DIGEST_ISSUE_BADGE[issue.severity] ?? DIGEST_ISSUE_BADGE.low,
+                  )}
+                  data-testid="digest-issue-chip"
+                >
+                  <span className="font-medium">
+                    {t(`attendance.actionQueue.categories.${issue.category}`)}
+                  </span>
+                  <span className="opacity-70">×{issue.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No issues */}
+        {topIssues.length === 0 && severity === "normal" && (
+          <p className="mt-1 text-[11px] text-muted-foreground" data-testid="digest-no-issues">
+            {t("attendance.dailyDigest.noIssues")}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Capability helper
@@ -107,6 +233,18 @@ export function DailyAttendanceCockpit({
 
   const rows = data?.rows ?? [];
   const summary = data?.summary;
+
+  // ── Daily digest (pure, derived from existing rows — no extra server call) ────
+  const digest = useMemo(() => {
+    if (!data?.rows || data.rows.length === 0) return null;
+    return buildAttendanceDailyDigest(data.rows, {
+      date,
+      siteId: siteIdParam != null ? String(siteIdParam) : null,
+      siteNameMap: siteById.size > 0
+        ? new Map([...siteById.entries()].map(([id, s]) => [id, s.name]))
+        : undefined,
+    });
+  }, [data?.rows, date, siteIdParam, siteById]);
 
   // ── Client-side derived counts ───────────────────────────────────────────────
   const counts = useMemo(() => {
@@ -297,6 +435,11 @@ export function DailyAttendanceCockpit({
           <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
         </Button>
       </div>
+
+      {/* Daily Digest panel */}
+      {!isLoading && !showEmpty && digest && (
+        <DigestPanel digest={digest} />
+      )}
 
       {/* Summary cards */}
       {!showEmpty && (

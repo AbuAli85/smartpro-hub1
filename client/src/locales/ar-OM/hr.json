@@ -249,6 +249,38 @@
     "exportFailed": "فشل التصدير",
     "recordAttendance": "تسجيل الحضور",
     "operationalControlDesc": "مركز التحكم التشغيلي — حالة القوى العاملة المباشرة والاعتمادات وسجلات الحضور في مكان واحد.",
+    "canonicalStatus": {
+      "scheduled": "مجدول",
+      "upcoming": "قادم",
+      "awaiting_check_in": "في انتظار تسجيل الحضور",
+      "checked_in_on_time": "حضر في الوقت المحدد",
+      "checked_in_late": "حضر متأخراً",
+      "checked_out": "سجّل الانصراف",
+      "late_no_arrival": "تأخر — لم يصل بعد",
+      "absent_pending": "غائب (قيد المراجعة)",
+      "absent_confirmed": "غائب",
+      "holiday": "عطلة رسمية",
+      "leave": "في إجازة",
+      "remote": "عمل عن بُعد",
+      "unscheduled_attendance": "حضور غير مجدول",
+      "needs_review": "يحتاج إلى مراجعة"
+    },
+    "payrollReadiness": {
+      "ready": "جاهز للرواتب",
+      "needs_review": "يحتاج إلى مراجعة",
+      "blocked_missing_checkout": "محظور — انصراف مفقود",
+      "blocked_pending_correction": "محظور — تصحيح معلق",
+      "blocked_pending_manual_checkin": "محظور — حضور يدوي معلق",
+      "blocked_schedule_conflict": "محظور — تعارض في الجدول",
+      "excluded": "مستثنى من الرواتب"
+    },
+    "riskLevel": {
+      "none": "لا يوجد",
+      "low": "منخفض",
+      "medium": "متوسط",
+      "high": "مرتفع",
+      "critical": "حرج"
+    },
     "setupHealth": {
       "title": "إعداد الحضور غير مكتمل",
       "description": "بعض المتطلبات الأساسية مفقودة. أكمل الخطوات التالية قبل أن يعمل تتبع الحضور بشكل صحيح.",

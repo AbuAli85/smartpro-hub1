@@ -249,6 +249,38 @@
     "exportFailed": "Export failed",
     "recordAttendance": "Record Attendance",
     "operationalControlDesc": "Operational control center — live workforce state, approvals, and attendance records in one place.",
+    "canonicalStatus": {
+      "scheduled": "Scheduled",
+      "upcoming": "Upcoming",
+      "awaiting_check_in": "Awaiting Check-In",
+      "checked_in_on_time": "Checked In (On Time)",
+      "checked_in_late": "Checked In (Late)",
+      "checked_out": "Checked Out",
+      "late_no_arrival": "Late — No Arrival",
+      "absent_pending": "Absent (Pending Review)",
+      "absent_confirmed": "Absent",
+      "holiday": "Public Holiday",
+      "leave": "On Leave",
+      "remote": "Remote Work",
+      "unscheduled_attendance": "Unscheduled Attendance",
+      "needs_review": "Needs Review"
+    },
+    "payrollReadiness": {
+      "ready": "Payroll Ready",
+      "needs_review": "Needs Review",
+      "blocked_missing_checkout": "Blocked — Missing Checkout",
+      "blocked_pending_correction": "Blocked — Correction Pending",
+      "blocked_pending_manual_checkin": "Blocked — Manual Check-In Pending",
+      "blocked_schedule_conflict": "Blocked — Schedule Conflict",
+      "excluded": "Excluded from Payroll"
+    },
+    "riskLevel": {
+      "none": "None",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
     "setupHealth": {
       "title": "Attendance setup incomplete",
       "description": "Some prerequisites are missing. Complete the steps below before attendance tracking will work correctly.",

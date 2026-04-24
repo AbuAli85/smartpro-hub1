@@ -433,7 +433,10 @@
       "save": "Save attendance record",
       "recorded": "Attendance record added",
       "noEmployeesTooltip": "No active employees available. Add employees first.",
-      "noEmployeesHint": "No active employees are available. Go to Employees to add or activate employees before recording attendance."
+      "noEmployeesHint": "No active employees are available. Go to Employees to add or activate employees before recording attendance.",
+      "weakReasonHint": "Reason is too generic. Describe who requested this entry and why (e.g. 'Manager confirmed on-site — ID card log ref #1234').",
+      "duplicateError": "A manual attendance record already exists for this employee on this date. Edit the existing record instead.",
+      "payrollReviewNote": "Manual records have no linked schedule. Payroll review may be needed for this entry."
     },
     "editDialog": {
       "title": "Edit HR attendance record",

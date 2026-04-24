@@ -1,4 +1,8 @@
-import { ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON } from "@shared/attendanceTrpcReasons";
+import {
+  ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON,
+  DUPLICATE_MANUAL_ATTENDANCE,
+  WEAK_AUDIT_REASON,
+} from "@shared/attendanceTrpcReasons";
 import { PLATFORM_ADMIN_MFA_REQUIRED_REASON } from "@shared/authTrpcReasons";
 import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
@@ -21,6 +25,8 @@ type AuthenticatedContext = Omit<TrpcContext, "user"> & { user: SessionUser };
 const TRPC_CLIENT_REASON_ALLOWLIST = new Set<string>([
   ATTENDANCE_SESSIONS_TABLE_REQUIRED_REASON,
   PLATFORM_ADMIN_MFA_REQUIRED_REASON,
+  DUPLICATE_MANUAL_ATTENDANCE,
+  WEAK_AUDIT_REASON,
 ]);
 
 function reasonFromTrpcErrorCause(cause: unknown): string | undefined {

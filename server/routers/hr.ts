@@ -81,7 +81,14 @@ import {
   muscatCalendarYmdFromUtcInstant,
   muscatMinutesSinceMidnight,
   muscatMonthUtcRangeExclusiveEnd,
+  muscatDayUtcRangeExclusiveEnd,
 } from "@shared/attendanceMuscatTime";
+import { isWeakAuditReason } from "@shared/attendanceManualValidation";
+import {
+  DUPLICATE_MANUAL_ATTENDANCE,
+  WEAK_AUDIT_REASON,
+} from "@shared/attendanceTrpcReasons";
+import { findAttendanceForDate } from "../repositories/attendance.repository";
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -878,21 +885,36 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
-      const companyId = membership.companyId;
-      requireNotAuditor(membership.role);
+      const { companyId, role } = await requireHrOrAdmin(ctx.user as User, input.companyId);
+      const reasonTrimmed = input.notes.trim();
+      if (isWeakAuditReason(reasonTrimmed)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Audit reason is too generic. Describe who requested this entry and why.",
+          cause: { reason: WEAK_AUDIT_REASON },
+        });
+      }
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      const { startUtc, endExclusiveUtc } = muscatDayUtcRangeExclusiveEnd(input.date);
+      const existing = await findAttendanceForDate(companyId, input.employeeId, startUtc, endExclusiveUtc);
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "A manual attendance record already exists for this employee on this date.",
+          cause: { reason: DUPLICATE_MANUAL_ATTENDANCE },
+        });
+      }
       const auditPrefix = `[HR audit userId=${ctx.user.id} at ${new Date().toISOString()}] `;
-      const fullNotes = auditPrefix + input.notes.trim();
+      const fullNotes = auditPrefix + reasonTrimmed;
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await db.transaction(async (tx) => {
         const hrId = await createAttendanceRecordTx(tx, {
           companyId,
           employeeId: input.employeeId,
-          date: new Date(input.date),
+          date: startUtc,
           checkIn: input.checkIn ? new Date(input.checkIn) : undefined,
           checkOut: input.checkOut ? new Date(input.checkOut) : undefined,
           status: input.status,
@@ -903,7 +925,7 @@ export const hrRouter = router({
           employeeId: input.employeeId,
           hrAttendanceId: hrId,
           actorUserId: ctx.user.id,
-          actorRole: membership.role,
+          actorRole: role,
           actionType: ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE,
           entityType: ATTENDANCE_AUDIT_ENTITY.HR_ATTENDANCE,
           entityId: hrId,
@@ -918,7 +940,7 @@ export const hrRouter = router({
               status: input.status,
               notes: fullNotes,
             }) ?? undefined,
-          reason: input.notes.trim(),
+          reason: reasonTrimmed,
           source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
         });
       });

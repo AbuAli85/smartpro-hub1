@@ -53,6 +53,8 @@ import {
   type OperationalQueueFilter,
 } from "@shared/attendanceIntelligence";
 import { muscatCalendarYmdFromUtcInstant, muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
+import { isWeakAuditReason } from "@shared/attendanceManualValidation";
+import { DUPLICATE_MANUAL_ATTENDANCE, WEAK_AUDIT_REASON } from "@shared/attendanceTrpcReasons";
 import { useAttendanceOperationalMutations } from "@/hooks/useAttendanceOperationalMutations";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
@@ -594,13 +596,19 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
     notes: "",
     date: muscatCalendarYmdNow(),
   });
-  const reasonOk = form.notes.trim().length >= 10;
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const reasonTrimmed = form.notes.trim();
+  const reasonOk = reasonTrimmed.length >= 10;
+  const reasonWeak = reasonOk && isWeakAuditReason(reasonTrimmed);
+  const canSubmit = !!form.employeeId && reasonOk && !reasonWeak;
 
   const utils = trpc.useUtils();
   const createMutation = trpc.hr.createAttendance.useMutation({
     onSuccess: () => {
       toast.success(t("attendance.clockInDialog.recorded"));
       setOpen(false);
+      setServerError(null);
       utils.hr.listAttendance.invalidate();
       utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
@@ -608,13 +616,25 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
       void utils.scheduling.getOverdueCheckouts.invalidate();
       onSuccess();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => {
+      const reason = (e.data as { reason?: string } | undefined)?.reason;
+      if (reason === DUPLICATE_MANUAL_ATTENDANCE) {
+        setServerError(t("attendance.clockInDialog.duplicateError"));
+        toast.error(t("attendance.clockInDialog.duplicateError"));
+      } else if (reason === WEAK_AUDIT_REASON) {
+        setServerError(t("attendance.clockInDialog.weakReasonHint"));
+        toast.error(t("attendance.clockInDialog.weakReasonHint"));
+      } else {
+        setServerError(e.message);
+        toast.error(e.message);
+      }
+    },
   });
 
   const noEligibleEmployees = employees.length === 0;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setServerError(null); }}>
       <DialogTrigger asChild>
         <Button size="sm" className="gap-2" disabled={noEligibleEmployees} title={noEligibleEmployees ? t("attendance.clockInDialog.noEmployeesTooltip") : undefined}>
           <Clock size={14} /> {t("attendance.clockInDialog.trigger")}
@@ -634,7 +654,7 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
           <div className="space-y-4 mt-2">
             <div className="space-y-1.5">
               <Label>{t("attendance.clockInDialog.employeeLabel")}</Label>
-              <Select value={form.employeeId} onValueChange={(v) => setForm({ ...form, employeeId: v })}>
+              <Select value={form.employeeId} onValueChange={(v) => { setForm({ ...form, employeeId: v }); setServerError(null); }}>
                 <SelectTrigger><SelectValue placeholder={t("attendance.clockInDialog.selectEmployee")} /></SelectTrigger>
                 <SelectContent>
                   {employees.map((e) => (
@@ -645,7 +665,7 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
             </div>
             <div className="space-y-1.5">
               <Label>{t("attendance.clockInDialog.dateLabel")}</Label>
-              <DateInput value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="text-sm" />
+              <DateInput value={form.date} onChange={(e) => { setForm({ ...form, date: e.target.value }); setServerError(null); }} className="text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label>{t("attendance.clockInDialog.statusLabel")}</Label>
@@ -665,13 +685,20 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
               <Textarea
                 placeholder={t("attendance.clockInDialog.reasonPlaceholder")}
                 value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                onChange={(e) => { setForm({ ...form, notes: e.target.value }); setServerError(null); }}
                 className="text-sm min-h-[88px]"
               />
-              <p className="text-[11px] text-muted-foreground">{t("attendance.clockInDialog.reasonHint")}</p>
+              {reasonWeak && (
+                <p className="text-[11px] text-destructive">{t("attendance.clockInDialog.weakReasonHint")}</p>
+              )}
+              {!reasonWeak && <p className="text-[11px] text-muted-foreground">{t("attendance.clockInDialog.reasonHint")}</p>}
             </div>
-            <Button className="w-full" disabled={!form.employeeId || !reasonOk || createMutation.isPending}
-              onClick={() => createMutation.mutate({ employeeId: Number(form.employeeId), status: form.status, notes: form.notes.trim(), date: form.date, companyId: companyId ?? undefined })}>
+            <p className="text-[11px] text-amber-600">{t("attendance.clockInDialog.payrollReviewNote")}</p>
+            {serverError && (
+              <p className="text-[12px] text-destructive">{serverError}</p>
+            )}
+            <Button className="w-full" disabled={!canSubmit || createMutation.isPending}
+              onClick={() => createMutation.mutate({ employeeId: Number(form.employeeId), status: form.status, notes: reasonTrimmed, date: form.date, companyId: companyId ?? undefined })}>
               {createMutation.isPending ? t("attendance.clockInDialog.recording") : t("attendance.clockInDialog.save")}
             </Button>
           </div>

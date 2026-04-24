@@ -105,3 +105,30 @@ export async function deleteAttendanceRecord(id: number) {
   if (!db) throw new Error("Database not available");
   await db.delete(attendance).where(eq(attendance.id, id));
 }
+
+/**
+ * Returns the first existing manual attendance row for the given employee on the
+ * given Muscat calendar date, or null if none exists. Used for duplicate prevention.
+ */
+export async function findAttendanceForDate(
+  companyId: number,
+  employeeId: number,
+  dateStartUtc: Date,
+  dateEndExclusiveUtc: Date,
+): Promise<{ id: number } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db
+    .select({ id: attendance.id })
+    .from(attendance)
+    .where(
+      and(
+        eq(attendance.companyId, companyId),
+        eq(attendance.employeeId, employeeId),
+        gte(attendance.date, dateStartUtc),
+        lt(attendance.date, dateEndExclusiveUtc),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}

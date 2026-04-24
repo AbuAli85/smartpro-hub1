@@ -147,12 +147,12 @@ function setupMocks(rows: ReturnType<typeof makeRow>[] = [], summary = DEFAULT_S
 // ---------------------------------------------------------------------------
 
 describe("DailyAttendanceCockpit", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     mockGetDailyStates.mockReset();
     mockListSites.mockReset();
   });
-
-  afterEach(() => cleanup());
 
   // 1. Summary counts render correctly
   it("renders summary counts from getDailyStates data", () => {
@@ -185,8 +185,9 @@ describe("DailyAttendanceCockpit", () => {
 
     render(<DailyAttendanceCockpit companyId={1} caps={FULL_CAPS} />);
 
-    // Before toggle: both rows visible
-    const rowsBefore = screen.getAllByTestId("cockpit-table-row");
+    // Before toggle: both rows visible in the employee table
+    const tableCard = screen.getByTestId("cockpit-table");
+    const rowsBefore = Array.from(tableCard.querySelectorAll('[data-testid="cockpit-table-row"]'));
     expect(rowsBefore).toHaveLength(2);
 
     // Toggle on
@@ -194,7 +195,7 @@ describe("DailyAttendanceCockpit", () => {
     fireEvent.click(toggle);
 
     // After toggle: only Sara's row visible
-    const rowsAfter = screen.getAllByTestId("cockpit-table-row");
+    const rowsAfter = Array.from(tableCard.querySelectorAll('[data-testid="cockpit-table-row"]'));
     expect(rowsAfter).toHaveLength(1);
     expect(rowsAfter[0]).toHaveTextContent("Sara Al-Harthi");
   });
@@ -210,10 +211,12 @@ describe("DailyAttendanceCockpit", () => {
 
     render(<DailyAttendanceCockpit companyId={1} caps={FULL_CAPS} />);
 
-    const searchInput = screen.getByPlaceholderText("attendance.cockpit.controls.searchPlaceholder");
+    const searchInputs = screen.getAllByPlaceholderText("attendance.cockpit.controls.searchPlaceholder");
+    const searchInput = searchInputs[0];
     fireEvent.change(searchInput, { target: { value: "sara" } });
 
-    const tableRows = screen.getAllByTestId("cockpit-table-row");
+    const tableCard = screen.getByTestId("cockpit-table");
+    const tableRows = Array.from(tableCard.querySelectorAll('[data-testid="cockpit-table-row"]'));
     expect(tableRows).toHaveLength(1);
     expect(tableRows[0]).toHaveTextContent("Sara Al-Harthi");
   });

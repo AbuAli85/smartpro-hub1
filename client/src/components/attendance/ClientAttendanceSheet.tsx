@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
-import { Download, Search, FileText, AlertCircle, Calendar } from "lucide-react";
+import { Download, Search, FileText, AlertCircle, Calendar, PlusCircle, AlertTriangle } from "lucide-react";
 import * as ExcelJS from "exceljs";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -18,6 +18,14 @@ import {
 import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
 import { fmtTime } from "@/lib/dateUtils";
 import type { DailyAttendanceState } from "@shared/attendanceDailyState";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -252,6 +260,18 @@ export function ClientAttendanceSheet({
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [exporting, setExporting] = useState(false);
+  const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+
+  // ── Capabilities ──────────────────────────────────────────────────────────────
+  const { caps } = useMyCapabilities();
+  const canCreate = caps.canCreateAttendanceClientApproval;
+  const canSubmit = caps.canSubmitAttendanceClientApproval;
+
+  // ── tRPC utils + batch mutations ───────────────────────────────────────────────
+  const utils = trpc.useUtils();
+  const createMutation = trpc.attendance.createClientApprovalBatch.useMutation();
+  const submitMutation = trpc.attendance.submitClientApprovalBatch.useMutation();
+  const isMutating = createMutation.isPending || submitMutation.isPending;
 
   // ── Quick filter handlers ────────────────────────────────────────────────
 
@@ -354,8 +374,10 @@ export function ClientAttendanceSheet({
       rejected = 0,
       pendingApproval = 0,
       notSubmitted = 0;
+    const employeeSet = new Set<number>();
 
     for (const row of filteredRows) {
+      employeeSet.add(row.employeeId);
       const s = row.canonicalStatus;
       const p = row.payrollReadiness;
 
@@ -396,6 +418,7 @@ export function ClientAttendanceSheet({
       rejected,
       pendingApproval,
       notSubmitted,
+      uniqueEmployees: employeeSet.size,
     };
   }, [filteredRows]);
 
@@ -532,6 +555,47 @@ export function ClientAttendanceSheet({
     }
   }, [startDate, endDate, filteredRows, siteById, selectedSiteName, t]);
 
+  // ── Batch creation ─────────────────────────────────────────────────────────
+
+  const handleCreateBatch = useCallback(
+    async (shouldSubmit: boolean) => {
+      try {
+        const result = await createMutation.mutateAsync({
+          periodStart: startDate,
+          periodEnd: endDate,
+          siteId: siteIdParam,
+        });
+        if (shouldSubmit) {
+          await submitMutation.mutateAsync({ batchId: result.batchId });
+          toast.success(t("attendance.clientSheet.batch.submittedToast"), {
+            action: {
+              label: t("attendance.clientSheet.batch.goToApprovals"),
+              onClick: () => { window.location.href = "/hr/client-approvals"; },
+            },
+            duration: 8000,
+          });
+        } else {
+          toast.success(t("attendance.clientSheet.batch.createdToast"), {
+            action: {
+              label: t("attendance.clientSheet.batch.goToApprovals"),
+              onClick: () => { window.location.href = "/hr/client-approvals"; },
+            },
+            duration: 8000,
+          });
+        }
+        setBatchDialogOpen(false);
+        void utils.attendance.getDailyStatesForRange.invalidate();
+      } catch (err: unknown) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : t("attendance.clientSheet.batch.errorGeneric")
+        );
+      }
+    },
+    [startDate, endDate, siteIdParam, createMutation, submitMutation, t, utils]
+  );
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -652,7 +716,20 @@ export function ClientAttendanceSheet({
           </Select>
         </div>
 
-        <div className="ml-auto flex items-end">
+        <div className="ml-auto flex items-end gap-2">
+          {canCreate && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBatchDialogOpen(true)}
+              disabled={filteredRows.length === 0 || rangeInvalid || isMutating}
+              className="h-9 gap-2"
+              data-testid="create-batch-btn"
+            >
+              <PlusCircle size={14} />
+              {t("attendance.clientSheet.batch.createButton")}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -888,6 +965,117 @@ export function ClientAttendanceSheet({
           </table>
         </div>
       )}
+
+      {/* Create Approval Batch dialog */}
+      <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
+        <DialogContent className="max-w-md" data-testid="batch-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {t("attendance.clientSheet.batch.dialogTitle")}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            {/* Summary grid */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              <span className="text-muted-foreground">
+                {t("attendance.clientSheet.batch.period")}
+              </span>
+              <span className="font-medium tabular-nums">
+                {startDate === endDate
+                  ? startDate
+                  : `${startDate} – ${endDate}`}
+              </span>
+
+              <span className="text-muted-foreground">
+                {t("attendance.clientSheet.batch.site")}
+              </span>
+              <span className="font-medium">
+                {selectedSiteName ??
+                  t("attendance.clientSheet.batch.allSites")}
+              </span>
+
+              <span className="text-muted-foreground">
+                {t("attendance.clientSheet.batch.totalRows")}
+              </span>
+              <span className="font-medium tabular-nums">
+                {filteredRows.length}
+              </span>
+
+              <span className="text-muted-foreground">
+                {t("attendance.clientSheet.batch.employees")}
+              </span>
+              <span className="font-medium tabular-nums">
+                {summary.uniqueEmployees}
+              </span>
+
+              <span className="text-muted-foreground">
+                {t("attendance.clientSheet.batch.notSubmittedRows")}
+              </span>
+              <span className="font-medium tabular-nums">
+                {summary.notSubmitted}
+              </span>
+
+              <span className="text-muted-foreground">
+                {t("attendance.clientSheet.summaryCards.payrollBlocked")}
+              </span>
+              <span
+                className={`font-medium tabular-nums ${summary.payrollBlocked > 0 ? "text-red-600" : ""}`}
+              >
+                {summary.payrollBlocked}
+              </span>
+            </div>
+
+            {/* Payroll-blocked warning */}
+            {summary.payrollBlocked > 0 && (
+              <div
+                className="rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2 flex items-start gap-2 text-sm text-amber-800"
+                data-testid="payroll-blocked-warning"
+              >
+                <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                <span>
+                  {t("attendance.clientSheet.batch.payrollBlockedWarning")}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBatchDialogOpen(false)}
+              disabled={isMutating}
+            >
+              {t("attendance.clientSheet.batch.cancel")}
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => void handleCreateBatch(false)}
+              disabled={isMutating}
+              data-testid="create-draft-btn"
+            >
+              {isMutating
+                ? t("attendance.clientSheet.batch.creating")
+                : t("attendance.clientSheet.batch.createDraft")}
+            </Button>
+            {canSubmit && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => void handleCreateBatch(true)}
+                disabled={isMutating}
+                data-testid="create-and-submit-btn"
+              >
+                {isMutating
+                  ? t("attendance.clientSheet.batch.creating")
+                  : t("attendance.clientSheet.batch.createAndSubmit")}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

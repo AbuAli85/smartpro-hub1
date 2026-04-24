@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { ClientAttendanceSheet } from "./ClientAttendanceSheet";
 
@@ -9,20 +9,52 @@ import { ClientAttendanceSheet } from "./ClientAttendanceSheet";
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { mockGetDailyStatesForRange, mockListSites } = vi.hoisted(() => ({
+const {
+  mockGetDailyStatesForRange,
+  mockListSites,
+  mockCaps,
+  mockCreateBatchMutateAsync,
+  mockSubmitBatchMutateAsync,
+  mockInvalidate,
+  mockToastSuccess,
+  mockToastError,
+} = vi.hoisted(() => ({
   mockGetDailyStatesForRange: vi.fn(),
   mockListSites: vi.fn(),
+  mockCaps: vi.fn(),
+  mockCreateBatchMutateAsync: vi.fn(),
+  mockSubmitBatchMutateAsync: vi.fn(),
+  mockInvalidate: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
 }));
 
 vi.stubGlobal("React", React);
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
+    useUtils: () => ({
+      attendance: {
+        getDailyStatesForRange: { invalidate: mockInvalidate },
+      },
+    }),
     attendance: {
       getDailyStatesForRange: {
         useQuery: (...args: unknown[]) => mockGetDailyStatesForRange(...args),
       },
       listSites: { useQuery: (...args: unknown[]) => mockListSites(...args) },
+      createClientApprovalBatch: {
+        useMutation: () => ({
+          mutateAsync: mockCreateBatchMutateAsync,
+          isPending: false,
+        }),
+      },
+      submitClientApprovalBatch: {
+        useMutation: () => ({
+          mutateAsync: mockSubmitBatchMutateAsync,
+          isPending: false,
+        }),
+      },
     },
   },
 }));
@@ -49,7 +81,52 @@ vi.mock("wouter", () => ({
     React.createElement("a", { href }, children),
 }));
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: unknown[]) => mockToastSuccess(...args),
+    error: (...args: unknown[]) => mockToastError(...args),
+  },
+}));
+
+vi.mock("@/hooks/useMyCapabilities", () => ({
+  useMyCapabilities: () => ({ caps: mockCaps(), loading: false }),
+}));
+
+// Radix Dialog → simple DOM passthrough when open; also export useDialogComposition
+// used by Input component internally.
+vi.mock("@/components/ui/dialog", () => ({
+  useDialogComposition: () => ({
+    isComposing: () => false,
+    setComposing: () => {},
+    justEndedComposing: () => false,
+    markCompositionEnd: () => {},
+  }),
+  Dialog: ({
+    open,
+    children,
+  }: {
+    open: boolean;
+    onOpenChange: (v: boolean) => void;
+    children: React.ReactNode;
+  }) =>
+    open
+      ? React.createElement(
+          "div",
+          { "data-testid": "batch-dialog" },
+          children
+        )
+      : null,
+  DialogContent: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("div", null, children),
+  DialogHeader: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("div", null, children),
+  DialogTitle: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("h2", null, children),
+  DialogFooter: ({ children, className }: { children: React.ReactNode; className?: string }) =>
+    React.createElement("div", { className }, children),
+  DialogDescription: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("p", null, children),
+}));
 
 // Radix Select → native <select> for easy testing
 vi.mock("@/components/ui/select", () => ({
@@ -168,6 +245,13 @@ function defaultRangeResult(rows: ReturnType<typeof makeRow>[] = [makeRow()]) {
   };
 }
 
+const defaultCaps = {
+  canCreateAttendanceClientApproval: true,
+  canSubmitAttendanceClientApproval: true,
+  canApproveAttendanceClientApproval: false,
+  canViewAttendanceClientApproval: true,
+};
+
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
@@ -177,6 +261,10 @@ beforeEach(() => {
     data: [{ id: 10, name: "Al-Khuwair Site", isActive: true }],
   });
   mockGetDailyStatesForRange.mockReturnValue(defaultRangeResult());
+  mockCaps.mockReturnValue(defaultCaps);
+  mockCreateBatchMutateAsync.mockResolvedValue({ batchId: 42, itemCount: 1 });
+  mockSubmitBatchMutateAsync.mockResolvedValue({ batchId: 42, status: "submitted" });
+  mockInvalidate.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -189,6 +277,8 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("ClientAttendanceSheet", () => {
+  // ── Existing tests (unchanged) ─────────────────────────────────────────────
+
   // 1. Default date range
   it("defaults to today for both start and end date", () => {
     render(<ClientAttendanceSheet companyId={1} />);
@@ -290,7 +380,7 @@ describe("ClientAttendanceSheet", () => {
     ).toBeInTheDocument();
   });
 
-  // 9. Export button exists and includes date range in its behavior
+  // 9. Export button exists and is enabled when rows exist
   it("export button is present and enabled when rows exist", () => {
     render(<ClientAttendanceSheet companyId={1} />);
     const exportBtn = screen.getByRole("button", {
@@ -440,5 +530,215 @@ describe("ClientAttendanceSheet", () => {
     const endInput = screen.getByDisplayValue("2026-04-26");
     expect(startInput).toBeInTheDocument();
     expect(endInput).toBeInTheDocument();
+  });
+
+  // ── UX-3C: Create Approval Batch ───────────────────────────────────────────
+
+  // 18. Create button is disabled when there are no rows
+  it("create batch button is disabled when no filtered rows", () => {
+    mockGetDailyStatesForRange.mockReturnValue(defaultRangeResult([]));
+    render(<ClientAttendanceSheet companyId={1} />);
+    // Empty state — no rows, so button should be disabled
+    const btn = screen.queryByTestId("create-batch-btn");
+    // Button rendered because canCreate=true; disabled because filteredRows.length===0
+    expect(btn).toBeDisabled();
+  });
+
+  // 19. Create button is absent when user lacks canCreateAttendanceClientApproval
+  it("create batch button is not rendered without capability", () => {
+    mockCaps.mockReturnValue({
+      ...defaultCaps,
+      canCreateAttendanceClientApproval: false,
+    });
+    render(<ClientAttendanceSheet companyId={1} />);
+    expect(screen.queryByTestId("create-batch-btn")).not.toBeInTheDocument();
+  });
+
+  // 20. Create button is enabled when rows exist and cap is present
+  it("create batch button is enabled when rows exist and cap is present", () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    const btn = screen.getByTestId("create-batch-btn");
+    expect(btn).not.toBeDisabled();
+  });
+
+  // 21. Clicking opens dialog with row count info
+  it("dialog opens with summary info when create batch button clicked", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
+        makeRow({ employeeId: 1, clientApprovalStatus: "not_submitted" }),
+        makeRow({ employeeId: 2, clientApprovalStatus: "not_submitted", attendanceDate: "2026-04-25" }),
+      ])
+    );
+    render(<ClientAttendanceSheet companyId={1} />);
+    fireEvent.click(screen.getByTestId("create-batch-btn"));
+
+    expect(screen.getByTestId("batch-dialog")).toBeInTheDocument();
+    expect(
+      screen.getByText("attendance.clientSheet.batch.dialogTitle")
+    ).toBeInTheDocument();
+    // total rows label
+    expect(
+      screen.getByText("attendance.clientSheet.batch.totalRows")
+    ).toBeInTheDocument();
+    // employees label
+    expect(
+      screen.getByText("attendance.clientSheet.batch.employees")
+    ).toBeInTheDocument();
+  });
+
+  // 22. Payroll-blocked warning shown when filtered rows include blocked entries
+  it("payroll-blocked warning appears in dialog when blocked rows exist", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
+        makeRow({ payrollReadiness: "blocked_missing_checkout" }),
+      ])
+    );
+    render(<ClientAttendanceSheet companyId={1} />);
+    fireEvent.click(screen.getByTestId("create-batch-btn"));
+
+    expect(screen.getByTestId("payroll-blocked-warning")).toBeInTheDocument();
+    expect(
+      screen.getByText("attendance.clientSheet.batch.payrollBlockedWarning")
+    ).toBeInTheDocument();
+  });
+
+  // 23. Payroll-blocked warning not shown when no blocked rows
+  it("payroll-blocked warning is absent when no blocked rows", () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    fireEvent.click(screen.getByTestId("create-batch-btn"));
+
+    expect(
+      screen.queryByTestId("payroll-blocked-warning")
+    ).not.toBeInTheDocument();
+  });
+
+  // 24. Create Draft button calls createClientApprovalBatch with correct params
+  it("Create Draft calls createClientApprovalBatch with startDate/endDate", async () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    fireEvent.click(screen.getByTestId("create-batch-btn"));
+    fireEvent.click(screen.getByTestId("create-draft-btn"));
+
+    await waitFor(() => {
+      expect(mockCreateBatchMutateAsync).toHaveBeenCalledWith({
+        periodStart: "2026-04-25",
+        periodEnd: "2026-04-25",
+        siteId: undefined, // "all" → no siteId
+      });
+    });
+    expect(mockSubmitBatchMutateAsync).not.toHaveBeenCalled();
+  });
+
+  // 25. Create and Submit calls create then submit
+  it("Create & Submit calls create then submitClientApprovalBatch", async () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    fireEvent.click(screen.getByTestId("create-batch-btn"));
+    fireEvent.click(screen.getByTestId("create-and-submit-btn"));
+
+    await waitFor(() => {
+      expect(mockCreateBatchMutateAsync).toHaveBeenCalledWith({
+        periodStart: "2026-04-25",
+        periodEnd: "2026-04-25",
+        siteId: undefined,
+      });
+    });
+    await waitFor(() => {
+      expect(mockSubmitBatchMutateAsync).toHaveBeenCalledWith({ batchId: 42 });
+    });
+  });
+
+  // 26. Success toast appears after draft creation
+  it("shows createdToast after successful draft creation", async () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    fireEvent.click(screen.getByTestId("create-batch-btn"));
+    fireEvent.click(screen.getByTestId("create-draft-btn"));
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "attendance.clientSheet.batch.createdToast",
+        expect.objectContaining({
+          action: expect.objectContaining({
+            label: "attendance.clientSheet.batch.goToApprovals",
+          }),
+        })
+      );
+    });
+  });
+
+  // 27. Success toast for submit shows submittedToast
+  it("shows submittedToast after Create & Submit", async () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    fireEvent.click(screen.getByTestId("create-batch-btn"));
+    fireEvent.click(screen.getByTestId("create-and-submit-btn"));
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "attendance.clientSheet.batch.submittedToast",
+        expect.objectContaining({
+          action: expect.objectContaining({
+            label: "attendance.clientSheet.batch.goToApprovals",
+          }),
+        })
+      );
+    });
+  });
+
+  // 28. getDailyStatesForRange is invalidated after batch creation
+  it("sheet data is refetched (invalidated) after batch created", async () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    fireEvent.click(screen.getByTestId("create-batch-btn"));
+    fireEvent.click(screen.getByTestId("create-draft-btn"));
+
+    await waitFor(() => {
+      expect(mockInvalidate).toHaveBeenCalled();
+    });
+  });
+
+  // 29. Create & Submit not shown when canSubmit=false
+  it("Create & Submit button is absent when user lacks canSubmitAttendanceClientApproval", () => {
+    mockCaps.mockReturnValue({
+      ...defaultCaps,
+      canSubmitAttendanceClientApproval: false,
+    });
+    render(<ClientAttendanceSheet companyId={1} />);
+    fireEvent.click(screen.getByTestId("create-batch-btn"));
+
+    expect(screen.queryByTestId("create-and-submit-btn")).not.toBeInTheDocument();
+    expect(screen.getByTestId("create-draft-btn")).toBeInTheDocument();
+  });
+
+  // 30. Error toast shown when createMutation fails
+  it("shows error toast when batch creation fails", async () => {
+    mockCreateBatchMutateAsync.mockRejectedValue(new Error("Duplicate batch"));
+    render(<ClientAttendanceSheet companyId={1} />);
+    fireEvent.click(screen.getByTestId("create-batch-btn"));
+    fireEvent.click(screen.getByTestId("create-draft-btn"));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Duplicate batch");
+    });
+  });
+
+  // 31. Create button disabled when range is invalid (>31 days)
+  it("create batch button is disabled when date range is invalid", () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    // Set start to 2026-01-01 → range > 31 days
+    const [startInput] = screen.getAllByDisplayValue("2026-04-25");
+    fireEvent.change(startInput, { target: { value: "2026-01-01" } });
+
+    // Button not disabled because rows=0 in invalid state, but rangeInvalid also disables it
+    const btn = screen.queryByTestId("create-batch-btn");
+    expect(btn).toBeDisabled();
+  });
+
+  // 32. Export still works after the batch feature is added
+  it("export button is still present and functional alongside batch button", () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    const exportBtn = screen.getByRole("button", {
+      name: /attendance\.clientSheet\.exportExcel/i,
+    });
+    expect(exportBtn).toBeInTheDocument();
+    expect(exportBtn).not.toBeDisabled();
+    // Both buttons co-exist
+    expect(screen.getByTestId("create-batch-btn")).toBeInTheDocument();
   });
 });

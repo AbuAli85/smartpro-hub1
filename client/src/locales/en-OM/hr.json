@@ -1431,7 +1431,28 @@
         "generatedAt": "Generated at"
       },
       "loading": "Loading attendance data...",
-      "loadingRange": "Loading attendance data for period..."
+      "loadingRange": "Loading attendance data for period...",
+      "batch": {
+        "createButton": "Create Approval Batch",
+        "dialogTitle": "Create Client Approval Batch",
+        "period": "Period",
+        "site": "Site",
+        "allSites": "All Sites",
+        "totalRows": "Total rows",
+        "employees": "Employees",
+        "payrollBlockedWarning": "Some rows are payroll-blocked. The batch will be created but review may be required before client sign-off.",
+        "notSubmittedRows": "Not yet submitted",
+        "selectSiteRequired": "Select a site before creating a client approval batch.",
+        "createDraft": "Create Draft",
+        "createAndSubmit": "Create & Submit",
+        "createdToast": "Approval batch created as draft.",
+        "submittedToast": "Approval batch created and submitted.",
+        "goToApprovals": "Go to Approvals",
+        "noPermission": "You do not have permission to create approval batches.",
+        "cancel": "Cancel",
+        "creating": "Creating...",
+        "errorGeneric": "Failed to create approval batch. Please try again."
+      }
     }
   },
   "leave": {

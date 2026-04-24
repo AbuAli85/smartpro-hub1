@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Settings, Users, MapPin, Clock, Calendar } from "lucide-react";
+import { AlertTriangle, Settings, Users, MapPin, Clock, Calendar, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
 import type { Capabilities } from "@/hooks/useMyCapabilities";
 
@@ -59,6 +59,13 @@ export function AttendanceSetupHealthBanner({
 
   const blockers = data.blockers as BlockerKey[];
 
+  const hasDetailIssues =
+    (data.employeesWithoutScheduleToday?.length ?? 0) > 0 ||
+    (data.employeesWithoutPortalAccess?.length ?? 0) > 0 ||
+    (data.employeesWithScheduleConflicts?.length ?? 0) > 0 ||
+    (data.employeesWithMissingShift?.length ?? 0) > 0 ||
+    (data.employeesWithMissingSite?.length ?? 0) > 0;
+
   return (
     <Alert variant="destructive" className={className}>
       <AlertTriangle className="h-4 w-4" />
@@ -93,6 +100,16 @@ export function AttendanceSetupHealthBanner({
             );
           })}
         </ul>
+        {hasDetailIssues && (
+          <div className="mt-3">
+            <Button asChild size="sm" variant="outline" className="h-7 text-xs gap-1.5">
+              <Link href="/hr/attendance/setup-health">
+                <ExternalLink className="h-3 w-3" />
+                {t("attendance.setupHealth.viewAffected")}
+              </Link>
+            </Button>
+          </div>
+        )}
         {data.holidayToday && (
           <p className="mt-3 text-xs text-muted-foreground">
             {t("attendance.setupHealth.holidayTodayNote")}

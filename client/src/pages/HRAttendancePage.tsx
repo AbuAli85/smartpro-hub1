@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 import { OverdueCheckoutsPanel } from "@/components/attendance/OverdueCheckoutsPanel";
 import { AttendanceActionQueue } from "@/components/attendance/AttendanceActionQueue";
 import { AttendanceSetupHealthBanner } from "@/components/attendance/AttendanceSetupHealthBanner";
@@ -1522,6 +1523,15 @@ export default function HRAttendancePage() {
   const [exporting, setExporting] = useState(false);
 
   const { data: employees } = trpc.hr.listEmployees.useQuery({ department: deptFilter !== "all" ? deptFilter : undefined, status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: setupHealth } = trpc.attendance.getSetupHealth.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null, staleTime: 60_000 },
+  );
+  const hasSetupIssues =
+    (setupHealth?.employeesWithoutScheduleToday?.length ?? 0) > 0 ||
+    (setupHealth?.employeesWithScheduleConflicts?.length ?? 0) > 0 ||
+    (setupHealth?.employeesWithMissingShift?.length ?? 0) > 0 ||
+    (setupHealth?.employeesWithMissingSite?.length ?? 0) > 0;
   const { data: companyMembers } = trpc.companies.members.useQuery(
     { companyId: activeCompanyId ?? undefined },
     {
@@ -1825,6 +1835,18 @@ export default function HRAttendancePage() {
       </div>
 
       <AttendanceSetupHealthBanner companyId={activeCompanyId} caps={caps} />
+
+      {hasSetupIssues && (
+        <div className="flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <span>{t("attendance.setupHealth.missingEmployeesCallout")}</span>
+          <Link
+            href="/hr/attendance/setup-health"
+            className="shrink-0 text-xs font-medium underline underline-offset-2 hover:no-underline"
+          >
+            {t("attendance.setupHealth.viewSetupHealth")}
+          </Link>
+        </div>
+      )}
 
       <HrAttendanceExceptionStrip
         companyId={activeCompanyId}

@@ -352,6 +352,153 @@ async function resolveMyEmployee(userId: number, userEmail: string, companyId: n
 // haversineMetres, isWithinOperatingHours imported from ./attendance/helpers
 // SITE_TYPES, siteInputSchema imported from ./attendance/sites.router
 
+// ── Setup Health Detail ───────────────────────────────────────────────────────
+
+const SETUP_HEALTH_DETAIL_LIMIT = 50;
+
+export interface SetupHealthEmployee {
+  id: number;
+  userId: number | null;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  department: string | null;
+}
+
+export interface SetupHealthScheduleRow {
+  id: number;
+  employeeUserId: number;
+  shiftTemplateId: number;
+  siteId: number;
+  workingDays: string;
+}
+
+/**
+ * Pure: given pre-fetched employees + schedules covering today, compute
+ * per-employee setup health detail lists.
+ *
+ * DOW-filtering is applied internally — pass the full date-range-active set.
+ * Exported for unit-testing without DB.
+ */
+export function resolveEmployeeSetupHealthDetails(
+  activeEmployees: SetupHealthEmployee[],
+  schedulesCoveringToday: SetupHealthScheduleRow[],
+  validShiftIds: Set<number>,
+  activeSiteIds: Set<number>,
+  todayDow: number,
+  detailLimit = SETUP_HEALTH_DETAIL_LIMIT,
+) {
+  const schedToday = schedulesCoveringToday.filter((s) =>
+    s.workingDays.split(",").map(Number).includes(todayDow),
+  );
+
+  const schedsByRawId = new Map<number, typeof schedToday>();
+  for (const s of schedToday) {
+    const arr = schedsByRawId.get(s.employeeUserId) ?? [];
+    arr.push(s);
+    schedsByRawId.set(s.employeeUserId, arr);
+  }
+
+  const withoutSchedule: Array<{
+    employeeId: number;
+    employeeName: string;
+    departmentName: string | null | undefined;
+    suggestedAction: "assign_schedule";
+  }> = [];
+  const withoutPortal: Array<{
+    employeeId: number;
+    employeeName: string;
+    email: string | null | undefined;
+    suggestedAction: "invite_to_portal" | "add_email";
+  }> = [];
+  const withConflict: Array<{
+    employeeId: number;
+    employeeName: string;
+    scheduleCount: number;
+    suggestedAction: "review_schedules";
+  }> = [];
+  const missingShiftList: Array<{
+    employeeId: number;
+    employeeName: string;
+    scheduleId: number | undefined;
+    suggestedAction: "fix_shift_template";
+  }> = [];
+  const missingSiteList: Array<{
+    employeeId: number;
+    employeeName: string;
+    scheduleId: number | undefined;
+    suggestedAction: "fix_attendance_site";
+  }> = [];
+
+  for (const emp of activeEmployees) {
+    const empName = `${emp.firstName} ${emp.lastName}`.trim();
+
+    if (emp.userId == null) {
+      withoutPortal.push({
+        employeeId: emp.id,
+        employeeName: empName,
+        email: emp.email,
+        suggestedAction: emp.email ? "invite_to_portal" : "add_email",
+      });
+    }
+
+    // Dual-lookup: schedule may reference employee.id or employee.userId
+    const schedules =
+      schedsByRawId.get(emp.id) ??
+      (emp.userId != null ? schedsByRawId.get(emp.userId) ?? [] : []);
+
+    if (schedules.length === 0) {
+      withoutSchedule.push({
+        employeeId: emp.id,
+        employeeName: empName,
+        departmentName: emp.department,
+        suggestedAction: "assign_schedule",
+      });
+    } else if (schedules.length > 1) {
+      withConflict.push({
+        employeeId: emp.id,
+        employeeName: empName,
+        scheduleCount: schedules.length,
+        suggestedAction: "review_schedules",
+      });
+    } else {
+      const s = schedules[0];
+      if (!validShiftIds.has(s.shiftTemplateId)) {
+        missingShiftList.push({
+          employeeId: emp.id,
+          employeeName: empName,
+          scheduleId: s.id,
+          suggestedAction: "fix_shift_template",
+        });
+      } else if (!activeSiteIds.has(s.siteId)) {
+        missingSiteList.push({
+          employeeId: emp.id,
+          employeeName: empName,
+          scheduleId: s.id,
+          suggestedAction: "fix_attendance_site",
+        });
+      }
+    }
+  }
+
+  const hasMoreSetupIssues =
+    withoutSchedule.length > detailLimit ||
+    withoutPortal.length > detailLimit ||
+    withConflict.length > detailLimit ||
+    missingShiftList.length > detailLimit ||
+    missingSiteList.length > detailLimit;
+
+  return {
+    employeesWithoutScheduleToday: withoutSchedule.slice(0, detailLimit),
+    employeesWithoutPortalAccess: withoutPortal.slice(0, detailLimit),
+    employeesWithScheduleConflicts: withConflict.slice(0, detailLimit),
+    employeesWithMissingShift: missingShiftList.slice(0, detailLimit),
+    employeesWithMissingSite: missingSiteList.slice(0, detailLimit),
+    detailLimit,
+    hasMoreSetupIssues,
+  };
+}
+
 export const attendanceRouter = router({
   // ─── Sites sub-module ─────────────────────────────────────────────────────
   // Procedures: createSite · listSites · toggleSite · updateSite · getSiteByToken · siteTypes
@@ -3972,6 +4119,9 @@ export const attendanceRouter = router({
   /**
    * Setup health check — tells the UI which prerequisites are missing so empty
    * states can show actionable guidance instead of unexplained zeros.
+   *
+   * Also returns per-employee detail lists (capped at SETUP_HEALTH_DETAIL_LIMIT)
+   * so HR can see exactly who needs attention.
    */
   getSetupHealth: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
@@ -3980,8 +4130,13 @@ export const attendanceRouter = router({
       const db = await requireDb();
       const cid = membership.company.id;
       const todayYmd = muscatCalendarYmdNow();
+      const todayDow = new Date(todayYmd + "T12:00:00").getDay();
 
-      const [[empRow], [portalRow], [siteRow], [shiftRow], [schedRow], [holidayRow]] = await Promise.all([
+      // ── Parallel: counts (for blockers) + detail rows ─────────────────────────
+      const [
+        [empRow], [portalRow], [siteRow], [shiftRow], [schedRow], [holidayRow],
+        empDetailRows, schedDetailRows,
+      ] = await Promise.all([
         db
           .select({ n: count() })
           .from(employees)
@@ -4013,8 +4168,64 @@ export const attendanceRouter = router({
           .select({ n: count() })
           .from(companyHolidays)
           .where(and(eq(companyHolidays.companyId, cid), eq(companyHolidays.holidayDate, todayYmd))),
+        // Detail: all active employees with profile fields for display
+        db
+          .select({
+            id: employees.id,
+            userId: employees.userId,
+            firstName: employees.firstName,
+            lastName: employees.lastName,
+            email: employees.email,
+            department: employees.department,
+          })
+          .from(employees)
+          .where(and(eq(employees.companyId, cid), eq(employees.status, "active"))),
+        // Detail: all active schedules whose date range covers today
+        db
+          .select({
+            id: employeeSchedules.id,
+            employeeUserId: employeeSchedules.employeeUserId,
+            shiftTemplateId: employeeSchedules.shiftTemplateId,
+            siteId: employeeSchedules.siteId,
+            workingDays: employeeSchedules.workingDays,
+          })
+          .from(employeeSchedules)
+          .where(
+            and(
+              eq(employeeSchedules.companyId, cid),
+              eq(employeeSchedules.isActive, true),
+              lte(employeeSchedules.startDate, todayYmd),
+              or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, todayYmd)),
+            ),
+          ),
       ]);
 
+      // ── Batch-load shift + site validity for today's DOW-filtered schedules ───
+      const schedToday = schedDetailRows.filter((s) =>
+        s.workingDays.split(",").map(Number).includes(todayDow),
+      );
+      const refShiftIds = [...new Set(schedToday.map((s) => s.shiftTemplateId))];
+      const refSiteIds = [...new Set(schedToday.map((s) => s.siteId))];
+
+      const [activeShiftDetailRows, activeSiteDetailRows] = await Promise.all([
+        refShiftIds.length > 0
+          ? db
+              .select({ id: shiftTemplates.id })
+              .from(shiftTemplates)
+              .where(and(inArray(shiftTemplates.id, refShiftIds), eq(shiftTemplates.isActive, true)))
+          : Promise.resolve([] as { id: number }[]),
+        refSiteIds.length > 0
+          ? db
+              .select({ id: attendanceSites.id })
+              .from(attendanceSites)
+              .where(and(inArray(attendanceSites.id, refSiteIds), eq(attendanceSites.isActive, true)))
+          : Promise.resolve([] as { id: number }[]),
+      ]);
+
+      const validShiftIds = new Set(activeShiftDetailRows.map((s) => s.id));
+      const activeSiteIds = new Set(activeSiteDetailRows.map((s) => s.id));
+
+      // ── Counts (unchanged shape — existing clients unaffected) ────────────────
       const activeEmployeesCount = empRow?.n ?? 0;
       const employeesWithPortalAccessCount = portalRow?.n ?? 0;
       const attendanceSitesCount = siteRow?.n ?? 0;
@@ -4036,6 +4247,16 @@ export const attendanceRouter = router({
       if (activeShiftTemplatesCount === 0) blockers.push("no_shift_templates");
       if (scheduledTodayCount === 0 && activeEmployeesCount > 0) blockers.push("no_schedules_today");
 
+      // ── Per-employee detail lists ─────────────────────────────────────────────
+      const details = resolveEmployeeSetupHealthDetails(
+        empDetailRows,
+        schedDetailRows,
+        validShiftIds,
+        activeSiteIds,
+        todayDow,
+        SETUP_HEALTH_DETAIL_LIMIT,
+      );
+
       return {
         activeEmployeesCount,
         employeesWithPortalAccessCount,
@@ -4046,6 +4267,7 @@ export const attendanceRouter = router({
         holidayToday,
         canTrackToday,
         blockers,
+        ...details,
       };
     }),
 

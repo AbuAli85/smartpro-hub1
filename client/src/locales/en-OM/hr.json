@@ -472,12 +472,61 @@
       "fixCta": "Set up",
       "contactAdminHint": "Contact your administrator",
       "holidayTodayNote": "Today is a public holiday — no attendance is expected.",
+      "viewAffected": "View affected employees",
+      "missingEmployeesCallout": "Some employees are hidden because their attendance setup is incomplete.",
+      "viewSetupHealth": "View setup health",
       "blockers": {
         "no_active_employees": "No active employees found. Add employees to get started.",
         "no_employees_with_portal_access": "No employees have portal access. Invite employees to enable self check-in.",
         "no_attendance_sites": "No attendance sites configured. Add at least one site with a QR code.",
         "no_shift_templates": "No shift templates defined. Create shift templates before assigning schedules.",
         "no_schedules_today": "No employee schedules are active today. Assign schedules to employees."
+      }
+    },
+    "setupHealthPage": {
+      "title": "Attendance Setup Health",
+      "description": "Fix these items so all employees appear correctly in daily attendance.",
+      "allClear": "Attendance setup is complete for today.",
+      "hasMoreIssues": "Some issues are not shown (list capped). Fix the listed items first.",
+      "contactAdminHint": "Contact your administrator",
+      "summary": {
+        "activeEmployees": "Active employees",
+        "scheduledToday": "Scheduled today",
+        "missingSchedules": "Missing schedules",
+        "missingPortalAccess": "Missing portal access",
+        "scheduleConflicts": "Schedule conflicts",
+        "missingSetup": "Missing shift/site setup"
+      },
+      "sections": {
+        "withoutSchedule": {
+          "title": "Employees Without Schedule Today",
+          "empty": "All active employees have a schedule today.",
+          "cta": "Assign Schedule"
+        },
+        "withoutPortal": {
+          "title": "Employees Without Portal Access",
+          "empty": "All active employees have portal access.",
+          "ctaInvite": "Invite to Portal",
+          "ctaAddEmail": "Add Email"
+        },
+        "conflicts": {
+          "title": "Schedule Conflicts",
+          "empty": "No schedule conflicts.",
+          "cta": "Review Schedules",
+          "scheduleCount": "{{count}} schedules"
+        },
+        "missingShift": {
+          "title": "Missing Shift Template",
+          "empty": "All schedules reference a valid shift template.",
+          "cta": "Fix Shift Template",
+          "scheduleId": "Schedule #{{id}}"
+        },
+        "missingSite": {
+          "title": "Missing Attendance Site",
+          "empty": "All schedules reference a valid attendance site.",
+          "cta": "Fix Site",
+          "scheduleId": "Schedule #{{id}}"
+        }
       }
     },
     "tabs": {

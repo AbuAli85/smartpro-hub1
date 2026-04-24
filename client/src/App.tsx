@@ -146,6 +146,7 @@ const MfaChallengePage = lazy(() => import("./pages/MfaChallengePage"));
 const AttendanceClientApprovalPage = lazy(() => import("./pages/AttendanceClientApprovalPage"));
 const ClientApprovalsPage = lazy(() => import("./pages/ClientApprovalsPage"));
 const ClientAttendanceSheetPage = lazy(() => import("./pages/ClientAttendanceSheetPage"));
+const AttendanceSetupHealthPage = lazy(() => import("./pages/AttendanceSetupHealthPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // ─── Page loading fallback ────────────────────────────────────────────────────
@@ -219,6 +220,7 @@ function AppRoutes() {
         <Route path="/hr/employees" component={HREmployeesPage} />
         <Route path="/hr/recruitment" component={HRRecruitmentPage} />
         <Route path="/hr/leave" component={HRLeavePage} />
+        <Route path="/hr/attendance/setup-health" component={AttendanceSetupHealthPage} />
         <Route path="/hr/attendance" component={HRAttendancePage} />
         <Route path="/hr/attendance-sites" component={AttendanceSitesPage} />
         <Route path="/hr/attendance-anomalies" component={AttendanceAnomaliesPage} />

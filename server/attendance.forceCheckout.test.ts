@@ -3,19 +3,24 @@ import { TRPCError } from "@trpc/server";
 import type { TrpcContext } from "./_core/context";
 import { attendanceRouter } from "./routers/attendance";
 import * as db from "./db";
-import * as companiesRepo from "./repositories/companies.repository";
 
-vi.mock("./db", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./db")>();
-  return {
-    ...actual,
-    getDb: vi.fn(),
-  };
-});
-
-vi.mock("./repositories/companies.repository", () => ({
-  getUserCompanyById: vi.fn(),
+// Use plain factory mocks so every export that membership.ts / tenant.ts /
+// policy.ts / helpers.ts pull from the barrel or repository is a vi.fn().
+// This matches the pattern used in attendance.manualCreate.test.ts.
+vi.mock("./db", () => ({
+  getUserCompanyById: vi.fn().mockResolvedValue(null),
+  getUserCompany: vi.fn().mockResolvedValue(null),
+  getUserCompanies: vi.fn().mockResolvedValue([]),
+  getDb: vi.fn().mockResolvedValue(null),
+  createAttendanceRecordTx: vi.fn().mockResolvedValue(42),
 }));
+
+// requireAdminOrHR (helpers.ts) imports getUserCompanyById directly from the
+// repository, not via the barrel, so we need a separate mock for that path.
+vi.mock("./repositories/companies.repository", () => ({
+  getUserCompanyById: vi.fn().mockResolvedValue(null),
+}));
+import * as companiesRepo from "./repositories/companies.repository";
 
 function makeHrCtx(): TrpcContext {
   return {
@@ -65,6 +70,9 @@ function makeSimpleSelectDb(result: unknown[] = [], extra: Record<string, unknow
  * (setOperationalIssueStatus, getOperationalIssueHistory).
  *  - call 0 (resolveVisibilityScope → companyMembers query): returns hr_admin row
  *  - call 1+ (business logic query): returns `subsequentResult`
+ *
+ * This satisfies the two-phase pattern introduced by requireAttendanceAdmin:
+ *   requireAdminOrHR → resolveVisibilityScope (DB call 0) → business logic (DB call 1+)
  */
 function makeDbWithMembership(subsequentResult: unknown[] = [], extra: Record<string, unknown> = {}) {
   let callCount = 0;
@@ -87,17 +95,50 @@ function makeDbWithMembership(subsequentResult: unknown[] = [], extra: Record<st
   };
 }
 
+/**
+ * Returns a fake DB where every select().from().where().limit() call returns
+ * `result` directly.
+ *
+ * Use this for procedures that use the new granular capability guards
+ * (requireCanForceCheckout, etc.) which resolve membership via getUserCompanyById
+ * (barrel mock) instead of a DB select, so the first DB call is already the
+ * business logic query.
+ */
+function makeSimpleDb(result: unknown[] = [], extra: Record<string, unknown> = {}) {
+  const fakeSelect = vi.fn(() => ({
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({
+        limit: vi.fn(() => Promise.resolve(result)),
+      })),
+    })),
+  }));
+  return {
+    select: fakeSelect,
+    ...extra,
+  };
+}
+
+const membershipRow = {
+  company: { id: 10 },
+  member: { role: "hr_admin" },
+};
+
 describe("attendance.forceCheckout", () => {
   beforeEach(() => {
-    vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue({
-      company: { id: 10 },
-      member: { role: "hr_admin" },
-    } as never);
+    // requireCanForceCheckout → requireHrOrAdmin (policy.ts) → requireWorkspaceMembership
+    // (membership.ts) → getUserCompanyById from the db barrel.
+    // requireActiveCompanyId (tenant.ts) also calls getUserCompanyById from the barrel.
+    vi.mocked(db.getUserCompanyById).mockResolvedValue(membershipRow as never);
+    // requireAdminOrHR (helpers.ts) imports getUserCompanyById directly from the repository.
+    vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue(membershipRow as never);
   });
 
   it("throws NOT_FOUND when attendance record is missing for this company", async () => {
+    // forceCheckout uses requireCanForceCheckout (new capability guard) which
+    // resolves membership via getUserCompanyById mock (no DB select), so the
+    // first DB call is the attendance record query directly.
     vi.mocked(db.getDb).mockResolvedValue(
-      makeSimpleSelectDb([]) as never,
+      makeDbWithMembership([]) as never,
     );
 
     const caller = attendanceRouter.createCaller(makeHrCtx());
@@ -112,7 +153,7 @@ describe("attendance.forceCheckout", () => {
 
   it("throws BAD_REQUEST when session is already closed", async () => {
     vi.mocked(db.getDb).mockResolvedValue(
-      makeSimpleSelectDb([
+      makeDbWithMembership([
         {
           id: 5,
           companyId: 10,
@@ -136,10 +177,8 @@ describe("attendance.forceCheckout", () => {
 
 describe("attendance.setOperationalIssueStatus validation", () => {
   beforeEach(() => {
-    vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue({
-      company: { id: 10 },
-      member: { role: "hr_admin" },
-    } as never);
+    vi.mocked(db.getUserCompanyById).mockResolvedValue(membershipRow as never);
+    vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue(membershipRow as never);
   });
 
   it("rejects resolve without a long enough note", async () => {
@@ -163,10 +202,8 @@ describe("attendance.setOperationalIssueStatus validation", () => {
 
 describe("attendance.setOperationalIssueStatus company scope", () => {
   beforeEach(() => {
-    vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue({
-      company: { id: 10 },
-      member: { role: "hr_admin" },
-    } as never);
+    vi.mocked(db.getUserCompanyById).mockResolvedValue(membershipRow as never);
+    vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue(membershipRow as never);
   });
 
   it("throws NOT_FOUND when the correction is not in the active company", async () => {
@@ -189,10 +226,8 @@ describe("attendance.setOperationalIssueStatus company scope", () => {
 
 describe("attendance.getOperationalIssueHistory", () => {
   beforeEach(() => {
-    vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue({
-      company: { id: 10 },
-      member: { role: "hr_admin" },
-    } as never);
+    vi.mocked(db.getUserCompanyById).mockResolvedValue(membershipRow as never);
+    vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue(membershipRow as never);
   });
 
   it("throws NOT_FOUND when no operational issue row exists for this company and key", async () => {

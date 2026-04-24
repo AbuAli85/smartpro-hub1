@@ -21,6 +21,12 @@ export const ATTENDANCE_AUDIT_ACTION = {
   OPERATIONAL_ISSUE_ACKNOWLEDGE: "operational_issue_acknowledge",
   OPERATIONAL_ISSUE_RESOLVE: "operational_issue_resolve",
   OPERATIONAL_ISSUE_ASSIGN: "operational_issue_assign",
+  /** Phase 5B: HR locked a calendar month period for payroll. */
+  ATTENDANCE_PERIOD_LOCK: "attendance_period_lock",
+  /** Phase 5B: HR reopened a previously locked or exported period. */
+  ATTENDANCE_PERIOD_REOPEN: "attendance_period_reopen",
+  /** Phase 5B: Finance marked a locked period as exported to payroll. */
+  ATTENDANCE_PERIOD_EXPORT: "attendance_period_export",
 } as const;
 
 export type AttendanceAuditActionType =
@@ -33,6 +39,7 @@ export const ATTENDANCE_AUDIT_ENTITY = {
   MANUAL_CHECKIN_REQUEST: "manual_checkin_request",
   ATTENDANCE_CORRECTION: "attendance_correction",
   SELF_CHECKIN_ATTEMPT: "self_checkin_attempt",
+  ATTENDANCE_PERIOD_LOCK: "attendance_period_lock",
 } as const;
 
 export type AttendanceAuditEntityType =

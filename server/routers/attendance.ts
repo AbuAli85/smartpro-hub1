@@ -11,6 +11,7 @@ import {
   manualCheckinRequests,
   attendanceAudit,
   attendanceOperationalIssues,
+  attendancePeriodLocks,
   shiftTemplates,
   employeeSchedules,
   companyHolidays,
@@ -93,6 +94,19 @@ import {
 } from "@shared/attendanceActionQueue";
 import { ATTENDANCE_REASON } from "@shared/attendanceStatus";
 import { buildReconciliationSummary } from "@shared/attendanceReconciliationSummary";
+import {
+  defaultPeriodLockState,
+  validateLockPeriod,
+  validateReopenPeriod,
+  validateExportPeriod,
+} from "@shared/attendancePeriodLock";
+import {
+  ATTENDANCE_PERIOD_NOT_READY,
+  ATTENDANCE_PERIOD_ALREADY_LOCKED,
+  ATTENDANCE_PERIOD_NOT_LOCKED,
+  ATTENDANCE_PERIOD_REOPEN_REASON_REQUIRED,
+} from "@shared/attendanceTrpcReasons";
+import { isWeakAuditReason } from "@shared/attendanceManualValidation";
 
 async function requireDb() {
   const db = await getDb();
@@ -3208,6 +3222,389 @@ export const attendanceRouter = router({
         windowFrom: windowStart.toISOString(),
         windowTo: windowEnd.toISOString(),
       };
+    }),
+
+  // ─── Phase 5B: Period lock state machine ──────────────────────────────────
+
+  /**
+   * Return the current period lock state for a company/year/month.
+   * If no DB row exists, returns a synthetic "open" default.
+   * Requires canExportAttendanceReports (same as getReconciliationSummary).
+   */
+  getAttendancePeriodState: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const membership = await requireCanExportAttendanceReports(ctx.user as User, input.companyId);
+      const db = await requireDb();
+      const cid = membership.companyId;
+      const { year, month } = input;
+
+      const [row] = await db
+        .select()
+        .from(attendancePeriodLocks)
+        .where(
+          and(
+            eq(attendancePeriodLocks.companyId, cid),
+            eq(attendancePeriodLocks.year, year),
+            eq(attendancePeriodLocks.month, month),
+          ),
+        )
+        .limit(1);
+
+      if (!row) {
+        return { ...defaultPeriodLockState(cid, year, month), id: null };
+      }
+      return row;
+    }),
+
+  /**
+   * Lock a calendar month period for payroll.
+   *
+   * Preconditions (enforced server-side):
+   *   - Actor has canLockAttendancePeriod.
+   *   - Current reconciliation readiness is "ready" (recomputed, not trusted from client).
+   *   - Period status is "open" or "reopened".
+   *
+   * On success, upserts the DB row to "locked" and writes an attendance_audit event.
+   */
+  lockAttendancePeriod: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+        reason: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireCanExportAttendanceReports(ctx.user as User, input.companyId);
+      const caps = membership.caps;
+      const db = await requireDb();
+      const cid = membership.companyId;
+      const { year, month } = input;
+
+      // Re-derive Muscat period boundaries (never trust the client for this)
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const fromYmd = `${year}-${pad(month)}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const toYmd = `${year}-${pad(month)}-${pad(lastDay)}`;
+      const today = muscatCalendarYmdNow();
+      const { startUtc, endExclusiveUtc } = muscatInclusiveYmdRangeToUtcHalfOpen(fromYmd, toYmd);
+
+      // Fetch current period state
+      const [existingRow] = await db
+        .select()
+        .from(attendancePeriodLocks)
+        .where(
+          and(
+            eq(attendancePeriodLocks.companyId, cid),
+            eq(attendancePeriodLocks.year, year),
+            eq(attendancePeriodLocks.month, month),
+          ),
+        )
+        .limit(1);
+
+      const currentState = existingRow
+        ? { status: existingRow.status, year, month, companyId: cid }
+        : defaultPeriodLockState(cid, year, month);
+
+      // Compute readiness server-side (same logic as getReconciliationSummary)
+      const [
+        openSessions,
+        pendingCorrections,
+        pendingManualCheckins,
+        companyHolidayRows,
+        periodRecords,
+        approvedLeaves,
+        [closedSessionsRow],
+      ] = await Promise.all([
+        db.select({ id: attendanceSessions.id, employeeId: attendanceSessions.employeeId, businessDate: attendanceSessions.businessDate, scheduleId: attendanceSessions.scheduleId, sourceRecordId: attendanceSessions.sourceRecordId })
+          .from(attendanceSessions)
+          .where(and(eq(attendanceSessions.companyId, cid), eq(attendanceSessions.status, "open"), gte(attendanceSessions.businessDate, fromYmd), lte(attendanceSessions.businessDate, toYmd), lt(attendanceSessions.businessDate, today))),
+        db.select({ id: attendanceCorrections.id, employeeId: attendanceCorrections.employeeId, requestedDate: attendanceCorrections.requestedDate, attendanceRecordId: attendanceCorrections.attendanceRecordId })
+          .from(attendanceCorrections)
+          .where(and(eq(attendanceCorrections.companyId, cid), eq(attendanceCorrections.status, "pending"), gte(attendanceCorrections.requestedDate, fromYmd), lte(attendanceCorrections.requestedDate, toYmd))),
+        db.select({ id: manualCheckinRequests.id, employeeUserId: manualCheckinRequests.employeeUserId, requestedBusinessDate: manualCheckinRequests.requestedBusinessDate, requestedAt: manualCheckinRequests.requestedAt })
+          .from(manualCheckinRequests)
+          .where(and(eq(manualCheckinRequests.companyId, cid), eq(manualCheckinRequests.status, "pending"), or(and(isNotNull(manualCheckinRequests.requestedBusinessDate), gte(manualCheckinRequests.requestedBusinessDate, fromYmd), lte(manualCheckinRequests.requestedBusinessDate, toYmd)), and(isNull(manualCheckinRequests.requestedBusinessDate), gte(manualCheckinRequests.requestedAt, startUtc), lt(manualCheckinRequests.requestedAt, endExclusiveUtc))))),
+        db.select({ holidayDate: companyHolidays.holidayDate }).from(companyHolidays).where(and(eq(companyHolidays.companyId, cid), gte(companyHolidays.holidayDate, fromYmd), lte(companyHolidays.holidayDate, toYmd))),
+        db.select({ id: attendanceRecords.id, employeeId: attendanceRecords.employeeId, checkIn: attendanceRecords.checkIn, scheduleId: attendanceRecords.scheduleId }).from(attendanceRecords).where(and(eq(attendanceRecords.companyId, cid), gte(attendanceRecords.checkIn, startUtc), lt(attendanceRecords.checkIn, endExclusiveUtc))),
+        db.select({ id: leaveRequests.id, employeeId: leaveRequests.employeeId, startDate: leaveRequests.startDate, endDate: leaveRequests.endDate }).from(leaveRequests).where(and(eq(leaveRequests.companyId, cid), eq(leaveRequests.status, "approved"), lt(leaveRequests.startDate, endExclusiveUtc), gte(leaveRequests.endDate, startUtc))),
+        db.select({ n: count() }).from(attendanceSessions).where(and(eq(attendanceSessions.companyId, cid), eq(attendanceSessions.status, "closed"), gte(attendanceSessions.businessDate, fromYmd), lte(attendanceSessions.businessDate, toYmd))),
+      ]);
+
+      const allItems: ReturnType<typeof buildAttendanceActionItems> = [];
+      for (const s of openSessions) {
+        allItems.push(...buildAttendanceActionItems({ resolvedState: { status: "checked_in_on_time", payrollReadiness: "blocked_missing_checkout", riskLevel: "high", reasonCodes: [ATTENDANCE_REASON.MISSING_CHECKOUT] }, attendanceDate: s.businessDate, employeeId: s.employeeId, attendanceRecordId: s.sourceRecordId, scheduleId: s.scheduleId ?? undefined }));
+      }
+      for (const c of pendingCorrections) {
+        allItems.push(...buildAttendanceActionItems({ resolvedState: { status: "checked_out", payrollReadiness: "blocked_pending_correction", riskLevel: "none", reasonCodes: [ATTENDANCE_REASON.CORRECTION_PENDING] }, attendanceDate: c.requestedDate, employeeId: c.employeeId, attendanceRecordId: c.attendanceRecordId }));
+      }
+      for (const m of pendingManualCheckins) {
+        const date = m.requestedBusinessDate ?? muscatCalendarYmdFromUtcInstant(new Date(m.requestedAt));
+        allItems.push(...buildAttendanceActionItems({ resolvedState: { status: "absent_pending", payrollReadiness: "blocked_pending_manual_checkin", riskLevel: "critical", reasonCodes: [ATTENDANCE_REASON.MANUAL_CHECKIN_PENDING] }, attendanceDate: date, employeeId: undefined }));
+      }
+      const holidayDates = new Set(companyHolidayRows.map((h) => h.holidayDate));
+      type LeaveInterval = { startMs: number; endMs: number };
+      const leaveByEmpId = new Map<number, LeaveInterval[]>();
+      for (const l of approvedLeaves) {
+        const arr = leaveByEmpId.get(l.employeeId) ?? [];
+        arr.push({ startMs: new Date(l.startDate).getTime(), endMs: new Date(l.endDate).getTime() });
+        leaveByEmpId.set(l.employeeId, arr);
+      }
+      const recordsByEmpDay = new Map<string, { id: number; employeeId: number; mDate: string; scheduleId: number | null }>();
+      for (const r of periodRecords) {
+        const mDate = muscatCalendarYmdFromUtcInstant(new Date(r.checkIn));
+        const key = `${r.employeeId}:${mDate}`;
+        if (!recordsByEmpDay.has(key)) recordsByEmpDay.set(key, { id: r.id, employeeId: r.employeeId, mDate, scheduleId: r.scheduleId ?? null });
+      }
+      for (const rec of recordsByEmpDay.values()) {
+        const isHoliday = holidayDates.has(rec.mDate);
+        const checkInMs = muscatInclusiveYmdRangeToUtcHalfOpen(rec.mDate, rec.mDate).startUtc.getTime();
+        const isOnLeave = (leaveByEmpId.get(rec.employeeId) ?? []).some((l) => checkInMs >= l.startMs && checkInMs < l.endMs);
+        if (isHoliday) allItems.push(...buildAttendanceActionItems({ resolvedState: { status: "holiday", payrollReadiness: "needs_review", riskLevel: "medium", reasonCodes: [ATTENDANCE_REASON.HOLIDAY, ATTENDANCE_REASON.ATTENDANCE_ON_HOLIDAY] }, attendanceDate: rec.mDate, employeeId: rec.employeeId, attendanceRecordId: rec.id, scheduleId: rec.scheduleId ?? undefined }));
+        if (isOnLeave && !isHoliday) allItems.push(...buildAttendanceActionItems({ resolvedState: { status: "leave", payrollReadiness: "needs_review", riskLevel: "medium", reasonCodes: [ATTENDANCE_REASON.LEAVE, ATTENDANCE_REASON.ATTENDANCE_DURING_LEAVE] }, attendanceDate: rec.mDate, employeeId: rec.employeeId, attendanceRecordId: rec.id, scheduleId: rec.scheduleId ?? undefined }));
+      }
+
+      const summary = buildReconciliationSummary({
+        period: { year, month, startDate: fromYmd, endDate: toYmd, timezone: "Asia/Muscat" },
+        allItems,
+        caps: { canLockAttendancePeriod: caps.canLockAttendancePeriod, canExportAttendanceReports: caps.canExportAttendanceReports },
+        scheduledDays: Number(closedSessionsRow?.n ?? 0),
+      });
+
+      // Validate the state transition
+      const validation = validateLockPeriod(currentState, summary.readinessStatus, {
+        canLockAttendancePeriod: caps.canLockAttendancePeriod,
+        canExportAttendanceReports: caps.canExportAttendanceReports,
+      });
+      if (!validation.ok) {
+        throw new TRPCError({
+          code: validation.code === "CONFLICT" ? "CONFLICT" : validation.code === "FORBIDDEN" ? "FORBIDDEN" : "BAD_REQUEST",
+          message: validation.message,
+          cause: { reason: validation.reason },
+        });
+      }
+
+      const now = new Date();
+      await db
+        .insert(attendancePeriodLocks)
+        .values({
+          companyId: cid,
+          year,
+          month,
+          status: "locked",
+          lockedAt: now,
+          lockedByUserId: ctx.user.id,
+          lastReadinessStatus: summary.readinessStatus,
+          lastBlockerCount: summary.totals.payrollBlockingItems,
+          lastReviewCount: summary.totals.reviewItems,
+          reason: input.reason ?? null,
+        })
+        .onDuplicateKeyUpdate({
+          set: {
+            status: "locked",
+            lockedAt: now,
+            lockedByUserId: ctx.user.id,
+            lastReadinessStatus: summary.readinessStatus,
+            lastBlockerCount: summary.totals.payrollBlockingItems,
+            lastReviewCount: summary.totals.reviewItems,
+            reason: input.reason ?? null,
+          },
+        });
+
+      await insertAttendanceAuditRow(db, {
+        companyId: cid,
+        actorUserId: ctx.user.id,
+        actorRole: membership.role,
+        actionType: ATTENDANCE_AUDIT_ACTION.ATTENDANCE_PERIOD_LOCK,
+        entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_PERIOD_LOCK,
+        beforePayload: { status: currentState.status } as unknown as typeof attendanceAudit.$inferInsert["beforePayload"],
+        afterPayload: {
+          status: "locked",
+          year,
+          month,
+          readinessStatus: summary.readinessStatus,
+          blockerCount: summary.totals.payrollBlockingItems,
+          reviewCount: summary.totals.reviewItems,
+        } as unknown as typeof attendanceAudit.$inferInsert["afterPayload"],
+        reason: input.reason ?? null,
+        source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
+      });
+
+      return { success: true as const, status: "locked" as const, year, month };
+    }),
+
+  /**
+   * Reopen a locked or exported period so HR can correct attendance data.
+   *
+   * Preconditions:
+   *   - Actor has canLockAttendancePeriod.
+   *   - Period is "locked" or "exported".
+   *   - reason is ≥ 10 chars and not a weak placeholder.
+   */
+  reopenAttendancePeriod: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+        reason: z.string().min(1, "Reason is required"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireCanExportAttendanceReports(ctx.user as User, input.companyId);
+      const caps = membership.caps;
+      const db = await requireDb();
+      const cid = membership.companyId;
+      const { year, month } = input;
+
+      const [existingRow] = await db
+        .select()
+        .from(attendancePeriodLocks)
+        .where(and(eq(attendancePeriodLocks.companyId, cid), eq(attendancePeriodLocks.year, year), eq(attendancePeriodLocks.month, month)))
+        .limit(1);
+
+      const currentState = existingRow
+        ? { status: existingRow.status, year, month, companyId: cid }
+        : defaultPeriodLockState(cid, year, month);
+
+      const validation = validateReopenPeriod(currentState, input.reason, {
+        canLockAttendancePeriod: caps.canLockAttendancePeriod,
+        canExportAttendanceReports: caps.canExportAttendanceReports,
+      });
+      if (!validation.ok) {
+        const reasonCode =
+          validation.reason === ATTENDANCE_PERIOD_REOPEN_REASON_REQUIRED
+            ? ATTENDANCE_PERIOD_REOPEN_REASON_REQUIRED
+            : undefined;
+        throw new TRPCError({
+          code: validation.code === "FORBIDDEN" ? "FORBIDDEN" : "BAD_REQUEST",
+          message: validation.message,
+          cause: reasonCode ? { reason: reasonCode } : undefined,
+        });
+      }
+
+      const now = new Date();
+      await db
+        .insert(attendancePeriodLocks)
+        .values({
+          companyId: cid,
+          year,
+          month,
+          status: "reopened",
+          unlockedAt: now,
+          unlockedByUserId: ctx.user.id,
+          reason: input.reason,
+        })
+        .onDuplicateKeyUpdate({
+          set: {
+            status: "reopened",
+            unlockedAt: now,
+            unlockedByUserId: ctx.user.id,
+            reason: input.reason,
+          },
+        });
+
+      await insertAttendanceAuditRow(db, {
+        companyId: cid,
+        actorUserId: ctx.user.id,
+        actorRole: membership.role,
+        actionType: ATTENDANCE_AUDIT_ACTION.ATTENDANCE_PERIOD_REOPEN,
+        entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_PERIOD_LOCK,
+        beforePayload: { status: currentState.status } as unknown as typeof attendanceAudit.$inferInsert["beforePayload"],
+        afterPayload: { status: "reopened", year, month } as unknown as typeof attendanceAudit.$inferInsert["afterPayload"],
+        reason: input.reason,
+        source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
+      });
+
+      return { success: true as const, status: "reopened" as const, year, month };
+    }),
+
+  /**
+   * Mark a locked period as exported to payroll.
+   *
+   * Preconditions:
+   *   - Actor has canExportAttendanceReports.
+   *   - Period status is "locked".
+   */
+  markAttendancePeriodExported: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+        exportRef: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireCanExportAttendanceReports(ctx.user as User, input.companyId);
+      const caps = membership.caps;
+      const db = await requireDb();
+      const cid = membership.companyId;
+      const { year, month } = input;
+
+      const [existingRow] = await db
+        .select()
+        .from(attendancePeriodLocks)
+        .where(and(eq(attendancePeriodLocks.companyId, cid), eq(attendancePeriodLocks.year, year), eq(attendancePeriodLocks.month, month)))
+        .limit(1);
+
+      const currentState = existingRow
+        ? { status: existingRow.status, year, month, companyId: cid }
+        : defaultPeriodLockState(cid, year, month);
+
+      const validation = validateExportPeriod(currentState, {
+        canLockAttendancePeriod: caps.canLockAttendancePeriod,
+        canExportAttendanceReports: caps.canExportAttendanceReports,
+      });
+      if (!validation.ok) {
+        throw new TRPCError({
+          code: validation.code === "FORBIDDEN" ? "FORBIDDEN" : "BAD_REQUEST",
+          message: validation.message,
+          cause: { reason: validation.reason === "FORBIDDEN" ? undefined : validation.reason },
+        });
+      }
+
+      const now = new Date();
+      await db
+        .insert(attendancePeriodLocks)
+        .values({
+          companyId: cid,
+          year,
+          month,
+          status: "exported",
+          exportedAt: now,
+          exportedByUserId: ctx.user.id,
+          reason: input.exportRef ?? null,
+        })
+        .onDuplicateKeyUpdate({
+          set: {
+            status: "exported",
+            exportedAt: now,
+            exportedByUserId: ctx.user.id,
+            reason: input.exportRef ?? null,
+          },
+        });
+
+      await insertAttendanceAuditRow(db, {
+        companyId: cid,
+        actorUserId: ctx.user.id,
+        actorRole: membership.role,
+        actionType: ATTENDANCE_AUDIT_ACTION.ATTENDANCE_PERIOD_EXPORT,
+        entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_PERIOD_LOCK,
+        beforePayload: { status: currentState.status } as unknown as typeof attendanceAudit.$inferInsert["beforePayload"],
+        afterPayload: { status: "exported", year, month, exportRef: input.exportRef ?? null } as unknown as typeof attendanceAudit.$inferInsert["afterPayload"],
+        source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
+      });
+
+      return { success: true as const, status: "exported" as const, year, month };
     }),
 
   /**

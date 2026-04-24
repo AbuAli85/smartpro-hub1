@@ -1407,6 +1407,9 @@ export const attendanceAudit = mysqlTable(
       "operational_issue_acknowledge",
       "operational_issue_resolve",
       "operational_issue_assign",
+      "attendance_period_lock",
+      "attendance_period_reopen",
+      "attendance_period_export",
     ]).notNull(),
     entityType: varchar("entity_type", { length: 64 }).notNull(),
     entityId: int("entity_id"),
@@ -1430,6 +1433,48 @@ export const attendanceAudit = mysqlTable(
 );
 export type AttendanceAuditRow = typeof attendanceAudit.$inferSelect;
 export type InsertAttendanceAudit = typeof attendanceAudit.$inferInsert;
+
+// ─── Attendance Period Lock (Phase 5B) ───────────────────────────────────────
+// One row per (company_id, year, month). Records the current lock status and
+// the most recent lock/export/reopen event actors and timestamps.
+// Every state transition also writes a row to attendance_audit.
+export const attendancePeriodLocks = mysqlTable(
+  "attendance_period_locks",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    /** Calendar year (2020–2100). */
+    year: int("year").notNull(),
+    /** Calendar month (1–12). */
+    month: int("month").notNull(),
+    /** Current state of the period. */
+    status: mysqlEnum("status", ["open", "locked", "exported", "reopened"] as const)
+      .notNull()
+      .default("open"),
+    lockedAt: timestamp("locked_at"),
+    lockedByUserId: int("locked_by_user_id"),
+    /** Most recent reopen timestamp (may be set/cleared on re-lock). */
+    unlockedAt: timestamp("unlocked_at"),
+    unlockedByUserId: int("unlocked_by_user_id"),
+    exportedAt: timestamp("exported_at"),
+    exportedByUserId: int("exported_by_user_id"),
+    /** Snapshot of readinessStatus at the time of the last transition. */
+    lastReadinessStatus: varchar("last_readiness_status", { length: 32 }),
+    lastBlockerCount: int("last_blocker_count").default(0).notNull(),
+    lastReviewCount: int("last_review_count").default(0).notNull(),
+    /** Required reason for reopen; optional for lock/export. */
+    reason: text("reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_apl_company_period").on(t.companyId, t.year, t.month),
+    index("idx_apl_company_status").on(t.companyId, t.status),
+    index("idx_apl_company_period").on(t.companyId, t.year, t.month),
+  ],
+);
+export type AttendancePeriodLock = typeof attendancePeriodLocks.$inferSelect;
+export type InsertAttendancePeriodLock = typeof attendancePeriodLocks.$inferInsert;
 
 /** HR triage / resolution for operational attendance exceptions (overdue checkout, missed shift, approvals). */
 export const attendanceOperationalIssues = mysqlTable(

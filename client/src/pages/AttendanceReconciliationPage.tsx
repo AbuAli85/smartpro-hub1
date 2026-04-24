@@ -1,6 +1,6 @@
 /**
  * HR / admin: attendance reconciliation preflight (records vs sessions vs legacy HR attendance)
- * + Phase 5A payroll readiness summary.
+ * + Phase 5A payroll readiness summary + Phase 5B period lock/export.
  * Route: /hr/attendance-reconciliation
  */
 import type { ComponentType } from "react";
@@ -18,10 +18,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { isAttendanceSessionsTableRequiredClientError } from "@/lib/attendanceTrpcErrors";
 import { AttendanceSessionsInfraErrorAlert } from "@/components/attendance/AttendanceSessionsInfraErrorAlert";
 import type { ReconciliationReadinessStatus, ReconciliationSummaryTotals } from "@shared/attendanceReconciliationSummary";
+import type { AttendancePeriodStatus } from "@shared/attendancePeriodLock";
 import {
   AlertCircle,
   AlertTriangle,
@@ -31,8 +34,11 @@ import {
   ChevronRight,
   ClipboardCopy,
   Download,
+  Lock,
+  LockOpen,
   RefreshCw,
   Scale,
+  Share2,
   Wrench,
 } from "lucide-react";
 
@@ -84,6 +90,28 @@ function ReadinessBadge({ status }: { status: ReconciliationReadinessStatus }) {
     <Badge variant="outline" className={`flex items-center gap-1.5 ${cfg.badgeClass}`}>
       <Icon size={14} />
       {t(`attendance.reconciliationSummary.readinessStatus.${status}`)}
+    </Badge>
+  );
+}
+
+const PERIOD_STATUS_CONFIG: Record<
+  AttendancePeriodStatus,
+  { icon: ComponentType<{ size?: number; className?: string }>; badgeClass: string }
+> = {
+  open: { icon: LockOpen, badgeClass: "border-slate-400 text-slate-600 bg-slate-50 dark:bg-slate-900/40" },
+  locked: { icon: Lock, badgeClass: "border-blue-600 text-blue-700 bg-blue-50 dark:bg-blue-950/40" },
+  exported: { icon: Share2, badgeClass: "border-purple-600 text-purple-700 bg-purple-50 dark:bg-purple-950/40" },
+  reopened: { icon: LockOpen, badgeClass: "border-amber-600 text-amber-800 bg-amber-50 dark:bg-amber-950/30" },
+};
+
+function PeriodStatusBadge({ status }: { status: AttendancePeriodStatus }) {
+  const { t } = useTranslation("hr");
+  const cfg = PERIOD_STATUS_CONFIG[status];
+  const Icon = cfg.icon;
+  return (
+    <Badge variant="outline" className={`flex items-center gap-1.5 ${cfg.badgeClass}`}>
+      <Icon size={14} />
+      {t(`attendance.periodLock.status.${status}`)}
     </Badge>
   );
 }
@@ -145,6 +173,8 @@ export default function AttendanceReconciliationPage() {
   const [month, setMonth] = useState(initialMonth);
   const [repairingRecordId, setRepairingRecordId] = useState<number | null>(null);
   const [includeDetailsInExport, setIncludeDetailsInExport] = useState(true);
+  const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+  const [reopenReason, setReopenReason] = useState("");
 
   const { fromYmd, toYmd } = useMemo(() => labelMonthToInclusiveYmd(year, month), [year, month]);
 
@@ -152,6 +182,39 @@ export default function AttendanceReconciliationPage() {
     { companyId: activeCompanyId ?? undefined, year, month },
     { enabled: activeCompanyId != null },
   );
+
+  const periodState = trpc.attendance.getAttendancePeriodState.useQuery(
+    { companyId: activeCompanyId ?? undefined, year, month },
+    { enabled: activeCompanyId != null },
+  );
+
+  const lockPeriod = trpc.attendance.lockAttendancePeriod.useMutation({
+    onSuccess: () => {
+      toast.success(t("attendance.periodLock.toast.lockSuccess"));
+      void periodState.refetch();
+      void reconciliationSummary.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const exportPeriod = trpc.attendance.markAttendancePeriodExported.useMutation({
+    onSuccess: () => {
+      toast.success(t("attendance.periodLock.toast.exportSuccess"));
+      void periodState.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const reopenPeriod = trpc.attendance.reopenAttendancePeriod.useMutation({
+    onSuccess: () => {
+      toast.success(t("attendance.periodLock.toast.reopenSuccess"));
+      setReopenDialogOpen(false);
+      setReopenReason("");
+      void periodState.refetch();
+      void reconciliationSummary.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const preflight = trpc.attendance.reconciliationPreflight.useQuery(
     {
@@ -250,7 +313,51 @@ export default function AttendanceReconciliationPage() {
     }
   }
 
+  const reopenReasonTrimmed = reopenReason.trim();
+  const reopenReasonValid = reopenReasonTrimmed.length >= 10;
+
   return (
+    <>
+    {/* Reopen period dialog */}
+    <Dialog open={reopenDialogOpen} onOpenChange={(open) => { setReopenDialogOpen(open); if (!open) setReopenReason(""); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("attendance.periodLock.reopenDialog.title")}</DialogTitle>
+          <DialogDescription>{t("attendance.periodLock.reopenDialog.description")}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <Label htmlFor="reopen-reason">{t("attendance.periodLock.reopenDialog.reasonLabel")}</Label>
+          <Textarea
+            id="reopen-reason"
+            placeholder={t("attendance.periodLock.reopenDialog.reasonPlaceholder")}
+            value={reopenReason}
+            onChange={(e) => setReopenReason(e.target.value)}
+            rows={3}
+          />
+          {reopenReason.length > 0 && !reopenReasonValid ? (
+            <p className="text-xs text-destructive">{t("attendance.periodLock.reopenDialog.reasonTooShort")}</p>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => { setReopenDialogOpen(false); setReopenReason(""); }}>
+            {t("attendance.periodLock.reopenDialog.cancel")}
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            disabled={!reopenReasonValid || reopenPeriod.isPending}
+            onClick={() => {
+              if (!activeCompanyId || !reopenReasonValid) return;
+              reopenPeriod.mutate({ companyId: activeCompanyId, year, month, reason: reopenReasonTrimmed });
+            }}
+          >
+            {reopenPeriod.isPending
+              ? t("attendance.periodLock.actions.reopening")
+              : t("attendance.periodLock.reopenDialog.confirm")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
@@ -291,10 +398,11 @@ export default function AttendanceReconciliationPage() {
             onClick={() => {
               void preflight.refetch();
               void reconciliationSummary.refetch();
+              void periodState.refetch();
             }}
-            disabled={!activeCompanyId || preflight.isFetching || reconciliationSummary.isFetching}
+            disabled={!activeCompanyId || preflight.isFetching || reconciliationSummary.isFetching || periodState.isFetching}
           >
-            <RefreshCw size={15} className={preflight.isFetching || reconciliationSummary.isFetching ? "animate-spin" : ""} />
+            <RefreshCw size={15} className={preflight.isFetching || reconciliationSummary.isFetching || periodState.isFetching ? "animate-spin" : ""} />
             Refresh
           </Button>
         </div>
@@ -396,33 +504,72 @@ export default function AttendanceReconciliationPage() {
                   </div>
                 ) : null}
 
-                {/* Lock / Export actions (capability-gated, disabled until Phase 5B) */}
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!reconciliationSummary.data.canLock}
-                    title={
-                      !reconciliationSummary.data.canLock
-                        ? t("attendance.reconciliationSummary.actions.lockDisabledHint")
-                        : undefined
-                    }
-                  >
-                    {t("attendance.reconciliationSummary.actions.lock")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!reconciliationSummary.data.canExportToPayroll}
-                    title={
-                      !reconciliationSummary.data.canExportToPayroll
-                        ? t("attendance.reconciliationSummary.actions.exportDisabledHint")
-                        : undefined
-                    }
-                  >
-                    {t("attendance.reconciliationSummary.actions.export")}
-                  </Button>
-                </div>
+                {/* Period lock state badge */}
+                {periodState.data ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{t("attendance.periodLock.periodStatus")}:</span>
+                    <PeriodStatusBadge status={periodState.data.status as AttendancePeriodStatus} />
+                  </div>
+                ) : null}
+
+                {/* Lock / Export / Reopen actions */}
+                {(() => {
+                  const ps = periodState.data?.status as AttendancePeriodStatus | undefined;
+                  const canLockNow =
+                    reconciliationSummary.data.canLock &&
+                    (ps === "open" || ps === "reopened");
+                  const canExportNow =
+                    reconciliationSummary.data.canExportToPayroll && ps === "locked";
+                  const canReopenNow =
+                    reconciliationSummary.data.canLock && (ps === "locked" || ps === "exported");
+                  return (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={!canLockNow || lockPeriod.isPending}
+                        title={!canLockNow ? t("attendance.periodLock.actions.lockDisabledHint") : undefined}
+                        onClick={() => {
+                          if (!activeCompanyId) return;
+                          lockPeriod.mutate({ companyId: activeCompanyId, year, month });
+                        }}
+                      >
+                        <Lock size={14} />
+                        {lockPeriod.isPending
+                          ? t("attendance.periodLock.actions.locking")
+                          : t("attendance.periodLock.actions.lock")}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={!canExportNow || exportPeriod.isPending}
+                        title={!canExportNow ? t("attendance.periodLock.actions.exportDisabledHint") : undefined}
+                        onClick={() => {
+                          if (!activeCompanyId) return;
+                          exportPeriod.mutate({ companyId: activeCompanyId, year, month });
+                        }}
+                      >
+                        <Share2 size={14} />
+                        {exportPeriod.isPending
+                          ? t("attendance.periodLock.actions.exporting")
+                          : t("attendance.periodLock.actions.export")}
+                      </Button>
+                      {canReopenNow ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                          onClick={() => setReopenDialogOpen(true)}
+                        >
+                          <LockOpen size={14} />
+                          {t("attendance.periodLock.actions.reopen")}
+                        </Button>
+                      ) : null}
+                    </div>
+                  );
+                })()}
               </>
             ) : null}
           </CardContent>
@@ -596,5 +743,6 @@ export default function AttendanceReconciliationPage() {
         </Card>
       ) : null}
     </div>
+    </>
   );
 }

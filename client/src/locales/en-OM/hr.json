@@ -380,6 +380,39 @@
         "exportDisabledHint": "Export requires readiness Ready and the Export Attendance Reports capability."
       }
     },
+    "periodLock": {
+      "periodStatus": "Period status",
+      "status": {
+        "open": "Open",
+        "locked": "Locked",
+        "exported": "Exported",
+        "reopened": "Reopened"
+      },
+      "actions": {
+        "lock": "Lock period",
+        "locking": "Locking…",
+        "lockDisabledHint": "Period must be Ready and in Open or Reopened status. Requires the Lock Attendance Period capability.",
+        "export": "Mark exported",
+        "exporting": "Exporting…",
+        "exportDisabledHint": "Period must be Locked. Requires the Export Attendance Reports capability.",
+        "reopen": "Reopen period",
+        "reopening": "Reopening…"
+      },
+      "toast": {
+        "lockSuccess": "Attendance period locked successfully.",
+        "exportSuccess": "Attendance period marked as exported.",
+        "reopenSuccess": "Attendance period reopened. Attendance data can now be corrected."
+      },
+      "reopenDialog": {
+        "title": "Reopen attendance period",
+        "description": "Reopening allows corrections to attendance data. This action is audited. Provide a specific reason approved by your HR manager.",
+        "reasonLabel": "Reason for reopening",
+        "reasonPlaceholder": "e.g. Employee correction approved by HR manager — payroll needs to be recalculated",
+        "reasonTooShort": "Reason must be at least 10 characters and descriptive.",
+        "confirm": "Reopen period",
+        "cancel": "Cancel"
+      }
+    },
     "setupHealth": {
       "title": "Attendance setup incomplete",
       "description": "Some prerequisites are missing. Complete the steps below before attendance tracking will work correctly.",

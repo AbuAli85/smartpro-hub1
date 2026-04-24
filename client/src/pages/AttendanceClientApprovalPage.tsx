@@ -138,14 +138,18 @@ export default function AttendanceClientApprovalPage() {
 
   // ── Error / invalid token ───────────────────────────────────────────────────
   if (error || !data) {
-    const isUnauthorized =
-      error?.data?.code === "UNAUTHORIZED" || error?.data?.code === "NOT_FOUND";
+    // Both UNAUTHORIZED (invalid/expired token) and NOT_FOUND surface the same
+    // user-facing message — ask them to request a new link.
+    const isAccessError =
+      error?.message?.includes("Invalid or expired") ||
+      error?.message?.includes("not found") ||
+      !data;
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border p-8 text-center space-y-4">
           <AlertCircle className="h-12 w-12 text-red-400 mx-auto" />
           <h1 className="text-xl font-semibold text-gray-800">
-            {isUnauthorized
+            {isAccessError
               ? t("attendance.clientApproval.publicView.invalidToken")
               : t("attendance.clientApproval.publicView.notFound")}
           </h1>

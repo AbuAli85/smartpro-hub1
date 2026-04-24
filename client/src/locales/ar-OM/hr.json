@@ -339,6 +339,47 @@
         "viewRecords": "سجلات الموارد البشرية"
       }
     },
+    "reconciliationSummary": {
+      "title": "جاهزية الرواتب",
+      "description": "حالة الجاهزية للشهر الميلادي المحدد بناءً على قواعد قائمة إجراءات الحضور.",
+      "readinessStatus": {
+        "ready": "جاهز",
+        "needs_review": "يحتاج مراجعة",
+        "blocked": "محظور"
+      },
+      "readinessHint": {
+        "ready": "لا توجد عناصر تحجب الرواتب أو تتطلب المراجعة لهذه الفترة.",
+        "needs_review": "توجد عناصر للمراجعة فقط. يمكن متابعة الرواتب لكن يُنصح باهتمام الموارد البشرية.",
+        "blocked": "يجب حل العناصر الحاجبة للرواتب قبل معالجة الرواتب لهذه الفترة."
+      },
+      "totals": {
+        "scheduledDays": "أيام العمل",
+        "readyDays": "الأيام الجاهزة",
+        "excludedDays": "الأيام المستبعدة",
+        "payrollBlockingItems": "العناصر الحاجبة",
+        "reviewItems": "عناصر المراجعة",
+        "employeesAffected": "الموظفون المتأثرون",
+        "missingCheckouts": "تسجيل الخروج المفقود",
+        "pendingCorrections": "التصحيحات المعلقة",
+        "pendingManualCheckins": "الحضور اليدوي المعلق",
+        "scheduleConflicts": "تعارض الجداول",
+        "unscheduledAttendance": "الحضور غير المجدول",
+        "holidayAttendance": "الحضور في العطلة",
+        "leaveAttendance": "الحضور أثناء الإجازة"
+      },
+      "sections": {
+        "blockers": "العوامل الحاجبة للرواتب",
+        "reviewItems": "عناصر المراجعة",
+        "noBlockers": "لا توجد عناصر حاجبة للرواتب.",
+        "noReviewItems": "لا توجد عناصر للمراجعة."
+      },
+      "actions": {
+        "lock": "قفل الفترة",
+        "export": "تصدير للرواتب",
+        "lockDisabledHint": "لا يمكن قفل الفترة إلا عندما تكون الجاهزية «جاهز» ولديك صلاحية قفل فترة الحضور.",
+        "exportDisabledHint": "يتطلب التصدير جاهزية «جاهز» وصلاحية تصدير تقارير الحضور."
+      }
+    },
     "setupHealth": {
       "title": "إعداد الحضور غير مكتمل",
       "description": "بعض المتطلبات الأساسية مفقودة. أكمل الخطوات التالية قبل أن يعمل تتبع الحضور بشكل صحيح.",

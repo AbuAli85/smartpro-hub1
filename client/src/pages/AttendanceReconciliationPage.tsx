@@ -1,9 +1,12 @@
 /**
- * HR / admin: attendance reconciliation preflight (records vs sessions vs legacy HR attendance).
+ * HR / admin: attendance reconciliation preflight (records vs sessions vs legacy HR attendance)
+ * + Phase 5A payroll readiness summary.
  * Route: /hr/attendance-reconciliation
  */
+import type { ComponentType } from "react";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
@@ -18,8 +21,12 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { isAttendanceSessionsTableRequiredClientError } from "@/lib/attendanceTrpcErrors";
 import { AttendanceSessionsInfraErrorAlert } from "@/components/attendance/AttendanceSessionsInfraErrorAlert";
+import type { ReconciliationReadinessStatus, ReconciliationSummaryTotals } from "@shared/attendanceReconciliationSummary";
 import {
+  AlertCircle,
+  AlertTriangle,
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardCopy,
@@ -56,8 +63,81 @@ function parseMuscatYmd(ymd: string): { year: number; month: number } {
   return { year: y, month: m };
 }
 
+// ---------------------------------------------------------------------------
+// Readiness status badge helpers
+// ---------------------------------------------------------------------------
+
+const READINESS_CONFIG: Record<
+  ReconciliationReadinessStatus,
+  { icon: ComponentType<{ size?: number; className?: string }>; badgeClass: string }
+> = {
+  ready: { icon: CheckCircle2, badgeClass: "border-green-600 text-green-700 bg-green-50 dark:bg-green-950/40" },
+  needs_review: { icon: AlertTriangle, badgeClass: "border-amber-600 text-amber-800 bg-amber-50 dark:bg-amber-950/30" },
+  blocked: { icon: AlertCircle, badgeClass: "border-red-600 text-red-800 bg-red-50 dark:bg-red-950/30" },
+};
+
+function ReadinessBadge({ status }: { status: ReconciliationReadinessStatus }) {
+  const { t } = useTranslation("hr");
+  const cfg = READINESS_CONFIG[status];
+  const Icon = cfg.icon;
+  return (
+    <Badge variant="outline" className={`flex items-center gap-1.5 ${cfg.badgeClass}`}>
+      <Icon size={14} />
+      {t(`attendance.reconciliationSummary.readinessStatus.${status}`)}
+    </Badge>
+  );
+}
+
+function TotalsGrid({ totals }: { totals: ReconciliationSummaryTotals }) {
+  const { t } = useTranslation("hr");
+  const base = "attendance.reconciliationSummary.totals";
+  const cells: Array<{ key: keyof ReconciliationSummaryTotals; highlight?: "blocking" | "review" }> = [
+    { key: "scheduledDays" },
+    { key: "readyDays" },
+    { key: "excludedDays" },
+    { key: "employeesAffected" },
+    { key: "payrollBlockingItems", highlight: "blocking" },
+    { key: "reviewItems", highlight: "review" },
+    { key: "missingCheckouts", highlight: "blocking" },
+    { key: "pendingCorrections", highlight: "blocking" },
+    { key: "pendingManualCheckins", highlight: "blocking" },
+    { key: "scheduleConflicts", highlight: "blocking" },
+    { key: "unscheduledAttendance", highlight: "blocking" },
+    { key: "holidayAttendance", highlight: "review" },
+    { key: "leaveAttendance", highlight: "review" },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-sm">
+      {cells.map(({ key, highlight }) => {
+        const val = totals[key];
+        const isNonZeroBlocking = highlight === "blocking" && val > 0;
+        const isNonZeroReview = highlight === "review" && val > 0;
+        return (
+          <div
+            key={key}
+            className={`rounded-lg border px-3 py-2 ${
+              isNonZeroBlocking
+                ? "border-red-200 bg-red-50/60 dark:bg-red-950/20"
+                : isNonZeroReview
+                  ? "border-amber-200 bg-amber-50/60 dark:bg-amber-950/20"
+                  : "bg-muted/30"
+            }`}
+          >
+            <p className="text-xs text-muted-foreground">{t(`${base}.${key}`)}</p>
+            <p className={`font-semibold ${isNonZeroBlocking ? "text-red-700 dark:text-red-400" : isNonZeroReview ? "text-amber-700 dark:text-amber-400" : ""}`}>
+              {val}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function AttendanceReconciliationPage() {
   const { activeCompanyId } = useActiveCompany();
+  const { t } = useTranslation("hr");
   const muscatToday = muscatCalendarYmdNow();
   const { year: initialYear, month: initialMonth } = parseMuscatYmd(muscatToday);
 
@@ -67,6 +147,11 @@ export default function AttendanceReconciliationPage() {
   const [includeDetailsInExport, setIncludeDetailsInExport] = useState(true);
 
   const { fromYmd, toYmd } = useMemo(() => labelMonthToInclusiveYmd(year, month), [year, month]);
+
+  const reconciliationSummary = trpc.attendance.getReconciliationSummary.useQuery(
+    { companyId: activeCompanyId ?? undefined, year, month },
+    { enabled: activeCompanyId != null },
+  );
 
   const preflight = trpc.attendance.reconciliationPreflight.useQuery(
     {
@@ -203,10 +288,13 @@ export default function AttendanceReconciliationPage() {
             variant="outline"
             size="sm"
             className="gap-1.5"
-            onClick={() => void preflight.refetch()}
-            disabled={!activeCompanyId || preflight.isFetching}
+            onClick={() => {
+              void preflight.refetch();
+              void reconciliationSummary.refetch();
+            }}
+            disabled={!activeCompanyId || preflight.isFetching || reconciliationSummary.isFetching}
           >
-            <RefreshCw size={15} className={preflight.isFetching ? "animate-spin" : ""} />
+            <RefreshCw size={15} className={preflight.isFetching || reconciliationSummary.isFetching ? "animate-spin" : ""} />
             Refresh
           </Button>
         </div>
@@ -216,6 +304,127 @@ export default function AttendanceReconciliationPage() {
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
             Select a company workspace to run reconciliation.
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* ── Phase 5A: Payroll readiness summary ─────────────────────────────── */}
+      {activeCompanyId ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 size={18} className="text-muted-foreground" />
+              {t("attendance.reconciliationSummary.title")}
+            </CardTitle>
+            <CardDescription>
+              {t("attendance.reconciliationSummary.description")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {reconciliationSummary.isLoading ? (
+              <Skeleton className="h-24 w-full rounded-lg" />
+            ) : reconciliationSummary.isError ? (
+              <p className="text-sm text-destructive">{reconciliationSummary.error.message}</p>
+            ) : reconciliationSummary.data ? (
+              <>
+                {/* Readiness status badge + hint */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <ReadinessBadge status={reconciliationSummary.data.readinessStatus} />
+                  <p className="text-sm text-muted-foreground">
+                    {t(`attendance.reconciliationSummary.readinessHint.${reconciliationSummary.data.readinessStatus}`)}
+                  </p>
+                </div>
+
+                {/* Period totals grid */}
+                <TotalsGrid totals={reconciliationSummary.data.totals} />
+
+                {/* Payroll blockers */}
+                {reconciliationSummary.data.blockers.length > 0 ? (
+                  <div>
+                    <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-2">
+                      {t("attendance.reconciliationSummary.sections.blockers")}
+                    </p>
+                    <div className="space-y-2">
+                      {reconciliationSummary.data.blockers.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-start justify-between gap-3 rounded-md border border-red-200 bg-red-50/50 dark:bg-red-950/20 px-3 py-2 text-sm"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-red-800 dark:text-red-300">
+                              {t(item.titleKey)}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {item.attendanceDate}
+                              {item.employeeId != null ? ` · ${t("employee")} #${item.employeeId}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {t("attendance.reconciliationSummary.sections.noBlockers")}
+                  </p>
+                )}
+
+                {/* Review items */}
+                {reconciliationSummary.data.reviewItems.length > 0 ? (
+                  <div>
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-2">
+                      {t("attendance.reconciliationSummary.sections.reviewItems")}
+                    </p>
+                    <div className="space-y-2">
+                      {reconciliationSummary.data.reviewItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-start justify-between gap-3 rounded-md border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 px-3 py-2 text-sm"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-amber-800 dark:text-amber-300">
+                              {t(item.titleKey)}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {item.attendanceDate}
+                              {item.employeeId != null ? ` · ${t("employee")} #${item.employeeId}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Lock / Export actions (capability-gated, disabled until Phase 5B) */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!reconciliationSummary.data.canLock}
+                    title={
+                      !reconciliationSummary.data.canLock
+                        ? t("attendance.reconciliationSummary.actions.lockDisabledHint")
+                        : undefined
+                    }
+                  >
+                    {t("attendance.reconciliationSummary.actions.lock")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!reconciliationSummary.data.canExportToPayroll}
+                    title={
+                      !reconciliationSummary.data.canExportToPayroll
+                        ? t("attendance.reconciliationSummary.actions.exportDisabledHint")
+                        : undefined
+                    }
+                  >
+                    {t("attendance.reconciliationSummary.actions.export")}
+                  </Button>
+                </div>
+              </>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

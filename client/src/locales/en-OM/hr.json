@@ -339,6 +339,47 @@
         "viewRecords": "HR Records"
       }
     },
+    "reconciliationSummary": {
+      "title": "Payroll readiness",
+      "description": "Readiness status for the selected Muscat calendar month based on canonical attendance action queue rules.",
+      "readinessStatus": {
+        "ready": "Ready",
+        "needs_review": "Needs review",
+        "blocked": "Blocked"
+      },
+      "readinessHint": {
+        "ready": "No payroll-blocking or review items for this period.",
+        "needs_review": "Review-only items are present. Payroll can proceed but HR attention is recommended.",
+        "blocked": "Payroll-blocking items must be resolved before payroll can run for this period."
+      },
+      "totals": {
+        "scheduledDays": "Worked days",
+        "readyDays": "Ready days",
+        "excludedDays": "Excluded days",
+        "payrollBlockingItems": "Blocking items",
+        "reviewItems": "Review items",
+        "employeesAffected": "Employees affected",
+        "missingCheckouts": "Missing checkouts",
+        "pendingCorrections": "Pending corrections",
+        "pendingManualCheckins": "Pending manual check-ins",
+        "scheduleConflicts": "Schedule conflicts",
+        "unscheduledAttendance": "Unscheduled attendance",
+        "holidayAttendance": "Holiday attendance",
+        "leaveAttendance": "Leave attendance"
+      },
+      "sections": {
+        "blockers": "Payroll blockers",
+        "reviewItems": "Review items",
+        "noBlockers": "No payroll-blocking items.",
+        "noReviewItems": "No review items."
+      },
+      "actions": {
+        "lock": "Lock period",
+        "export": "Export to payroll",
+        "lockDisabledHint": "Period can only be locked when readiness is Ready and you have the Lock Attendance Period capability.",
+        "exportDisabledHint": "Export requires readiness Ready and the Export Attendance Reports capability."
+      }
+    },
     "setupHealth": {
       "title": "Attendance setup incomplete",
       "description": "Some prerequisites are missing. Complete the steps below before attendance tracking will work correctly.",

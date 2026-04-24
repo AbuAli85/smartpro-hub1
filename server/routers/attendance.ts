@@ -14,6 +14,7 @@ import {
   shiftTemplates,
   employeeSchedules,
   companyHolidays,
+  leaveRequests,
 } from "../../drizzle/schema";
 import { buildEmployeeDayShiftStatuses } from "@shared/employeeDayShiftStatus";
 import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
@@ -35,6 +36,7 @@ import {
   requireCanApproveAttendanceCorrections,
   requireCanApproveManualCheckIns,
   requireCanForceCheckout,
+  requireCanExportAttendanceReports,
 } from "./attendance/helpers";
 import {
   CheckInEligibilityReasonCode,
@@ -83,8 +85,14 @@ import {
 } from "../attendanceSessionFromRecord";
 import {
   evaluatePayrollPreflight,
+  muscatInclusiveYmdRangeToUtcHalfOpen,
   runAttendanceReconciliation,
 } from "../attendanceReconciliation";
+import {
+  buildAttendanceActionItems,
+} from "@shared/attendanceActionQueue";
+import { ATTENDANCE_REASON } from "@shared/attendanceStatus";
+import { buildReconciliationSummary } from "@shared/attendanceReconciliationSummary";
 
 async function requireDb() {
   const db = await getDb();
@@ -3200,6 +3208,327 @@ export const attendanceRouter = router({
         windowFrom: windowStart.toISOString(),
         windowTo: windowEnd.toISOString(),
       };
+    }),
+
+  /**
+   * Phase 5A: read-only payroll-readiness summary for a calendar month.
+   *
+   * Queries open sessions (missing checkouts), pending corrections, pending manual
+   * check-ins, holiday attendance, and leave attendance for the period.  Builds
+   * AttendanceActionQueueItems using the same rules as the live board, then
+   * aggregates them into a ReconciliationSummary with readinessStatus and
+   * capability-gated canLock / canExportToPayroll flags.
+   *
+   * Requires canExportAttendanceReports capability.
+   * No period-lock mutations — Phase 5B deferred until a migration is ready.
+   */
+  getReconciliationSummary: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const membership = await requireCanExportAttendanceReports(ctx.user as User, input.companyId);
+      const caps = membership.caps;
+      const db = await requireDb();
+      const cid = membership.companyId;
+
+      const { year, month } = input;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const fromYmd = `${year}-${pad(month)}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const toYmd = `${year}-${pad(month)}-${pad(lastDay)}`;
+      const today = muscatCalendarYmdNow();
+
+      const { startUtc, endExclusiveUtc } = muscatInclusiveYmdRangeToUtcHalfOpen(fromYmd, toYmd);
+
+      // Run all queries in parallel for performance.
+      const [
+        openSessions,
+        pendingCorrections,
+        pendingManualCheckins,
+        companyHolidayRows,
+        periodRecords,
+        approvedLeaves,
+        [closedSessionsRow],
+      ] = await Promise.all([
+        // 1. Open sessions for past Muscat dates in the period → missing checkouts
+        db
+          .select({
+            id: attendanceSessions.id,
+            employeeId: attendanceSessions.employeeId,
+            businessDate: attendanceSessions.businessDate,
+            scheduleId: attendanceSessions.scheduleId,
+            sourceRecordId: attendanceSessions.sourceRecordId,
+          })
+          .from(attendanceSessions)
+          .where(
+            and(
+              eq(attendanceSessions.companyId, cid),
+              eq(attendanceSessions.status, "open"),
+              gte(attendanceSessions.businessDate, fromYmd),
+              lte(attendanceSessions.businessDate, toYmd),
+              lt(attendanceSessions.businessDate, today),
+            ),
+          ),
+
+        // 2. Pending corrections in the period
+        db
+          .select({
+            id: attendanceCorrections.id,
+            employeeId: attendanceCorrections.employeeId,
+            requestedDate: attendanceCorrections.requestedDate,
+            attendanceRecordId: attendanceCorrections.attendanceRecordId,
+          })
+          .from(attendanceCorrections)
+          .where(
+            and(
+              eq(attendanceCorrections.companyId, cid),
+              eq(attendanceCorrections.status, "pending"),
+              gte(attendanceCorrections.requestedDate, fromYmd),
+              lte(attendanceCorrections.requestedDate, toYmd),
+            ),
+          ),
+
+        // 3. Pending manual check-in requests in the period (filter by requestedAt UTC range)
+        db
+          .select({
+            id: manualCheckinRequests.id,
+            employeeUserId: manualCheckinRequests.employeeUserId,
+            requestedBusinessDate: manualCheckinRequests.requestedBusinessDate,
+            requestedAt: manualCheckinRequests.requestedAt,
+          })
+          .from(manualCheckinRequests)
+          .where(
+            and(
+              eq(manualCheckinRequests.companyId, cid),
+              eq(manualCheckinRequests.status, "pending"),
+              or(
+                and(
+                  isNotNull(manualCheckinRequests.requestedBusinessDate),
+                  gte(manualCheckinRequests.requestedBusinessDate, fromYmd),
+                  lte(manualCheckinRequests.requestedBusinessDate, toYmd),
+                ),
+                and(
+                  isNull(manualCheckinRequests.requestedBusinessDate),
+                  gte(manualCheckinRequests.requestedAt, startUtc),
+                  lt(manualCheckinRequests.requestedAt, endExclusiveUtc),
+                ),
+              ),
+            ),
+          ),
+
+        // 4. Company holidays in the period
+        db
+          .select({ holidayDate: companyHolidays.holidayDate })
+          .from(companyHolidays)
+          .where(
+            and(
+              eq(companyHolidays.companyId, cid),
+              gte(companyHolidays.holidayDate, fromYmd),
+              lte(companyHolidays.holidayDate, toYmd),
+            ),
+          ),
+
+        // 5. Attendance records in the period (for holiday/leave matching)
+        db
+          .select({
+            id: attendanceRecords.id,
+            employeeId: attendanceRecords.employeeId,
+            checkIn: attendanceRecords.checkIn,
+            scheduleId: attendanceRecords.scheduleId,
+          })
+          .from(attendanceRecords)
+          .where(
+            and(
+              eq(attendanceRecords.companyId, cid),
+              gte(attendanceRecords.checkIn, startUtc),
+              lt(attendanceRecords.checkIn, endExclusiveUtc),
+            ),
+          ),
+
+        // 6. Approved leaves overlapping the period
+        db
+          .select({
+            id: leaveRequests.id,
+            employeeId: leaveRequests.employeeId,
+            startDate: leaveRequests.startDate,
+            endDate: leaveRequests.endDate,
+          })
+          .from(leaveRequests)
+          .where(
+            and(
+              eq(leaveRequests.companyId, cid),
+              eq(leaveRequests.status, "approved"),
+              lt(leaveRequests.startDate, endExclusiveUtc),
+              gte(leaveRequests.endDate, startUtc),
+            ),
+          ),
+
+        // 7. Count of closed sessions for scheduledDays estimate
+        db
+          .select({ n: count() })
+          .from(attendanceSessions)
+          .where(
+            and(
+              eq(attendanceSessions.companyId, cid),
+              eq(attendanceSessions.status, "closed"),
+              gte(attendanceSessions.businessDate, fromYmd),
+              lte(attendanceSessions.businessDate, toYmd),
+            ),
+          ),
+      ]);
+
+      const scheduledDays = Number(closedSessionsRow?.n ?? 0);
+      const allItems: ReturnType<typeof buildAttendanceActionItems> = [];
+
+      // ── 1. Missing checkouts (open sessions for past dates) ─────────────────
+      for (const s of openSessions) {
+        allItems.push(
+          ...buildAttendanceActionItems({
+            resolvedState: {
+              status: "checked_in_on_time",
+              payrollReadiness: "blocked_missing_checkout",
+              riskLevel: "high",
+              reasonCodes: [ATTENDANCE_REASON.MISSING_CHECKOUT],
+            },
+            attendanceDate: s.businessDate,
+            employeeId: s.employeeId,
+            attendanceRecordId: s.sourceRecordId,
+            scheduleId: s.scheduleId ?? undefined,
+          }),
+        );
+      }
+
+      // ── 2. Pending corrections ───────────────────────────────────────────────
+      for (const c of pendingCorrections) {
+        allItems.push(
+          ...buildAttendanceActionItems({
+            resolvedState: {
+              status: "checked_out",
+              payrollReadiness: "blocked_pending_correction",
+              riskLevel: "none",
+              reasonCodes: [ATTENDANCE_REASON.CORRECTION_PENDING],
+            },
+            attendanceDate: c.requestedDate,
+            employeeId: c.employeeId,
+            attendanceRecordId: c.attendanceRecordId,
+          }),
+        );
+      }
+
+      // ── 3. Pending manual check-ins ─────────────────────────────────────────
+      for (const m of pendingManualCheckins) {
+        const date =
+          m.requestedBusinessDate ??
+          muscatCalendarYmdFromUtcInstant(new Date(m.requestedAt));
+        allItems.push(
+          ...buildAttendanceActionItems({
+            resolvedState: {
+              status: "absent_pending",
+              payrollReadiness: "blocked_pending_manual_checkin",
+              riskLevel: "critical",
+              reasonCodes: [ATTENDANCE_REASON.MANUAL_CHECKIN_PENDING],
+            },
+            attendanceDate: date,
+            // employeeUserId is not the same as employeeId; omit for Phase 5A
+            employeeId: undefined,
+          }),
+        );
+      }
+
+      // ── 4+5. Holiday and leave attendance ───────────────────────────────────
+      // Deduplicate records by (employeeId, muscatDate) to avoid duplicate items
+      // from employees with multiple check-ins on the same day.
+      const recordsByEmpDay = new Map<string, { id: number; employeeId: number; mDate: string; scheduleId: number | null }>();
+      for (const r of periodRecords) {
+        const mDate = muscatCalendarYmdFromUtcInstant(new Date(r.checkIn));
+        const key = `${r.employeeId}:${mDate}`;
+        if (!recordsByEmpDay.has(key)) {
+          recordsByEmpDay.set(key, {
+            id: r.id,
+            employeeId: r.employeeId,
+            mDate,
+            scheduleId: r.scheduleId ?? null,
+          });
+        }
+      }
+
+      const holidayDates = new Set(companyHolidayRows.map((h) => h.holidayDate));
+
+      // Build per-employee leave intervals for fast lookup
+      type LeaveInterval = { startMs: number; endMs: number };
+      const leaveByEmpId = new Map<number, LeaveInterval[]>();
+      for (const l of approvedLeaves) {
+        const arr = leaveByEmpId.get(l.employeeId) ?? [];
+        arr.push({
+          startMs: new Date(l.startDate).getTime(),
+          endMs: new Date(l.endDate).getTime(),
+        });
+        leaveByEmpId.set(l.employeeId, arr);
+      }
+
+      for (const rec of recordsByEmpDay.values()) {
+        const isHoliday = holidayDates.has(rec.mDate);
+        const checkInMs = muscatInclusiveYmdRangeToUtcHalfOpen(rec.mDate, rec.mDate).startUtc.getTime();
+        const empLeaves = leaveByEmpId.get(rec.employeeId) ?? [];
+        const isOnLeave = empLeaves.some(
+          (l) => checkInMs >= l.startMs && checkInMs < l.endMs,
+        );
+
+        if (isHoliday) {
+          allItems.push(
+            ...buildAttendanceActionItems({
+              resolvedState: {
+                status: "holiday",
+                payrollReadiness: "needs_review",
+                riskLevel: "medium",
+                reasonCodes: [ATTENDANCE_REASON.HOLIDAY, ATTENDANCE_REASON.ATTENDANCE_ON_HOLIDAY],
+              },
+              attendanceDate: rec.mDate,
+              employeeId: rec.employeeId,
+              attendanceRecordId: rec.id,
+              scheduleId: rec.scheduleId ?? undefined,
+            }),
+          );
+        }
+
+        if (isOnLeave && !isHoliday) {
+          allItems.push(
+            ...buildAttendanceActionItems({
+              resolvedState: {
+                status: "leave",
+                payrollReadiness: "needs_review",
+                riskLevel: "medium",
+                reasonCodes: [ATTENDANCE_REASON.LEAVE, ATTENDANCE_REASON.ATTENDANCE_DURING_LEAVE],
+              },
+              attendanceDate: rec.mDate,
+              employeeId: rec.employeeId,
+              attendanceRecordId: rec.id,
+              scheduleId: rec.scheduleId ?? undefined,
+            }),
+          );
+        }
+      }
+
+      return buildReconciliationSummary({
+        period: {
+          year,
+          month,
+          startDate: fromYmd,
+          endDate: toYmd,
+          timezone: "Asia/Muscat",
+        },
+        allItems,
+        caps: {
+          canLockAttendancePeriod: caps.canLockAttendancePeriod,
+          canExportAttendanceReports: caps.canExportAttendanceReports,
+        },
+        scheduledDays,
+      });
     }),
 
   /**

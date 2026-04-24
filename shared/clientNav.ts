@@ -6,6 +6,7 @@ import {
 } from "./navPlatformRestrictedPrefixes";
 import { isTenantUnsafeNavExtensionPath, pathMatchesNavExtensionHref } from "./roleNavConfig";
 import { normalizeAppPath } from "./normalizeAppPath";
+import { resolveEffectiveCapabilities, type Capability } from "./capabilities";
 
 /** SmartPRO operator / provider tools — not shown to typical business tenants */
 /** Platform sidebar links restricted to global admins (not regional_manager / client_services). */
@@ -530,6 +531,12 @@ export type ClientNavOptions = {
    * Derive with {@link resolveNavMode}; set in PlatformLayout before passing to filterVisibleNavGroups.
    */
   navMode?: NavMode;
+  /**
+   * Active product modules for this company (`companies.enabledModules`).
+   * null / undefined = all modules active (legacy / unlimited plan).
+   * When set, nav items gated on a disabled module are hidden.
+   */
+  enabledModules?: string[] | null;
 };
 
 /**
@@ -643,6 +650,26 @@ export function shouldUsePortalOnlyShell(
 }
 
 /**
+ * Returns true if the given path belongs to a company module that is explicitly disabled.
+ * Only called when `enabledModules` is non-null (null = all enabled).
+ */
+function navModuleDisabledForPath(path: string, enabledModules: string[]): boolean {
+  const has = (mod: string) => enabledModules.includes(mod);
+  if (path === "/payroll" || path.startsWith("/payroll/")) return !has("payroll");
+  if (path === "/finance" || path.startsWith("/finance/")) return !has("finance");
+  if (path === "/hr" || path.startsWith("/hr/")) return !has("hr");
+  if (path === "/crm" || path.startsWith("/crm/")) return !has("crm");
+  if (path === "/sanad" || path.startsWith("/sanad/")) return !has("compliance");
+  if (path === "/workforce" || path.startsWith("/workforce/")) return !has("compliance");
+  if (path === "/pro" || path.startsWith("/pro/")) return !has("compliance");
+  if (path === "/marketplace" || path.startsWith("/marketplace/")) return !has("marketplace");
+  if (path === "/contracts" || path.startsWith("/contracts/")) return !has("contracts");
+  if (path === "/quotations" || path.startsWith("/quotations/")) return !has("contracts");
+  if (path.startsWith("/company/documents") || path === "/documents" || path.startsWith("/documents/")) return !has("documents");
+  return false;
+}
+
+/**
  * Whether a sidebar item should render for this user.
  * `hiddenOptional` = hrefs the user turned off in preferences (optional items only).
  *
@@ -662,6 +689,16 @@ export function clientNavItemVisible(
     options?.navMode === "company"
       ? { role: null, platformRole: null }
       : user;
+
+  // Effective capability set — role defaults ∪ explicit grants ∖ explicit denials, module-gated.
+  // Computed once per call and reused for all per-capability checks below.
+  const effectiveCaps: Set<Capability> | null = options?.memberRole
+    ? resolveEffectiveCapabilities(
+        options.memberRole,
+        options.memberPermissions,
+        options.enabledModules,
+      )
+    : null;
 
   if (OPTIONAL_NAV_HREFS.has(href) && hiddenOptional.has(href)) {
     return false;
@@ -721,22 +758,35 @@ export function clientNavItemVisible(
     }
     return Boolean(options?.hasCompanyMembership && isCustomerPortalMemberRole(options?.memberRole));
   }
+  // ── Capability-based supplemental grants ──────────────────────────────────
+  // Uses resolved effective set (role defaults + overrides + module gating) so that:
+  //   • Role defaults are automatically honoured (e.g. hr_admin gets view_reports without explicit grant)
+  //   • Per-user overrides (+cap / -cap in memberPermissions) are applied
+  //   • Disabled company modules suppress access even for privileged roles
   if (
     path === "/reports" ||
     path.startsWith("/reports/") ||
     path === "/hr/attendance" ||
     path.startsWith("/hr/attendance/")
   ) {
-    const perms: string[] = options?.memberPermissions ?? [];
-    if (perms.includes("view_reports")) return true;
+    if (effectiveCaps?.has("view_reports")) return true;
   }
   if (path === "/payroll" || path.startsWith("/payroll/")) {
-    const perms: string[] = options?.memberPermissions ?? [];
-    if (perms.includes("view_payroll")) return true;
+    if (effectiveCaps?.has("view_payroll")) return true;
   }
   if (path === "/finance/overview" || path.startsWith("/finance/overview/")) {
-    const perms: string[] = options?.memberPermissions ?? [];
-    if (perms.includes("view_executive_summary")) return true;
+    if (effectiveCaps?.has("view_executive_summary")) return true;
+  }
+
+  // ── Module gating (company context only) ─────────────────────────────────
+  // When a company has an explicit enabledModules list, hide module-specific nav
+  // even for roles that would normally see them. Platform operators bypass this.
+  if (
+    options?.navMode === "company" &&
+    options.enabledModules != null &&
+    !seesPlatformOperatorNav(navUser)
+  ) {
+    if (navModuleDisabledForPath(path, options.enabledModules)) return false;
   }
 
   // Staff / "Member" company role — employee shell only, even for Super Admin or other platform jobs

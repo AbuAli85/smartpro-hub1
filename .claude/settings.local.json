@@ -7,7 +7,8 @@
       "Bash(pnpm test *)",
       "PowerShell(Set-Location \"C:\\\\Users\\\\HP\\\\OneDrive\\\\Documents\\\\GitHub\\\\smartpro-hub1\"; \\(Get-ChildItem \"node_modules\\\\.pnpm\" -Depth 0 -Force\\).Count)",
       "PowerShell(Set-Location \"C:\\\\Users\\\\HP\\\\OneDrive\\\\Documents\\\\GitHub\\\\smartpro-hub1\"; $vitestBin = \"node_modules\\\\.pnpm\\\\vitest@2.1.9_@types+node@24_45d70e4ee2db46909396c8481f4059f7\\\\node_modules\\\\vitest\\\\vitest.mjs\"; if \\(Test-Path $vitestBin\\) { Write-Host \"Found: $vitestBin\" } else { Write-Host \"Not found at that path\" })",
-      "PowerShell(Set-Location \"C:\\\\Users\\\\HP\\\\OneDrive\\\\Documents\\\\GitHub\\\\smartpro-hub1\"; Test-Path \"pnpm-lock.yaml\"; \\(Get-ChildItem \"node_modules\" -Force\\).Count)"
+      "PowerShell(Set-Location \"C:\\\\Users\\\\HP\\\\OneDrive\\\\Documents\\\\GitHub\\\\smartpro-hub1\"; Test-Path \"pnpm-lock.yaml\"; \\(Get-ChildItem \"node_modules\" -Force\\).Count)",
+      "Bash(xargs grep *)"
     ]
   }
 }

@@ -105,6 +105,8 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     const memberPermissions = Array.isArray(myCompany?.member?.permissions)
       ? [...(myCompany.member.permissions as string[])]
       : [];
+    const enabledModules = (myCompany?.company as { enabledModules?: string[] | null } | undefined)
+      ?.enabledModules ?? null;
     return {
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
       companyWorkspaceLoading: myCompanyLoading,
@@ -112,6 +114,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       hasCompanyMembership: companies.length > 0,
       navExtraAllowedHrefs,
       memberPermissions,
+      enabledModules,
       navMode: resolveNavMode(user, { memberRole: effectiveMemberRole }),
     };
   }, [
@@ -121,6 +124,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     companies.length,
     navExtraAllowedHrefs,
     myCompany?.member?.permissions,
+    (myCompany?.company as { enabledModules?: string[] | null } | undefined)?.enabledModules,
     user,
   ]);
 

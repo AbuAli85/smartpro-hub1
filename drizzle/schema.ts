@@ -208,6 +208,13 @@ export const companies = mysqlTable("companies", {
   roleNavExtensions: json("roleNavExtensions").$type<Record<string, string[]>>().default({}),
   /** Optional annual/sick/emergency caps for portal + HR leave balances; null = Oman portal defaults in shared code. */
   leavePolicyCaps: json("leavePolicyCaps").$type<Partial<Record<"annual" | "sick" | "emergency", number>> | null>(),
+  /**
+   * Which product modules are active for this company (null = all enabled — legacy / unlimited plan).
+   * Values are CompanyModule keys from shared/capabilities.ts.
+   * When set, capabilities that belong to a disabled module are stripped from effective permission sets
+   * and the corresponding nav items are hidden.
+   */
+  enabledModules: json("enabledModules").$type<string[] | null>(),
   // ── Migration 0066: Identity, Compliance & Commercial Layer ──────────────────
   /** Headcount band (used for Omanization tier rules) */
   companySize: int("company_size"),

@@ -62,6 +62,7 @@ import { deploymentEconomicsRouter } from "./routers/deploymentEconomics";
 import { paymentsRouter } from "./routers/payments";
 import { twoFactorRouter } from "./routers/twoFactor";
 import { collectionsRouter } from "./routers/collections";
+import { capabilitiesRouter } from "./routers/capabilities";
 
 export const appRouter = router({
   system: systemRouter,
@@ -171,6 +172,8 @@ export const appRouter = router({
   payments: paymentsRouter,
   /** TOTP + backup codes — setup when signed in; challenge after OAuth when enabled. */
   twoFactor: twoFactorRouter,
+  /** Configurable capability + company module management. */
+  capabilities: capabilitiesRouter,
 });
 
 export type AppRouter = typeof appRouter;

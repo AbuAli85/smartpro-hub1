@@ -136,9 +136,9 @@ describe("attendance.forceCheckout", () => {
   it("throws NOT_FOUND when attendance record is missing for this company", async () => {
     // forceCheckout uses requireCanForceCheckout (new capability guard) which
     // resolves membership via getUserCompanyById mock (no DB select), so the
-    // first DB call is the attendance record query directly.
+    // first DB call is the attendance record query directly — use makeSimpleDb.
     vi.mocked(db.getDb).mockResolvedValue(
-      makeDbWithMembership([]) as never,
+      makeSimpleDb([]) as never,
     );
 
     const caller = attendanceRouter.createCaller(makeHrCtx());
@@ -153,7 +153,7 @@ describe("attendance.forceCheckout", () => {
 
   it("throws BAD_REQUEST when session is already closed", async () => {
     vi.mocked(db.getDb).mockResolvedValue(
-      makeDbWithMembership([
+      makeSimpleDb([
         {
           id: 5,
           companyId: 10,

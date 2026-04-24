@@ -28,6 +28,7 @@ import { DateInput } from "@/components/ui/date-input";
 import { useTranslation } from "react-i18next";
 import { isAttendanceSessionsTableRequiredClientError } from "@/lib/attendanceTrpcErrors";
 import { AttendanceSessionsInfraErrorAlert } from "@/components/attendance/AttendanceSessionsInfraErrorAlert";
+import { AttendanceReadinessPanel } from "@/components/attendance/AttendanceReadinessPanel";
 
 // â”€â”€â”€ Compliance helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type ComplianceLevel = "expired" | "expiring_30" | "expiring_90" | "ok" | "no_data";
@@ -600,6 +601,14 @@ function RunPayrollTab() {
                 </Select>
               </div>
             </div>
+
+            {/* Phase 11 readiness gate — warning-only (does not disable execute) */}
+            <AttendanceReadinessPanel
+              companyId={activeCompanyId}
+              year={createForm.year}
+              month={createForm.month}
+              requireClientApproval
+            />
 
             {/* Attendance reconciliation preflight (same Muscat month as payroll) */}
             <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">

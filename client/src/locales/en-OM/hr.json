@@ -503,6 +503,10 @@
         "approved": "Approved",
         "pending": "Pending",
         "rejected": "Rejected"
+      },
+      "panel": {
+        "warning": "Payroll can still be run, but attendance is not fully ready.",
+        "noPermission": "Attendance readiness is not available for your role."
       }
     },
     "setupHealth": {

@@ -207,13 +207,13 @@ export const PACKAGE_LABELS: Record<CompanyPackage, string> = {
  * Stored at provisioning time into companies.enabledModules.
  *
  * Tier design (Oman private-sector):
- *   starter      — HR + Documents: entry-level SME, < 20 staff
- *   professional — + Payroll + Contracts: main recommended tier
+ *   starter      — HR + Documents + Contracts: usable entry-level SME, < 20 staff
+ *   professional — + Payroll: main recommended tier (WPS-ready)
  *   business     — + Finance + Compliance: payroll/finance-heavy companies
  *   enterprise   — all modules, multi-branch / Sanad network clients
  */
 export const PACKAGE_ENABLED_MODULES: Record<CompanyPackage, CompanyModule[] | null> = {
-  starter: ["hr", "documents"],
+  starter: ["hr", "documents", "contracts"],
   professional: ["hr", "payroll", "documents", "contracts"],
   business: ["hr", "payroll", "finance", "documents", "contracts", "compliance"],
   enterprise: null,

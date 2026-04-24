@@ -215,6 +215,13 @@ export const companies = mysqlTable("companies", {
    * and the corresponding nav items are hidden.
    */
   enabledModules: json("enabledModules").$type<string[] | null>(),
+  // ── Migration 0080: SaaS package tier ────────────────────────────────────────
+  /**
+   * SaaS package tier assigned to this company.
+   * Drives enabledModules on provisioning and is used for billing classification.
+   * null = legacy / manually-configured company (treat as enterprise semantics).
+   */
+  package: mysqlEnum("package", ["starter", "professional", "business", "enterprise"]),
   // ── Migration 0066: Identity, Compliance & Commercial Layer ──────────────────
   /** Headcount band (used for Omanization tier rules) */
   companySize: int("company_size"),

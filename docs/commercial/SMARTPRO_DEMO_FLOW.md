@@ -39,10 +39,10 @@ Omanization target: 35%
 **Key demo steps:**
 1. Log in as `ahmed.admin@smartpro.demo` → lands on `/platform-admin`
 2. Show the company list — Al Noor Gulf LLC is active on Business tier
-3. Click into Al Noor → show `enabledModules: ["hr","payroll","finance","documents","contracts","compliance"]`
+3. Click into Al Noor → show `package: "business"` and derived `enabledModules: ["hr","payroll","finance","documents","contracts","compliance"]`
 4. Navigate to Audit Logs → show capability change events (who changed what, when)
 5. Demonstrate 2FA enforcement: try to disable MFA → blocked by `assertPlatformAdminMfaEnabled`
-6. Show subscription plan assignment → switch to Professional to show module gating live (CRM/Marketplace nav disappears for company members)
+6. Show package selector: switch Al Noor to **Starter** → system sets `enabledModules: ["hr","documents","contracts"]` — Finance/Payroll/Compliance tabs disappear for company members. Switch back to Business to restore. This is the live "module gating driven by package" moment.
 
 ---
 
@@ -199,8 +199,9 @@ Company: Al Noor Gulf LLC
   slug: al-noor-gulf-demo
   country: OM
   city: Muscat
+  package: "business"
   enabledModules: ["hr","payroll","finance","documents","contracts","compliance"]
-  subscriptionPlanId: → Business plan
+  subscriptionPlanId: → Business plan (slug: "business")
   omanizationTarget: 35.00
   molComplianceStatus: warning
 
@@ -227,9 +228,10 @@ Documents: 12 company documents, 2 shared with client role
 ### Module gating demo
 
 To demonstrate gating live during the demo, the Platform Admin can:
-1. Switch Al Noor from **Business** → **Professional** (removes `finance` + `compliance`)
-2. Finance Admin refreshes — Finance and Compliance tabs disappear from sidebar
-3. Switch back to **Business** — tabs return immediately (no page reload required after token refresh)
+1. Switch Al Noor from **Business** → **Starter** (system sets `package: "starter"`, `enabledModules: ["hr","documents","contracts"]`)
+2. Finance Admin refreshes — Payroll, Finance, and Compliance tabs disappear from sidebar
+3. Switch back to **Business** (`package: "business"`, `enabledModules: [...]`) — tabs return immediately (no page reload required after token refresh)
+4. This single action demonstrates the commercial value of upgrading a plan
 
 ---
 

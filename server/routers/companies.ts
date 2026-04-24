@@ -30,6 +30,7 @@ import { buildInviteEmailHtml, buildHRLetterEmailHtml, buildContractSigningEmail
 import { buildAccessAnalyticsOverview } from "../accessAnalytics";
 import { fetchEmployeesWithAccessData } from "../employeesWithAccessData";
 import {
+  recordEmployeeLinkedAudit,
   recordInviteAcceptedAudit,
   recordInviteCreatedAudit,
   recordInviteRevokedAudit,
@@ -568,7 +569,8 @@ export const companiesRouter = router({
         .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, companyId)))
         .limit(1);
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
-      if (target.userId === ctx.user.id && input.role !== "company_admin") {
+      // Prevent demoting any company_admin when they are the last active admin (regardless of who is acting).
+      if (target.role === "company_admin" && input.role !== "company_admin") {
         const admins = await db
           .select({ id: companyMembers.id })
           .from(companyMembers)
@@ -612,12 +614,20 @@ export const companiesRouter = router({
         companyId = membership.company.id;
       }
       const [target] = await db
-        .select({ userId: companyMembers.userId })
+        .select({ userId: companyMembers.userId, role: companyMembers.role })
         .from(companyMembers)
         .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, companyId)))
         .limit(1);
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
       if (target.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot remove yourself." });
+      // Prevent removing the last active company_admin, which would orphan the company.
+      if (target.role === "company_admin") {
+        const admins = await db
+          .select({ id: companyMembers.id })
+          .from(companyMembers)
+          .where(and(eq(companyMembers.companyId, companyId), eq(companyMembers.role, "company_admin"), eq(companyMembers.isActive, true)));
+        if (admins.length <= 1) throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot remove the last company admin." });
+      }
       await db.update(companyMembers).set({ isActive: false }).where(eq(companyMembers.id, input.memberId));
       await recordMemberRemovedAudit(db as never, {
         companyId,
@@ -744,7 +754,7 @@ export const companiesRouter = router({
         ));
       const token = randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-      await db.insert(companyInvites).values({
+      const [addByEmailInviteResult] = await db.insert(companyInvites).values({
         companyId,
         email: emailNorm,
         role: input.role,
@@ -752,7 +762,18 @@ export const companiesRouter = router({
         invitedBy: ctx.user.id,
         expiresAt,
       });
-      const origin = input.origin ?? "https://smartprohub-q4qjnxjv.manus.space";
+      const addByEmailInviteId = inviteIdFromInsertResult(addByEmailInviteResult);
+      if (addByEmailInviteId != null) {
+        await recordInviteCreatedAudit(db as never, {
+          companyId,
+          actorUserId: ctx.user.id,
+          inviteId: addByEmailInviteId,
+          email: emailNorm,
+          role: input.role,
+          platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+        });
+      }
+      const origin = input.origin ?? resolvePublicAppBaseUrl();
       const inviteUrl = `${origin}/invite/${token}`;
       await notifyOwner({
         title: `Team invite sent to ${emailNorm}`,
@@ -815,11 +836,16 @@ export const companiesRouter = router({
           .limit(1);
         if (existingMember?.isActive) throw new TRPCError({ code: "CONFLICT", message: "This user is already a member." });
       }
-      // Revoke any existing pending invite for same email+company
+      // Revoke any existing pending invite for same email+company (only pending ones — don't touch accepted invites).
       await db
         .update(companyInvites)
         .set({ revokedAt: new Date() })
-        .where(and(eq(companyInvites.email, input.email.toLowerCase()), eq(companyInvites.companyId, companyId)));
+        .where(and(
+          eq(companyInvites.email, input.email.toLowerCase()),
+          eq(companyInvites.companyId, companyId),
+          isNull(companyInvites.acceptedAt),
+          isNull(companyInvites.revokedAt),
+        ));
       const token = randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
       const [insertInviteResult] = await db.insert(companyInvites).values({
@@ -1171,6 +1197,15 @@ export const companiesRouter = router({
           .limit(1);
          if (existing) {
           await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
+          await recordMemberRoleChangedAudit(db as never, {
+            companyId,
+            actorUserId: ctx.user.id,
+            memberRowId: existing.id,
+            targetUserId: emp.userId,
+            previousRole: "suspended",
+            nextRole: input.role,
+            platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+          });
         } else {
           await db.insert(companyMembers).values({ companyId, userId: emp.userId, role: input.role, isActive: true, invitedBy: ctx.user.id });
         }
@@ -1192,6 +1227,15 @@ export const companiesRouter = router({
             .limit(1);
           if (existing) {
             await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
+            await recordMemberRoleChangedAudit(db as never, {
+              companyId,
+              actorUserId: ctx.user.id,
+              memberRowId: existing.id,
+              targetUserId: targetUser.id,
+              previousRole: "suspended",
+              nextRole: input.role,
+              platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+            });
           } else {
             await db.insert(companyMembers).values({ companyId, userId: targetUser.id, role: input.role, isActive: true, invitedBy: ctx.user.id });
           }
@@ -1208,8 +1252,13 @@ export const companiesRouter = router({
           await db
             .update(companyInvites)
             .set({ revokedAt: new Date() })
-            .where(and(eq(companyInvites.email, emp.email.toLowerCase()), eq(companyInvites.companyId, companyId)));
-          await db.insert(companyInvites).values({
+            .where(and(
+              eq(companyInvites.email, emp.email.toLowerCase()),
+              eq(companyInvites.companyId, companyId),
+              isNull(companyInvites.acceptedAt),
+              isNull(companyInvites.revokedAt),
+            ));
+          const [grantInviteResult] = await db.insert(companyInvites).values({
             companyId,
             email: emp.email.toLowerCase(),
             role: input.role,
@@ -1217,6 +1266,17 @@ export const companiesRouter = router({
             invitedBy: ctx.user.id,
             expiresAt,
           });
+          const grantInviteId = inviteIdFromInsertResult(grantInviteResult);
+          if (grantInviteId != null) {
+            await recordInviteCreatedAudit(db as never, {
+              companyId,
+              actorUserId: ctx.user.id,
+              inviteId: grantInviteId,
+              email: emp.email.toLowerCase(),
+              role: input.role,
+              platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+            });
+          }
           const inviteUrl = `${input.origin}/invite/${token}`;
           const bulkCompanyName = companyName;
           await notifyOwner({
@@ -1260,13 +1320,41 @@ export const companiesRouter = router({
       if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
 
       if (emp.userId) {
+        const [memberRow] = await db
+          .select({ id: companyMembers.id })
+          .from(companyMembers)
+          .where(and(eq(companyMembers.userId, emp.userId), eq(companyMembers.companyId, companyId)))
+          .limit(1);
         await db.update(companyMembers).set({ isActive: false }).where(and(eq(companyMembers.userId, emp.userId), eq(companyMembers.companyId, companyId)));
+        if (memberRow) {
+          await recordMemberRemovedAudit(db as never, {
+            companyId,
+            actorUserId: ctx.user.id,
+            memberRowId: memberRow.id,
+            targetUserId: emp.userId,
+            platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+          });
+        }
         return { success: true };
       }
       if (emp.email) {
         const [targetUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, emp.email.toLowerCase())).limit(1);
         if (targetUser) {
+          const [memberRow] = await db
+            .select({ id: companyMembers.id })
+            .from(companyMembers)
+            .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, companyId)))
+            .limit(1);
           await db.update(companyMembers).set({ isActive: false }).where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, companyId)));
+          if (memberRow) {
+            await recordMemberRemovedAudit(db as never, {
+              companyId,
+              actorUserId: ctx.user.id,
+              memberRowId: memberRow.id,
+              targetUserId: targetUser.id,
+              platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+            });
+          }
           return { success: true };
         }
       }
@@ -1323,6 +1411,13 @@ export const companiesRouter = router({
       }
       // Link the employee record to this user
       await db.update(employees).set({ userId: targetUser.id }).where(eq(employees.id, emp.id));
+      await recordEmployeeLinkedAudit(db as never, {
+        companyId,
+        actorUserId: ctx.user.id,
+        employeeId: emp.id,
+        linkedUserId: targetUser.id,
+        platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+      });
       return { success: true, message: `${emp.firstName} ${emp.lastName} is now linked to ${targetUser.email}` };
     }),
 
@@ -1361,14 +1456,32 @@ export const companiesRouter = router({
       if (!userId) throw new TRPCError({ code: "BAD_REQUEST", message: "Employee has no linked SmartPRO account." });
 
       const [member] = await db
-        .select({ id: companyMembers.id })
+        .select({ id: companyMembers.id, role: companyMembers.role })
         .from(companyMembers)
         .where(and(eq(companyMembers.userId, userId), eq(companyMembers.companyId, companyId)))
         .limit(1);
       if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "No active access record found for this employee." });
 
+      // Prevent demoting the last company_admin regardless of who is acting.
+      if (member.role === "company_admin" && input.role !== "company_admin") {
+        const admins = await db
+          .select({ id: companyMembers.id })
+          .from(companyMembers)
+          .where(and(eq(companyMembers.companyId, companyId), eq(companyMembers.role, "company_admin"), eq(companyMembers.isActive, true)));
+        if (admins.length <= 1) throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot demote the last company admin." });
+      }
+
       await db.update(companyMembers).set({ role: input.role }).where(eq(companyMembers.id, member.id));
       await syncPlatformRoleForCompanyMembership(db, userId, companyId);
+      await recordMemberRoleChangedAudit(db as never, {
+        companyId,
+        actorUserId: ctx.user.id,
+        memberRowId: member.id,
+        targetUserId: userId,
+        previousRole: member.role,
+        nextRole: input.role,
+        platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+      });
       return { success: true };
     }),
 

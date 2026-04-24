@@ -391,7 +391,7 @@ describe("companiesRouter role mutations sync platformRole", () => {
           return {
             from: vi.fn(() => ({
               where: vi.fn(() => ({
-                limit: vi.fn(async () => [{ id: 200 }]),
+                limit: vi.fn(async () => [{ id: 200, role: "company_member" }]),
               })),
             })),
           };
@@ -419,6 +419,9 @@ describe("companiesRouter role mutations sync platformRole", () => {
             if ("platformRole" in (data as object)) userSets.push(data);
           }),
         })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(async () => {}),
       })),
     };
 

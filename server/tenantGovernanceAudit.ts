@@ -23,6 +23,7 @@ export const TENANT_GOVERNANCE_ACTION = {
   INVITE_REVOKED: "invite_revoked",
   INVITE_ACCEPTED: "invite_accepted",
   MEMBER_REMOVED: "member_removed",
+  EMPLOYEE_LINKED: "employee_linked",
   PAYROLL_RUN_APPROVED: "payroll_run_approved",
   PAYROLL_RUN_MARKED_PAID: "payroll_run_marked_paid",
   PAYSLIP_EXPORTED: "payslip_exported",
@@ -228,6 +229,28 @@ export async function recordPayslipExportedAudit(
       payslipKey: params.payslipKey,
     },
     metadata: null,
+  });
+}
+
+export async function recordEmployeeLinkedAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    employeeId: number;
+    linkedUserId: number;
+    platformOperator: boolean;
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: "employee",
+    entityId: params.employeeId,
+    action: TENANT_GOVERNANCE_ACTION.EMPLOYEE_LINKED,
+    beforeState: null,
+    afterState: { linkedUserId: params.linkedUserId },
+    metadata: { platformOperator: params.platformOperator },
   });
 }
 

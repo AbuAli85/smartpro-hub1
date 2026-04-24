@@ -76,7 +76,7 @@ const ROLE_CONFIG: Record<string, {
 }> = {
   company_admin: {
     label: "Owner / Admin",
-    description: "Full access to everything â€” all modules, all settings, team management",
+    description: "Full access to everything – all modules, all settings, team management",
     color: "text-orange-600",
     bgColor: "bg-orange-50 border-orange-200",
     icon: <Crown size={14} className="text-orange-500" />,
@@ -84,7 +84,7 @@ const ROLE_CONFIG: Record<string, {
   },
   hr_admin: {
     label: "HR Manager",
-    description: "Full access to all HR modules â€” employees, payroll, leave, attendance, letters, tasks",
+    description: "Full access to all HR modules – employees, payroll, leave, attendance, letters, tasks",
     color: "text-blue-600",
     bgColor: "bg-blue-50 border-blue-200",
     icon: <UserCheck size={14} className="text-blue-500" />,
@@ -100,7 +100,7 @@ const ROLE_CONFIG: Record<string, {
   },
   company_member: {
     label: "Staff / Employee",
-    description: "Access to Employee home only â€” their own attendance, tasks, leave, announcements",
+    description: "Access to Employee home only – their own attendance, tasks, leave, announcements",
     color: "text-gray-600",
     bgColor: "bg-gray-50 border-gray-200",
     icon: <Users size={14} className="text-gray-500" />,
@@ -116,7 +116,7 @@ const ROLE_CONFIG: Record<string, {
   },
   external_auditor: {
     label: "External Auditor",
-    description: "Limited read-only access â€” cannot see payroll, HR management, or admin pages",
+    description: "Limited read-only access – cannot see payroll, HR management, or admin pages",
     color: "text-yellow-600",
     bgColor: "bg-yellow-50 border-yellow-200",
     icon: <Shield size={14} className="text-yellow-500" />,
@@ -161,7 +161,7 @@ const TA = {
   chipAccountNotLinked: "Account not linked",
   chipIdentityConflict: "Identity conflict",
   chipMissingEmail: "Missing email",
-  cardHrDirectoryTitle: "HR directory â€” access",
+  cardHrDirectoryTitle: "HR directory – access",
   tabActiveMembers: "Active Members",
   tabHrEmployees: "HR Employees",
   sectionActiveSystemLogins: "Active System Logins",
@@ -310,7 +310,7 @@ function getConflictReviewCopy(stateReason: string | null | undefined): {
           "Common after an email change on one side but not the other.",
         ],
         nextSteps: [
-          "Confirm the correct work email in HR â†’ My Team.",
+          "Confirm the correct work email in HR → My Team.",
           "If the right person already has access, use Link account to attach the correct login to this HR row.",
           "Revoke duplicate invites or memberships if someone was added twice.",
         ],
@@ -319,7 +319,7 @@ function getConflictReviewCopy(stateReason: string | null | undefined): {
       return {
         title: "Multiple memberships for the same person",
         intro: "We found more than one company membership that could apply to this employee.",
-        signals: ["Two or more member records overlapâ€”SmartPRO cannot pick a single access row automatically."],
+        signals: ["Two or more member records overlap — SmartPRO cannot pick a single access row automatically."],
         nextSteps: [
           "In Active Members, remove memberships that are clearly duplicates.",
           "Refresh this page, then use Link account if the HR row still does not match the surviving membership.",
@@ -570,7 +570,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
       utils.companies.accessAnalyticsOverview.invalidate();
       utils.companies.members.invalidate();
       utils.auth.me.invalidate();
-      toast.success("Role updated â€” sidebar will refresh automatically");
+      toast.success("Role updated – sidebar will refresh automatically");
       setRoleChangeTarget(null);
     },
     onError: (err) => toast.error(err.message),
@@ -602,7 +602,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
       utils.companies.employeesWithAccess.invalidate();
       utils.companies.accessAnalyticsOverview.invalidate();
       utils.auth.me.invalidate();
-      toast.success("Role updated â€” sidebar will refresh automatically");
+      toast.success("Role updated – sidebar will refresh automatically");
       setMemberRoleTarget(null);
     },
     onError: (err) => toast.error(err.message),
@@ -717,7 +717,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Team Access & Roles</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Manage who can log in to SmartPRO and what they can see. Add employees in HR â†’ My Team first, then grant access here.
+            Manage who can log in to SmartPRO and what they can see. Add employees in HR → My Team first, then grant access here.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1034,7 +1034,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                           {emp.memberRole ? (
                             <RoleBadge role={emp.memberRole} />
                           ) : (
-                            <span className="text-xs text-gray-400">â€”</span>
+                            <span className="text-xs text-gray-400">–</span>
                           )}
                         </div>
 
@@ -1215,7 +1215,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                 <div className="py-8 text-center text-sm text-gray-400">Loading...</div>
               ) : activeMembers.length === 0 ? (
                 <div className="py-8 text-center text-sm text-gray-400">
-                  No active members yet. Add employees in HR â†’ My Team, then grant them system access from the {TA.tabHrEmployees} tab.
+                  No active members yet. Add employees in HR → My Team, then grant them system access from the {TA.tabHrEmployees} tab.
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
@@ -1306,7 +1306,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                   <p className="text-sm font-semibold text-blue-800 mb-1">How Access Works</p>
                   <div className="space-y-1.5 text-xs text-blue-700">
                     <p><strong>Step 1:</strong> Add employees in the HR module (My Team / Employees page)</p>
-                    <p><strong>Step 2:</strong> Come to this page â†’ {TA.tabHrEmployees} tab â†’ click &quot;Grant Access&quot; on any employee</p>
+                    <p><strong>Step 2:</strong> Come to this page → {TA.tabHrEmployees} tab → click &quot;Grant Access&quot; on any employee</p>
                     <p><strong>Step 3:</strong> Choose their role (Staff, HR Manager, Finance, etc.)</p>
                     <p><strong>Step 4:</strong> If they have a SmartPRO account (same email), they get access immediately. If not, an invite link is generated.</p>
                     <p><strong>Step 5:</strong> They log in at SmartPRO and see only what their role allows.</p>
@@ -1429,12 +1429,12 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="company_admin">Owner / Admin â€” Full access</SelectItem>
-                                <SelectItem value="hr_admin">HR Manager â€” HR modules</SelectItem>
-                                <SelectItem value="finance_admin">Finance Manager â€” Payroll & Finance</SelectItem>
-                                <SelectItem value="company_member">Staff / Employee â€” Employee home only</SelectItem>
-                                <SelectItem value="reviewer">Reviewer â€” Read-only</SelectItem>
-                                <SelectItem value="external_auditor">External Auditor â€” Limited read-only</SelectItem>
+                                <SelectItem value="company_admin">Owner / Admin – Full access</SelectItem>
+                                <SelectItem value="hr_admin">HR Manager – HR modules</SelectItem>
+                                <SelectItem value="finance_admin">Finance Manager – Payroll & Finance</SelectItem>
+                                <SelectItem value="company_member">Staff / Employee – Employee home only</SelectItem>
+                                <SelectItem value="reviewer">Reviewer – Read-only</SelectItem>
+                                <SelectItem value="external_auditor">External Auditor – Limited read-only</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1493,12 +1493,12 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="company_admin">Owner / Admin â€” Full access</SelectItem>
-                  <SelectItem value="hr_admin">HR Manager â€” HR modules</SelectItem>
-                  <SelectItem value="finance_admin">Finance Manager â€” Payroll & Finance</SelectItem>
-                  <SelectItem value="company_member">Staff / Employee â€” Employee home only</SelectItem>
-                  <SelectItem value="reviewer">Reviewer â€” Read-only</SelectItem>
-                  <SelectItem value="external_auditor">External Auditor â€” Limited read-only</SelectItem>
+                  <SelectItem value="company_admin">Owner / Admin – Full access</SelectItem>
+                  <SelectItem value="hr_admin">HR Manager – HR modules</SelectItem>
+                  <SelectItem value="finance_admin">Finance Manager – Payroll & Finance</SelectItem>
+                  <SelectItem value="company_member">Staff / Employee – Employee home only</SelectItem>
+                  <SelectItem value="reviewer">Reviewer – Read-only</SelectItem>
+                  <SelectItem value="external_auditor">External Auditor – Limited read-only</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-500 mt-1.5">
@@ -1531,7 +1531,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
       <Dialog open={!!roleChangeTarget} onOpenChange={(open) => { if (!open) setRoleChangeTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Change Role â€” {roleChangeTarget?.name}</DialogTitle>
+            <DialogTitle>Change Role – {roleChangeTarget?.name}</DialogTitle>
             <DialogDescription>
               Select a new role for this team member.
             </DialogDescription>
@@ -1571,7 +1571,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
       <AlertDialog open={!!revokeTarget} onOpenChange={(open) => { if (!open) setRevokeTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke Access â€” {revokeTarget?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>Revoke Access – {revokeTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
               This will prevent {revokeTarget?.name} from logging in to SmartPRO. Their HR data (payroll, attendance, leave) will not be deleted. You can restore access at any time.
             </AlertDialogDescription>
@@ -1612,6 +1612,11 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                 placeholder="colleague@company.com"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && inviteEmail && !addMemberByEmail.isPending) {
+                    addMemberByEmail.mutate({ email: inviteEmail, role: inviteRole as any, companyId: activeCompanyId ?? undefined, origin: window.location.origin });
+                  }
+                }}
               />
             </div>
             <div>
@@ -1629,6 +1634,9 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                   <SelectItem value="external_auditor">External Auditor</SelectItem>
                 </SelectContent>
               </Select>
+              {ROLE_CONFIG[inviteRole] && (
+                <p className="text-xs text-gray-500 mt-1.5">{ROLE_CONFIG[inviteRole].description}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -1647,7 +1655,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
       <Dialog open={!!memberRoleTarget} onOpenChange={(open) => { if (!open) setMemberRoleTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Change Role â€” {memberRoleTarget?.name}</DialogTitle>
+            <DialogTitle>Change Role – {memberRoleTarget?.name}</DialogTitle>
           </DialogHeader>
           <div className="py-2">
             <Select value={memberNewRole} onValueChange={setMemberNewRole}>
@@ -1703,7 +1711,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCheck size={18} className="text-purple-600" />
-              Link Account â€” {linkTarget?.name}
+              Link Account – {linkTarget?.name}
             </DialogTitle>
             <DialogDescription>
               Connects this HR employee row to the user account that signs in with the email below. Use when someone is
@@ -1726,7 +1734,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
               <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
                 Requirements: (1) they have signed in to SmartPRO at least once with this email, and (2) they are already a
                 member of this company (invite accepted or Grant Access). Link Account only attaches their login to this
-                employee recordâ€”it does not add them to the company.
+                employee record — it does not add them to the company.
               </p>
               {linkMemberToEmployee.isError && (
                 <p className="text-sm text-destructive font-medium mt-2" role="alert">

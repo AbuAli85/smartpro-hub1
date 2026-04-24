@@ -89,7 +89,7 @@ import {
   INVALID_ATTENDANCE_TIME_RANGE,
   WEAK_AUDIT_REASON,
 } from "@shared/attendanceTrpcReasons";
-import { requireCanRecordManualAttendance } from "./attendance/helpers";
+import { requireCanRecordManualAttendance, requireCanEditAttendanceRecords } from "./attendance/helpers";
 import { findAttendanceForDate } from "../repositories/attendance.repository";
 
 function timeToMinutes(t: string): number {
@@ -976,9 +976,7 @@ export const hrRouter = router({
       const { id, checkIn, checkOut, changeAuditNote } = input;
       const row = await getAttendanceRecordById(id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record", row.companyId);
-      const membership = await requireWorkspaceMembership(ctx.user as User, row.companyId);
-      requireNotAuditor(membership.role);
+      const { role } = await requireCanEditAttendanceRecords(ctx.user as User, row.companyId);
       const nextStatus = input.status ?? row.status;
       const nextNotesTrim = input.notes !== undefined ? input.notes.trim() : (row.notes ?? "").trim();
       const statusChanged = input.status !== undefined && input.status !== row.status;
@@ -1026,7 +1024,7 @@ export const hrRouter = router({
           employeeId: row.employeeId,
           hrAttendanceId: id,
           actorUserId: ctx.user.id,
-          actorRole: membership.role,
+          actorRole: role,
           actionType: ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_UPDATE,
           entityType: ATTENDANCE_AUDIT_ENTITY.HR_ATTENDANCE,
           entityId: id,
@@ -1044,9 +1042,8 @@ export const hrRouter = router({
     .mutation(async ({ input, ctx }) => {
       const row = await getAttendanceRecordById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record", row.companyId);
-      const membership = await requireWorkspaceMembership(ctx.user as User, row.companyId);
-      requireNotAuditor(membership.role);
+      // TODO: hard delete — future compliance phase should replace with a void/reversal audit trail.
+      const { role } = await requireCanEditAttendanceRecords(ctx.user as User, row.companyId);
       const beforePayload = attendancePayloadJson(row);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -1057,7 +1054,7 @@ export const hrRouter = router({
           employeeId: row.employeeId,
           hrAttendanceId: input.id,
           actorUserId: ctx.user.id,
-          actorRole: membership.role,
+          actorRole: role,
           actionType: ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_DELETE,
           entityType: ATTENDANCE_AUDIT_ENTITY.HR_ATTENDANCE,
           entityId: input.id,

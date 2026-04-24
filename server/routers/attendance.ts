@@ -32,6 +32,9 @@ import {
   isWithinOperatingHours,
   normalizeCorrectionHms,
   requireAdminOrHR as _requireAdminOrHR,
+  requireCanApproveAttendanceCorrections,
+  requireCanApproveManualCheckIns,
+  requireCanForceCheckout,
 } from "./attendance/helpers";
 import {
   CheckInEligibilityReasonCode,
@@ -1467,7 +1470,8 @@ export const attendanceRouter = router({
       adminNote: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
+      const _m = await requireCanApproveManualCheckIns(ctx.user as User, input.companyId);
+      const membership = { ..._m, company: { id: _m.companyId }, member: { role: _m.role } };
       const db = await requireDb();
 
       // Try full select first; fall back to base columns if migration is pending.
@@ -1668,7 +1672,8 @@ export const attendanceRouter = router({
       adminNote: z.string().min(5, "Please provide a reason for rejection"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
+      const _m = await requireCanApproveManualCheckIns(ctx.user as User, input.companyId);
+      const membership = { ..._m, company: { id: _m.companyId }, member: { role: _m.role } };
       const db = await requireDb();
 
       const [req] = await db
@@ -1922,7 +1927,8 @@ export const attendanceRouter = router({
       adminNote: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
+      const _m = await requireCanApproveAttendanceCorrections(ctx.user as User, input.companyId);
+      const membership = { ..._m, company: { id: _m.companyId }, member: { role: _m.role } };
       const db = await requireDb();
       const [req] = await db
         .select()
@@ -2175,7 +2181,8 @@ export const attendanceRouter = router({
       adminNote: z.string().min(5, "Please provide a reason"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
+      const _m = await requireCanApproveAttendanceCorrections(ctx.user as User, input.companyId);
+      const membership = { ..._m, company: { id: _m.companyId }, member: { role: _m.role } };
       const db = await requireDb();
       const [req] = await db
         .select()
@@ -2258,7 +2265,17 @@ export const attendanceRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
+      // canViewAttendanceAudit is true for company_admin, hr_admin, and external_auditor —
+      // use requireWorkspaceMembership so external auditors are not blocked by requireHrOrAdmin.
+      const _m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const _caps = deriveCapabilities(_m.role, { type: "company", companyId: _m.companyId });
+      if (!_caps.canViewAttendanceAudit) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This action requires the canViewAttendanceAudit capability (HR Admin, Company Admin, or authorized Auditor).",
+        });
+      }
+      const membership = { ..._m, company: { id: _m.companyId }, member: { role: _m.role } };
       const db = await requireDb();
 
       const conditions = [eq(attendanceAudit.companyId, membership.company.id)];
@@ -2905,7 +2922,8 @@ export const attendanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
+      const _m = await requireCanForceCheckout(ctx.user as User, input.companyId);
+      const membership = { ..._m, company: { id: _m.companyId }, member: { role: _m.role } };
       const db = await requireDb();
       const [rec] = await db
         .select()

@@ -9,3 +9,6 @@ export const DUPLICATE_MANUAL_ATTENDANCE = "DUPLICATE_MANUAL_ATTENDANCE" as cons
 
 /** Returned when the audit reason is a weak/meaningless word (e.g. "test", "ok", "done"). */
 export const WEAK_AUDIT_REASON = "WEAK_AUDIT_REASON" as const;
+
+/** Returned when checkOut is not strictly after checkIn. Overnight shifts are not supported for manual entries. */
+export const INVALID_ATTENDANCE_TIME_RANGE = "INVALID_ATTENDANCE_TIME_RANGE" as const;

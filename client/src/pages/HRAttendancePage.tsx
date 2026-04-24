@@ -54,7 +54,7 @@ import {
 } from "@shared/attendanceIntelligence";
 import { muscatCalendarYmdFromUtcInstant, muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
 import { isWeakAuditReason } from "@shared/attendanceManualValidation";
-import { DUPLICATE_MANUAL_ATTENDANCE, WEAK_AUDIT_REASON } from "@shared/attendanceTrpcReasons";
+import { DUPLICATE_MANUAL_ATTENDANCE, INVALID_ATTENDANCE_TIME_RANGE, WEAK_AUDIT_REASON } from "@shared/attendanceTrpcReasons";
 import { useAttendanceOperationalMutations } from "@/hooks/useAttendanceOperationalMutations";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
@@ -624,6 +624,9 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
       } else if (reason === WEAK_AUDIT_REASON) {
         setServerError(t("attendance.clockInDialog.weakReasonHint"));
         toast.error(t("attendance.clockInDialog.weakReasonHint"));
+      } else if (reason === INVALID_ATTENDANCE_TIME_RANGE) {
+        setServerError(t("attendance.clockInDialog.invalidTimeRange"));
+        toast.error(t("attendance.clockInDialog.invalidTimeRange"));
       } else {
         setServerError(e.message);
         toast.error(e.message);

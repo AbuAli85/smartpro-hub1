@@ -108,6 +108,112 @@ beforeEach(() => {
   vi.mocked(attendanceRepo.findAttendanceForDate).mockReset().mockResolvedValue(null);
 });
 
+const CHECK_IN_ISO = "2026-04-20T06:00:00.000Z";  // 10:00 Muscat
+const CHECK_OUT_AFTER_ISO = "2026-04-20T08:00:00.000Z"; // 12:00 Muscat (after check-in)
+const CHECK_OUT_SAME_ISO = "2026-04-20T06:00:00.000Z";  // same as check-in
+const CHECK_OUT_BEFORE_ISO = "2026-04-20T04:00:00.000Z"; // before check-in
+
+// ─── 0. Time range validation ─────────────────────────────────────────────────
+
+describe("createAttendance — time range validation", () => {
+  it("rejects checkOut equal to checkIn with BAD_REQUEST and INVALID_ATTENDANCE_TIME_RANGE", async () => {
+    seedHrMembership();
+    const caller = appRouter.createCaller(makeCtx());
+    const err = await caller.hr.createAttendance({
+      ...VALID_INPUT,
+      checkIn: CHECK_IN_ISO,
+      checkOut: CHECK_OUT_SAME_ISO,
+    }).catch((e) => e);
+    expect(err.code).toBe("BAD_REQUEST");
+    expect((err.cause as { reason?: string } | undefined)?.reason).toBe("INVALID_ATTENDANCE_TIME_RANGE");
+  });
+
+  it("rejects checkOut before checkIn with BAD_REQUEST and INVALID_ATTENDANCE_TIME_RANGE", async () => {
+    seedHrMembership();
+    const caller = appRouter.createCaller(makeCtx());
+    const err = await caller.hr.createAttendance({
+      ...VALID_INPUT,
+      checkIn: CHECK_IN_ISO,
+      checkOut: CHECK_OUT_BEFORE_ISO,
+    }).catch((e) => e);
+    expect(err.code).toBe("BAD_REQUEST");
+    expect((err.cause as { reason?: string } | undefined)?.reason).toBe("INVALID_ATTENDANCE_TIME_RANGE");
+  });
+
+  it("allows checkOut strictly after checkIn", async () => {
+    seedHrMembership();
+    seedEmployee();
+    const auditRows: unknown[] = [];
+    const tx = makeTxMock(auditRows);
+    vi.mocked(db.getDb).mockResolvedValueOnce({
+      transaction: async (fn: (t: typeof tx) => Promise<void>) => { await fn(tx); },
+    } as never);
+    const result = await appRouter.createCaller(makeCtx()).hr.createAttendance({
+      ...VALID_INPUT,
+      checkIn: CHECK_IN_ISO,
+      checkOut: CHECK_OUT_AFTER_ISO,
+    });
+    expect(result).toHaveProperty("success", true);
+  });
+
+  it("allows omitting both checkIn and checkOut (status-only entry)", async () => {
+    seedHrMembership();
+    seedEmployee();
+    const auditRows: unknown[] = [];
+    const tx = makeTxMock(auditRows);
+    vi.mocked(db.getDb).mockResolvedValueOnce({
+      transaction: async (fn: (t: typeof tx) => Promise<void>) => { await fn(tx); },
+    } as never);
+    const result = await appRouter.createCaller(makeCtx()).hr.createAttendance(VALID_INPUT);
+    expect(result).toHaveProperty("success", true);
+  });
+
+  it("existing duplicate prevention still works when time range is valid", async () => {
+    seedHrMembership();
+    seedEmployee();
+    vi.mocked(attendanceRepo.findAttendanceForDate).mockResolvedValueOnce({ id: 99 });
+    const caller = appRouter.createCaller(makeCtx());
+    const err = await caller.hr.createAttendance({
+      ...VALID_INPUT,
+      checkIn: CHECK_IN_ISO,
+      checkOut: CHECK_OUT_AFTER_ISO,
+    }).catch((e) => e);
+    expect(err.code).toBe("CONFLICT");
+    expect((err.cause as { reason?: string } | undefined)?.reason).toBe("DUPLICATE_MANUAL_ATTENDANCE");
+  });
+
+  it("weak reason validation still fires before time range check is reached", async () => {
+    seedHrMembership();
+    seedEmployee();
+    const caller = appRouter.createCaller(makeCtx());
+    const err = await caller.hr.createAttendance({
+      ...VALID_INPUT,
+      notes: "done      ",
+      checkIn: CHECK_IN_ISO,
+      checkOut: CHECK_OUT_BEFORE_ISO,
+    }).catch((e) => e);
+    expect(err.code).toBe("BAD_REQUEST");
+    expect((err.cause as { reason?: string } | undefined)?.reason).toBe("WEAK_AUDIT_REASON");
+  });
+
+  it("valid time range entry still creates an audit row", async () => {
+    seedHrMembership();
+    seedEmployee();
+    const capturedRows: unknown[] = [];
+    const tx = makeTxMock(capturedRows);
+    vi.mocked(db.getDb).mockResolvedValueOnce({
+      transaction: async (fn: (t: typeof tx) => Promise<void>) => { await fn(tx); },
+    } as never);
+    await appRouter.createCaller(makeCtx()).hr.createAttendance({
+      ...VALID_INPUT,
+      checkIn: CHECK_IN_ISO,
+      checkOut: CHECK_OUT_AFTER_ISO,
+    });
+    expect(tx.insert).toHaveBeenCalledTimes(1);
+    expect(capturedRows).toHaveLength(1);
+  });
+});
+
 // ─── 1. Requires audit reason ─────────────────────────────────────────────────
 
 describe("createAttendance — audit reason", () => {

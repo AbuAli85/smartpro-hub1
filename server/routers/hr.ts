@@ -86,6 +86,7 @@ import {
 import { isWeakAuditReason } from "@shared/attendanceManualValidation";
 import {
   DUPLICATE_MANUAL_ATTENDANCE,
+  INVALID_ATTENDANCE_TIME_RANGE,
   WEAK_AUDIT_REASON,
 } from "@shared/attendanceTrpcReasons";
 import { findAttendanceForDate } from "../repositories/attendance.repository";
@@ -893,6 +894,17 @@ export const hrRouter = router({
           message: "Audit reason is too generic. Describe who requested this entry and why.",
           cause: { reason: WEAK_AUDIT_REASON },
         });
+      }
+      if (input.checkIn && input.checkOut) {
+        const ci = new Date(input.checkIn);
+        const co = new Date(input.checkOut);
+        if (!isNaN(ci.getTime()) && !isNaN(co.getTime()) && co <= ci) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Check-out time must be after check-in time. Overnight shifts are not supported for manual entries.",
+            cause: { reason: INVALID_ATTENDANCE_TIME_RANGE },
+          });
+        }
       }
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });

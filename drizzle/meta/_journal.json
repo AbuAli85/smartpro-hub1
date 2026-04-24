@@ -302,6 +302,13 @@
       "when": 1745489400000,
       "tag": "0080_company_package",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1745510400000,
+      "tag": "0081_attendance_period_locks",
+      "breakpoints": true
     }
   ]
 }

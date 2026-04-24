@@ -100,6 +100,9 @@ vi.mock("@/lib/trpc", () => ({
       removeMember: {
         useMutation: () => ({ mutate: mockMutation, isPending: false }),
       },
+      recentAccessAudit: {
+        useQuery: () => ({ data: [], isLoading: false }),
+      },
     },
   },
 }));
@@ -203,7 +206,7 @@ describe("TeamAccessPage canonical rendering parity", () => {
     expect(screen.getByText(/HR record and login do not line up/i)).toBeInTheDocument();
   });
 
-  it("shows Missing Email indicator and disabled No Email action", async () => {
+  it("shows Missing Email indicator and Add Email action", async () => {
     mockState.employees = [
       baseEmployee({
         email: null,
@@ -217,8 +220,8 @@ describe("TeamAccessPage canonical rendering parity", () => {
 
     render(<TeamAccessPage initialTab="employees" />);
     expect(await screen.findByText("Missing email")).toBeInTheDocument();
-    const noEmailBtn = await screen.findByRole("button", { name: /no email/i });
-    expect(noEmailBtn).toBeDisabled();
+    const addEmailBtn = await screen.findByRole("button", { name: /add email/i });
+    expect(addEmailBtn).not.toBeDisabled();
   });
 
   it("falls back to legacy accessStatus when canonical fields are absent", async () => {

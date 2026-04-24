@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { randomBytes } from "crypto";
 import { z } from "zod";
@@ -17,7 +17,7 @@ import {
   updateCompany,
   getDb,
 } from "../db";
-import { companyInvites, companyMembers, users, employees, companies, companyOmanizationSnapshots } from "../../drizzle/schema";
+import { auditEvents, companyInvites, companyMembers, users, employees, companies, companyOmanizationSnapshots } from "../../drizzle/schema";
 import { computeOmanizationRate, isOmaniNationality } from "../../shared/omanization";
 import { requireWorkspaceMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
@@ -1161,6 +1161,66 @@ export const companiesRouter = router({
 
     return buildAccessAnalyticsOverview({ employeeRows, memberRows, pendingInviteExpiresAt });
   }),
+
+  /**
+   * Last 8 tenant-governance audit events for Team Access & Roles UI.
+   * Scoped to membership / invite lifecycle actions only — no payroll or contract events.
+   */
+  recentAccessAudit: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const { companyId } = await resolveCompanyWorkspaceOrPlatformTarget(ctx.user, input.companyId);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, companyId);
+      const db = await getDb();
+      if (!db) return [];
+
+      const GOVERNANCE_ACTIONS = [
+        "member_role_changed",
+        "invite_created",
+        "invite_revoked",
+        "invite_accepted",
+        "member_removed",
+        "employee_linked",
+        "member_capabilities_changed",
+      ] as const;
+
+      const rows = await db
+        .select({
+          id: auditEvents.id,
+          action: auditEvents.action,
+          entityType: auditEvents.entityType,
+          actorUserId: auditEvents.actorUserId,
+          afterState: auditEvents.afterState,
+          createdAt: auditEvents.createdAt,
+        })
+        .from(auditEvents)
+        .where(and(
+          eq(auditEvents.companyId, companyId),
+          inArray(auditEvents.action, [...GOVERNANCE_ACTIONS]),
+        ))
+        .orderBy(desc(auditEvents.createdAt))
+        .limit(8);
+
+      const actorIds = [
+        ...new Set(rows.map((r) => r.actorUserId).filter((id): id is number => id != null)),
+      ];
+      const actorUsers = actorIds.length > 0
+        ? await db
+            .select({ id: users.id, name: users.name })
+            .from(users)
+            .where(inArray(users.id, actorIds))
+        : [];
+      const actorNameById = new Map(actorUsers.map((u) => [u.id, u.name ?? "Unknown"]));
+
+      return rows.map((row) => ({
+        id: row.id,
+        action: row.action,
+        entityType: row.entityType,
+        actorName: row.actorUserId ? (actorNameById.get(row.actorUserId) ?? "Unknown") : "System",
+        afterState: row.afterState as Record<string, unknown> | null,
+        createdAt: row.createdAt,
+      }));
+    }),
 
   /**
    * Grant system access to an existing employee by their employee ID.

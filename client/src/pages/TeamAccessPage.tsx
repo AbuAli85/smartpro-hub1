@@ -1,7 +1,7 @@
 ﻿import React, { useRef, useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 
-/** Server row shape for HR + access â€” avoids `as any` in canonical mapping (Phase 4.4). */
+/** Server row shape for HR + access — avoids `as any` in canonical mapping (Phase 4.4). */
 type EmployeeWithAccessRow = RouterOutputs["companies"]["employeesWithAccess"][number];
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -58,13 +58,14 @@ import {
   Unlock,
   AlertTriangle,
   Link2Off,
+  History,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTranslation } from "react-i18next";
 
-// â”€â”€â”€ Role Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€â"€ Role Configuration â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 const ROLE_CONFIG: Record<string, {
   label: string;
@@ -124,6 +125,51 @@ const ROLE_CONFIG: Record<string, {
   },
 };
 
+function formatRelativeTime(date: Date | string | null | undefined): string {
+  if (!date) return "";
+  const d = typeof date === "string" ? new Date(date) : date;
+  const diffMs = Date.now() - d.getTime();
+  const diffMins = Math.round(diffMs / 60000);
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+type AuditEventRow = {
+  id: number;
+  action: string;
+  entityType: string | null;
+  actorName: string;
+  afterState: Record<string, unknown> | null;
+  createdAt: Date | string | null;
+};
+
+function formatAuditAction(event: AuditEventRow): string {
+  const s = event.afterState;
+  switch (event.action) {
+    case "member_role_changed":
+      return `changed role to ${ROLE_CONFIG[s?.role as string]?.label ?? (s?.role as string) ?? "unknown"}`;
+    case "invite_created":
+      return `invited ${(s?.email as string) ?? "someone"}`;
+    case "invite_revoked":
+      return "revoked an invite";
+    case "invite_accepted":
+      return "accepted an invite and joined";
+    case "member_removed":
+      return "removed a member";
+    case "employee_linked":
+      return "linked an employee account";
+    case "member_capabilities_changed":
+      return "updated permissions";
+    default:
+      return event.action.replace(/_/g, " ");
+  }
+}
+
 function RoleBadge({ role }: { role: string }) {
   const config = ROLE_CONFIG[role];
   if (!config) return <Badge variant="outline" className="text-xs">{role}</Badge>;
@@ -139,7 +185,7 @@ type CanonicalAccessState = "HR_ONLY" | "INVITED" | "ACTIVE" | "SUSPENDED";
 
 /**
  * Single source of team-access UI copy (Phase 4.3A / 4.4).
- * Do not hardcode stat, filter, badge, chip, or primary tab labels elsewhere â€” add a key here first.
+ * Do not hardcode stat, filter, badge, chip, or primary tab labels elsewhere — add a key here first.
  */
 const TA = {
   statTotalEmployees: "Total Employees",
@@ -251,7 +297,7 @@ function derivePrimaryAction(input: {
   return input.flags?.missingEmail ? "NONE" : "GRANT_ACCESS";
 }
 
-/** HR Employees tab filter â€” canonical accessState plus a flag-based bucket (not email-based). */
+/** HR Employees tab filter — canonical accessState plus a flag-based bucket (not email-based). */
 export type EmployeeListFilter = "all" | CanonicalAccessState | "needs_attention";
 
 function employeeNeedsAttention(flags: { needsLink?: boolean; conflict?: boolean; missingEmail?: boolean } | null | undefined): boolean {
@@ -261,7 +307,7 @@ function employeeNeedsAttention(flags: { needsLink?: boolean; conflict?: boolean
 
 /**
  * HR list filter: uses canonical `accessState` and `needs_attention` (flags on the row).
- * Intentionally does not match by email â€” same rules as stat cards and Direct Access Only (memberId linkage).
+ * Intentionally does not match by email — same rules as stat cards and Direct Access Only (memberId linkage).
  */
 export function matchesEmployeeListFilter(
   emp: {
@@ -292,7 +338,7 @@ export function topIssueKeyToEmployeeFilter(key: string): EmployeeListFilter {
   return "needs_attention";
 }
 
-/** Phase 4.3B â€” human-readable conflict diagnostics (mirrors server `stateReason`). */
+/** Phase 4.3B — human-readable conflict diagnostics (mirrors server `stateReason`). */
 function getConflictReviewCopy(stateReason: string | null | undefined): {
   title: string;
   intro: string;
@@ -412,7 +458,7 @@ function ConflictReviewDialogBody({
   );
 }
 
-// â”€â”€â”€ Empty State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€â"€ Empty State â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 function EmptyEmployeesState({ totalEmployees }: { totalEmployees: number }) {
   const [, setLocation] = useLocation();
@@ -453,13 +499,14 @@ function EmptyEmployeesState({ totalEmployees }: { totalEmployees: number }) {
   );
 }
 
-// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€â"€ Main Page â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 export default function TeamAccessPage({ initialTab = "members" }: { initialTab?: "members" | "employees" | "invites" | "roles" } = {}) {
   const { t } = useTranslation("common");
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
+  const [, setLocation] = useLocation();
   const hrDirectoryRef = useRef<HTMLDivElement>(null);
   const [mainTab, setMainTab] = useState<MainTab>(() => initialTab as MainTab);
 
@@ -477,6 +524,10 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
     { enabled: activeCompanyId != null }
   );
   const { data: accessIntel } = trpc.companies.accessAnalyticsOverview.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null }
+  );
+  const { data: recentAudit } = trpc.companies.recentAccessAudit.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null }
   );
@@ -647,11 +698,11 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
     };
   });
 
-  // Dev-only: surface partial API payloads early (skipped under Vitest â€” fixtures may omit accessState on purpose).
+  // Dev-only: surface partial API payloads early (skipped under Vitest — fixtures may omit accessState on purpose).
   if (import.meta.env.DEV && import.meta.env.MODE !== "test") {
     for (const row of canonicalEmployees) {
       if (row.accessState == null) {
-        console.warn("[TeamAccess] Missing accessState on employee row â€” check API rollout / resolver.", {
+        console.warn("[TeamAccess] Missing accessState on employee row — check API rollout / resolver.", {
           employeeId: row.employeeId,
           accessStatus: row.accessStatus,
         });
@@ -659,7 +710,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
     }
   }
 
-  // Filtered employees â€” with empty search, row counts match the corresponding stat / filter (see stat bar).
+  // Filtered employees — with empty search, row counts match the corresponding stat / filter (see stat bar).
   const filteredEmployees = canonicalEmployees.filter((emp) => {
     const name = `${emp.firstName} ${emp.lastName}`.toLowerCase();
     const matchSearch = !search || name.includes(search.toLowerCase()) || emp.email?.toLowerCase().includes(search.toLowerCase()) || emp.department?.toLowerCase().includes(search.toLowerCase());
@@ -674,7 +725,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
   const invited = canonicalEmployees.filter((e) => e.canonicalAccessState === "INVITED").length;
   const needsAttention = canonicalEmployees.filter((e) => employeeNeedsAttention(e.canonicalFlags)).length;
   const activeMembers = members.filter((m) => m.isActive);
-  /** HR rows that resolve to a company_members row â€” used to exclude those from â€œdirect onlyâ€ member counts. */
+  /** HR rows that resolve to a company_members row — used to exclude those from â€œdirect onlyâ€ member counts. */
   const linkedMemberIds = new Set(
     canonicalEmployees
       .map((e) => e.memberId)
@@ -807,13 +858,33 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </div>
       )}
 
+      {recentAudit && recentAudit.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 mb-2">
+            <History size={14} className="text-slate-500" />
+            Recent Access Changes
+          </div>
+          <div className="space-y-1.5">
+            {recentAudit.map((event) => (
+              <div key={event.id} className="flex items-start gap-2 text-xs text-slate-600">
+                <span className="text-slate-400 shrink-0 w-16 pt-px">{formatRelativeTime(event.createdAt)}</span>
+                <span>
+                  <span className="font-medium text-slate-800">{event.actorName}</span>
+                  {" "}{formatAuditAction(event)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/*
         Stat bar semantics (product):
         - Total Employees: HR directory rows in scope (canonicalEmployees.length).
         - Direct Access Only: active company members not referenced by any HR row (no employee.memberId match).
         - With Active Access: HR rows in canonical ACTIVE access state.
         - Needs Attention: rows with conflict / needsLink / missingEmail flags (memberId-based model; email drift may still surface here).
-        Clickable HR stats apply the same filter as the HR Employees dropdown (empty search â†’ count matches visible rows).
+        Clickable HR stats apply the same filter as the HR Employees dropdown (empty search — count matches visible rows).
       */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <button
@@ -911,7 +982,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           <TabsTrigger value="employees" className="gap-2">
             <Users size={14} /> {TA.tabHrEmployees} ({totalEmployees})
           </TabsTrigger>
-          {/* Phase 4.3C (product): deliberate IA choice â€” keep this tab vs unify invites into a single access workspace. */}
+          {/* Phase 4.3C (product): deliberate IA choice — keep this tab vs unify invites into a single access workspace. */}
           {pendingInvitesList.length > 0 && (
             <TabsTrigger value="invites" className="gap-2">
               <Clock size={14} /> {TA.statPendingInvites} ({pendingInvitesList.length})
@@ -922,7 +993,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </TabsTrigger>
         </TabsList>
 
-        {/* â”€â”€ Tab 1: All Employees â”€â”€ */}
+        {/* â"€â"€ Tab 1: All Employees â"€â"€ */}
         <TabsContent value="employees">
           <Card ref={hrDirectoryRef}>
             <CardHeader className="pb-3">
@@ -1060,10 +1131,11 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                             <Button
                               variant="outline"
                               size="sm"
-                              disabled
-                              className="h-8 text-xs gap-1"
+                              className="h-8 text-xs gap-1 text-amber-600 hover:text-amber-700 hover:border-amber-300"
+                              onClick={() => setLocation("/hr/employees")}
+                              title="Add an email address to this employee profile before granting access"
                             >
-                              <Mail size={12} /> No Email
+                              <Mail size={12} /> Add Email
                             </Button>
                           ) : primaryAction === "COPY_INVITE" ? (
                             <Button
@@ -1071,13 +1143,14 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                               size="sm"
                               disabled={!rowInvite}
                               className="h-8 text-xs gap-1"
+                              title={rowInvite ? `Expires in ${Math.ceil((new Date(rowInvite.expiresAt).getTime() - Date.now()) / 86400000)}d — copy link to share` : "No pending invite found"}
                               onClick={() => {
                                 if (!rowInvite) return;
                                 const url = `${window.location.origin}/invite/${rowInvite.token}`;
                                 navigator.clipboard.writeText(url).then(() => toast.success("Invite link copied!")).catch(() => toast.info(`Link: ${url}`));
                               }}
                             >
-                              <Mail size={12} /> Copy Invite
+                              <Mail size={12} /> Copy Invite{rowInvite ? ` (${Math.ceil((new Date(rowInvite.expiresAt).getTime() - Date.now()) / 86400000)}d)` : ""}
                             </Button>
                           ) : primaryAction === "RESTORE_ACCESS" ? (
                             <Button
@@ -1198,7 +1271,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </Card>
         </TabsContent>
 
-        {/* â”€â”€ Tab 2: Active Logins â”€â”€ */}
+        {/* â"€â"€ Tab 2: Active Logins â"€â"€ */}
         <TabsContent value="members">
           <Card>
             <CardHeader className="pb-3">
@@ -1273,7 +1346,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </Card>
         </TabsContent>
 
-        {/* â”€â”€ Tab 3: Role Guide â”€â”€ */}
+        {/* â"€â"€ Tab 3: Role Guide â"€â"€ */}
         <TabsContent value="roles">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(ROLE_CONFIG).map(([key, config]) => (
@@ -1317,7 +1390,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </Card>
         </TabsContent>
 
-        {/* â”€â”€ Tab: Pending Invites â”€â”€ */}
+        {/* â"€â"€ Tab: Pending Invites â"€â"€ */}
         <TabsContent value="invites">
           <Card>
             <CardHeader className="pb-3">
@@ -1381,7 +1454,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </Card>
         </TabsContent>
       </Tabs>
-      {/* â”€â”€ Multi-Company Access Dialog â”€â”€ */}
+      {/* â"€â"€ Multi-Company Access Dialog â"€â"€ */}
       <Dialog open={!!multiGrantTarget} onOpenChange={(open) => { if (!open) { setMultiGrantTarget(null); setMultiGrantSelections({}); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -1468,7 +1541,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Grant Access Dialog â”€â”€ */}
+      {/* â"€â"€ Grant Access Dialog â"€â"€ */}
       <Dialog open={!!grantTarget} onOpenChange={(open) => { if (!open) setGrantTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1527,16 +1600,16 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Change Role Dialog (Employee) â”€â”€ */}
+      {/* – Change Role Dialog (Employee) – */}
       <Dialog open={!!roleChangeTarget} onOpenChange={(open) => { if (!open) setRoleChangeTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Change Role – {roleChangeTarget?.name}</DialogTitle>
             <DialogDescription>
-              Select a new role for this team member.
+              Current role: <strong>{ROLE_CONFIG[roleChangeTarget?.currentRole ?? ""]?.label ?? roleChangeTarget?.currentRole}</strong>
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2">
+          <div className="py-2 space-y-3">
             <Select value={newRole} onValueChange={setNewRole}>
               <SelectTrigger>
                 <SelectValue />
@@ -1550,12 +1623,26 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                 <SelectItem value="external_auditor">External Auditor</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500 mt-2">{ROLE_CONFIG[newRole]?.description}</p>
+            {ROLE_CONFIG[newRole]?.description && (
+              <p className="text-xs text-gray-500">{ROLE_CONFIG[newRole].description}</p>
+            )}
+            {newRole === "company_admin" && roleChangeTarget?.currentRole !== "company_admin" && (
+              <div className="flex items-start gap-2 rounded bg-orange-50 border border-orange-200 px-3 py-2 text-xs text-orange-700">
+                <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                <span><strong>Promotion to Owner / Admin</strong> — grants full access to all modules, team management, payroll, and company settings.</span>
+              </div>
+            )}
+            {roleChangeTarget?.currentRole === "company_admin" && newRole !== "company_admin" && (
+              <div className="flex items-start gap-2 rounded bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                <span><strong>Removing admin access</strong> — confirm another Owner / Admin will remain. The server will block this if they are the last admin.</span>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRoleChangeTarget(null)}>Cancel</Button>
             <Button
-              disabled={updateEmployeeRole.isPending}
+              disabled={updateEmployeeRole.isPending || newRole === roleChangeTarget?.currentRole}
               onClick={() => {
                 if (!roleChangeTarget) return;
                 updateEmployeeRole.mutate({ employeeId: roleChangeTarget.employeeId, role: newRole as any, companyId: activeCompanyId ?? undefined });
@@ -1567,13 +1654,16 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Revoke Access Confirm â”€â”€ */}
+      {/* – Revoke Access Confirm – */}
       <AlertDialog open={!!revokeTarget} onOpenChange={(open) => { if (!open) setRevokeTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke Access – {revokeTarget?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will prevent {revokeTarget?.name} from logging in to SmartPRO. Their HR data (payroll, attendance, leave) will not be deleted. You can restore access at any time.
+            <AlertDialogTitle>Revoke access for {revokeTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p><strong>{revokeTarget?.name}</strong> will immediately lose the ability to log in to SmartPRO.</p>
+                <p>Their HR records — payroll, attendance, leave, and documents — are not deleted and remain intact. You can restore access at any time from the HR Employees tab.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1591,7 +1681,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* â”€â”€ Add by Email Dialog â”€â”€ */}
+      {/* â"€â"€ Add by Email Dialog â"€â"€ */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1651,13 +1741,16 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Member Role Change Dialog â”€â”€ */}
+      {/* – Member Role Change Dialog – */}
       <Dialog open={!!memberRoleTarget} onOpenChange={(open) => { if (!open) setMemberRoleTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Change Role – {memberRoleTarget?.name}</DialogTitle>
+            <DialogDescription>
+              Current role: <strong>{ROLE_CONFIG[memberRoleTarget?.currentRole ?? ""]?.label ?? memberRoleTarget?.currentRole}</strong>
+            </DialogDescription>
           </DialogHeader>
-          <div className="py-2">
+          <div className="py-2 space-y-3">
             <Select value={memberNewRole} onValueChange={setMemberNewRole}>
               <SelectTrigger>
                 <SelectValue />
@@ -1671,11 +1764,26 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                 <SelectItem value="external_auditor">External Auditor</SelectItem>
               </SelectContent>
             </Select>
+            {ROLE_CONFIG[memberNewRole]?.description && (
+              <p className="text-xs text-gray-500">{ROLE_CONFIG[memberNewRole].description}</p>
+            )}
+            {memberNewRole === "company_admin" && memberRoleTarget?.currentRole !== "company_admin" && (
+              <div className="flex items-start gap-2 rounded bg-orange-50 border border-orange-200 px-3 py-2 text-xs text-orange-700">
+                <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                <span><strong>Promotion to Owner / Admin</strong> — grants full access to all modules, team management, payroll, and company settings.</span>
+              </div>
+            )}
+            {memberRoleTarget?.currentRole === "company_admin" && memberNewRole !== "company_admin" && (
+              <div className="flex items-start gap-2 rounded bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                <span><strong>Removing admin access</strong> — confirm another Owner / Admin will remain. The server will block this if they are the last admin.</span>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setMemberRoleTarget(null)}>Cancel</Button>
             <Button
-              disabled={updateMemberRole.isPending}
+              disabled={updateMemberRole.isPending || memberNewRole === memberRoleTarget?.currentRole}
               onClick={() => {
                 if (!memberRoleTarget) return;
                 updateMemberRole.mutate({ memberId: memberRoleTarget.id, role: memberNewRole as any, companyId: activeCompanyId ?? undefined });
@@ -1687,7 +1795,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Conflict review (Phase 4.3B) â€” diagnostics only; no auto-merge. */}
+      {/* â"€â"€ Conflict review (Phase 4.3B) — diagnostics only; no auto-merge. */}
       <Dialog open={!!conflictReviewTarget} onOpenChange={(open) => { if (!open) setConflictReviewTarget(null); }}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           {conflictReviewTarget && (
@@ -1705,7 +1813,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Link Account Dialog â”€â”€ */}
+      {/* â"€â"€ Link Account Dialog â"€â"€ */}
       <Dialog open={!!linkTarget} onOpenChange={(open) => { if (!open) { setLinkTarget(null); setLinkEmail(""); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1759,13 +1867,16 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Remove Member Confirm â”€â”€ */}
+      {/* – Remove Member Confirm – */}
       <AlertDialog open={!!removeMemberTarget} onOpenChange={(open) => { if (!open) setRemoveMemberTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {removeMemberTarget?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove their system access. Their HR data will not be deleted.
+            <AlertDialogTitle>Remove {removeMemberTarget?.name} from the team?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p><strong>{removeMemberTarget?.name}</strong> will immediately lose login access to SmartPRO.</p>
+                <p>Their HR records are not affected. To grant access again, use &quot;Grant Access&quot; on the HR Employees tab or &quot;Add by Email&quot;.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1777,7 +1888,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                 removeMember.mutate({ memberId: removeMemberTarget.id, companyId: activeCompanyId ?? undefined });
               }}
             >
-              Remove
+              Remove Member
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

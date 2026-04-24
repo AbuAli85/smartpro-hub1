@@ -109,7 +109,8 @@ export type NavBranchDef = {
   defaultLabel: string;
   icon: LucideIcon;
   intent: NavIntent;
-  children: NavLeafDef[];
+  /** One level of sub-branches is supported (sub-branch children must be leaves). */
+  children: readonly (NavLeafDef | NavBranchDef)[];
 };
 
 export type NavItemDef = NavLeafDef | NavBranchDef;
@@ -161,7 +162,7 @@ function branch(
   defaultLabel: string,
   icon: LucideIcon,
   intent: NavIntent,
-  children: NavLeafDef[],
+  children: readonly (NavLeafDef | NavBranchDef)[],
 ): NavBranchDef {
   return { kind: "branch", id, labelKey, defaultLabel, icon, children, intent };
 }
@@ -317,41 +318,82 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         CalendarClock,
         "workspace",
         [
-          leaf("people.attendance", "attendance", "Attendance", "/hr/attendance", Clock, { intent: "workspace" }),
-          leaf("people.attendanceSites", "attendanceSites", "Attendance sites", "/hr/attendance-sites", QrCode, {
+          leaf("people.attendance", "attendanceDashboard", "Attendance Dashboard", "/hr/attendance", Clock, {
             intent: "workspace",
           }),
-          leaf("people.shiftTemplates", "shiftTemplates", "Shift templates", "/hr/shift-templates", CalendarDays, {
-            intent: "workspace",
-          }),
-          leaf("people.employeeSchedules", "employeeSchedules", "Employee schedules", "/hr/employee-schedules", CalendarRange, {
-            intent: "workspace",
-          }),
-          leaf("people.holidayCalendar", "holidayCalendar", "Holiday calendar", "/hr/holidays", SunMedium, {
-            intent: "workspace",
-          }),
-          leaf("people.todaysBoard", "todaysBoard", "Today's board", "/hr/today-board", CalendarClock, {
-            intent: "workspace",
-          }),
-          leaf(
-            "people.attendanceAnomalies",
-            "attendanceAnomalies",
-            "Anomaly report",
-            "/hr/attendance-anomalies",
+          branch(
+            "people.attendanceSetup",
+            "attendanceSetup",
+            "Setup",
+            Settings,
+            "workspace",
+            [
+              leaf("people.attendanceSites", "attendanceSites", "Attendance Sites", "/hr/attendance-sites", QrCode, {
+                intent: "workspace",
+              }),
+              leaf("people.shiftTemplates", "shiftTemplates", "Shift Templates", "/hr/shift-templates", CalendarDays, {
+                intent: "workspace",
+              }),
+              leaf("people.employeeSchedules", "employeeSchedules", "Employee Schedules", "/hr/employee-schedules", CalendarRange, {
+                intent: "workspace",
+              }),
+              leaf("people.holidayCalendar", "holidayCalendar", "Holiday Calendar", "/hr/holidays", SunMedium, {
+                intent: "workspace",
+              }),
+            ],
+          ),
+          branch(
+            "people.attendanceApprovals",
+            "attendanceApprovals",
+            "Approvals",
+            ClipboardCheck,
+            "workspace",
+            [
+              leaf("people.attendanceClientApprovals", "attendanceClientApprovals", "Client Approvals", "/hr/client-approvals", ClipboardList, {
+                intent: "workspace",
+              }),
+            ],
+          ),
+          branch(
+            "people.attendanceReports",
+            "attendanceReports",
+            "Reports",
+            BarChart2,
+            "workspace",
+            [
+              leaf("people.monthlyReport", "monthlyReport", "Monthly Report", "/hr/monthly-report", BarChart2, {
+                intent: "workspace",
+              }),
+              leaf("people.attendanceClientSheet", "attendanceClientSheet", "Client Attendance Sheet", "/hr/reports/client-attendance", FileText, {
+                intent: "workspace",
+              }),
+            ],
+          ),
+          branch(
+            "people.attendanceAdvanced",
+            "attendanceAdvanced",
+            "Advanced",
             ShieldAlert,
-            { intent: "workspace" },
+            "workspace",
+            [
+              leaf(
+                "people.attendanceAnomalies",
+                "attendanceAnomalies",
+                "Anomaly Report",
+                "/hr/attendance-anomalies",
+                ShieldAlert,
+                { intent: "workspace" },
+              ),
+              leaf(
+                "people.attendanceReconciliation",
+                "attendanceReconciliation",
+                "Reconciliation",
+                "/hr/attendance-reconciliation",
+                Scale,
+                { intent: "workspace" },
+              ),
+            ],
           ),
-          leaf(
-            "people.attendanceReconciliation",
-            "attendanceReconciliation",
-            "Reconciliation",
-            "/hr/attendance-reconciliation",
-            Scale,
-            { intent: "workspace" },
-          ),
-          leaf("people.monthlyReport", "monthlyReport", "Monthly report", "/hr/monthly-report", BarChart2, {
-            intent: "workspace",
-          }),
         ],
       ),
       branch(
@@ -684,7 +726,7 @@ function filterItem(
   }
   const nextChildren = item.children
     .map((c) => filterItem(c, user, hiddenOptional, options))
-    .filter((c): c is NavLeafDef => c != null);
+    .filter((c): c is NavItemDef => c != null);
   if (nextChildren.length === 0) return null;
   return { ...item, children: nextChildren };
 }

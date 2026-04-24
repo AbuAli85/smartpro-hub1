@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   CalendarDays,
   RefreshCw,
@@ -20,12 +21,14 @@ import {
   UserX,
   Sunrise,
   ListTodo,
+  ArrowRight,
 } from "lucide-react";
 import type { AdminBoardRowStatus } from "@shared/attendanceBoardStatus";
 import { operationalBandFromBoardStatus, type OperationalBand } from "@shared/attendanceIntelligence";
 import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
 import { OperationalIssueHistoryTrigger } from "@/components/attendance/OperationalIssueHistoryTrigger";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 
 const BAND_ORDER: OperationalBand[] = [
   "critical",
@@ -133,6 +136,20 @@ export default function TodayBoardPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* Migration notice — this page is kept for reference; daily work moved to Attendance Dashboard */}
+      <Alert className="border-amber-200 bg-amber-50">
+        <AlertCircle size={16} className="text-amber-600" />
+        <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
+          <span className="text-amber-800 text-sm">{t("attendance.todayBoard.movedNotice")}</span>
+          <Link href="/hr/attendance">
+            <Button size="sm" variant="outline" className="gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-100 shrink-0">
+              {t("attendance.todayBoard.movedCta")}
+              <ArrowRight size={14} />
+            </Button>
+          </Link>
+        </AlertDescription>
+      </Alert>
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">

@@ -144,6 +144,8 @@ const BuyerPortalRoutes = lazy(() => import("./pages/BuyerPortalRoutes"));
 const BuyerPortalLegacyPathPage = lazy(() => import("./pages/BuyerPortalLegacyPathPage"));
 const MfaChallengePage = lazy(() => import("./pages/MfaChallengePage"));
 const AttendanceClientApprovalPage = lazy(() => import("./pages/AttendanceClientApprovalPage"));
+const ClientApprovalsPage = lazy(() => import("./pages/ClientApprovalsPage"));
+const ClientAttendanceSheetPage = lazy(() => import("./pages/ClientAttendanceSheetPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // ─── Page loading fallback ────────────────────────────────────────────────────
@@ -227,6 +229,8 @@ function AppRoutes() {
         <Route path="/hr/holidays" component={HolidayCalendarPage} />
         <Route path="/hr/today-board" component={TodayBoardPage} />
         <Route path="/hr/monthly-report" component={MonthlyReportPage} />
+        <Route path="/hr/client-approvals" component={ClientApprovalsPage} />
+        <Route path="/hr/reports/client-attendance" component={ClientAttendanceSheetPage} />
         <Route path="/hr/insights" component={HRInsightsHubPage} />
         <Route path="/client-portal">{() => <Redirect to="/client" />}</Route>
         <Route path="/engagements/ops" component={EngagementsOpsPage} />

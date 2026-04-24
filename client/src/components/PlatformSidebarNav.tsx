@@ -172,18 +172,31 @@ function NavBranch({
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="sidebar-nav-branch-nested space-y-0.5 pt-0.5">
-        {item.children.map((child) => (
-          <NavLeafLink
-            key={child.id}
-            item={child}
-            location={location}
-            onClose={onClose}
-            t={t}
-            pendingProfileReq={pendingProfileReq}
-            badgeValues={badgeValues}
-            navGroups={navGroups}
-          />
-        ))}
+        {item.children.map((child) =>
+          child.kind === "branch" ? (
+            <NavBranch
+              key={child.id}
+              item={child}
+              location={location}
+              onClose={onClose}
+              t={t}
+              pendingProfileReq={pendingProfileReq}
+              badgeValues={badgeValues}
+              navGroups={navGroups}
+            />
+          ) : (
+            <NavLeafLink
+              key={child.id}
+              item={child}
+              location={location}
+              onClose={onClose}
+              t={t}
+              pendingProfileReq={pendingProfileReq}
+              badgeValues={badgeValues}
+              navGroups={navGroups}
+            />
+          ),
+        )}
       </CollapsibleContent>
     </Collapsible>
   );

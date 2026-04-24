@@ -605,6 +605,8 @@
       "dayComplete": "Day complete",
       "inProgress": "In progress",
       "noEmployeesScheduled": "No employees scheduled today — assign schedules in Employee schedules, then refresh.",
+      "movedNotice": "Today's Board has moved to Attendance Dashboard. This page remains available for reference.",
+      "movedCta": "Go to Attendance Dashboard",
       "absentNote": "Absent applies only after the shift ends with no check-in. Before that, you'll see upcoming, awaiting check-in, or late / no arrival.",
       "critical": "Critical (live)",
       "needsAttention": "Needs attention",
@@ -1248,6 +1250,23 @@
         "rejectSuccess": "Attendance rejected.",
         "error": "Something went wrong. Please try again or contact support."
       }
+    },
+    "clientApprovalsPage": {
+      "title": "Client Approvals",
+      "subtitle": "Manage client-facing attendance approval batches. Submit a batch to send to the client for sign-off.",
+      "batchListTitle": "Approval Batches",
+      "emptyState": "No approval batches yet.",
+      "emptyStateHint": "Create an approval batch from the Attendance Dashboard once attendance records are ready for client review.",
+      "comingSoonNote": "Full client approval management — batch creation, token generation, and status tracking — will be available in the next update."
+    },
+    "clientSheetPage": {
+      "title": "Client Attendance Sheet",
+      "subtitle": "Generate a client-ready attendance report by site, period, and employee for approval and billing.",
+      "sheetTitle": "Generate Sheet",
+      "emptyState": "No sheet generated yet.",
+      "emptyStateHint": "Select a date range and site to generate a client-ready attendance report with check-in/out times, worked hours, and status.",
+      "plannedColumnsTitle": "Planned report columns:",
+      "plannedColumnsDesc": "Employee · Site / Client · Date · Shift · Check-in · Check-out · Worked Hours · Overtime · Holiday flag · Status · Approval status · Client comment"
     }
   },
   "leave": {

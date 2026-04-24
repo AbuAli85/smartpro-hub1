@@ -1861,8 +1861,8 @@ export default function HRAttendancePage() {
         />
       ) : null}
 
-      {/* Detailed records tabs */}
-      <div>
+      {/* Detailed records tabs — secondary section below the daily cockpit */}
+      <div className="border-t border-border/60 pt-5">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
           {t("attendance.cockpit.detailedRecordsLabel")}
         </p>

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
+import { formatAttendanceMonthDisplay, parseAttendanceYmdSafely } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,11 +43,6 @@ const HOLIDAY_TYPE_CONFIG = {
   optional: { label: "Optional", icon: Star, color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
 };
 
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
 interface HolidayForm {
   name: string;
   holidayDate: string;
@@ -54,22 +51,23 @@ interface HolidayForm {
   notes: string;
 }
 
-const defaultForm: HolidayForm = {
-  name: "",
-  holidayDate: new Date().toISOString().slice(0, 10),
-  type: "public",
-  isRecurringYearly: false,
-  notes: "",
-};
+function makeDefaultForm(): HolidayForm {
+  return {
+    name: "",
+    holidayDate: muscatCalendarYmdNow(),
+    type: "public",
+    isRecurringYearly: false,
+    notes: "",
+  };
+}
 
 export default function HolidayCalendarPage() {
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [year, setYear] = useState(() => parseInt(muscatCalendarYmdNow().slice(0, 4), 10));
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<HolidayForm>(defaultForm);
+  const [form, setForm] = useState<HolidayForm>(makeDefaultForm);
   const [seeding, setSeeding] = useState(false);
 
   const { data: holidays = [], isLoading } = trpc.scheduling.listHolidays.useQuery(
@@ -121,15 +119,15 @@ export default function HolidayCalendarPage() {
     addMut.mutate({ companyId: activeCompanyId, ...form });
   }
 
-  // Group holidays by month
+  // Group holidays by month — parse directly from YYYY-MM-DD to avoid UTC boundary shifts
   const byMonth: Record<number, typeof holidays> = {};
   for (const h of holidays) {
-    const m = new Date(h.holidayDate + "T12:00:00Z").getMonth();
+    const m = parseInt(h.holidayDate.split("-")[1]!, 10) - 1; // 0-based month
     if (!byMonth[m]) byMonth[m] = [];
     byMonth[m].push(h);
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = muscatCalendarYmdNow();
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -173,7 +171,7 @@ export default function HolidayCalendarPage() {
             <Sparkles size={14} />
             Seed Oman Holidays
           </Button>
-          <Button onClick={() => { setForm(defaultForm); setOpen(true); }} className="gap-2">
+          <Button onClick={() => { setForm(makeDefaultForm()); setOpen(true); }} className="gap-2">
             <Plus size={16} /> Add Holiday
           </Button>
         </div>
@@ -213,7 +211,7 @@ export default function HolidayCalendarPage() {
               <Button onClick={handleSeed} variant="outline" className="gap-2" disabled={seeding}>
                 <Sparkles size={14} /> Seed Oman Holidays
               </Button>
-              <Button onClick={() => { setForm(defaultForm); setOpen(true); }} className="gap-2">
+              <Button onClick={() => { setForm(makeDefaultForm()); setOpen(true); }} className="gap-2">
                 <Plus size={16} /> Add Holiday
               </Button>
             </div>
@@ -221,14 +219,14 @@ export default function HolidayCalendarPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {MONTHS.map((month, idx) => {
+          {Array.from({ length: 12 }, (_, idx) => {
             const monthHolidays = byMonth[idx];
             if (!monthHolidays?.length) return null;
             return (
               <Card key={idx}>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold text-muted-foreground uppercase tracking-wide text-sm">
-                    {month} {year}
+                    {formatAttendanceMonthDisplay(year, idx + 1)}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -245,10 +243,12 @@ export default function HolidayCalendarPage() {
                       >
                         <div className="w-12 text-center">
                           <div className="text-lg font-bold leading-none">
-                            {new Date(h.holidayDate + "T12:00:00Z").getDate()}
+                            {parseInt(h.holidayDate.split("-")[2]!, 10)}
                           </div>
                           <div className="text-[10px] text-muted-foreground uppercase">
-                            {new Date(h.holidayDate + "T12:00:00Z").toLocaleDateString("en", { weekday: "short" })}
+                            {new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "Asia/Muscat" }).format(
+                              parseAttendanceYmdSafely(h.holidayDate) ?? new Date()
+                            )}
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">

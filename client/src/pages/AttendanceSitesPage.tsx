@@ -54,6 +54,7 @@ import {
 import { DateInput } from "@/components/ui/date-input";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useTranslation } from "react-i18next";
+import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
 
 // â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type SiteType = "mall" | "brand_store" | "office" | "warehouse" | "client_site" | "showroom" | "factory" | "other";
@@ -524,7 +525,7 @@ export default function AttendanceSitesPage() {
   const [editSite, setEditSite] = useState<any>(null);
   const [qrSite, setQrSite] = useState<any>(null);
   const [mainTab, setMainTab] = useState("sites");
-  const [historyDate, setHistoryDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [historyDate, setHistoryDate] = useState(() => muscatCalendarYmdNow());
   const [reviewingRequest, setReviewingRequest] = useState<any>(null);
   const [reviewNote, setReviewNote] = useState("");
 
@@ -537,7 +538,7 @@ export default function AttendanceSitesPage() {
   const { data: board = [] } = trpc.attendance.adminBoard.useQuery(
     {
       companyId: activeCompanyId ?? undefined,
-      date: new Date().toISOString().slice(0, 10),
+      date: muscatCalendarYmdNow(),
     },
     { refetchInterval: 30000, enabled: activeCompanyId != null },
   );

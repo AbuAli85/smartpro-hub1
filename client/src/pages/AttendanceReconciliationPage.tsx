@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
+import { formatAttendanceMonthDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,11 +42,6 @@ import {
   Share2,
   Wrench,
 } from "lucide-react";
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 const REPAIRABLE_ATTENDANCE_MISMATCH_TYPES = new Set([
   "RECORD_CLOSED_MISSING_SESSION",
@@ -165,7 +161,7 @@ function TotalsGrid({ totals }: { totals: ReconciliationSummaryTotals }) {
 
 export default function AttendanceReconciliationPage() {
   const { activeCompanyId } = useActiveCompany();
-  const { t } = useTranslation("hr");
+  const { t, i18n } = useTranslation("hr");
   const muscatToday = muscatCalendarYmdNow();
   const { year: initialYear, month: initialMonth } = parseMuscatYmd(muscatToday);
 
@@ -385,7 +381,7 @@ export default function AttendanceReconciliationPage() {
               <ChevronLeft size={18} />
             </Button>
             <span className="px-3 text-sm font-semibold min-w-[150px] text-center">
-              {MONTHS[month - 1]} {year}
+              {formatAttendanceMonthDisplay(year, month, i18n.language)}
             </span>
             <Button variant="ghost" size="sm" className="h-9 px-2" onClick={nextMonth} disabled={isCurrentOrFutureMuscat}>
               <ChevronRight size={18} />

@@ -32,6 +32,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { fmtDate } from "@/lib/dateUtils";
+import { muscatCalendarYmdNow, muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
 
 type AnomalyType = NonNullable<
   RouterOutputs["attendance"]["getSessionAnomalies"]["anomalies"]
@@ -283,8 +284,8 @@ function DedupDialog({
 export default function AttendanceAnomaliesPage() {
   const { activeCompanyId, loading: companiesLoading } = useActiveCompany();
 
-  const today = new Date().toISOString().split("T")[0]!;
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400_000).toISOString().split("T")[0]!;
+  const today = muscatCalendarYmdNow();
+  const thirtyDaysAgo = muscatCalendarYmdFromUtcInstant(new Date(Date.now() - 30 * 86400_000));
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
   const [dateTo, setDateTo] = useState(today);
   const [dedupOpen, setDedupOpen] = useState(false);

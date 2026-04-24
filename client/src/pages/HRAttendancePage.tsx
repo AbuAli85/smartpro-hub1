@@ -1500,10 +1500,7 @@ export default function HRAttendancePage() {
   const { caps } = useMyCapabilities();
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [attendanceTab, setAttendanceTab] = useState("today");
-  const [monthFilter, setMonthFilter] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  });
+  const [monthFilter, setMonthFilter] = useState(() => muscatCalendarYmdNow().slice(0, 7));
   const [deptFilter, setDeptFilter] = useState("all");
 
   const utils = trpc.useUtils();

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   muscatCalendarWeekdaySun0ForYmd,
   muscatCalendarYmdFromUtcInstant,
+  muscatCalendarYmdNow,
   muscatDayUtcRangeExclusiveEnd,
   muscatDaysInCalendarMonth,
   muscatMinutesSinceMidnight,
@@ -67,5 +68,27 @@ describe("muscatMinutesSinceMidnight", () => {
     const d = new Date("2026-04-22T21:30:00.000Z");
     expect(muscatCalendarYmdFromUtcInstant(d)).toBe("2026-04-23");
     expect(muscatMinutesSinceMidnight(d)).toBe(90);
+  });
+});
+
+describe("muscatCalendarYmdNow", () => {
+  it("advances to the next Muscat day once UTC passes 20:00 (Muscat midnight)", () => {
+    // 20:00 UTC = 00:00 Muscat next day
+    expect(muscatCalendarYmdNow(new Date("2026-04-23T20:00:00.000Z"))).toBe("2026-04-24");
+  });
+
+  it("stays on same Muscat day for UTC one second before Muscat midnight", () => {
+    // 19:59:59 UTC = 23:59:59 Muscat — still 2026-04-23
+    expect(muscatCalendarYmdNow(new Date("2026-04-23T19:59:59.000Z"))).toBe("2026-04-23");
+  });
+
+  it("late UTC night (23:30) maps to early morning of next Muscat day", () => {
+    // 2026-04-23T23:30Z = 2026-04-24 03:30 Muscat
+    expect(muscatCalendarYmdNow(new Date("2026-04-23T23:30:00.000Z"))).toBe("2026-04-24");
+  });
+
+  it("returns YYYY-MM-DD format", () => {
+    const result = muscatCalendarYmdNow(new Date("2026-04-24T08:00:00.000Z"));
+    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

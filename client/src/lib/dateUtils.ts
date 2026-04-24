@@ -172,3 +172,81 @@ export function fmtDateTimeShort(d: Date | string | number | null | undefined): 
     timeZone: MUSCAT_TZ,
   });
 }
+
+// ─── Attendance-specific display helpers ─────────────────────────────────────
+
+/** Map an i18n language code to a BCP-47 locale that avoids US date ordering. */
+function resolveAttendanceLocale(lang?: string): string {
+  if (lang?.startsWith("ar")) return "ar-OM";
+  return "en-GB";
+}
+
+/**
+ * Format a Muscat calendar date string (YYYY-MM-DD) for attendance display.
+ * English: "24 Apr 2026"  |  Arabic: locale-appropriate.
+ * Anchors at Muscat noon to prevent UTC boundary shifts.
+ */
+export function formatAttendanceDateDisplay(dateYmd: string, lang?: string): string {
+  const parts = dateYmd.split("-").map(Number);
+  if (parts.length !== 3) return dateYmd;
+  const [y, m, d] = parts;
+  if (!y || !m || !d) return dateYmd;
+  const anchor = new Date(Date.UTC(y, m - 1, d, 8, 0, 0)); // 08:00 UTC = 12:00 Muscat
+  return anchor.toLocaleDateString(resolveAttendanceLocale(lang), {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: MUSCAT_TZ,
+  });
+}
+
+/**
+ * Format a UTC instant for attendance datetime display.
+ * English: "24 Apr 2026, 08:30"
+ * @param timezone defaults to Asia/Muscat
+ */
+export function formatAttendanceDateTimeDisplay(
+  d: Date | string | number | null | undefined,
+  lang?: string,
+  timezone: string = MUSCAT_TZ,
+): string {
+  if (!d) return "—";
+  const date = new Date(d as any);
+  if (isNaN(date.getTime())) return "—";
+  return date.toLocaleString(resolveAttendanceLocale(lang), {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: timezone,
+  });
+}
+
+/**
+ * Format a Muscat calendar month for attendance display.
+ * English: "April 2026"  |  Arabic: locale-appropriate.
+ */
+export function formatAttendanceMonthDisplay(year: number, month: number, lang?: string): string {
+  const anchor = new Date(Date.UTC(year, month - 1, 1, 8, 0, 0));
+  return anchor.toLocaleDateString(resolveAttendanceLocale(lang), {
+    month: "long",
+    year: "numeric",
+    timeZone: MUSCAT_TZ,
+  });
+}
+
+/**
+ * Parse a Muscat calendar date string (YYYY-MM-DD) to a UTC Date anchored at Muscat noon.
+ * Returns null for invalid or empty input. Safe to use for display and Intl formatting.
+ */
+export function parseAttendanceYmdSafely(ymd: string | null | undefined): Date | null {
+  if (!ymd) return null;
+  const parts = ymd.split("-").map(Number);
+  if (parts.length !== 3) return null;
+  const [y, m, d] = parts;
+  if (!y || !m || !d || isNaN(y) || isNaN(m) || isNaN(d)) return null;
+  const result = new Date(Date.UTC(y, m - 1, d, 8, 0, 0)); // Muscat noon = UTC+4 noon = 08:00 UTC
+  return isNaN(result.getTime()) ? null : result;
+}

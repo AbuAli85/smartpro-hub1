@@ -253,6 +253,7 @@
       "title": "Attendance setup incomplete",
       "description": "Some prerequisites are missing. Complete the steps below before attendance tracking will work correctly.",
       "fixCta": "Set up",
+      "contactAdminHint": "Contact your administrator",
       "holidayTodayNote": "Today is a public holiday — no attendance is expected.",
       "blockers": {
         "no_active_employees": "No active employees found. Add employees to get started.",

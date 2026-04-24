@@ -52,6 +52,17 @@ describe("company_admin", () => {
         canViewEmployeeDocuments: true,
         canViewAttendanceBoard: true,
         canManageAttendanceRecords: true,
+        canRecordManualAttendance: true,
+        canApproveAttendanceCorrections: true,
+        canApproveManualCheckIns: true,
+        canForceCheckout: true,
+        canEditAttendanceRecords: true,
+        canLockAttendancePeriod: true,
+        canExportAttendanceReports: true,
+        canViewAttendanceAudit: true,
+        canManageShiftTemplates: true,
+        canManageAttendanceSites: true,
+        canManageEmployeeSchedules: true,
         canManagePromoterAssignments: true,
       });
     }
@@ -80,6 +91,17 @@ describe("hr_admin", () => {
     expect(caps.canViewEmployeeDocuments).toBe(true);
     expect(caps.canViewAttendanceBoard).toBe(true);
     expect(caps.canManageAttendanceRecords).toBe(true);
+    expect(caps.canRecordManualAttendance).toBe(true);
+    expect(caps.canApproveAttendanceCorrections).toBe(true);
+    expect(caps.canApproveManualCheckIns).toBe(true);
+    expect(caps.canForceCheckout).toBe(true);
+    expect(caps.canEditAttendanceRecords).toBe(true);
+    expect(caps.canLockAttendancePeriod).toBe(true);
+    expect(caps.canExportAttendanceReports).toBe(true);
+    expect(caps.canViewAttendanceAudit).toBe(true);
+    expect(caps.canManageShiftTemplates).toBe(true);
+    expect(caps.canManageAttendanceSites).toBe(true);
+    expect(caps.canManageEmployeeSchedules).toBe(true);
     expect(caps.canManagePromoterAssignments).toBe(true);
     // Finance domain — HR does NOT have these
     expect(caps.canViewSalary).toBe(false);
@@ -114,13 +136,14 @@ describe("finance_admin", () => {
     expect(caps.canViewBankingDetails).toBe(true);
     expect(caps.canRunComplianceReports).toBe(true);
     expect(caps.canViewEmployeeDocuments).toBe(true);
+    expect(caps.canExportAttendanceReports).toBe(true); // payroll reconciliation needs this
     expect(caps.canRunPayroll).toBe(true);
     expect(caps.canEditPayrollLineItem).toBe(true);
     expect(caps.canGenerateWpsFile).toBe(true);
     // Requires company_admin sign-off — finance_admin CANNOT do these
     expect(caps.canApprovePayroll).toBe(false);
     expect(caps.canMarkPayrollPaid).toBe(false);
-    // HR domain
+    // HR domain — finance is read-only for attendance
     expect(caps.canEditEmployeeProfile).toBe(false);
     expect(caps.canApproveAttendance).toBe(false);
     expect(caps.canAssignTask).toBe(false);
@@ -131,6 +154,16 @@ describe("finance_admin", () => {
     expect(caps.canViewHrNotes).toBe(false);
     expect(caps.canUploadDocument).toBe(false);
     expect(caps.canManageAttendanceRecords).toBe(false);
+    expect(caps.canRecordManualAttendance).toBe(false);
+    expect(caps.canApproveAttendanceCorrections).toBe(false);
+    expect(caps.canApproveManualCheckIns).toBe(false);
+    expect(caps.canForceCheckout).toBe(false);
+    expect(caps.canEditAttendanceRecords).toBe(false);
+    expect(caps.canLockAttendancePeriod).toBe(false);
+    expect(caps.canViewAttendanceAudit).toBe(false);
+    expect(caps.canManageShiftTemplates).toBe(false);
+    expect(caps.canManageAttendanceSites).toBe(false);
+    expect(caps.canManageEmployeeSchedules).toBe(false);
     expect(caps.canManagePromoterAssignments).toBe(false);
   });
 
@@ -169,6 +202,17 @@ describe("reviewer", () => {
     expect(caps.canGenerateWpsFile).toBe(false);
     expect(caps.canUploadDocument).toBe(false);
     expect(caps.canManageAttendanceRecords).toBe(false);
+    expect(caps.canRecordManualAttendance).toBe(false);
+    expect(caps.canApproveAttendanceCorrections).toBe(false);
+    expect(caps.canApproveManualCheckIns).toBe(false);
+    expect(caps.canForceCheckout).toBe(false);
+    expect(caps.canEditAttendanceRecords).toBe(false);
+    expect(caps.canLockAttendancePeriod).toBe(false);
+    expect(caps.canExportAttendanceReports).toBe(false);
+    expect(caps.canViewAttendanceAudit).toBe(false);
+    expect(caps.canManageShiftTemplates).toBe(false);
+    expect(caps.canManageAttendanceSites).toBe(false);
+    expect(caps.canManageEmployeeSchedules).toBe(false);
     expect(caps.canManagePromoterAssignments).toBe(false);
     expect(caps.canRunComplianceReports).toBe(false);
   });
@@ -185,6 +229,7 @@ describe("external_auditor", () => {
     expect(caps.canViewComplianceCase).toBe(true);
     expect(caps.canViewComplianceMatrix).toBe(true);
     expect(caps.canViewEmployeeDocuments).toBe(true);
+    expect(caps.canViewAttendanceAudit).toBe(true); // auditors may read the attendance audit log
     // Auditors are read-only — no uploads or mutations
     expect(caps.canUploadDocument).toBe(false);
     expect(caps.canEditEmployeeProfile).toBe(false);
@@ -192,6 +237,16 @@ describe("external_auditor", () => {
     expect(caps.canAssignTask).toBe(false);
     expect(caps.canApproveTask).toBe(false);
     expect(caps.canManageAttendanceRecords).toBe(false);
+    expect(caps.canRecordManualAttendance).toBe(false);
+    expect(caps.canApproveAttendanceCorrections).toBe(false);
+    expect(caps.canApproveManualCheckIns).toBe(false);
+    expect(caps.canForceCheckout).toBe(false);
+    expect(caps.canEditAttendanceRecords).toBe(false);
+    expect(caps.canLockAttendancePeriod).toBe(false);
+    expect(caps.canExportAttendanceReports).toBe(false);
+    expect(caps.canManageShiftTemplates).toBe(false);
+    expect(caps.canManageAttendanceSites).toBe(false);
+    expect(caps.canManageEmployeeSchedules).toBe(false);
     expect(caps.canManagePromoterAssignments).toBe(false);
     // No sensitive financial or personal data
     expect(caps.canViewSalary).toBe(false);
@@ -367,6 +422,105 @@ describe("applyEmployeePayloadPolicy", () => {
       const result = applyEmployeePayloadPolicy(fullEmployee, caps);
       expect(result.id).toBe(1);
       expect(result.firstName).toBe("Alice");
+    }
+  });
+});
+
+// ─── Phase 7: Granular attendance capability matrix ───────────────────────────
+
+describe("granular attendance capability matrix (Phase 7)", () => {
+  const SCOPES = [SCOPE_COMPANY, SCOPE_DEPT, SCOPE_TEAM, SCOPE_SELF];
+
+  it("only company_admin and hr_admin can record manual attendance", () => {
+    for (const scope of SCOPES) {
+      expect(deriveCapabilities("company_admin", scope).canRecordManualAttendance).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canRecordManualAttendance).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canRecordManualAttendance).toBe(false);
+      expect(deriveCapabilities("reviewer", scope).canRecordManualAttendance).toBe(false);
+      expect(deriveCapabilities("external_auditor", scope).canRecordManualAttendance).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canRecordManualAttendance).toBe(false);
+    }
+  });
+
+  it("only company_admin and hr_admin can approve attendance corrections", () => {
+    for (const scope of SCOPES) {
+      expect(deriveCapabilities("company_admin", scope).canApproveAttendanceCorrections).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canApproveAttendanceCorrections).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canApproveAttendanceCorrections).toBe(false);
+      expect(deriveCapabilities("reviewer", scope).canApproveAttendanceCorrections).toBe(false);
+      expect(deriveCapabilities("external_auditor", scope).canApproveAttendanceCorrections).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canApproveAttendanceCorrections).toBe(false);
+    }
+  });
+
+  it("only company_admin and hr_admin can force checkout", () => {
+    for (const scope of SCOPES) {
+      expect(deriveCapabilities("company_admin", scope).canForceCheckout).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canForceCheckout).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canForceCheckout).toBe(false);
+      expect(deriveCapabilities("reviewer", scope).canForceCheckout).toBe(false);
+      expect(deriveCapabilities("external_auditor", scope).canForceCheckout).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canForceCheckout).toBe(false);
+    }
+  });
+
+  it("company_admin, hr_admin, and finance_admin can export attendance reports", () => {
+    for (const scope of SCOPES) {
+      expect(deriveCapabilities("company_admin", scope).canExportAttendanceReports).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canExportAttendanceReports).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canExportAttendanceReports).toBe(true);
+      expect(deriveCapabilities("reviewer", scope).canExportAttendanceReports).toBe(false);
+      expect(deriveCapabilities("external_auditor", scope).canExportAttendanceReports).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canExportAttendanceReports).toBe(false);
+    }
+  });
+
+  it("company_admin, hr_admin, and external_auditor can view attendance audit log", () => {
+    for (const scope of SCOPES) {
+      expect(deriveCapabilities("company_admin", scope).canViewAttendanceAudit).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canViewAttendanceAudit).toBe(true);
+      expect(deriveCapabilities("external_auditor", scope).canViewAttendanceAudit).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canViewAttendanceAudit).toBe(false);
+      expect(deriveCapabilities("reviewer", scope).canViewAttendanceAudit).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canViewAttendanceAudit).toBe(false);
+    }
+  });
+
+  it("only company_admin and hr_admin can manage shift templates, sites, and schedules", () => {
+    for (const scope of SCOPES) {
+      expect(deriveCapabilities("company_admin", scope).canManageShiftTemplates).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canManageShiftTemplates).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canManageShiftTemplates).toBe(false);
+      expect(deriveCapabilities("reviewer", scope).canManageShiftTemplates).toBe(false);
+      expect(deriveCapabilities("external_auditor", scope).canManageShiftTemplates).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canManageShiftTemplates).toBe(false);
+
+      expect(deriveCapabilities("company_admin", scope).canManageAttendanceSites).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canManageAttendanceSites).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canManageAttendanceSites).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canManageAttendanceSites).toBe(false);
+
+      expect(deriveCapabilities("company_admin", scope).canManageEmployeeSchedules).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canManageEmployeeSchedules).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canManageEmployeeSchedules).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canManageEmployeeSchedules).toBe(false);
+    }
+  });
+
+  it("company_member never gets any granular attendance mutation capability regardless of scope", () => {
+    for (const scope of SCOPES) {
+      const caps = deriveCapabilities("company_member", scope);
+      expect(caps.canRecordManualAttendance).toBe(false);
+      expect(caps.canApproveAttendanceCorrections).toBe(false);
+      expect(caps.canApproveManualCheckIns).toBe(false);
+      expect(caps.canForceCheckout).toBe(false);
+      expect(caps.canEditAttendanceRecords).toBe(false);
+      expect(caps.canLockAttendancePeriod).toBe(false);
+      expect(caps.canExportAttendanceReports).toBe(false);
+      expect(caps.canViewAttendanceAudit).toBe(false);
+      expect(caps.canManageShiftTemplates).toBe(false);
+      expect(caps.canManageAttendanceSites).toBe(false);
+      expect(caps.canManageEmployeeSchedules).toBe(false);
     }
   });
 });

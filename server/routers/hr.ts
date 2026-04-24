@@ -89,6 +89,7 @@ import {
   INVALID_ATTENDANCE_TIME_RANGE,
   WEAK_AUDIT_REASON,
 } from "@shared/attendanceTrpcReasons";
+import { requireCanRecordManualAttendance } from "./attendance/helpers";
 import { findAttendanceForDate } from "../repositories/attendance.repository";
 
 function timeToMinutes(t: string): number {
@@ -886,7 +887,7 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const { companyId, role } = await requireHrOrAdmin(ctx.user as User, input.companyId);
+      const { companyId, role } = await requireCanRecordManualAttendance(ctx.user as User, input.companyId);
       const reasonTrimmed = input.notes.trim();
       if (isWeakAuditReason(reasonTrimmed)) {
         throw new TRPCError({

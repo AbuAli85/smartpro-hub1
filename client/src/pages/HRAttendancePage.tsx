@@ -56,6 +56,7 @@ import { muscatCalendarYmdFromUtcInstant, muscatCalendarYmdNow } from "@shared/a
 import { isWeakAuditReason } from "@shared/attendanceManualValidation";
 import { DUPLICATE_MANUAL_ATTENDANCE, INVALID_ATTENDANCE_TIME_RANGE, WEAK_AUDIT_REASON } from "@shared/attendanceTrpcReasons";
 import { useAttendanceOperationalMutations } from "@/hooks/useAttendanceOperationalMutations";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
 import { OperationalIssueMetaStrip } from "@/components/attendance/OperationalIssueMetaStrip";
@@ -1480,6 +1481,7 @@ function SitePunchesSection({ companyId }: { companyId: number | null }) {
 
 export default function HRAttendancePage() {
   const { t } = useTranslation("hr");
+  const { caps } = useMyCapabilities();
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [attendanceTab, setAttendanceTab] = useState("today");
   const [monthFilter, setMonthFilter] = useState(() => {
@@ -1780,11 +1782,13 @@ export default function HRAttendancePage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ClockInDialog employees={(employees ?? []).map(e => ({ ...e, department: e.department ?? null }))} onSuccess={refetch} companyId={activeCompanyId} />
+          {caps.canRecordManualAttendance && (
+            <ClockInDialog employees={(employees ?? []).map(e => ({ ...e, department: e.department ?? null }))} onSuccess={refetch} companyId={activeCompanyId} />
+          )}
         </div>
       </div>
 
-      <AttendanceSetupHealthBanner companyId={activeCompanyId} />
+      <AttendanceSetupHealthBanner companyId={activeCompanyId} caps={caps} />
 
       <HrAttendanceExceptionStrip
         companyId={activeCompanyId}
@@ -1815,7 +1819,9 @@ export default function HRAttendancePage() {
           <TabsTrigger value="site-punches" className="gap-1.5"><MapPin className="h-3.5 w-3.5" /> {t("attendance.tabs.sitePunches")}</TabsTrigger>
           <TabsTrigger value="corrections" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> {t("attendance.tabs.corrections")}{pendingCorrDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
           <TabsTrigger value="manual" className="gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> {t("attendance.tabs.manualCheckins")}{pendingManualDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
-          <TabsTrigger value="audit" className="gap-1.5"><ScrollText className="h-3.5 w-3.5" /> {t("attendance.tabs.auditLog")}</TabsTrigger>
+          {caps.canViewAttendanceAudit && (
+            <TabsTrigger value="audit" className="gap-1.5"><ScrollText className="h-3.5 w-3.5" /> {t("attendance.tabs.auditLog")}</TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="today" className="mt-4"><TodayBoard companyId={activeCompanyId} /></TabsContent>
         <TabsContent value="site-punches" className="mt-4">
@@ -1876,18 +1882,20 @@ export default function HRAttendancePage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1 flex items-end">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="gap-2 h-8"
-            disabled={exporting || activeCompanyId == null}
-            onClick={() => void handleAttendanceExport()}
-          >
-            <Download size={14} /> {exporting ? t("attendance.records.filters.exporting") : t("attendance.records.filters.exportExcel")}
-          </Button>
-        </div>
+        {caps.canExportAttendanceReports && (
+          <div className="space-y-1 flex items-end">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-2 h-8"
+              disabled={exporting || activeCompanyId == null}
+              onClick={() => void handleAttendanceExport()}
+            >
+              <Download size={14} /> {exporting ? t("attendance.records.filters.exporting") : t("attendance.records.filters.exportExcel")}
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

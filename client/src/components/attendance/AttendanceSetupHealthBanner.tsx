@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Settings, Users, MapPin, Clock, Calendar } from "lucide-react";
 import { Link } from "wouter";
+import type { Capabilities } from "@/hooks/useMyCapabilities";
 
 type BlockerKey =
   | "no_active_employees"
@@ -28,11 +29,23 @@ const BLOCKER_ROUTE: Record<BlockerKey, string> = {
   no_schedules_today: "/hr/attendance/schedules",
 };
 
+/** Returns the capability required to fix a given setup blocker, or null if always allowed. */
+function blockerCapability(key: BlockerKey): keyof Capabilities | null {
+  switch (key) {
+    case "no_attendance_sites": return "canManageAttendanceSites";
+    case "no_shift_templates": return "canManageShiftTemplates";
+    case "no_schedules_today": return "canManageEmployeeSchedules";
+    default: return null; // employee blockers use general HR edit access
+  }
+}
+
 export function AttendanceSetupHealthBanner({
   companyId,
+  caps,
   className,
 }: {
   companyId: number | null | undefined;
+  caps?: Partial<Capabilities>;
   className?: string;
 }) {
   const { t } = useTranslation("hr");
@@ -56,19 +69,29 @@ export function AttendanceSetupHealthBanner({
       <AlertDescription>
         <p className="mb-3 text-sm">{t("attendance.setupHealth.description")}</p>
         <ul className="space-y-2">
-          {blockers.map((key) => (
-            <li key={key} className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2 text-sm">
-                {BLOCKER_ICON[key]}
-                {t(`attendance.setupHealth.blockers.${key}`)}
-              </span>
-              <Button asChild size="sm" variant="outline" className="h-7 text-xs shrink-0">
-                <Link href={BLOCKER_ROUTE[key]}>
-                  {t("attendance.setupHealth.fixCta")}
-                </Link>
-              </Button>
-            </li>
-          ))}
+          {blockers.map((key) => {
+            const capKey = blockerCapability(key);
+            const canFix = !caps || !capKey || caps[capKey] === true;
+            return (
+              <li key={key} className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-sm">
+                  {BLOCKER_ICON[key]}
+                  {t(`attendance.setupHealth.blockers.${key}`)}
+                </span>
+                {canFix ? (
+                  <Button asChild size="sm" variant="outline" className="h-7 text-xs shrink-0">
+                    <Link href={BLOCKER_ROUTE[key]}>
+                      {t("attendance.setupHealth.fixCta")}
+                    </Link>
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {t("attendance.setupHealth.contactAdminHint")}
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
         {data.holidayToday && (
           <p className="mt-3 text-xs text-muted-foreground">

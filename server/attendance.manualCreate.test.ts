@@ -1,5 +1,5 @@
 /**
- * Phase 2 tests for manual HR attendance creation.
+ * Phase 2 + Phase 7 tests for manual HR attendance creation.
  *
  * Covers:
  *  1. Requires audit reason (min 10 chars)
@@ -8,6 +8,7 @@
  *  4. Successful creation writes audit event
  *  5. Tenant isolation: rejects employee from different company
  *  6. Permission: non-HR/admin role is rejected (FORBIDDEN)
+ *  7. Phase 7: canRecordManualAttendance capability guard
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
@@ -398,6 +399,57 @@ describe("createAttendance — permission", () => {
   });
 
   it("allows hr_admin role", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" },
+      member: { role: "hr_admin" },
+    } as never);
+    seedEmployee();
+    const auditRows: unknown[] = [];
+    const tx = makeTxMock(auditRows);
+    vi.mocked(db.getDb).mockResolvedValueOnce({
+      transaction: async (fn: (t: typeof tx) => Promise<void>) => { await fn(tx); },
+    } as never);
+    const result = await appRouter.createCaller(makeCtx("hr_admin")).hr.createAttendance(VALID_INPUT);
+    expect(result).toHaveProperty("success", true);
+  });
+});
+
+// ─── 7. Phase 7: canRecordManualAttendance capability guard ───────────────────
+
+describe("createAttendance — Phase 7 canRecordManualAttendance guard", () => {
+  it("finance_admin is rejected with FORBIDDEN (does not have canRecordManualAttendance)", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" },
+      member: { role: "finance_admin" },
+    } as never);
+    const caller = appRouter.createCaller(makeCtx("finance_admin"));
+    const err = await caller.hr.createAttendance(VALID_INPUT).catch((e) => e);
+    expect(err.code).toBe("FORBIDDEN");
+  });
+
+  it("reviewer is rejected with FORBIDDEN (does not have canRecordManualAttendance)", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" },
+      member: { role: "reviewer" },
+    } as never);
+    const caller = appRouter.createCaller(makeCtx("reviewer"));
+    const err = await caller.hr.createAttendance(VALID_INPUT).catch((e) => e);
+    expect(err.code).toBe("FORBIDDEN");
+  });
+
+  it("company_admin has canRecordManualAttendance and succeeds", async () => {
+    seedHrMembership("company_admin");
+    seedEmployee();
+    const auditRows: unknown[] = [];
+    const tx = makeTxMock(auditRows);
+    vi.mocked(db.getDb).mockResolvedValueOnce({
+      transaction: async (fn: (t: typeof tx) => Promise<void>) => { await fn(tx); },
+    } as never);
+    const result = await appRouter.createCaller(makeCtx("company_admin")).hr.createAttendance(VALID_INPUT);
+    expect(result).toHaveProperty("success", true);
+  });
+
+  it("hr_admin has canRecordManualAttendance and succeeds", async () => {
     vi.mocked(db.getUserCompanyById).mockResolvedValue({
       company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" },
       member: { role: "hr_admin" },

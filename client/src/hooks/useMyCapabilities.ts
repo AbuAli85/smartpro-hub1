@@ -45,6 +45,17 @@ export type Capabilities = {
   canApproveTask: boolean;
   canViewAttendanceBoard: boolean;
   canManageAttendanceRecords: boolean;
+  canRecordManualAttendance: boolean;
+  canApproveAttendanceCorrections: boolean;
+  canApproveManualCheckIns: boolean;
+  canForceCheckout: boolean;
+  canEditAttendanceRecords: boolean;
+  canLockAttendancePeriod: boolean;
+  canExportAttendanceReports: boolean;
+  canViewAttendanceAudit: boolean;
+  canManageShiftTemplates: boolean;
+  canManageAttendanceSites: boolean;
+  canManageEmployeeSchedules: boolean;
   canManagePromoterAssignments: boolean;
 };
 
@@ -73,6 +84,17 @@ const EMPTY_CAPS: Capabilities = {
   canApproveTask: false,
   canViewAttendanceBoard: false,
   canManageAttendanceRecords: false,
+  canRecordManualAttendance: false,
+  canApproveAttendanceCorrections: false,
+  canApproveManualCheckIns: false,
+  canForceCheckout: false,
+  canEditAttendanceRecords: false,
+  canLockAttendancePeriod: false,
+  canExportAttendanceReports: false,
+  canViewAttendanceAudit: false,
+  canManageShiftTemplates: false,
+  canManageAttendanceSites: false,
+  canManageEmployeeSchedules: false,
   canManagePromoterAssignments: false,
 };
 

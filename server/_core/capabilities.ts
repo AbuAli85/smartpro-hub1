@@ -101,6 +101,30 @@ export interface Capabilities {
   /** Create, edit, or delete attendance records on behalf of employees. */
   canManageAttendanceRecords: boolean;
 
+  // Granular attendance capabilities (Phase 7)
+  /** Submit a manual HR attendance record on behalf of an employee. */
+  canRecordManualAttendance: boolean;
+  /** Approve or reject employee-submitted attendance correction requests. */
+  canApproveAttendanceCorrections: boolean;
+  /** Approve or reject manual check-in requests submitted by employees. */
+  canApproveManualCheckIns: boolean;
+  /** Force-checkout an employee who has an open clock-in session. */
+  canForceCheckout: boolean;
+  /** Edit existing attendance records (status, times, notes). */
+  canEditAttendanceRecords: boolean;
+  /** Lock an attendance period to prevent further edits (payroll cut-off). */
+  canLockAttendancePeriod: boolean;
+  /** Export attendance data and monthly reports to Excel / CSV. */
+  canExportAttendanceReports: boolean;
+  /** Read the attendance audit log for HR and compliance review. */
+  canViewAttendanceAudit: boolean;
+  /** Create, edit, or archive shift templates used in scheduling. */
+  canManageShiftTemplates: boolean;
+  /** Create, edit, or deactivate attendance site / geo-fence definitions. */
+  canManageAttendanceSites: boolean;
+  /** Assign or update employee shift schedules. */
+  canManageEmployeeSchedules: boolean;
+
   // Promoter assignments
   /** Create, update, or terminate promoter assignment contracts. */
   canManagePromoterAssignments: boolean;
@@ -132,6 +156,17 @@ const ALL_CAPS: Capabilities = {
   canApproveTask: true,
   canViewAttendanceBoard: true,
   canManageAttendanceRecords: true,
+  canRecordManualAttendance: true,
+  canApproveAttendanceCorrections: true,
+  canApproveManualCheckIns: true,
+  canForceCheckout: true,
+  canEditAttendanceRecords: true,
+  canLockAttendancePeriod: true,
+  canExportAttendanceReports: true,
+  canViewAttendanceAudit: true,
+  canManageShiftTemplates: true,
+  canManageAttendanceSites: true,
+  canManageEmployeeSchedules: true,
   canManagePromoterAssignments: true,
 };
 
@@ -159,6 +194,17 @@ const NO_CAPS: Capabilities = {
   canApproveTask: false,
   canViewAttendanceBoard: false,
   canManageAttendanceRecords: false,
+  canRecordManualAttendance: false,
+  canApproveAttendanceCorrections: false,
+  canApproveManualCheckIns: false,
+  canForceCheckout: false,
+  canEditAttendanceRecords: false,
+  canLockAttendancePeriod: false,
+  canExportAttendanceReports: false,
+  canViewAttendanceAudit: false,
+  canManageShiftTemplates: false,
+  canManageAttendanceSites: false,
+  canManageEmployeeSchedules: false,
   canManagePromoterAssignments: false,
 };
 
@@ -195,6 +241,17 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewEmployeeDocuments: true,
         canViewAttendanceBoard: true,
         canManageAttendanceRecords: true,
+        canRecordManualAttendance: true,
+        canApproveAttendanceCorrections: true,
+        canApproveManualCheckIns: true,
+        canForceCheckout: true,
+        canEditAttendanceRecords: true,
+        canLockAttendancePeriod: true,
+        canExportAttendanceReports: true,
+        canViewAttendanceAudit: true,
+        canManageShiftTemplates: true,
+        canManageAttendanceSites: true,
+        canManageEmployeeSchedules: true,
         canManagePromoterAssignments: true,
         // salary and banking are finance domain — HR does not see them
         canViewSalary: false,
@@ -218,6 +275,7 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewBankingDetails: true,
         canRunComplianceReports: true,    // PASI / WPS reports are finance domain
         canViewEmployeeDocuments: true,   // finance needs contract / permit visibility
+        canExportAttendanceReports: true, // payroll reconciliation needs attendance exports
         // payroll actions — finance_admin can run and edit but NOT approve or mark paid
         // (approval and disbursement require company_admin sign-off)
         canRunPayroll: true,
@@ -236,6 +294,17 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewHrNotes: false,
         canUploadDocument: false,
         canManageAttendanceRecords: false,
+        // granular attendance mutations are HR domain — finance is read-only for attendance
+        canRecordManualAttendance: false,
+        canApproveAttendanceCorrections: false,
+        canApproveManualCheckIns: false,
+        canForceCheckout: false,
+        canEditAttendanceRecords: false,
+        canLockAttendancePeriod: false,
+        canViewAttendanceAudit: false,
+        canManageShiftTemplates: false,
+        canManageAttendanceSites: false,
+        canManageEmployeeSchedules: false,
       };
 
     case "reviewer":
@@ -259,6 +328,7 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewComplianceCase: true,   // summary-level only; router applies additional filter
         canViewComplianceMatrix: true, // read-only permit matrix
         canViewEmployeeDocuments: true, // read-only; no upload
+        canViewAttendanceAudit: true,  // auditors may read the attendance audit log
         // no salary, banking, identity, payroll inputs, HR notes, or payroll actions
         canUploadDocument: false,
       };

@@ -1305,8 +1305,83 @@
       "subtitle": "Manage client-facing attendance approval batches. Submit a batch to send to the client for sign-off.",
       "batchListTitle": "Approval Batches",
       "emptyState": "No approval batches yet.",
-      "emptyStateHint": "Create an approval batch from the Attendance Dashboard once attendance records are ready for client review.",
-      "comingSoonNote": "Full client approval management — batch creation, token generation, and status tracking — will be available in the next update."
+      "emptyStateHint": "Go to the Client Attendance Sheet to create a new approval batch once records are ready for client review.",
+      "createCta": "Go to Attendance Sheet",
+      "filters": {
+        "status": "Status",
+        "allStatuses": "All Statuses",
+        "site": "Site",
+        "allSites": "All Sites",
+        "periodFrom": "From",
+        "periodTo": "To",
+        "clearDates": "Clear dates"
+      },
+      "columns": {
+        "batchRef": "Batch",
+        "period": "Period",
+        "site": "Site",
+        "status": "Status",
+        "items": "Items",
+        "submittedAt": "Submitted",
+        "resolvedAt": "Resolved",
+        "actions": "Actions"
+      },
+      "noSite": "No site",
+      "actions": {
+        "view": "View",
+        "submit": "Submit",
+        "submitting": "Submitting…",
+        "copyLink": "Copy Approval Link",
+        "viewPublic": "View Public Page",
+        "approve": "Approve Internally",
+        "approving": "Approving…",
+        "reject": "Reject",
+        "rejecting": "Rejecting…",
+        "goToSheet": "Correct in Attendance Sheet"
+      },
+      "tokenUnavailable": "Approval link generation not available",
+      "detail": {
+        "title": "Batch Detail",
+        "period": "Period",
+        "site": "Site",
+        "noSite": "No site",
+        "status": "Status",
+        "submittedAt": "Submitted",
+        "approvedAt": "Approved",
+        "rejectedAt": "Rejected",
+        "clientComment": "Client Comment",
+        "rejectionReason": "Rejection Reason",
+        "itemsTitle": "Items",
+        "noItems": "No items in this batch.",
+        "employee": "Employee",
+        "date": "Date",
+        "checkIn": "Check-in",
+        "checkOut": "Check-out",
+        "itemStatus": "Item Status",
+        "comment": "Comment",
+        "tokenInfo": "Token valid for {{days}} days.",
+        "linkCopied": "Approval link copied to clipboard."
+      },
+      "rejectDialog": {
+        "title": "Reject Batch",
+        "description": "Provide a reason for rejecting this batch. The client comment and reason will be recorded.",
+        "confirm": "Confirm Rejection",
+        "cancel": "Cancel"
+      },
+      "approveDialog": {
+        "title": "Approve Batch Internally",
+        "description": "This will mark the batch as approved internally by HR/admin (not via client portal).",
+        "confirm": "Confirm Approval",
+        "cancel": "Cancel"
+      },
+      "toast": {
+        "submitted": "Batch submitted for review.",
+        "approved": "Batch approved.",
+        "rejected": "Batch rejected.",
+        "linkCopied": "Approval link copied to clipboard.",
+        "tokenError": "Failed to generate approval link.",
+        "error": "An error occurred. Please try again."
+      }
     },
     "clientSheetPage": {
       "title": "Client Attendance Sheet",

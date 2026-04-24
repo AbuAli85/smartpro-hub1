@@ -552,7 +552,7 @@ export const clientApprovalRouter = router({
     }),
 
   /**
-   * Get a single batch with all its items.
+   * Get a single batch with all its items, enriched with employee names and session times.
    */
   getClientApprovalBatch: protectedProcedure
     .input(batchIdInput)
@@ -564,11 +564,41 @@ export const clientApprovalRouter = router({
 
       const batch = await requireBatchForCompany(db, input.batchId, cid);
 
-      const items = await db
-        .select()
+      const rawItems = await db
+        .select({
+          id: attendanceClientApprovalItems.id,
+          batchId: attendanceClientApprovalItems.batchId,
+          employeeId: attendanceClientApprovalItems.employeeId,
+          attendanceDate: attendanceClientApprovalItems.attendanceDate,
+          attendanceSessionId: attendanceClientApprovalItems.attendanceSessionId,
+          status: attendanceClientApprovalItems.status,
+          clientComment: attendanceClientApprovalItems.clientComment,
+          employeeFirstName: employees.firstName,
+          employeeLastName: employees.lastName,
+          checkInAt: attendanceSessions.checkInAt,
+          checkOutAt: attendanceSessions.checkOutAt,
+        })
         .from(attendanceClientApprovalItems)
+        .innerJoin(employees, eq(attendanceClientApprovalItems.employeeId, employees.id))
+        .leftJoin(
+          attendanceSessions,
+          eq(attendanceClientApprovalItems.attendanceSessionId, attendanceSessions.id)
+        )
         .where(eq(attendanceClientApprovalItems.batchId, input.batchId))
-        .orderBy(asc(attendanceClientApprovalItems.attendanceDate), asc(attendanceClientApprovalItems.employeeId));
+        .orderBy(asc(attendanceClientApprovalItems.attendanceDate), asc(employees.firstName), asc(employees.lastName));
+
+      const items = rawItems.map((r) => ({
+        id: r.id,
+        batchId: r.batchId,
+        employeeId: r.employeeId,
+        attendanceDate: r.attendanceDate,
+        attendanceSessionId: r.attendanceSessionId,
+        status: r.status,
+        clientComment: r.clientComment,
+        employeeDisplayName: `${r.employeeFirstName} ${r.employeeLastName}`.trim(),
+        checkInAt: r.checkInAt ?? null,
+        checkOutAt: r.checkOutAt ?? null,
+      }));
 
       return { batch, items };
     }),

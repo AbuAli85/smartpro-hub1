@@ -138,6 +138,7 @@ function buildSequencedDb(
       groupBy:  vi.fn().mockImplementation(() => resolved),
       where:    vi.fn().mockImplementation(() => makeChain(rows)),
       innerJoin: vi.fn().mockImplementation(() => makeChain(rows)),
+      leftJoin:  vi.fn().mockImplementation(() => makeChain(rows)),
     };
   }
 
@@ -393,7 +394,12 @@ describe("10. listClientApprovalBatches filters by status", () => {
 describe("11. getClientApprovalBatch returns batch + items", () => {
   it("returns the batch and its items array", async () => {
     const itemRows = [
-      { id: 1, batchId: BATCH_ID, companyId: COMPANY_ID, employeeId: 3, attendanceDate: "2026-04-01", status: "pending" },
+      {
+        id: 1, batchId: BATCH_ID, companyId: COMPANY_ID, employeeId: 3,
+        attendanceDate: "2026-04-01", attendanceSessionId: null, status: "pending",
+        clientComment: null, employeeFirstName: "Ahmed", employeeLastName: "Al-Balushi",
+        checkInAt: null, checkOutAt: null,
+      },
     ];
     // Sequence: [batch, items]
     const db = buildSequencedDb([[BATCH_ROW], itemRows]);

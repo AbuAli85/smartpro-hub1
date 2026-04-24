@@ -31,6 +31,7 @@ import {
   getMemberRoleLabel,
   getMemberRoleColor,
   isFieldEmployee,
+  resolveNavMode,
 } from "@shared/clientNav";
 import { ClientAccessGate } from "@/components/ClientAccessGate";
 import { SignInCallbackErrorBanner } from "@/components/SignInCallbackErrorBanner";
@@ -111,6 +112,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       hasCompanyMembership: companies.length > 0,
       navExtraAllowedHrefs,
       memberPermissions,
+      navMode: resolveNavMode(user, { memberRole: effectiveMemberRole }),
     };
   }, [
     myCompany?.company?.id,
@@ -119,6 +121,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     companies.length,
     navExtraAllowedHrefs,
     myCompany?.member?.permissions,
+    user,
   ]);
 
   const portalShell = shouldUsePortalOnlyShell(user, navOptions);
@@ -535,8 +538,9 @@ function MobileBottomNav() {
       companyWorkspaceLoading: companyLoading,
       memberRole: effectiveMemberRole,
       hasCompanyMembership: companies.length > 0,
+      navMode: resolveNavMode(user, { memberRole: effectiveMemberRole }),
     }),
-    [myCompany?.company?.id, companyLoading, effectiveMemberRole, companies.length],
+    [myCompany?.company?.id, companyLoading, effectiveMemberRole, companies.length, user],
   );
   const portalShell = shouldUsePortalOnlyShell(user, navOptions);
   const preRegShell = shouldUsePreRegistrationShell(user, {

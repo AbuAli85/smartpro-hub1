@@ -488,6 +488,17 @@ export function getRoleDefaultRoute(memberRole?: string | null, isManager?: bool
   }
 }
 
+/**
+ * Explicit persona mode for sidebar navigation.
+ *
+ * - `"platform"` — user is operating as a platform/global operator; uses platformRoles.
+ * - `"company"` — user is inside a company workspace; uses activeCompany.role only, platformRoles ignored.
+ * - `"client"` — user is an end-customer; uses portal shell only.
+ *
+ * Modes must never mix. Derive via {@link resolveNavMode}.
+ */
+export type NavMode = "platform" | "company" | "client";
+
 export type ClientNavOptions = {
   /** When true, the active company workspace is resolved (myCompany). */
   hasCompanyWorkspace?: boolean;
@@ -513,7 +524,32 @@ export type ClientNavOptions = {
    * Populated from the myScopeInfo tRPC query.
    */
   isManager?: boolean;
+  /**
+   * Explicit persona mode. When set, enforces strict persona separation so platform
+   * roles never bleed into company-mode nav, and vice versa.
+   * Derive with {@link resolveNavMode}; set in PlatformLayout before passing to filterVisibleNavGroups.
+   */
+  navMode?: NavMode;
 };
+
+/**
+ * Derive the explicit navigation persona mode from the active workspace state.
+ *
+ * Rules (in priority order):
+ * 1. `"client"` — active membership role is "client", or account channel is portal-only.
+ * 2. `"company"` — user has a resolved (non-client) company membership role.
+ * 3. `"platform"` — everything else (global operators, pre-company users).
+ */
+export function resolveNavMode(
+  user: { platformRole?: string | null } | null,
+  options?: Pick<ClientNavOptions, "memberRole">,
+): NavMode {
+  const mr = options?.memberRole;
+  if (isCustomerPortalMemberRole(mr)) return "client";
+  if (!mr && isPortalClientNav(user)) return "client";
+  if (hasResolvedMemberRole(mr)) return "company";
+  return "platform";
+}
 
 /**
  * Routes + sidebar entries for logged-in users who are not yet in any company
@@ -609,6 +645,9 @@ export function shouldUsePortalOnlyShell(
 /**
  * Whether a sidebar item should render for this user.
  * `hiddenOptional` = hrefs the user turned off in preferences (optional items only).
+ *
+ * When `options.navMode === "company"`, platform roles are stripped from nav checks so that
+ * company-mode navigation is driven exclusively by `memberRole`. This prevents persona mixing.
  */
 export function clientNavItemVisible(
   href: string,
@@ -616,16 +655,24 @@ export function clientNavItemVisible(
   hiddenOptional: Set<string>,
   options?: ClientNavOptions,
 ): boolean {
+  // In company mode, platform identity is invisible to nav decisions.
+  // A null-role sentinel ensures seesPlatformOperatorNav / canAccessGlobalAdminProcedures return false
+  // while still being a non-null object so membershipScopedNavDenies can proceed with memberRole.
+  const navUser: { role?: string | null; platformRole?: string | null } | null =
+    options?.navMode === "company"
+      ? { role: null, platformRole: null }
+      : user;
+
   if (OPTIONAL_NAV_HREFS.has(href) && hiddenOptional.has(href)) {
     return false;
   }
 
   /** Internal engagements ops queue — not for end-customer portal roles. */
   if (normalizeClientPath(href) === "/engagements/ops") {
-    if (shouldUsePortalOnlyShell(user, options)) return false;
+    if (shouldUsePortalOnlyShell(navUser, options)) return false;
     const mr = options?.memberRole;
     if (isCustomerPortalMemberRole(mr)) return false;
-    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return true;
+    if (seesPlatformOperatorNav(navUser) || canAccessGlobalAdminProcedures(navUser ?? {})) return true;
     return (
       isCompanyAdminMember(mr) ||
       readsAsHrManager(mr) ||
@@ -640,14 +687,14 @@ export function clientNavItemVisible(
   }
 
   if (GLOBAL_ADMIN_PLATFORM_HREFS.has(href)) {
-    return canAccessGlobalAdminProcedures(user ?? { role: null, platformRole: null });
+    return canAccessGlobalAdminProcedures(navUser ?? { role: null, platformRole: null });
   }
 
-  if (shouldUsePortalOnlyShell(user, options)) {
+  if (shouldUsePortalOnlyShell(navUser, options)) {
     return PORTAL_CLIENT_HREFS.has(href);
   }
 
-  if (shouldUsePreRegistrationShell(user, options)) {
+  if (shouldUsePreRegistrationShell(navUser, options)) {
     return PRE_COMPANY_NAV_HREFS.has(href);
   }
 
@@ -656,21 +703,21 @@ export function clientNavItemVisible(
    * confirm multi-company creation is intended for tenant admins). Not shown to basic staff.
    */
   if (normalizeClientPath(href) === "/company/create") {
-    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return true;
+    if (seesPlatformOperatorNav(navUser) || canAccessGlobalAdminProcedures(navUser ?? {})) return true;
     if (isCompanyAdminMember(options?.memberRole)) return true;
     return false;
   }
 
   // Company admin — optional extra routes for this role (before role shells below)
-  if (companyNavExtensionAllows(href, user, options)) return true;
+  if (companyNavExtensionAllows(href, navUser, options)) return true;
 
   const path = normalizeClientPath(href);
   // Client workspace: customer (`client`) members with a company; portal-only users may see `/client` before join.
   if (path.startsWith("/client")) {
-    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return false;
-    if (shouldUsePreRegistrationShell(user, options)) return false;
-    if (shouldUsePortalOnlyShell(user, options)) {
-      return isCustomerPortalMemberRole(options?.memberRole) || isPortalClientNav(user);
+    if (seesPlatformOperatorNav(navUser) || canAccessGlobalAdminProcedures(navUser ?? {})) return false;
+    if (shouldUsePreRegistrationShell(navUser, options)) return false;
+    if (shouldUsePortalOnlyShell(navUser, options)) {
+      return isCustomerPortalMemberRole(options?.memberRole) || isPortalClientNav(navUser);
     }
     return Boolean(options?.hasCompanyMembership && isCustomerPortalMemberRole(options?.memberRole));
   }
@@ -699,16 +746,16 @@ export function clientNavItemVisible(
   }
 
   if (PLATFORM_ONLY_HREFS.has(href)) {
-    return seesPlatformOperatorNav(user);
+    return seesPlatformOperatorNav(navUser);
   }
 
   if (COMPANY_OWNER_HREFS.has(href)) {
-    return seesPlatformOperatorNav(user) || isCompanyAdminMember(options?.memberRole);
+    return seesPlatformOperatorNav(navUser) || isCompanyAdminMember(options?.memberRole);
   }
 
   if (COMPANY_LEADERSHIP_HREFS.has(href)) {
     return (
-      seesPlatformOperatorNav(user) ||
+      seesPlatformOperatorNav(navUser) ||
       isCompanyAdminMember(options?.memberRole) ||
       isFinanceAdminMember(options?.memberRole)
     );
@@ -716,7 +763,7 @@ export function clientNavItemVisible(
 
   // HR module — company_admin, hr_admin, external auditors (read); never finance-only managers
   if (isHrModuleHref(href)) {
-    if (seesPlatformOperatorNav(user)) return true;
+    if (seesPlatformOperatorNav(navUser)) return true;
     const mr = options?.memberRole;
     if (!hasResolvedMemberRole(mr)) return false;
     if (readsAsFinanceManager(mr) && !readsAsHrManager(mr) && !isCompanyAdminMember(mr)) {
@@ -732,7 +779,7 @@ export function clientNavItemVisible(
   // Government services — platform operators, company_admin, external auditors (compliance read)
   if (GOVERNMENT_SERVICES_HREFS.has(href)) {
     return (
-      seesPlatformOperatorNav(user) ||
+      seesPlatformOperatorNav(navUser) ||
       isCompanyAdminMember(options?.memberRole) ||
       isExternalAuditorNav(options?.memberRole)
     );
@@ -740,7 +787,7 @@ export function clientNavItemVisible(
 
   // Business management pages — not for HR-only, Finance-only, or basic staff
   if (BUSINESS_MGMT_HREFS.has(href)) {
-    if (seesPlatformOperatorNav(user)) return true;
+    if (seesPlatformOperatorNav(navUser)) return true;
     const mr = options?.memberRole;
     if (!hasResolvedMemberRole(mr)) return false;
     if (isCustomerPortalMemberRole(mr)) return false;
@@ -752,10 +799,10 @@ export function clientNavItemVisible(
 
   // Operations overview — company_admin and platform operators only
   if (COMPANY_ADMIN_OVERVIEW_HREFS.has(href)) {
-    return seesPlatformOperatorNav(user) || isCompanyAdminMember(options?.memberRole);
+    return seesPlatformOperatorNav(navUser) || isCompanyAdminMember(options?.memberRole);
   }
 
-  if (membershipScopedNavDenies(href, user, options)) {
+  if (membershipScopedNavDenies(href, navUser, options)) {
     return false;
   }
 

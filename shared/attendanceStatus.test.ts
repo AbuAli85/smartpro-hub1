@@ -1,5 +1,5 @@
 /**
- * Pure resolver tests for the canonical attendance day status model (Phase 3).
+ * Pure resolver tests for the canonical attendance day status model (Phase 3 / 3.1).
  *
  * All tests run entirely in-memory — no database, no tRPC.
  * Muscat-specific behaviour is verified by the "browser timezone does not affect result" case.
@@ -32,13 +32,15 @@ const BASE: ResolveAttendanceDayStateInput = {
 // 1. No schedule + no attendance
 // ---------------------------------------------------------------------------
 describe("1. No schedule, no attendance", () => {
-  it("returns excluded payroll when neither schedule nor record exists", () => {
+  it("returns not_scheduled + excluded when neither schedule nor record exists", () => {
     const result = resolveAttendanceDayState({
       attendanceDate: BIZ,
       now: m("10:00:00"),
       scheduleExists: false,
     });
+    expect(result.status).toBe("not_scheduled");
     expect(result.payrollReadiness).toBe("excluded");
+    expect(result.riskLevel).toBe("none");
     expect(result.reasonCodes).toContain(ATTENDANCE_REASON.NO_SCHEDULE);
   });
 });
@@ -271,7 +273,7 @@ describe("10. Pending manual check-in", () => {
 // 11. Holiday behaviour
 // ---------------------------------------------------------------------------
 describe("11. Holiday", () => {
-  it("returns holiday status and excluded payroll readiness", () => {
+  it("returns holiday + excluded + no risk when no attendance on holiday", () => {
     const result = resolveAttendanceDayState({
       ...BASE,
       now: m("10:00:00"),
@@ -281,19 +283,33 @@ describe("11. Holiday", () => {
     expect(result.payrollReadiness).toBe("excluded");
     expect(result.riskLevel).toBe("none");
     expect(result.reasonCodes).toContain(ATTENDANCE_REASON.HOLIDAY);
+    expect(result.reasonCodes).not.toContain(ATTENDANCE_REASON.ATTENDANCE_ON_HOLIDAY);
   });
 
-  it("holiday takes precedence over schedule and check-in data", () => {
+  it("holiday status is preserved when employee checks in, but payroll needs review", () => {
     const result = resolveAttendanceDayState({
       ...BASE,
       now: m("10:00:00"),
       holidayFlag: true,
       checkInTime: m("09:00:00"),
       checkOutTime: m("17:00:00"),
-      correctionPending: true,
     });
     expect(result.status).toBe("holiday");
-    expect(result.payrollReadiness).toBe("excluded");
+    expect(result.payrollReadiness).toBe("needs_review");
+    expect(result.riskLevel).toBe("medium");
+    expect(result.reasonCodes).toContain(ATTENDANCE_REASON.HOLIDAY);
+    expect(result.reasonCodes).toContain(ATTENDANCE_REASON.ATTENDANCE_ON_HOLIDAY);
+  });
+
+  it("rawSessionExists on holiday also triggers ATTENDANCE_ON_HOLIDAY signal", () => {
+    const result = resolveAttendanceDayState({
+      ...BASE,
+      now: m("10:00:00"),
+      holidayFlag: true,
+      rawSessionExists: true,
+    });
+    expect(result.payrollReadiness).toBe("needs_review");
+    expect(result.reasonCodes).toContain(ATTENDANCE_REASON.ATTENDANCE_ON_HOLIDAY);
   });
 });
 
@@ -301,7 +317,7 @@ describe("11. Holiday", () => {
 // 12. Leave behaviour
 // ---------------------------------------------------------------------------
 describe("12. Leave", () => {
-  it("returns leave status and excluded payroll readiness", () => {
+  it("returns leave + excluded + no risk when no attendance during leave", () => {
     const result = resolveAttendanceDayState({
       ...BASE,
       now: m("10:00:00"),
@@ -311,9 +327,10 @@ describe("12. Leave", () => {
     expect(result.payrollReadiness).toBe("excluded");
     expect(result.riskLevel).toBe("none");
     expect(result.reasonCodes).toContain(ATTENDANCE_REASON.LEAVE);
+    expect(result.reasonCodes).not.toContain(ATTENDANCE_REASON.ATTENDANCE_DURING_LEAVE);
   });
 
-  it("leave takes precedence over check-in data", () => {
+  it("leave status is preserved when employee checks in, but payroll needs review", () => {
     const result = resolveAttendanceDayState({
       ...BASE,
       now: m("10:00:00"),
@@ -321,7 +338,21 @@ describe("12. Leave", () => {
       checkInTime: m("09:00:00"),
     });
     expect(result.status).toBe("leave");
-    expect(result.payrollReadiness).toBe("excluded");
+    expect(result.payrollReadiness).toBe("needs_review");
+    expect(result.riskLevel).toBe("medium");
+    expect(result.reasonCodes).toContain(ATTENDANCE_REASON.LEAVE);
+    expect(result.reasonCodes).toContain(ATTENDANCE_REASON.ATTENDANCE_DURING_LEAVE);
+  });
+
+  it("officialHrRecordExists during leave also triggers ATTENDANCE_DURING_LEAVE signal", () => {
+    const result = resolveAttendanceDayState({
+      ...BASE,
+      now: m("10:00:00"),
+      leaveFlag: true,
+      officialHrRecordExists: true,
+    });
+    expect(result.payrollReadiness).toBe("needs_review");
+    expect(result.reasonCodes).toContain(ATTENDANCE_REASON.ATTENDANCE_DURING_LEAVE);
   });
 });
 

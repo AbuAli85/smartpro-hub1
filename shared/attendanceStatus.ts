@@ -10,10 +10,13 @@
  *
  * Semantic decisions made here:
  *   - holiday → excluded from payroll (no deduction, no credit)
+ *   - holiday + attendance exists → needs_review payroll + medium risk + ATTENDANCE_ON_HOLIDAY
  *   - leave   → excluded from payroll (leave module owns pay impact)
+ *   - leave + attendance exists → needs_review payroll + medium risk + ATTENDANCE_DURING_LEAVE
  *   - missing checkout after shift end → blocked_missing_checkout (blocking)
  *   - pending correction → blocked_pending_correction (stronger than missing checkout)
  *   - unscheduled attendance → needs_review (HR must categorize before payroll)
+ *   - no schedule + no record → not_scheduled + excluded (distinct from unscheduled_attendance)
  *   - suspended employee → needs_review status, high risk
  */
 
@@ -54,6 +57,8 @@ export type AttendanceDayStatus =
   | "remote"
   /** Attendance record exists but no schedule was found for this day. */
   | "unscheduled_attendance"
+  /** No schedule and no attendance record — day is not tracked. */
+  | "not_scheduled"
   /** Unclear state requiring HR review (suspended employee, conflicting data, etc.). */
   | "needs_review";
 
@@ -163,7 +168,11 @@ export interface AttendanceDayStateResult {
 
 export const ATTENDANCE_REASON = {
   HOLIDAY: "HOLIDAY",
+  /** Attendance/session exists on a day flagged as a public holiday. */
+  ATTENDANCE_ON_HOLIDAY: "ATTENDANCE_ON_HOLIDAY",
   LEAVE: "LEAVE",
+  /** Attendance/session exists while the employee has approved leave. */
+  ATTENDANCE_DURING_LEAVE: "ATTENDANCE_DURING_LEAVE",
   REMOTE: "REMOTE",
   EMPLOYEE_SUSPENDED: "EMPLOYEE_SUSPENDED",
   NO_SCHEDULE: "NO_SCHEDULE",
@@ -222,6 +231,16 @@ export function resolveAttendanceDayState(
   // -------------------------------------------------------------------------
   if (input.holidayFlag) {
     reasons.push(ATTENDANCE_REASON.HOLIDAY);
+    if (_hasAttendanceEvidence(input)) {
+      reasons.push(ATTENDANCE_REASON.ATTENDANCE_ON_HOLIDAY);
+      return {
+        status: "holiday",
+        payrollReadiness: "needs_review",
+        riskLevel: "medium",
+        reasonCodes: reasons,
+        recommendedAction: "Employee checked in on a holiday — review and categorize.",
+      };
+    }
     return {
       status: "holiday",
       payrollReadiness: "excluded",
@@ -235,6 +254,16 @@ export function resolveAttendanceDayState(
   // -------------------------------------------------------------------------
   if (input.leaveFlag) {
     reasons.push(ATTENDANCE_REASON.LEAVE);
+    if (_hasAttendanceEvidence(input)) {
+      reasons.push(ATTENDANCE_REASON.ATTENDANCE_DURING_LEAVE);
+      return {
+        status: "leave",
+        payrollReadiness: "needs_review",
+        riskLevel: "medium",
+        reasonCodes: reasons,
+        recommendedAction: "Employee checked in during leave — review leave validity.",
+      };
+    }
     return {
       status: "leave",
       payrollReadiness: "excluded",
@@ -273,10 +302,10 @@ export function resolveAttendanceDayState(
         recommendedAction: "Verify whether this attendance is valid or a system error.",
       };
     }
-    // No schedule, no record → excluded (not tracked for this day)
+    // No schedule, no record → not tracked for this day
     reasons.push(ATTENDANCE_REASON.NO_SCHEDULE);
     return {
-      status: "scheduled",
+      status: "not_scheduled",
       payrollReadiness: "excluded",
       riskLevel: "none",
       reasonCodes: reasons,
@@ -490,6 +519,11 @@ function _resolvePayrollReadinessModifiers(
   }
 
   return "ready";
+}
+
+/** True when any attendance evidence exists for the day (clock punch, session, or HR record). */
+function _hasAttendanceEvidence(input: ResolveAttendanceDayStateInput): boolean {
+  return !!(input.checkInTime || input.rawSessionExists || input.officialHrRecordExists);
 }
 
 /** Derive Muscat YYYY-MM-DD from a UTC millisecond timestamp. */

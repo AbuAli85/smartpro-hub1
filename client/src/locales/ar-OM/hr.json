@@ -263,6 +263,7 @@
       "leave": "في إجازة",
       "remote": "عمل عن بُعد",
       "unscheduled_attendance": "حضور غير مجدول",
+      "not_scheduled": "غير مجدول",
       "needs_review": "يحتاج إلى مراجعة"
     },
     "payrollReadiness": {

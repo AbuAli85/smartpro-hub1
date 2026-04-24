@@ -263,6 +263,7 @@
       "leave": "On Leave",
       "remote": "Remote Work",
       "unscheduled_attendance": "Unscheduled Attendance",
+      "not_scheduled": "Not Scheduled",
       "needs_review": "Needs Review"
     },
     "payrollReadiness": {

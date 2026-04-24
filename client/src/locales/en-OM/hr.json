@@ -1142,6 +1142,63 @@
       "employeesAffected": "Employees Affected",
       "payrollBlocked": "Payroll Blocked",
       "noIssues": "No attendance issues for this date."
+    },
+    "clientApproval": {
+      "sectionTitle": "Client Approvals",
+      "createBatch": "Create Approval Batch",
+      "createBatchHint": "Select a date range and optional site to create a batch for client review.",
+      "submitBatch": "Submit for Review",
+      "approveBatch": "Approve",
+      "rejectBatch": "Reject",
+      "cancelBatch": "Cancel Batch",
+      "periodStart": "Period Start",
+      "periodEnd": "Period End",
+      "site": "Site (optional)",
+      "allSites": "All sites",
+      "status": {
+        "draft": "Draft",
+        "submitted": "Submitted",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled"
+      },
+      "itemStatus": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "disputed": "Disputed"
+      },
+      "readiness": {
+        "not_required": "Not Required",
+        "pending": "Pending Approval",
+        "approved": "Client Approved",
+        "rejected": "Client Rejected",
+        "disputed": "Disputed"
+      },
+      "batchId": "Batch #{{id}}",
+      "period": "{{start}} – {{end}}",
+      "items": "{{count}} items",
+      "itemCounts": "{{approved}} approved · {{rejected}} rejected · {{pending}} pending",
+      "emptyState": "No approval batches yet. Create one to start the client review workflow.",
+      "rejectionReasonLabel": "Rejection Reason",
+      "rejectionReasonPlaceholder": "Explain why this batch is being rejected…",
+      "clientCommentLabel": "Client Comment (optional)",
+      "toast": {
+        "created": "Approval batch created.",
+        "submitted": "Batch submitted for review.",
+        "approved": "Batch approved.",
+        "rejected": "Batch rejected.",
+        "cancelled": "Batch cancelled.",
+        "error": "An error occurred. Please try again."
+      },
+      "validation": {
+        "periodStartRequired": "Period start date is required.",
+        "periodEndRequired": "Period end date is required.",
+        "periodEndAfterStart": "Period end must be on or after period start.",
+        "rejectionReasonRequired": "Rejection reason is required."
+      },
+      "conflict": "An active batch already exists for this period.",
+      "noEmployees": "No active employees found for the selected scope."
     }
   },
   "leave": {

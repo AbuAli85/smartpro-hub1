@@ -57,6 +57,11 @@ export type Capabilities = {
   canManageAttendanceSites: boolean;
   canManageEmployeeSchedules: boolean;
   canManagePromoterAssignments: boolean;
+  // Attendance client approval (Phase 10A)
+  canCreateAttendanceClientApproval: boolean;
+  canSubmitAttendanceClientApproval: boolean;
+  canApproveAttendanceClientApproval: boolean;
+  canViewAttendanceClientApproval: boolean;
 };
 
 /** All capabilities default to false — safe while loading or unauthenticated. */
@@ -96,6 +101,10 @@ const EMPTY_CAPS: Capabilities = {
   canManageAttendanceSites: false,
   canManageEmployeeSchedules: false,
   canManagePromoterAssignments: false,
+  canCreateAttendanceClientApproval: false,
+  canSubmitAttendanceClientApproval: false,
+  canApproveAttendanceClientApproval: false,
+  canViewAttendanceClientApproval: false,
 };
 
 export function useMyCapabilities() {

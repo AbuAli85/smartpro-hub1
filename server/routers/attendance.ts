@@ -30,6 +30,7 @@ import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { sitesRouter, SITE_TYPES, siteInputSchema } from "./attendance/sites.router";
 import { dailyStateRouter } from "./attendance/dailyState.router";
+import { clientApprovalRouter } from "./attendance/clientApproval.router";
 import {
   haversineMetres,
   isWithinOperatingHours,
@@ -358,9 +359,16 @@ export const attendanceRouter = router({
   ...sitesRouter._def.record,
 
   // ─── Daily state sub-module (Phase 9A) ───────────────────────────────────
-  // Procedures: getDailyStates
+  // Procedures: getDailyStates · getDailyDigest
   // Source: ./attendance/dailyState.router.ts
   ...dailyStateRouter._def.record,
+
+  // ─── Client approval sub-module (Phase 10A) ──────────────────────────────
+  // Procedures: createClientApprovalBatch · submitClientApprovalBatch ·
+  //             approveClientApprovalBatch · rejectClientApprovalBatch ·
+  //             listClientApprovalBatches · getClientApprovalBatch
+  // Source: ./attendance/clientApproval.router.ts
+  ...clientApprovalRouter._def.record,
 
   /**
    * Self-service clock (authoritative write path):

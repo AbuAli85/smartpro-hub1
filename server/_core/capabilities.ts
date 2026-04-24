@@ -128,6 +128,16 @@ export interface Capabilities {
   // Promoter assignments
   /** Create, update, or terminate promoter assignment contracts. */
   canManagePromoterAssignments: boolean;
+
+  // Attendance client approval (Phase 10A)
+  /** Create and populate client approval batches (HR/admin). */
+  canCreateAttendanceClientApproval: boolean;
+  /** Submit a draft batch for client/internal review. */
+  canSubmitAttendanceClientApproval: boolean;
+  /** Approve or reject a submitted batch (simulated client or HR admin). */
+  canApproveAttendanceClientApproval: boolean;
+  /** View client approval batches and their items. */
+  canViewAttendanceClientApproval: boolean;
 }
 
 // ─── Baseline capability sets ─────────────────────────────────────────────────
@@ -168,6 +178,10 @@ const ALL_CAPS: Capabilities = {
   canManageAttendanceSites: true,
   canManageEmployeeSchedules: true,
   canManagePromoterAssignments: true,
+  canCreateAttendanceClientApproval: true,
+  canSubmitAttendanceClientApproval: true,
+  canApproveAttendanceClientApproval: true,
+  canViewAttendanceClientApproval: true,
 };
 
 const NO_CAPS: Capabilities = {
@@ -206,6 +220,10 @@ const NO_CAPS: Capabilities = {
   canManageAttendanceSites: false,
   canManageEmployeeSchedules: false,
   canManagePromoterAssignments: false,
+  canCreateAttendanceClientApproval: false,
+  canSubmitAttendanceClientApproval: false,
+  canApproveAttendanceClientApproval: false,
+  canViewAttendanceClientApproval: false,
 };
 
 // ─── Core deriver ─────────────────────────────────────────────────────────────
@@ -253,6 +271,10 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canManageAttendanceSites: true,
         canManageEmployeeSchedules: true,
         canManagePromoterAssignments: true,
+        canCreateAttendanceClientApproval: true,
+        canSubmitAttendanceClientApproval: true,
+        canApproveAttendanceClientApproval: true,
+        canViewAttendanceClientApproval: true,
         // salary and banking are finance domain — HR does not see them
         canViewSalary: false,
         canViewBankingDetails: false,

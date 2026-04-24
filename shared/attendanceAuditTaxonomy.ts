@@ -27,6 +27,16 @@ export const ATTENDANCE_AUDIT_ACTION = {
   ATTENDANCE_PERIOD_REOPEN: "attendance_period_reopen",
   /** Phase 5B: Finance marked a locked period as exported to payroll. */
   ATTENDANCE_PERIOD_EXPORT: "attendance_period_export",
+  /** Phase 10A: HR created a new client approval batch (draft). */
+  CLIENT_APPROVAL_BATCH_CREATED: "client_approval_batch_created",
+  /** Phase 10A: HR submitted a client approval batch for review. */
+  CLIENT_APPROVAL_BATCH_SUBMITTED: "client_approval_batch_submitted",
+  /** Phase 10A: Batch approved (internally by HR/admin or later by client portal). */
+  CLIENT_APPROVAL_BATCH_APPROVED: "client_approval_batch_approved",
+  /** Phase 10A: Batch rejected with a required reason. */
+  CLIENT_APPROVAL_BATCH_REJECTED: "client_approval_batch_rejected",
+  /** Phase 10A: Batch cancelled before submission or approval. */
+  CLIENT_APPROVAL_BATCH_CANCELLED: "client_approval_batch_cancelled",
 } as const;
 
 export type AttendanceAuditActionType =
@@ -40,6 +50,7 @@ export const ATTENDANCE_AUDIT_ENTITY = {
   ATTENDANCE_CORRECTION: "attendance_correction",
   SELF_CHECKIN_ATTEMPT: "self_checkin_attempt",
   ATTENDANCE_PERIOD_LOCK: "attendance_period_lock",
+  CLIENT_APPROVAL_BATCH: "client_approval_batch",
 } as const;
 
 export type AttendanceAuditEntityType =

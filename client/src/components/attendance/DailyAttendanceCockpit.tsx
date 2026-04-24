@@ -6,6 +6,7 @@ import { fmtTime } from "@/lib/dateUtils";
 import type { Capabilities } from "@/hooks/useMyCapabilities";
 import type { AttendanceActionQueueCtaTarget, AttendanceActionQueueCategory } from "@shared/attendanceActionQueue";
 import { buildAttendanceDailyDigest, type AttendanceDailyDigest } from "@shared/attendanceDailyDigest";
+import { BATCH_STATUSES, type BatchStatus } from "@shared/attendanceClientApproval";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,10 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Users, CheckCircle2, LogOut, Clock, AlertCircle,
   XCircle, ShieldAlert, Eye, Search, RefreshCw,
-  ArrowRight, Calendar, MapPin, Activity,
+  ArrowRight, Calendar, MapPin, Activity, ClipboardCheck,
+  ChevronRight, Send, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -170,6 +173,276 @@ function DigestPanel({ digest }: { digest: AttendanceDailyDigest }) {
           <p className="mt-1 text-[11px] text-muted-foreground" data-testid="digest-no-issues">
             {t("attendance.dailyDigest.noIssues")}
           </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Client Approval Panel
+// ---------------------------------------------------------------------------
+
+const BATCH_STATUS_BADGE: Record<BatchStatus, string> = {
+  draft:     "border-slate-300 bg-slate-50 text-slate-700",
+  submitted: "border-blue-300 bg-blue-50 text-blue-800",
+  approved:  "border-emerald-300 bg-emerald-50 text-emerald-800",
+  rejected:  "border-red-300 bg-red-50 text-red-800",
+  cancelled: "border-slate-200 bg-slate-50 text-slate-400 line-through",
+};
+
+function ClientApprovalPanel({
+  date,
+  siteId,
+  caps,
+}: {
+  date: string;
+  siteId?: number;
+  caps: Partial<Capabilities>;
+}) {
+  const { t } = useTranslation("hr");
+  const [creating, setCreating] = useState(false);
+  const [periodStart, setPeriodStart] = useState(date);
+  const [periodEnd, setPeriodEnd] = useState(date);
+  const [rejectBatchId, setRejectBatchId] = useState<number | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+
+  const utils = trpc.useUtils();
+
+  const canCreate = caps.canCreateAttendanceClientApproval === true;
+  const canSubmit = caps.canSubmitAttendanceClientApproval === true;
+  const canApprove = caps.canApproveAttendanceClientApproval === true;
+  const canView   = caps.canViewAttendanceClientApproval === true;
+
+  const { data: batches, isLoading } = trpc.attendance.listClientApprovalBatches.useQuery(
+    { siteId, limit: 10 },
+    { enabled: canView, staleTime: 30_000 },
+  );
+
+  const createMutation = trpc.attendance.createClientApprovalBatch.useMutation({
+    onSuccess: () => {
+      setCreating(false);
+      void utils.attendance.listClientApprovalBatches.invalidate();
+    },
+  });
+
+  const submitMutation = trpc.attendance.submitClientApprovalBatch.useMutation({
+    onSuccess: () => void utils.attendance.listClientApprovalBatches.invalidate(),
+  });
+
+  const approveMutation = trpc.attendance.approveClientApprovalBatch.useMutation({
+    onSuccess: () => void utils.attendance.listClientApprovalBatches.invalidate(),
+  });
+
+  const rejectMutation = trpc.attendance.rejectClientApprovalBatch.useMutation({
+    onSuccess: () => {
+      setRejectBatchId(null);
+      setRejectionReason("");
+      void utils.attendance.listClientApprovalBatches.invalidate();
+    },
+  });
+
+  if (!canView) return null;
+
+  return (
+    <Card data-testid="client-approval-panel">
+      <CardHeader className="pb-2 pt-3 px-4">
+        <CardTitle className="text-sm flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+            {t("attendance.clientApproval.sectionTitle")}
+          </span>
+          {canCreate && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => setCreating((v) => !v)}
+            >
+              <Send className="h-3 w-3 mr-1" />
+              {t("attendance.clientApproval.createBatch")}
+            </Button>
+          )}
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="px-4 pb-4 space-y-3">
+        {/* Create form */}
+        {creating && canCreate && (
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              {t("attendance.clientApproval.createBatchHint")}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">{t("attendance.clientApproval.periodStart")}</Label>
+                <Input
+                  type="date"
+                  className="h-7 text-xs"
+                  value={periodStart}
+                  onChange={(e) => setPeriodStart(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{t("attendance.clientApproval.periodEnd")}</Label>
+                <Input
+                  type="date"
+                  className="h-7 text-xs"
+                  value={periodEnd}
+                  onChange={(e) => setPeriodEnd(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="h-7 text-xs"
+                disabled={createMutation.isPending}
+                onClick={() =>
+                  createMutation.mutate({ periodStart, periodEnd, siteId })
+                }
+              >
+                {createMutation.isPending ? t("common.saving") : t("attendance.clientApproval.createBatch")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={() => setCreating(false)}
+              >
+                {t("common.cancel")}
+              </Button>
+            </div>
+            {createMutation.error && (
+              <p className="text-xs text-red-600">{createMutation.error.message}</p>
+            )}
+          </div>
+        )}
+
+        {/* Reject reason form */}
+        {rejectBatchId != null && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
+            <Label className="text-xs text-red-700">
+              {t("attendance.clientApproval.rejectionReasonLabel")}
+            </Label>
+            <Textarea
+              className="text-xs min-h-[60px]"
+              placeholder={t("attendance.clientApproval.rejectionReasonPlaceholder")}
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-7 text-xs"
+                disabled={!rejectionReason.trim() || rejectMutation.isPending}
+                onClick={() =>
+                  rejectMutation.mutate({ batchId: rejectBatchId, rejectionReason })
+                }
+              >
+                {t("attendance.clientApproval.rejectBatch")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={() => { setRejectBatchId(null); setRejectionReason(""); }}
+              >
+                {t("common.cancel")}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Batch list */}
+        {isLoading && (
+          <p className="text-xs text-muted-foreground">{t("common.loading")}</p>
+        )}
+
+        {!isLoading && (!batches || batches.length === 0) && (
+          <p className="text-xs text-muted-foreground" data-testid="client-approval-empty">
+            {t("attendance.clientApproval.emptyState")}
+          </p>
+        )}
+
+        {batches && batches.length > 0 && (
+          <div className="space-y-2">
+            {batches.map((batch) => (
+              <div
+                key={batch.id}
+                className="rounded-lg border bg-background p-3 space-y-2"
+                data-testid="client-approval-batch-row"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-medium">
+                      {t("attendance.clientApproval.batchId", { id: batch.id })}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={cn("text-[10px] h-4 px-1", BATCH_STATUS_BADGE[batch.status as BatchStatus])}
+                    >
+                      {t(`attendance.clientApproval.status.${batch.status}`)}
+                    </Badge>
+                  </div>
+                  <div className="flex gap-1">
+                    {batch.status === "draft" && canSubmit && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[10px] px-2"
+                        disabled={submitMutation.isPending}
+                        onClick={() => submitMutation.mutate({ batchId: batch.id })}
+                      >
+                        <Send className="h-2.5 w-2.5 mr-1" />
+                        {t("attendance.clientApproval.submitBatch")}
+                      </Button>
+                    )}
+                    {batch.status === "submitted" && canApprove && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                          disabled={approveMutation.isPending}
+                          onClick={() => approveMutation.mutate({ batchId: batch.id })}
+                        >
+                          <ThumbsUp className="h-2.5 w-2.5 mr-1" />
+                          {t("attendance.clientApproval.approveBatch")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2 border-red-300 text-red-700 hover:bg-red-50"
+                          onClick={() => setRejectBatchId(batch.id)}
+                        >
+                          <ThumbsDown className="h-2.5 w-2.5 mr-1" />
+                          {t("attendance.clientApproval.rejectBatch")}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-muted-foreground space-y-0.5">
+                  <p>
+                    {t("attendance.clientApproval.period", {
+                      start: batch.periodStart,
+                      end: batch.periodEnd,
+                    })}
+                  </p>
+                  <p>
+                    {t("attendance.clientApproval.itemCounts", {
+                      approved: batch.itemCounts.approved,
+                      rejected: batch.itemCounts.rejected,
+                      pending: batch.itemCounts.pending,
+                    })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -715,6 +988,15 @@ export function DailyAttendanceCockpit({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Client Approval Panel (Phase 10A) */}
+      {caps.canViewAttendanceClientApproval && (
+        <ClientApprovalPanel
+          date={date}
+          siteId={siteIdParam}
+          caps={caps}
+        />
       )}
     </div>
   );

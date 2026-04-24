@@ -117,6 +117,38 @@ export async function requireCanManageEmployeeSchedules(user: User, companyId?: 
   return { ...m, caps };
 }
 
+/** Guard for creating client approval batches (Phase 10A). */
+export async function requireCanCreateAttendanceClientApproval(user: User, companyId?: number | null) {
+  const m = await requireHrOrAdmin(user, companyId);
+  const caps = deriveCapabilities(m.role, { type: "company", companyId: m.companyId });
+  if (!caps.canCreateAttendanceClientApproval) throw attendanceForbidden("canCreateAttendanceClientApproval");
+  return { ...m, caps };
+}
+
+/** Guard for submitting a draft approval batch (Phase 10A). */
+export async function requireCanSubmitAttendanceClientApproval(user: User, companyId?: number | null) {
+  const m = await requireHrOrAdmin(user, companyId);
+  const caps = deriveCapabilities(m.role, { type: "company", companyId: m.companyId });
+  if (!caps.canSubmitAttendanceClientApproval) throw attendanceForbidden("canSubmitAttendanceClientApproval");
+  return { ...m, caps };
+}
+
+/** Guard for approving or rejecting a submitted batch (Phase 10A). */
+export async function requireCanApproveAttendanceClientApproval(user: User, companyId?: number | null) {
+  const m = await requireHrOrAdmin(user, companyId);
+  const caps = deriveCapabilities(m.role, { type: "company", companyId: m.companyId });
+  if (!caps.canApproveAttendanceClientApproval) throw attendanceForbidden("canApproveAttendanceClientApproval");
+  return { ...m, caps };
+}
+
+/** Guard for viewing client approval batches and items (Phase 10A). */
+export async function requireCanViewAttendanceClientApproval(user: User, companyId?: number | null) {
+  const m = await requireHrOrAdmin(user, companyId);
+  const caps = deriveCapabilities(m.role, { type: "company", companyId: m.companyId });
+  if (!caps.canViewAttendanceClientApproval) throw attendanceForbidden("canViewAttendanceClientApproval");
+  return { ...m, caps };
+}
+
 /** Guard for exporting attendance reports (HR and finance_admin also have access). */
 export async function requireCanExportAttendanceReports(user: User, companyId?: number | null) {
   const m = await requireAnyOperatorRole(user, companyId);

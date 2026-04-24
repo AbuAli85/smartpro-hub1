@@ -1142,6 +1142,63 @@
       "employeesAffected": "الموظفون المتأثرون",
       "payrollBlocked": "مرتب محجوب",
       "noIssues": "لا توجد مشاكل حضور لهذا اليوم."
+    },
+    "clientApproval": {
+      "sectionTitle": "موافقات العملاء",
+      "createBatch": "إنشاء دفعة موافقة",
+      "createBatchHint": "حدد نطاق تاريخ وموقعاً اختيارياً لإنشاء دفعة للمراجعة.",
+      "submitBatch": "إرسال للمراجعة",
+      "approveBatch": "موافقة",
+      "rejectBatch": "رفض",
+      "cancelBatch": "إلغاء الدفعة",
+      "periodStart": "بداية الفترة",
+      "periodEnd": "نهاية الفترة",
+      "site": "الموقع (اختياري)",
+      "allSites": "جميع المواقع",
+      "status": {
+        "draft": "مسودة",
+        "submitted": "مُرسلة",
+        "approved": "موافق عليها",
+        "rejected": "مرفوضة",
+        "cancelled": "ملغاة"
+      },
+      "itemStatus": {
+        "pending": "في الانتظار",
+        "approved": "موافق عليه",
+        "rejected": "مرفوض",
+        "disputed": "متنازع عليه"
+      },
+      "readiness": {
+        "not_required": "غير مطلوب",
+        "pending": "في انتظار الموافقة",
+        "approved": "موافقة العميل",
+        "rejected": "مرفوضة من العميل",
+        "disputed": "متنازع عليه"
+      },
+      "batchId": "دفعة #{{id}}",
+      "period": "{{start}} – {{end}}",
+      "items": "{{count}} بند",
+      "itemCounts": "{{approved}} موافق · {{rejected}} مرفوض · {{pending}} في الانتظار",
+      "emptyState": "لا توجد دفعات موافقة بعد. أنشئ دفعة لبدء سير عمل مراجعة العميل.",
+      "rejectionReasonLabel": "سبب الرفض",
+      "rejectionReasonPlaceholder": "اشرح سبب رفض هذه الدفعة…",
+      "clientCommentLabel": "تعليق العميل (اختياري)",
+      "toast": {
+        "created": "تم إنشاء دفعة الموافقة.",
+        "submitted": "تم إرسال الدفعة للمراجعة.",
+        "approved": "تمت الموافقة على الدفعة.",
+        "rejected": "تم رفض الدفعة.",
+        "cancelled": "تم إلغاء الدفعة.",
+        "error": "حدث خطأ. يرجى المحاولة مرة أخرى."
+      },
+      "validation": {
+        "periodStartRequired": "تاريخ بداية الفترة مطلوب.",
+        "periodEndRequired": "تاريخ نهاية الفترة مطلوب.",
+        "periodEndAfterStart": "يجب أن تكون نهاية الفترة بعد بدايتها أو مساوية لها.",
+        "rejectionReasonRequired": "سبب الرفض مطلوب."
+      },
+      "conflict": "توجد دفعة نشطة بالفعل لهذه الفترة.",
+      "noEmployees": "لم يُعثر على موظفين نشطين للنطاق المحدد."
     }
   },
   "leave": {

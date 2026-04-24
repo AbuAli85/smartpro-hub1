@@ -1410,6 +1410,12 @@ export const attendanceAudit = mysqlTable(
       "attendance_period_lock",
       "attendance_period_reopen",
       "attendance_period_export",
+      // Phase 10A: client approval batch lifecycle
+      "client_approval_batch_created",
+      "client_approval_batch_submitted",
+      "client_approval_batch_approved",
+      "client_approval_batch_rejected",
+      "client_approval_batch_cancelled",
     ]).notNull(),
     entityType: varchar("entity_type", { length: 64 }).notNull(),
     entityId: int("entity_id"),
@@ -5102,4 +5108,91 @@ export const engagementPaymentTransfers = mysqlTable(
     index("idx_engagement_payment_transfer_phase").on(t.companyId, t.phase),
   ],
 );
+
+// ─── Attendance Client Approval (Phase 10A) ──────────────────────────────────
+// Internal HR/admin approval packages for client/site attendance review.
+// Each batch covers a date range for a site, optionally linked to a client
+// company or promoter assignment. Items are one row per employee × date.
+
+export const attendanceClientApprovalBatches = mysqlTable(
+  "attendance_client_approval_batches",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    /** Nullable: scope to a specific attendance site. */
+    siteId: int("site_id"),
+    /** Nullable: link to the client / second-party company. */
+    clientCompanyId: int("client_company_id"),
+    /** Nullable: link to a promoter assignment for this batch. */
+    promoterAssignmentId: int("promoter_assignment_id"),
+    periodStart: date("period_start", { mode: "string" }).notNull(),
+    periodEnd: date("period_end", { mode: "string" }).notNull(),
+    status: mysqlEnum("status", [
+      "draft",
+      "submitted",
+      "approved",
+      "rejected",
+      "cancelled",
+    ] as const)
+      .notNull()
+      .default("draft"),
+    submittedAt: timestamp("submitted_at"),
+    submittedByUserId: int("submitted_by_user_id"),
+    approvedAt: timestamp("approved_at"),
+    approvedByUserId: int("approved_by_user_id"),
+    rejectedAt: timestamp("rejected_at"),
+    rejectedByUserId: int("rejected_by_user_id"),
+    rejectionReason: text("rejection_reason"),
+    clientComment: text("client_comment"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_acab_company").on(t.companyId),
+    index("idx_acab_site").on(t.companyId, t.siteId),
+    index("idx_acab_status").on(t.companyId, t.status),
+    index("idx_acab_period").on(t.companyId, t.periodStart, t.periodEnd),
+    index("idx_acab_client").on(t.companyId, t.clientCompanyId),
+  ],
+);
+export type AttendanceClientApprovalBatch = typeof attendanceClientApprovalBatches.$inferSelect;
+export type InsertAttendanceClientApprovalBatch = typeof attendanceClientApprovalBatches.$inferInsert;
+
+/** One row per employee × attendance date within a batch. */
+export const attendanceClientApprovalItems = mysqlTable(
+  "attendance_client_approval_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    batchId: int("batch_id").notNull(),
+    companyId: int("company_id").notNull(),
+    employeeId: int("employee_id").notNull(),
+    attendanceDate: date("attendance_date", { mode: "string" }).notNull(),
+    /** Nullable: link to the canonical attendance_records row if one exists. */
+    attendanceRecordId: int("attendance_record_id"),
+    /** Nullable: link to the attendance_sessions row if one exists. */
+    attendanceSessionId: int("attendance_session_id"),
+    /** Snapshot of DailyAttendanceState at batch-creation time (JSON). */
+    dailyStateJson: json("daily_state_json").$type<Record<string, unknown>>(),
+    status: mysqlEnum("status", [
+      "pending",
+      "approved",
+      "rejected",
+      "disputed",
+    ] as const)
+      .notNull()
+      .default("pending"),
+    clientComment: text("client_comment"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_acai_batch_employee_date").on(t.batchId, t.employeeId, t.attendanceDate),
+    index("idx_acai_batch").on(t.batchId),
+    index("idx_acai_company").on(t.companyId),
+    index("idx_acai_employee").on(t.companyId, t.employeeId),
+    index("idx_acai_status").on(t.batchId, t.status),
+  ],
+);
+export type AttendanceClientApprovalItem = typeof attendanceClientApprovalItems.$inferSelect;
+export type InsertAttendanceClientApprovalItem = typeof attendanceClientApprovalItems.$inferInsert;
 export type EngagementPaymentTransfer = typeof engagementPaymentTransfers.$inferSelect;

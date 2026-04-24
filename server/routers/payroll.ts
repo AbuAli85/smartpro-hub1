@@ -32,7 +32,8 @@ import {
   recordPayslipExportedAudit,
 } from "../tenantGovernanceAudit";
 import { storagePut } from "../storage";
-import { requireWorkspaceMembership } from "../_core/membership";
+import { requireWorkspaceMembership, requireCapableMembership } from "../_core/membership";
+import { requireCapabilityAndModule } from "../_core/capabilityGate";
 import {
   requireFinanceOrAdmin,
   requirePayrollAdmin,
@@ -267,7 +268,11 @@ export const payrollRouter = router({
   listRuns: protectedProcedure
     .input(z.object({ year: z.number().optional(), status: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
+      const { companyId, role, permissions, enabledModules } = await requireCapableMembership(ctx.user as User, input.companyId);
+      if (!["company_admin", "finance_admin"].includes(role)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Finance Admin or Company Admin required." });
+      }
+      requireCapabilityAndModule(role, permissions, enabledModules, "view_payroll");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const conditions = [eq(payrollRuns.companyId, companyId)];
@@ -285,7 +290,11 @@ export const payrollRouter = router({
   listEmployeePayrollHistory: protectedProcedure
     .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
+      const { companyId, role, permissions, enabledModules } = await requireCapableMembership(ctx.user as User, input.companyId);
+      if (!["company_admin", "finance_admin"].includes(role)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Finance Admin or Company Admin required." });
+      }
+      requireCapabilityAndModule(role, permissions, enabledModules, "view_payroll");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [emp] = await db
@@ -344,7 +353,11 @@ export const payrollRouter = router({
   getRun: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
+      const { companyId, role, permissions, enabledModules } = await requireCapableMembership(ctx.user as User, input.companyId);
+      if (!["company_admin", "finance_admin"].includes(role)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Finance Admin or Company Admin required." });
+      }
+      requireCapabilityAndModule(role, permissions, enabledModules, "view_payroll");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, companyId))).limit(1);
@@ -373,6 +386,8 @@ export const payrollRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const { companyId: _cid, role: _role, permissions: _perms, enabledModules: _mods } = await requireCapableMembership(ctx.user as User, input.companyId);
+      requireCapabilityAndModule(_role, _perms, _mods, "edit_payroll");
       const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
       const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
       const caps = deriveCapabilities(m.role, scope);
@@ -675,6 +690,8 @@ export const payrollRouter = router({
   approveRun: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const { role: _ar, permissions: _ap, enabledModules: _am } = await requireCapableMembership(ctx.user as User, input.companyId);
+      requireCapabilityAndModule(_ar, _ap, _am, "edit_payroll");
       const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
       const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
       const caps = deriveCapabilities(m.role, scope);
@@ -711,6 +728,8 @@ export const payrollRouter = router({
   markPaid: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const { role: _mr, permissions: _mp, enabledModules: _mm } = await requireCapableMembership(ctx.user as User, input.companyId);
+      requireCapabilityAndModule(_mr, _mp, _mm, "edit_payroll");
       const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
       const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
       const caps = deriveCapabilities(m.role, scope);
@@ -830,6 +849,8 @@ export const payrollRouter = router({
   generateWpsFile: protectedProcedure
     .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const { role: _wr, permissions: _wp, enabledModules: _wm } = await requireCapableMembership(ctx.user as User, input.companyId);
+      requireCapabilityAndModule(_wr, _wp, _wm, "edit_payroll");
       const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
       const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
       const caps = deriveCapabilities(m.role, scope);
@@ -844,6 +865,8 @@ export const payrollRouter = router({
   generateWPSFile: protectedProcedure
     .input(z.object({ payrollRunId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const { role: _Wr, permissions: _Wp, enabledModules: _Wm } = await requireCapableMembership(ctx.user as User, input.companyId);
+      requireCapabilityAndModule(_Wr, _Wp, _Wm, "edit_payroll");
       const m = await requirePayrollAdmin(ctx.user as User, input.companyId);
       const scope = await resolveVisibilityScope(ctx.user as User, m.companyId);
       const caps = deriveCapabilities(m.role, scope);

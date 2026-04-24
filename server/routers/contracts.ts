@@ -22,6 +22,8 @@ import {
   assertSignatureActor,
   requireActiveCompanyId,
 } from "../_core/tenant";
+import { requireCapableMembership } from "../_core/membership";
+import { requireCapabilityAndModule } from "../_core/capabilityGate";
 import { invokeLLM } from "../_core/llm";
 import { contractSignatures, contractSignatureAudit, contracts } from "../../drizzle/schema";
 import { recordContractStatusUpdatedAudit } from "../tenantGovernanceAudit";
@@ -38,14 +40,19 @@ export const contractsRouter = router({
     )
     .query(async ({ input, ctx }) => {
       if (canAccessGlobalAdminProcedures(ctx.user)) return getAllContracts({ status: input.status });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId, role, permissions, enabledModules } = await requireCapableMembership(ctx.user as never, input.companyId);
+      requireCapabilityAndModule(role, permissions, enabledModules, "view_contracts");
       return getContracts(companyId, { status: input.status, type: input.type });
     }),
 
-  getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+  getById: protectedProcedure.input(z.object({ id: z.number(), companyId: z.number().optional() })).query(async ({ input, ctx }) => {
     const contract = await getContractById(input.id);
     if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
     await assertContractReadable(ctx.user, input.id);
+    if (!canAccessGlobalAdminProcedures(ctx.user)) {
+      const { role, permissions, enabledModules } = await requireCapableMembership(ctx.user as never, input.companyId ?? contract.companyId ?? undefined);
+      requireCapabilityAndModule(role, permissions, enabledModules, "view_contracts");
+    }
     return contract;
   }),
 
@@ -70,7 +77,8 @@ export const contractsRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { companyId: workspaceId, ...createFields } = input;
-      const companyId = await requireActiveCompanyId(ctx.user.id, workspaceId, ctx.user);
+      const { companyId, role: _ctRole, permissions: _ctPerms, enabledModules: _ctMods } = await requireCapableMembership(ctx.user as never, workspaceId);
+      requireCapabilityAndModule(_ctRole, _ctPerms, _ctMods, "manage_contracts");
       const contractNumber = "CON-" + Date.now() + "-" + nanoid(4).toUpperCase();
       await createContract({
         ...createFields,
@@ -107,6 +115,10 @@ export const contractsRouter = router({
       const { id, companyId: _wc, ...data } = input;
       const existing = await getContractById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        const { role: _ur, permissions: _up, enabledModules: _um } = await requireCapableMembership(ctx.user as never, _wc ?? existing.companyId ?? undefined);
+        requireCapabilityAndModule(_ur, _up, _um, "manage_contracts");
+      }
       await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Contract", input.companyId ?? existing.companyId);
       const updateData: any = { ...data };
       if (data.value !== undefined) updateData.value = String(data.value);

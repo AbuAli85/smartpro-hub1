@@ -14,6 +14,10 @@ import {
   type Capability,
 } from "@shared/capabilities";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import {
+  recordMemberCapabilitiesChangedAudit,
+  recordCompanyModulesChangedAudit,
+} from "../tenantGovernanceAudit";
 
 // ─── Input schemas ─────────────────────────────────────────────────────────────
 
@@ -119,9 +123,9 @@ export const capabilitiesRouter = router({
         assertIsCompanyAdmin(role);
       }
 
-      // Fetch target member's current role
+      // Fetch target member's current role and permissions (for audit diff)
       const [target] = await db
-        .select({ role: companyMembers.role })
+        .select({ role: companyMembers.role, permissions: companyMembers.permissions, id: companyMembers.id })
         .from(companyMembers)
         .where(
           and(
@@ -139,7 +143,22 @@ export const capabilitiesRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "Cannot edit your own capabilities." });
       }
 
+      // Fetch company modules for before/after effective resolution
+      const [company] = await db
+        .select({ enabledModules: companies.enabledModules })
+        .from(companies)
+        .where(eq(companies.id, input.companyId))
+        .limit(1);
+
+      const previousPermissions = (target.permissions ?? null) as string[] | null;
+      const previousEffective = Array.from(
+        resolveEffectiveCapabilities(target.role, previousPermissions, company?.enabledModules),
+      );
+
       const newPermissions = buildPermissionsOverride(target.role, input.effectiveCapabilities);
+      const nextEffective = Array.from(
+        resolveEffectiveCapabilities(target.role, newPermissions, company?.enabledModules),
+      );
 
       await db
         .update(companyMembers)
@@ -151,6 +170,18 @@ export const capabilitiesRouter = router({
             eq(companyMembers.isActive, true),
           ),
         );
+
+      await recordMemberCapabilitiesChangedAudit(db, {
+        companyId: input.companyId,
+        actorUserId: ctx.user.id,
+        targetUserId: input.userId,
+        memberRowId: target.id,
+        previousPermissions,
+        nextPermissions: newPermissions,
+        previousEffective,
+        nextEffective,
+        platformOperator: isPlatformOp,
+      });
 
       return { success: true, permissions: newPermissions };
     }),
@@ -197,10 +228,25 @@ export const capabilitiesRouter = router({
         assertIsCompanyAdmin(role);
       }
 
+      // Capture previous state for audit
+      const [existingCompany] = await db
+        .select({ enabledModules: companies.enabledModules })
+        .from(companies)
+        .where(eq(companies.id, input.companyId))
+        .limit(1);
+
       await db
         .update(companies)
         .set({ enabledModules: input.enabledModules })
         .where(eq(companies.id, input.companyId));
+
+      await recordCompanyModulesChangedAudit(db, {
+        companyId: input.companyId,
+        actorUserId: ctx.user.id,
+        previousModules: (existingCompany?.enabledModules ?? null) as string[] | null,
+        nextModules: input.enabledModules,
+        platformOperator: isPlatformOp,
+      });
 
       return { success: true, enabledModules: input.enabledModules };
     }),

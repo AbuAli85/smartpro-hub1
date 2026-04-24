@@ -188,6 +188,22 @@ export function hasCapability(
  * a desired effective set relative to role defaults.
  * Encodes additions and "-"-prefixed removals; keeps the array minimal.
  */
+// ─── Default company configuration ───────────────────────────────────────────
+
+/**
+ * Baseline configuration applied when a company has no explicit module or
+ * capability overrides stored.
+ *
+ * enabledModules: null  → all modules active (legacy / unlimited plan semantics).
+ * defaultRoleCapabilities: mirrors ROLE_DEFAULT_CAPABILITIES for documentation purposes.
+ */
+export const DEFAULT_COMPANY_CONFIG = {
+  /** null = all modules active (no module gating applied) */
+  enabledModules: null as null,
+  /** Capability defaults per role — overrideable per-member via company_members.permissions */
+  defaultRoleCapabilities: ROLE_DEFAULT_CAPABILITIES,
+} as const;
+
 export function buildPermissionsOverride(
   role: string,
   desiredEffective: Capability[],

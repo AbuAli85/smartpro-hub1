@@ -15,6 +15,8 @@ import {
   resolveVisibilityScope,
   isInScope,
 } from "../_core/policy";
+import { requireCapableMembership } from "../_core/membership";
+import { requireCapabilityAndModule } from "../_core/capabilityGate";
 import { deriveCapabilities } from "../_core/capabilities";
 import { sendEmployeeNotification, notifyAssignerTaskCompleted } from "./employeePortal";
 import { assertAdminStatusTransition, statusUpdateSideEffects, type TaskStatus } from "../taskLifecycle";
@@ -210,8 +212,9 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const { companyId, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+      const { companyId, role, permissions: _tPerms, enabledModules: _tMods } = await requireCapableMembership(ctx.user as User, input.companyId);
       requireTaskMutationRole(role, "assign");
+      requireCapabilityAndModule(role, _tPerms, _tMods, "approve_tasks");
       const scope = await resolveVisibilityScope(ctx.user as User, companyId);
       const caps = deriveCapabilities(role, scope);
       const db = await requireDb();
@@ -282,8 +285,9 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const { companyId, role } = await requireWorkspaceMemberForRead(ctx.user as User, input.companyId);
+      const { companyId, role, permissions: _utPerms, enabledModules: _utMods } = await requireCapableMembership(ctx.user as User, input.companyId);
       requireTaskMutationRole(role, "update");
+      requireCapabilityAndModule(role, _utPerms, _utMods, "approve_tasks");
       const scope = await resolveVisibilityScope(ctx.user as User, companyId);
       const caps = deriveCapabilities(role, scope);
       const db = await requireDb();

@@ -57,7 +57,8 @@ import {
 } from "../db";
 import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
-import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
+import { requireNotAuditor, requireWorkspaceMembership, requireCapableMembership } from "../_core/membership";
+import { requireCapabilityAndModule } from "../_core/capabilityGate";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   requireFinanceOrAdmin,
@@ -257,7 +258,11 @@ export const hrRouter = router({
     .query(async ({ input, ctx }) => {
       const { companyId: inputCid, ...filters } = input;
       // HR/Admin → company-wide. Manager (company_member with reports) → team. Everyone else → self.
-      const { companyId: cid, role } = await requireWorkspaceMemberForRead(ctx.user as User, inputCid);
+      const { companyId: cid, role, permissions: _lp, enabledModules: _lm } = await requireCapableMembership(ctx.user as User, inputCid);
+      // view_hr only blocks non-self-portal roles; company_member self-scope is always allowed.
+      if (["hr_admin", "finance_admin", "company_admin", "reviewer", "external_auditor"].includes(role)) {
+        requireCapabilityAndModule(role, _lp, _lm, "view_hr");
+      }
       const scope = await resolveVisibilityScope(ctx.user as User, cid);
 
       const caps = deriveCapabilities(role, scope);
@@ -356,7 +361,11 @@ export const hrRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       // Only HR admin or company admin may create employees
-      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
+      const { companyId, role: _cr, permissions: _cp, enabledModules: _cm } = await requireCapableMembership(ctx.user as User, input.companyId);
+      if (!["company_admin", "hr_admin"].includes(_cr)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required." });
+      }
+      requireCapabilityAndModule(_cr, _cp, _cm, "manage_hr");
       const { workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry,
         dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...empData } = input;
       const db = await getDb();
@@ -444,7 +453,11 @@ export const hrRouter = router({
       const existing = await getEmployeeById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       // Only HR admin or company admin may update employees
-      const { companyId } = await requireHrOrAdmin(ctx.user as User, inputCompanyId ?? existing.companyId);
+      const { companyId, role: _ur, permissions: _up, enabledModules: _um } = await requireCapableMembership(ctx.user as User, inputCompanyId ?? existing.companyId);
+      if (!["company_admin", "hr_admin"].includes(_ur)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required." });
+      }
+      requireCapabilityAndModule(_ur, _up, _um, "manage_hr");
       if (existing.companyId !== companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       const updateData: any = { ...data };

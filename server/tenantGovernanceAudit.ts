@@ -27,6 +27,8 @@ export const TENANT_GOVERNANCE_ACTION = {
   PAYROLL_RUN_MARKED_PAID: "payroll_run_marked_paid",
   PAYSLIP_EXPORTED: "payslip_exported",
   CONTRACT_STATUS_UPDATED: "contract_status_updated",
+  MEMBER_CAPABILITIES_CHANGED: "member_capabilities_changed",
+  COMPANY_MODULES_CHANGED: "company_modules_changed",
 } as const;
 
 export async function recordMemberRoleChangedAudit(
@@ -226,6 +228,63 @@ export async function recordPayslipExportedAudit(
       payslipKey: params.payslipKey,
     },
     metadata: null,
+  });
+}
+
+export async function recordMemberCapabilitiesChangedAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    targetUserId: number;
+    memberRowId: number;
+    previousPermissions: string[] | null;
+    nextPermissions: string[];
+    previousEffective: string[];
+    nextEffective: string[];
+    platformOperator: boolean;
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: TENANT_GOVERNANCE_ENTITY.COMPANY_MEMBER,
+    entityId: params.memberRowId,
+    action: TENANT_GOVERNANCE_ACTION.MEMBER_CAPABILITIES_CHANGED,
+    beforeState: {
+      permissions: params.previousPermissions,
+      effective: params.previousEffective,
+    },
+    afterState: {
+      permissions: params.nextPermissions,
+      effective: params.nextEffective,
+    },
+    metadata: {
+      targetUserId: params.targetUserId,
+      platformOperator: params.platformOperator,
+    },
+  });
+}
+
+export async function recordCompanyModulesChangedAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    previousModules: string[] | null;
+    nextModules: string[] | null;
+    platformOperator: boolean;
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: "company",
+    entityId: params.companyId,
+    action: TENANT_GOVERNANCE_ACTION.COMPANY_MODULES_CHANGED,
+    beforeState: { enabledModules: params.previousModules },
+    afterState: { enabledModules: params.nextModules },
+    metadata: { platformOperator: params.platformOperator },
   });
 }
 

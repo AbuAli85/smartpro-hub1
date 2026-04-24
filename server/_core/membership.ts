@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { getUserCompany, getUserCompanyById } from "../db";
 import type { CompanyMember, User } from "../../drizzle/schema";
 import { requireActiveCompanyId } from "./tenant";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 
 /**
  * Policy (post–workspace migration):
@@ -87,6 +88,39 @@ export async function requireActiveCompanyMembership(
  *   const m = await requireActiveCompanyMembership(ctx.user.id);
  *   requireNotAuditor(m.role);
  */
+/**
+ * Resolves active workspace membership including per-user capability overrides and company module config.
+ * Use this when you need to call requireCapabilityAndModule after the role check.
+ *
+ * Platform operators receive role="company_admin", permissions=null (role defaults apply),
+ * enabledModules=null (all modules active) — they pass all capability gates.
+ */
+export async function requireCapableMembership(
+  user: User,
+  companyId?: number | null,
+): Promise<{
+  companyId: number;
+  role: CompanyMember["role"];
+  permissions: string[] | null;
+  enabledModules: string[] | null;
+}> {
+  if (canAccessGlobalAdminProcedures(user)) {
+    const cid = await requireActiveCompanyId(user.id, companyId, user);
+    return { companyId: cid, role: "company_admin", permissions: null, enabledModules: null };
+  }
+  const cid = await requireActiveCompanyId(user.id, companyId, user);
+  const m = await getUserCompanyById(user.id, cid);
+  if (!m?.company?.id || !m.member) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "No active company membership." });
+  }
+  return {
+    companyId: m.company.id,
+    role: m.member.role,
+    permissions: (m.member.permissions ?? null) as string[] | null,
+    enabledModules: (m.company.enabledModules ?? null) as string[] | null,
+  };
+}
+
 export function requireNotAuditor(
   role: CompanyMember["role"],
   message = "External Auditors have read-only access and cannot perform this action.",

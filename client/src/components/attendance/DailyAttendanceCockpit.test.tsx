@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { DailyAttendanceCockpit } from "./DailyAttendanceCockpit";
 
 // ---------------------------------------------------------------------------
@@ -151,6 +151,8 @@ describe("DailyAttendanceCockpit", () => {
     mockGetDailyStates.mockReset();
     mockListSites.mockReset();
   });
+
+  afterEach(() => cleanup());
 
   // 1. Summary counts render correctly
   it("renders summary counts from getDailyStates data", () => {

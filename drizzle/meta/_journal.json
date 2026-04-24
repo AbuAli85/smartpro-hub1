@@ -309,6 +309,13 @@
       "when": 1745510400000,
       "tag": "0081_attendance_period_locks",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1776988800000,
+      "tag": "0082_attendance_client_approval",
+      "breakpoints": true
     }
   ]
 }

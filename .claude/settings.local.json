@@ -34,7 +34,8 @@
       "Read(//tmp/**)",
       "Bash(node -e \"const fs = require\\('fs'\\); const content = fs.readFileSync\\('src/pages/AttendanceSitesPage.tsx'\\); const lines = content.toString\\('utf8'\\).split\\('\\\\n'\\); const line = lines[564]; console.log\\(JSON.stringify\\(line\\)\\); for\\(let i=0;i<line.length;i++\\) { const c = line.charCodeAt\\(i\\); if\\(c > 127\\) console.log\\(i, c, String.fromCharCode\\(c\\)\\); }\")",
       "Bash(sed 's/:.*//')",
-      "Bash(sed 's/^\\\\s*//')"
+      "Bash(sed 's/^\\\\s*//')",
+      "Bash(grep -c \"CREATE TABLE IF NOT EXISTS \\\\`attendance_client_approval_batches\\\\`\\\\|CREATE TABLE IF NOT EXISTS \\\\`attendance_client_approval_items\\\\`\" \"c:\\\\Users\\\\HP\\\\OneDrive\\\\Documents\\\\GitHub\\\\smartpro-hub1\\\\drizzle\\\\0070_drizzle_baseline_schema_recovery.sql\")"
     ]
   }
 }

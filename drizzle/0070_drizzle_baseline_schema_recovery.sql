@@ -103,6 +103,45 @@ CREATE TABLE IF NOT EXISTS `attendance_period_locks` (
 	CONSTRAINT `attendance_period_locks_id` PRIMARY KEY(`id`)
 );
 
+CREATE TABLE IF NOT EXISTS `attendance_client_approval_batches` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`company_id` int NOT NULL,
+	`site_id` int,
+	`client_company_id` int,
+	`promoter_assignment_id` int,
+	`period_start` date NOT NULL,
+	`period_end` date NOT NULL,
+	`status` enum('draft','submitted','approved','rejected','cancelled') NOT NULL DEFAULT 'draft',
+	`submitted_at` timestamp,
+	`submitted_by_user_id` int,
+	`approved_at` timestamp,
+	`approved_by_user_id` int,
+	`rejected_at` timestamp,
+	`rejected_by_user_id` int,
+	`rejection_reason` text,
+	`client_comment` text,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `attendance_client_approval_batches_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `attendance_client_approval_items` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`batch_id` int NOT NULL,
+	`company_id` int NOT NULL,
+	`employee_id` int NOT NULL,
+	`attendance_date` date NOT NULL,
+	`attendance_record_id` int,
+	`attendance_session_id` int,
+	`daily_state_json` json,
+	`status` enum('pending','approved','rejected','disputed') NOT NULL DEFAULT 'pending',
+	`client_comment` text,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `attendance_client_approval_items_id` PRIMARY KEY(`id`),
+	CONSTRAINT `uq_acai_batch_employee_date` UNIQUE(`batch_id`,`employee_id`,`attendance_date`)
+);
+
 CREATE TABLE IF NOT EXISTS `attendance_corrections` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`company_id` int NOT NULL,

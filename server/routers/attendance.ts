@@ -23,6 +23,7 @@ import { requireWorkspaceMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { resolveVisibilityScope } from "../_core/policy";
 import { deriveCapabilities } from "../_core/capabilities";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { sitesRouter, SITE_TYPES, siteInputSchema } from "./attendance/sites.router";
 import {
@@ -813,7 +814,7 @@ export const attendanceRouter = router({
   triggerAbsentMarkJob: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .mutation(async ({ ctx }) => {
-      if (ctx.user.platformRole !== "super_admin" && ctx.user.platformRole !== "platform_admin") {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Platform admin required" });
       }
       const { runMarkMissedShiftsAbsent } = await import("../jobs/markMissedShiftsAbsent");

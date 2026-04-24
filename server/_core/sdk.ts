@@ -1,4 +1,4 @@
-import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS, SESSION_EXPIRY_MS } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
 import { parse as parseCookieHeader } from "cookie";
@@ -177,7 +177,7 @@ class SDKServer {
     options: { expiresInMs?: number } = {}
   ): Promise<string> {
     const issuedAt = Date.now();
-    const expiresInMs = options.expiresInMs ?? ONE_YEAR_MS;
+    const expiresInMs = options.expiresInMs ?? SESSION_EXPIRY_MS;
     const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1000);
     const secretKey = this.getSessionSecret();
 
@@ -217,7 +217,14 @@ class SDKServer {
         appId,
         name,
       };
-    } catch {
+    } catch (err: unknown) {
+      // ERR_JWT_EXPIRED is a normal part of the session lifecycle — no need to log.
+      // Everything else (bad signature, malformed token, unknown errors) is worth observing.
+      const code = (err as Record<string, unknown>)?.code;
+      if (code !== "ERR_JWT_EXPIRED") {
+        const fingerprint = cookieValue.slice(0, 16);
+        console.warn(`[Auth] JWT verification failed (code: ${String(code ?? "UNKNOWN")}, prefix: ${fingerprint}…)`);
+      }
       return null;
     }
   }

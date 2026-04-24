@@ -26,6 +26,29 @@ describe("canAccessGlobalAdminProcedures", () => {
     expect(canAccessGlobalAdminProcedures({ role: "user", platformRole: "company_admin" })).toBe(false);
     expect(canAccessGlobalAdminProcedures({ role: "user", platformRole: "company_member" })).toBe(false);
   });
+
+  it("platform_user_roles table overrides stale users.platformRole: non-admin table entry blocks access even when platformRole='super_admin'", () => {
+    // Once platform_user_roles is populated for a user, platformRole column is no longer authoritative.
+    // A stale platformRole:'super_admin' must NOT grant access if the live table says something else.
+    expect(
+      canAccessGlobalAdminProcedures({
+        role: "user",
+        platformRole: "super_admin",   // stale DB column
+        platformRoles: ["company_member"], // live platform_user_roles entries
+      }),
+    ).toBe(false);
+  });
+
+  it("triggerAbsentMarkJob gate: grants access via platform_user_roles when platformRole is non-admin", () => {
+    // Mirrors the canAccessGlobalAdminProcedures check introduced in attendance.ts
+    expect(
+      canAccessGlobalAdminProcedures({
+        role: "user",
+        platformRole: "client",            // stale/default column
+        platformRoles: ["platform_admin"], // granted via platform_user_roles table
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("isCompanyProvisioningAdmin", () => {

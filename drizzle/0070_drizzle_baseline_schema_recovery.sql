@@ -82,6 +82,27 @@ CREATE TABLE IF NOT EXISTS `attendance_audit` (
 	CONSTRAINT `attendance_audit_id` PRIMARY KEY(`id`)
 );
 
+CREATE TABLE IF NOT EXISTS `attendance_period_locks` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`company_id` int NOT NULL,
+	`year` int NOT NULL,
+	`month` int NOT NULL,
+	`status` enum('open','locked','exported','reopened') NOT NULL DEFAULT 'open',
+	`locked_at` timestamp,
+	`locked_by_user_id` int,
+	`unlocked_at` timestamp,
+	`unlocked_by_user_id` int,
+	`exported_at` timestamp,
+	`exported_by_user_id` int,
+	`last_readiness_status` varchar(32),
+	`last_blocker_count` int NOT NULL DEFAULT 0,
+	`last_review_count` int NOT NULL DEFAULT 0,
+	`reason` text,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `attendance_period_locks_id` PRIMARY KEY(`id`)
+);
+
 CREATE TABLE IF NOT EXISTS `attendance_corrections` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`company_id` int NOT NULL,

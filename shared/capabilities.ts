@@ -188,6 +188,42 @@ export function hasCapability(
  * a desired effective set relative to role defaults.
  * Encodes additions and "-"-prefixed removals; keeps the array minimal.
  */
+// ─── SaaS package tiers ───────────────────────────────────────────────────────
+
+export const PACKAGE_KEYS = ["starter", "professional", "business", "enterprise"] as const;
+export type CompanyPackage = (typeof PACKAGE_KEYS)[number];
+
+export const PACKAGE_LABELS: Record<CompanyPackage, string> = {
+  starter: "Starter",
+  professional: "Professional",
+  business: "Business",
+  enterprise: "Enterprise",
+};
+
+/**
+ * Modules enabled per SaaS package tier.
+ *
+ * null = all modules (Enterprise — no gating).
+ * Stored at provisioning time into companies.enabledModules.
+ *
+ * Tier design (Oman private-sector):
+ *   starter      — HR + Documents: entry-level SME, < 20 staff
+ *   professional — + Payroll + Contracts: main recommended tier
+ *   business     — + Finance + Compliance: payroll/finance-heavy companies
+ *   enterprise   — all modules, multi-branch / Sanad network clients
+ */
+export const PACKAGE_ENABLED_MODULES: Record<CompanyPackage, CompanyModule[] | null> = {
+  starter: ["hr", "documents"],
+  professional: ["hr", "payroll", "documents", "contracts"],
+  business: ["hr", "payroll", "finance", "documents", "contracts", "compliance"],
+  enterprise: null,
+};
+
+/** Returns the enabledModules value to persist when provisioning a company at a given package. */
+export function getEnabledModulesForPackage(pkg: CompanyPackage): CompanyModule[] | null {
+  return PACKAGE_ENABLED_MODULES[pkg];
+}
+
 // ─── Default company configuration ───────────────────────────────────────────
 
 /**

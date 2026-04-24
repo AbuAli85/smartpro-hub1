@@ -66,6 +66,7 @@ import type {
 } from "@shared/attendanceActionQueue";
 import { OperationalIssueMetaStrip } from "@/components/attendance/OperationalIssueMetaStrip";
 import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
+import { DailyAttendanceCockpit } from "@/components/attendance/DailyAttendanceCockpit";
 
 /** Maps a canonical CTA target to the HRAttendancePage tab value. */
 const CTA_TARGET_TO_TAB: Record<AttendanceActionQueueCtaTarget, string> = {
@@ -1836,6 +1837,15 @@ export default function HRAttendancePage() {
         needsAttention={todayBoardData?.summary?.needsAttention ?? null}
       />
 
+      {/* Daily Attendance Cockpit — primary daily view */}
+      {caps.canViewAttendanceBoard && (
+        <DailyAttendanceCockpit
+          companyId={activeCompanyId}
+          caps={caps}
+          onTabNavigate={(tab) => setAttendanceTab(tab)}
+        />
+      )}
+
       {activeCompanyId != null ? (
         <AttendanceActionQueue
           items={actionQueueItems}
@@ -1851,7 +1861,11 @@ export default function HRAttendancePage() {
         />
       ) : null}
 
-      {/* Tabs: Live today | HR Records | Site Punches | Corrections | Manual Check-ins | Audit Log */}
+      {/* Detailed records tabs */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          {t("attendance.cockpit.detailedRecordsLabel")}
+        </p>
       <Tabs value={attendanceTab} onValueChange={setAttendanceTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="today" className="gap-1.5"><Users className="h-3.5 w-3.5" /> {t("attendance.tabs.liveToday")}</TabsTrigger>
@@ -2096,6 +2110,7 @@ export default function HRAttendancePage() {
 
         </TabsContent>
       </Tabs>
+      </div>
 
       <Dialog open={forceDialogRecordId != null} onOpenChange={(o) => !o && setForceDialogRecordId(null)}>
         <DialogContent className="max-w-md">

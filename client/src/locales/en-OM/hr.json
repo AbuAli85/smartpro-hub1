@@ -5,7 +5,65 @@
   },
   "title": "HR & Workforce Hub",
   "employee": "Employee",
-  "employees": "Employees",
+  "employees": {
+    "tabs": {
+      "allEmployees": "All Employees",
+      "byDepartment": "By Department"
+    },
+    "needsAttention": "{{count}} Need Attention",
+    "showingOf": "Showing {{count}} of {{total}} employees",
+    "noEmployees": "No employees found",
+    "noEmployeesSearch": "Try adjusting your search or filters",
+    "noEmployeesFirst": "Add your first employee using the button above",
+    "tags": {
+      "labourLaw": "Labour Law Compliant",
+      "omanisation": "Omanisation Quota",
+      "wps": "WPS Ready",
+      "pasi": "PASI Integrated"
+    },
+    "omanisation": {
+      "title": "Omanisation Progress",
+      "target": "Omanisation Target: 35%",
+      "omaniNationals": "{{count}} Omani nationals",
+      "expatriates": "{{count}} expatriates",
+      "belowTarget": "Below Omanisation target. Consider hiring {{count}} more Omani nationals."
+    },
+    "departments": {
+      "omaniNationals": "Omani nationals",
+      "monthlyPayroll": "Monthly payroll",
+      "avgProfileCompleteness": "Avg profile completeness",
+      "noDepts": "No departments yet",
+      "noDeptsDesc": "Go to Departments & Positions to create departments, then assign employees."
+    },
+    "bulk": {
+      "selected": "{{count}} selected",
+      "assignDept": "Assign Department",
+      "assignDeptTitle": "Assign Department",
+      "assignDeptDesc": "Assign {{count}} employee(s) to a department.",
+      "updatePosition": "Update Position",
+      "updatePositionTitle": "Update Position",
+      "updatePositionDesc": "Set position/job title for {{count}} employee(s).",
+      "positionPlaceholder": "Enter position title...",
+      "sendReminder": "Send Reminder",
+      "reminderSent": "Reminder sent to {{count}} employee(s)",
+      "clearSelection": "Clear",
+      "cancel": "Cancel",
+      "assigning": "Assigning...",
+      "assign": "Assign",
+      "updating": "Updating...",
+      "update": "Update",
+      "positionUpdated": "Position updated for {{count}} employee(s)"
+    },
+    "actions": {
+      "quickView": "Quick View",
+      "fullProfile": "Full Lifecycle Profile",
+      "documents": "Documents",
+      "orgChart": "Org Chart"
+    },
+    "kpi": {
+      "omanisationRate": "Omanisation Rate"
+    }
+  },
   "worker": "Worker",
   "staffMember": "Staff Member",
   "omanEmployee": "Omani Employee",
@@ -25,7 +83,6 @@
   "salary": "Basic Salary (OMR)",
   "allowances": "Allowances (OMR)",
   "totalCompensation": "Total Compensation (OMR)",
-
   "workforce": {
     "directory": "Workforce Directory",
     "total": "Total Workforce",
@@ -45,7 +102,6 @@
     "expiryWarnings": "{{count}} permit / passport signal",
     "expiryWarnings_plural": "{{count}} permit / passport signals (roster)"
   },
-
   "departmentsPage": {
     "title": "Departments & Positions",
     "subtitle": "Create and manage departments, assign heads, and define job positions.",
@@ -166,7 +222,6 @@
       "assigned": "{{count}} employee(s) assigned to {{department}}"
     }
   },
-
   "employeeWizard": {
     "steps": {
       "personalInfo": "Personal Info",
@@ -216,7 +271,6 @@
       "intern": "Intern"
     }
   },
-
   "status": {
     "active": "Active",
     "onLeave": "On Leave",
@@ -228,7 +282,6 @@
     "expired": "Expired",
     "expiring": "Expiring"
   },
-
   "attendance": {
     "title": "Attendance Management",
     "checkIn": "Check-In",
@@ -766,7 +819,6 @@
       "cancel": "Cancel",
       "confirm": "Delete"
     },
-
     "holidays": {
       "pageTitle": "Holiday Calendar",
       "pageSubtitle": "Manage public and company holidays — attendance is not required on these days",
@@ -808,7 +860,6 @@
         "validationError": "Please fill all required fields"
       }
     },
-
     "overdueCheckouts": {
       "panelTitle": "Still Clocked In After Shift",
       "allClear": "All clear",
@@ -858,7 +909,6 @@
         "reminderError": "Failed to send reminder: {{error}}"
       }
     },
-
     "anomalyReport": {
       "pageTitle": "Attendance Anomaly Report",
       "pageSubtitle": "Detect and resolve duplicate punches, runaway sessions, and re-check-ins.",
@@ -907,7 +957,6 @@
         "sessionClosed": "Session closed."
       }
     },
-
     "reconciliation": {
       "pageTitle": "Attendance reconciliation",
       "pageSubtitle": "Compare clock rows, payroll sessions, and legacy HR attendance for the selected Muscat calendar month. Use this before payroll or when investigating drift. Payroll execution uses the same preflight rules.",
@@ -949,7 +998,6 @@
         "copyFailed": "Could not copy to clipboard"
       }
     },
-
     "sites": {
       "pageTitle": "Attendance Sites",
       "pageSubtitle": "Smart QR check-in with geo-fence, operating hours, and live monitoring",
@@ -1004,7 +1052,6 @@
         "rejected": "Request rejected"
       }
     },
-
     "schedules": {
       "toast": {
         "scheduleAssigned": "Schedule assigned",
@@ -1016,9 +1063,65 @@
         "updateError": "Failed to update schedule",
         "noEmployeeSelected": "Please select an employee"
       }
+    },
+    "cockpit": {
+      "controls": {
+        "dateLabel": "Date",
+        "siteLabel": "Site",
+        "allSites": "All sites",
+        "searchLabel": "Search",
+        "searchPlaceholder": "Search employee…",
+        "needsActionOnly": "Needs action only"
+      },
+      "summary": {
+        "scheduled": "Scheduled",
+        "checkedIn": "Checked In",
+        "checkedOut": "Checked Out",
+        "late": "Late",
+        "missingCheckout": "Missing Checkout",
+        "absentNoArrival": "Absent / No Arrival",
+        "payrollBlocked": "Payroll Blocked",
+        "needsReview": "Needs Review",
+        "ready": "Payroll Ready"
+      },
+      "actionList": {
+        "title": "Needs Action",
+        "emptyTitle": "No action items",
+        "emptyHint": "All attendance looks good for this date.",
+        "payrollBlocking": "Payroll blocking",
+        "cta": "View",
+        "noPermission": "Additional permissions required."
+      },
+      "table": {
+        "title": "All Employees",
+        "employee": "Employee",
+        "site": "Site",
+        "shift": "Shift",
+        "status": "Status",
+        "checkIn": "Check-In",
+        "checkOut": "Check-Out",
+        "risk": "Risk",
+        "payroll": "Payroll",
+        "noData": "No employee data for this date."
+      },
+      "siteBreakdown": {
+        "title": "Site Breakdown",
+        "siteName": "Site",
+        "noSite": "No site",
+        "scheduled": "Scheduled",
+        "checkedIn": "Checked In",
+        "absent": "Absent",
+        "blocked": "Blocked",
+        "needsReview": "Needs Review"
+      },
+      "emptyState": {
+        "loading": "Loading attendance state…",
+        "noData": "No attendance data for {date}.",
+        "noSchedulesHint": "Use the setup links above to configure employees, sites, and shifts."
+      },
+      "detailedRecordsLabel": "Detailed Records"
     }
   },
-
   "leave": {
     "title": "Leave Management",
     "request": "Leave Request",
@@ -1072,43 +1175,21 @@
       "submit": "Submit Request"
     }
   },
-
   "payroll": {
-    "title": "Payroll Processing",
-    "period": "Pay Period",
-    "basicSalary": "Basic Salary",
-    "deductions": "Deductions",
-    "netPay": "Net Pay",
-    "grossPay": "Gross Pay",
-    "pasiContribution": "PASI Contribution",
-    "wps": "WPS File",
-    "payslip": "Payslip",
-    "processed": "Processed",
-    "pending": "Pending Processing",
-    "created": "Payroll record created",
-    "runStatus": {
-      "draft": "Draft",
-      "processing": "Processing",
-      "pending_execution": "Pending Execution",
-      "approved": "Approved",
-      "wps_generated": "WPS Generated",
-      "ready_for_upload": "Ready for Upload",
-      "locked": "Locked",
-      "paid": "Paid",
-      "cancelled": "Cancelled"
-    },
-    "form": {
-      "title": "Process Payroll",
-      "selectEmployee": "Select employee",
-      "month": "Month",
-      "year": "Year",
-      "basicSalary": "Basic Salary (OMR)",
-      "allowances": "Allowances (OMR)",
-      "deductions": "Deductions (OMR)",
-      "submit": "Process Payroll"
-    }
+    "tableEmployee": "Employee",
+    "tablePeriod": "Period",
+    "tableBasic": "Basic",
+    "tableAllowances": "Allowances",
+    "tableDeductions": "Deductions",
+    "tableNetSalary": "Net Salary",
+    "tableStatus": "Status",
+    "noRecords": "No payroll records yet",
+    "createFirst": "Create First Payroll Record",
+    "employeeFallback": "Employee #{{id}}",
+    "statusPaid": "Paid",
+    "statusApproved": "Approved",
+    "statusPending": "Pending"
   },
-
   "performance": {
     "title": "Performance Management",
     "review": "Performance Review",
@@ -1130,10 +1211,8 @@
     "noTargets": "No targets yet",
     "noTrainings": "No training records",
     "noReviews": "No reviews logged",
-
     "pageTitle": "Performance & growth",
     "pageSubtitle": "Control layer for training, reviews, targets, and workforce intelligence — on top of existing HR data.",
-
     "tabs": {
       "overview": "Overview",
       "training": "Training",
@@ -1141,18 +1220,15 @@
       "targets": "Targets",
       "insights": "Insights"
     },
-
     "filters": {
       "department": "Department",
       "allDepartments": "All departments",
       "periodHelp": "Period for KPI snapshot and KPI leaderboard"
     },
-
     "periodLabel": "Period ({{month}}/{{year}}):",
     "periodDesc": "average KPI achievement (server) and the KPI leaderboard below use this month.",
     "allTimeLabel": "All-time (company):",
     "allTimeDesc": "training counts, self-review backlog and response rate, training spotlight, and department health — not filtered by the month control.",
-
     "dashboard": {
       "unavailable": "Overview data is unavailable.",
       "loadError": "Could not load HR performance dashboard",
@@ -1179,7 +1255,6 @@
       "employeeFallback": "Employee",
       "openKpiConsole": "Open full KPI console"
     },
-
     "trainingTab": {
       "subtitle": "Assign and track training — status, scores, and certification links are stored on each record.",
       "assignBtn": "Assign training",
@@ -1194,14 +1269,12 @@
       "noRecordsFiltered": "No training records for this filter.",
       "updateBtn": "Update"
     },
-
     "trainingStatus": {
       "assigned": "Assigned",
       "in_progress": "In Progress",
       "completed": "Completed",
       "overdue": "Overdue"
     },
-
     "trainingCategories": {
       "technical": "Technical",
       "compliance": "Compliance",
@@ -1210,7 +1283,6 @@
       "soft_skills": "Soft Skills",
       "other": "Other"
     },
-
     "reviewsTab": {
       "selfSubTab": "Self reviews",
       "formalSubTab": "Formal reviews",
@@ -1233,14 +1305,12 @@
       "noFormalReviews": "No formal reviews yet.",
       "employeeFallback": "Employee #{{id}}"
     },
-
     "reviewStatus": {
       "draft": "Draft",
       "submitted": "Submitted",
       "reviewed": "Reviewed",
       "acknowledged": "Acknowledged"
     },
-
     "targetsTab": {
       "quickAssignBtn": "Quick assign target",
       "fullKpiBtn": "Full KPI & commission",
@@ -1250,7 +1320,6 @@
       "noTargets": "No targets for this period.",
       "userFallback": "User {{id}}"
     },
-
     "insightsTab": {
       "subtitle": "Connect operational data to decisions: use intelligence dashboards to spot risk, skill gaps, and ROI.",
       "workforceTitle": "Workforce Intelligence",
@@ -1259,7 +1328,6 @@
       "hrOpsDesc": "Company-wide HR and operations KPIs and automation health.",
       "openDashboard": "Open dashboard"
     },
-
     "assignTrainingDialog": {
       "title": "Assign training",
       "description": "Creates a training record for the selected employee (employee profile id).",
@@ -1274,7 +1342,6 @@
       "validationError": "Choose an employee and enter a title.",
       "successToast": "Training assigned"
     },
-
     "editTrainingDialog": {
       "title": "Update training",
       "description": "Adjust status, score, or certification.",
@@ -1284,7 +1351,6 @@
       "saveBtn": "Save",
       "successToast": "Training updated"
     },
-
     "feedbackDialog": {
       "title": "Manager / HR feedback",
       "descriptionFor": "Self-review for {{name}}",
@@ -1299,7 +1365,6 @@
       "saveDraftBtn": "Save draft feedback",
       "successToast": "Review updated"
     },
-
     "formalReviewDialog": {
       "title": "New formal performance review",
       "employeeLabel": "Employee",
@@ -1314,7 +1379,6 @@
       "validationError": "Employee and period are required.",
       "successToast": "Performance review recorded"
     },
-
     "targetDialog": {
       "title": "Assign KPI target",
       "description": "Uses the same engine as KPI & Performance — notifies the employee.",
@@ -1330,7 +1394,6 @@
       "successToast": "Target set — employee notified."
     }
   },
-
   "kpi": {
     "title": "KPI & Performance",
     "subtitle": "Monthly targets, attainment tracking, and leaderboard",
@@ -1394,12 +1457,20 @@
       "logs": "Logs"
     },
     "months": {
-      "jan": "Jan", "feb": "Feb", "mar": "Mar", "apr": "Apr",
-      "may": "May", "jun": "Jun", "jul": "Jul", "aug": "Aug",
-      "sep": "Sep", "oct": "Oct", "nov": "Nov", "dec": "Dec"
+      "jan": "Jan",
+      "feb": "Feb",
+      "mar": "Mar",
+      "apr": "Apr",
+      "may": "May",
+      "jun": "Jun",
+      "jul": "Jul",
+      "aug": "Aug",
+      "sep": "Sep",
+      "oct": "Oct",
+      "nov": "Nov",
+      "dec": "Dec"
     }
   },
-
   "insights": {
     "title": "HR Insights",
     "subtitle": "Decision surface for workforce health, KPIs, and HR throughput — open detail only when you need depth.",
@@ -1444,7 +1515,6 @@
     "reviewsLogged": "{{count}} review logged",
     "reviewsLogged_plural": "{{count}} reviews logged"
   },
-
   "recruitment": {
     "title": "Recruitment",
     "jobPosting": "Job Posting",
@@ -1453,7 +1523,6 @@
     "offer": "Employment Offer",
     "onboarding": "Employee Onboarding"
   },
-
   "documents": {
     "title": "HR Documents",
     "employmentContract": "Employment Contract",
@@ -1464,7 +1533,6 @@
     "salarySlip": "Salary Slip",
     "hrLetter": "HR Letter"
   },
-
   "filters": {
     "searchEmployees": "Search name, role, department, nationality, emp#...",
     "allStatus": "All Status",
@@ -1485,67 +1553,6 @@
     "all": "All",
     "allJobs": "All Jobs"
   },
-
-  "employees": {
-    "tabs": {
-      "allEmployees": "All Employees",
-      "byDepartment": "By Department"
-    },
-    "needsAttention": "{{count}} Need Attention",
-    "showingOf": "Showing {{count}} of {{total}} employees",
-    "noEmployees": "No employees found",
-    "noEmployeesSearch": "Try adjusting your search or filters",
-    "noEmployeesFirst": "Add your first employee using the button above",
-    "tags": {
-      "labourLaw": "Labour Law Compliant",
-      "omanisation": "Omanisation Quota",
-      "wps": "WPS Ready",
-      "pasi": "PASI Integrated"
-    },
-    "omanisation": {
-      "title": "Omanisation Progress",
-      "target": "Omanisation Target: 35%",
-      "omaniNationals": "{{count}} Omani nationals",
-      "expatriates": "{{count}} expatriates",
-      "belowTarget": "Below Omanisation target. Consider hiring {{count}} more Omani nationals."
-    },
-    "departments": {
-      "omaniNationals": "Omani nationals",
-      "monthlyPayroll": "Monthly payroll",
-      "avgProfileCompleteness": "Avg profile completeness",
-      "noDepts": "No departments yet",
-      "noDeptsDesc": "Go to Departments & Positions to create departments, then assign employees."
-    },
-    "bulk": {
-      "selected": "{{count}} selected",
-      "assignDept": "Assign Department",
-      "assignDeptTitle": "Assign Department",
-      "assignDeptDesc": "Assign {{count}} employee(s) to a department.",
-      "updatePosition": "Update Position",
-      "updatePositionTitle": "Update Position",
-      "updatePositionDesc": "Set position/job title for {{count}} employee(s).",
-      "positionPlaceholder": "Enter position title...",
-      "sendReminder": "Send Reminder",
-      "reminderSent": "Reminder sent to {{count}} employee(s)",
-      "clearSelection": "Clear",
-      "cancel": "Cancel",
-      "assigning": "Assigning...",
-      "assign": "Assign",
-      "updating": "Updating...",
-      "update": "Update",
-      "positionUpdated": "Position updated for {{count}} employee(s)"
-    },
-    "actions": {
-      "quickView": "Quick View",
-      "fullProfile": "Full Lifecycle Profile",
-      "documents": "Documents",
-      "orgChart": "Org Chart"
-    },
-    "kpi": {
-      "omanisationRate": "Omanisation Rate"
-    }
-  },
-
   "expiry": {
     "expired": "Expired",
     "expiring": "Expiring",
@@ -1553,29 +1560,11 @@
     "permit": "Permit",
     "passport": "Passport"
   },
-
   "completeness": {
     "profileComplete": "Profile complete",
     "missing": "Missing: {{fields}}",
     "missingMore": "+{{count}} more"
   },
-
-  "payroll": {
-    "tableEmployee": "Employee",
-    "tablePeriod": "Period",
-    "tableBasic": "Basic",
-    "tableAllowances": "Allowances",
-    "tableDeductions": "Deductions",
-    "tableNetSalary": "Net Salary",
-    "tableStatus": "Status",
-    "noRecords": "No payroll records yet",
-    "createFirst": "Create First Payroll Record",
-    "employeeFallback": "Employee #{{id}}",
-    "statusPaid": "Paid",
-    "statusApproved": "Approved",
-    "statusPending": "Pending"
-  },
-
   "myTeam": {
     "title": "My Team",
     "subtitle": "Manage your company's staff — add, edit, and track your entire workforce",
@@ -1778,7 +1767,6 @@
       "deleting": "Deleting…"
     }
   },
-
   "lifecycle": {
     "active": "Active",
     "onProbation": "On Probation",

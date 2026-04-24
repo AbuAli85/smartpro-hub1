@@ -5,7 +5,65 @@
   },
   "title": "مركز الموارد البشرية والقوى العاملة",
   "employee": "موظف",
-  "employees": "الموظفون",
+  "employees": {
+    "tabs": {
+      "allEmployees": "جميع الموظفين",
+      "byDepartment": "حسب القسم"
+    },
+    "needsAttention": "{{count}} يحتاج اهتماماً",
+    "showingOf": "عرض {{count}} من {{total}} موظف",
+    "noEmployees": "لا يوجد موظفون",
+    "noEmployeesSearch": "جرّب تعديل بحثك أو الفلاتر",
+    "noEmployeesFirst": "أضف أول موظف باستخدام الزر أعلاه",
+    "tags": {
+      "labourLaw": "متوافق مع قانون العمل",
+      "omanisation": "حصة التعمين",
+      "wps": "جاهز لنظام الرواتب",
+      "pasi": "متكامل مع PASI"
+    },
+    "omanisation": {
+      "title": "تقدم التعمين",
+      "target": "هدف التعمين: 35%",
+      "omaniNationals": "{{count}} عُماني",
+      "expatriates": "{{count}} وافد",
+      "belowTarget": "أقل من هدف التعمين. فكّر في توظيف {{count}} عُماني إضافي."
+    },
+    "departments": {
+      "omaniNationals": "العُمانيون",
+      "monthlyPayroll": "الرواتب الشهرية",
+      "avgProfileCompleteness": "متوسط اكتمال الملفات",
+      "noDepts": "لا توجد أقسام بعد",
+      "noDeptsDesc": "اذهب إلى الأقسام والمناصب لإنشاء الأقسام، ثم قم بتعيين الموظفين."
+    },
+    "bulk": {
+      "selected": "{{count}} محدد",
+      "assignDept": "تعيين قسم",
+      "assignDeptTitle": "تعيين قسم",
+      "assignDeptDesc": "تعيين {{count}} موظف إلى قسم.",
+      "updatePosition": "تحديث المنصب",
+      "updatePositionTitle": "تحديث المنصب",
+      "updatePositionDesc": "تعيين المنصب / المسمى الوظيفي لـ {{count}} موظف.",
+      "positionPlaceholder": "أدخل المسمى الوظيفي...",
+      "sendReminder": "إرسال تذكير",
+      "reminderSent": "تم إرسال التذكير إلى {{count}} موظف",
+      "clearSelection": "مسح",
+      "cancel": "إلغاء",
+      "assigning": "جارٍ التعيين...",
+      "assign": "تعيين",
+      "updating": "جارٍ التحديث...",
+      "update": "تحديث",
+      "positionUpdated": "تم تحديث المنصب لـ {{count}} موظف"
+    },
+    "actions": {
+      "quickView": "عرض سريع",
+      "fullProfile": "ملف دورة الحياة الكامل",
+      "documents": "المستندات",
+      "orgChart": "الهيكل التنظيمي"
+    },
+    "kpi": {
+      "omanisationRate": "نسبة التعمين"
+    }
+  },
   "worker": "عامل",
   "staffMember": "فرد من الطاقم",
   "omanEmployee": "موظف عُماني",
@@ -25,7 +83,6 @@
   "salary": "الراتب الأساسي (ر.ع.)",
   "allowances": "البدلات (ر.ع.)",
   "totalCompensation": "إجمالي التعويض (ر.ع.)",
-
   "workforce": {
     "directory": "دليل القوى العاملة",
     "total": "إجمالي القوى العاملة",
@@ -45,7 +102,6 @@
     "expiryWarnings": "{{count}} تنبيه تصريح / جواز سفر",
     "expiryWarnings_plural": "{{count}} تنبيهات تصاريح / جوازات سفر (القائمة)"
   },
-
   "departmentsPage": {
     "title": "الأقسام والمناصب",
     "subtitle": "أنشئ الأقسام وحدِّثها، وعيِّن المسؤولين، وعرِّف المسمّيات الوظيفية.",
@@ -166,7 +222,6 @@
       "assigned": "تم تعيين {{count}} موظف في قسم {{department}}"
     }
   },
-
   "employeeWizard": {
     "steps": {
       "personalInfo": "المعلومات الشخصية",
@@ -216,7 +271,6 @@
       "intern": "متدرب"
     }
   },
-
   "status": {
     "active": "نشط",
     "onLeave": "في إجازة",
@@ -228,7 +282,6 @@
     "expired": "منتهي الصلاحية",
     "expiring": "ينتهي قريباً"
   },
-
   "attendance": {
     "title": "إدارة الحضور والانصراف",
     "checkIn": "تسجيل الحضور",
@@ -766,7 +819,6 @@
       "cancel": "إلغاء",
       "confirm": "حذف"
     },
-
     "holidays": {
       "pageTitle": "تقويم الإجازات",
       "pageSubtitle": "إدارة الإجازات الرسمية وإجازات الشركة — لا يُطلب الحضور في هذه الأيام",
@@ -808,7 +860,6 @@
         "validationError": "يرجى ملء جميع الحقول المطلوبة"
       }
     },
-
     "overdueCheckouts": {
       "panelTitle": "لا يزال مسجلاً بعد انتهاء الوردية",
       "allClear": "كل شيء على ما يرام",
@@ -858,7 +909,6 @@
         "reminderError": "فشل إرسال التذكير: {{error}}"
       }
     },
-
     "anomalyReport": {
       "pageTitle": "تقرير حالات الحضور الشاذة",
       "pageSubtitle": "اكتشاف وحل تسجيلات الحضور المكررة والجلسات المنفلتة وإعادة تسجيل الدخول.",
@@ -907,7 +957,6 @@
         "sessionClosed": "تم إغلاق الجلسة."
       }
     },
-
     "reconciliation": {
       "pageTitle": "مراجعة الحضور",
       "pageSubtitle": "مقارنة صفوف ساعة الحضور والجلسات وسجلات الموارد البشرية القديمة للشهر الميلادي المحدد في مسقط. استخدم هذا قبل الرواتب أو عند التحقيق في الانحرافات.",
@@ -949,7 +998,6 @@
         "copyFailed": "تعذّر النسخ إلى الحافظة"
       }
     },
-
     "sites": {
       "pageTitle": "مواقع الحضور",
       "pageSubtitle": "تسجيل حضور ذكي برمز QR مع سياج جغرافي وساعات عمل ومراقبة مباشرة",
@@ -1004,7 +1052,6 @@
         "rejected": "تم رفض الطلب"
       }
     },
-
     "schedules": {
       "toast": {
         "scheduleAssigned": "تم تعيين الجدول",
@@ -1016,9 +1063,65 @@
         "updateError": "فشل تحديث الجدول",
         "noEmployeeSelected": "يرجى اختيار موظف"
       }
+    },
+    "cockpit": {
+      "controls": {
+        "dateLabel": "التاريخ",
+        "siteLabel": "الموقع",
+        "allSites": "جميع المواقع",
+        "searchLabel": "بحث",
+        "searchPlaceholder": "ابحث عن موظف…",
+        "needsActionOnly": "يحتاج إجراء فقط"
+      },
+      "summary": {
+        "scheduled": "مجدول",
+        "checkedIn": "تسجيل دخول",
+        "checkedOut": "تسجيل خروج",
+        "late": "متأخر",
+        "missingCheckout": "خروج مفقود",
+        "absentNoArrival": "غائب / لم يصل",
+        "payrollBlocked": "مرتب محجوب",
+        "needsReview": "يحتاج مراجعة",
+        "ready": "جاهز للمرتب"
+      },
+      "actionList": {
+        "title": "يحتاج إجراء",
+        "emptyTitle": "لا توجد إجراءات مطلوبة",
+        "emptyHint": "يبدو الحضور جيداً لهذا اليوم.",
+        "payrollBlocking": "يعيق المرتب",
+        "cta": "عرض",
+        "noPermission": "يلزم الحصول على صلاحيات إضافية."
+      },
+      "table": {
+        "title": "جميع الموظفين",
+        "employee": "الموظف",
+        "site": "الموقع",
+        "shift": "الوردية",
+        "status": "الحالة",
+        "checkIn": "وقت الدخول",
+        "checkOut": "وقت الخروج",
+        "risk": "المخاطرة",
+        "payroll": "المرتب",
+        "noData": "لا توجد بيانات موظفين لهذا التاريخ."
+      },
+      "siteBreakdown": {
+        "title": "توزيع المواقع",
+        "siteName": "الموقع",
+        "noSite": "بدون موقع",
+        "scheduled": "مجدول",
+        "checkedIn": "سجّل دخوله",
+        "absent": "غائب",
+        "blocked": "محجوب",
+        "needsReview": "يحتاج مراجعة"
+      },
+      "emptyState": {
+        "loading": "جارٍ تحميل حالة الحضور…",
+        "noData": "لا توجد بيانات حضور لتاريخ {date}.",
+        "noSchedulesHint": "استخدم روابط الإعداد أعلاه لتكوين الموظفين والمواقع والورديات."
+      },
+      "detailedRecordsLabel": "السجلات التفصيلية"
     }
   },
-
   "leave": {
     "title": "إدارة الإجازات",
     "request": "طلب إجازة",
@@ -1072,43 +1175,21 @@
       "submit": "تقديم الطلب"
     }
   },
-
   "payroll": {
-    "title": "معالجة الرواتب",
-    "period": "فترة الراتب",
-    "basicSalary": "الراتب الأساسي",
-    "deductions": "الاستقطاعات",
-    "netPay": "صافي الراتب",
-    "grossPay": "الراتب الإجمالي",
-    "pasiContribution": "اشتراك التأمينات الاجتماعية",
-    "wps": "ملف نظام حماية الأجور",
-    "payslip": "قسيمة الراتب",
-    "processed": "تمت المعالجة",
-    "pending": "في انتظار المعالجة",
-    "created": "تم إنشاء سجل الرواتب",
-    "runStatus": {
-      "draft": "مسودة",
-      "processing": "قيد المعالجة",
-      "pending_execution": "في انتظار التنفيذ",
-      "approved": "معتمد",
-      "wps_generated": "تم إنشاء ملف الأجور",
-      "ready_for_upload": "جاهز للرفع",
-      "locked": "مقفل",
-      "paid": "مدفوع",
-      "cancelled": "ملغى"
-    },
-    "form": {
-      "title": "معالجة الرواتب",
-      "selectEmployee": "اختر موظفاً",
-      "month": "الشهر",
-      "year": "السنة",
-      "basicSalary": "الراتب الأساسي (ر.ع.)",
-      "allowances": "البدلات (ر.ع.)",
-      "deductions": "الاستقطاعات (ر.ع.)",
-      "submit": "معالجة الرواتب"
-    }
+    "tableEmployee": "الموظف",
+    "tablePeriod": "الفترة",
+    "tableBasic": "الأساسي",
+    "tableAllowances": "البدلات",
+    "tableDeductions": "الخصومات",
+    "tableNetSalary": "صافي الراتب",
+    "tableStatus": "الحالة",
+    "noRecords": "لا توجد سجلات رواتب بعد",
+    "createFirst": "إنشاء أول سجل رواتب",
+    "employeeFallback": "موظف #{{id}}",
+    "statusPaid": "مدفوع",
+    "statusApproved": "موافق عليه",
+    "statusPending": "قيد الانتظار"
   },
-
   "performance": {
     "title": "إدارة الأداء",
     "review": "تقييم الأداء",
@@ -1130,10 +1211,8 @@
     "noTargets": "لا توجد أهداف بعد",
     "noTrainings": "لا توجد سجلات تدريب",
     "noReviews": "لا توجد تقييمات مسجلة",
-
     "pageTitle": "الأداء والنمو",
     "pageSubtitle": "طبقة التحكم في التدريب والتقييمات والأهداف وذكاء القوى العاملة — فوق بيانات الموارد البشرية الحالية.",
-
     "tabs": {
       "overview": "نظرة عامة",
       "training": "التدريب",
@@ -1141,18 +1220,15 @@
       "targets": "الأهداف",
       "insights": "الرؤى"
     },
-
     "filters": {
       "department": "القسم",
       "allDepartments": "جميع الأقسام",
       "periodHelp": "الفترة للقطة مؤشرات الأداء ولوحة المتصدرين"
     },
-
     "periodLabel": "الفترة ({{month}}/{{year}}):",
     "periodDesc": "متوسط إنجاز مؤشرات الأداء (الخادم) ولوحة المتصدرين أدناه تستخدم هذا الشهر.",
     "allTimeLabel": "الإجمالي (الشركة):",
     "allTimeDesc": "عدد التدريبات وبقايا التقييمات الذاتية ومعدل استجابة المدير ونقاط التميز في التدريب وصحة الأقسام — غير مُصفَّى بضابط الشهر.",
-
     "dashboard": {
       "unavailable": "بيانات النظرة العامة غير متاحة.",
       "loadError": "تعذّر تحميل لوحة أداء الموارد البشرية",
@@ -1179,7 +1255,6 @@
       "employeeFallback": "موظف",
       "openKpiConsole": "فتح وحدة تحكم مؤشرات الأداء الكاملة"
     },
-
     "trainingTab": {
       "subtitle": "تعيين التدريبات وتتبعها — الحالة والدرجات وروابط الشهادات مخزَّنة في كل سجل.",
       "assignBtn": "تعيين تدريب",
@@ -1194,14 +1269,12 @@
       "noRecordsFiltered": "لا توجد سجلات تدريب لهذا الفلتر.",
       "updateBtn": "تحديث"
     },
-
     "trainingStatus": {
       "assigned": "مُعيَّن",
       "in_progress": "جارٍ التنفيذ",
       "completed": "مكتمل",
       "overdue": "متأخر"
     },
-
     "trainingCategories": {
       "technical": "تقني",
       "compliance": "امتثال",
@@ -1210,7 +1283,6 @@
       "soft_skills": "مهارات ناعمة",
       "other": "أخرى"
     },
-
     "reviewsTab": {
       "selfSubTab": "التقييمات الذاتية",
       "formalSubTab": "التقييمات الرسمية",
@@ -1233,14 +1305,12 @@
       "noFormalReviews": "لا توجد تقييمات رسمية بعد.",
       "employeeFallback": "موظف #{{id}}"
     },
-
     "reviewStatus": {
       "draft": "مسودة",
       "submitted": "مُقدَّم",
       "reviewed": "تمت المراجعة",
       "acknowledged": "تم الاعتراف"
     },
-
     "targetsTab": {
       "quickAssignBtn": "تعيين هدف سريع",
       "fullKpiBtn": "مؤشرات الأداء والعمولة الكاملة",
@@ -1250,7 +1320,6 @@
       "noTargets": "لا توجد أهداف لهذه الفترة.",
       "userFallback": "مستخدم {{id}}"
     },
-
     "insightsTab": {
       "subtitle": "ربط البيانات التشغيلية بالقرارات: استخدم لوحات الذكاء لرصد المخاطر وفجوات المهارات والعائد على الاستثمار.",
       "workforceTitle": "ذكاء القوى العاملة",
@@ -1259,7 +1328,6 @@
       "hrOpsDesc": "مؤشرات الأداء الرئيسية للموارد البشرية والعمليات على مستوى الشركة وصحة الأتمتة.",
       "openDashboard": "فتح لوحة التحكم"
     },
-
     "assignTrainingDialog": {
       "title": "تعيين تدريب",
       "description": "ينشئ سجل تدريب للموظف المحدد (معرّف ملف الموظف).",
@@ -1274,7 +1342,6 @@
       "validationError": "اختر موظفاً وأدخل عنواناً.",
       "successToast": "تم تعيين التدريب"
     },
-
     "editTrainingDialog": {
       "title": "تحديث التدريب",
       "description": "تعديل الحالة أو الدرجة أو الشهادة.",
@@ -1284,7 +1351,6 @@
       "saveBtn": "حفظ",
       "successToast": "تم تحديث التدريب"
     },
-
     "feedbackDialog": {
       "title": "ملاحظات المدير / الموارد البشرية",
       "descriptionFor": "التقييم الذاتي لـ {{name}}",
@@ -1299,7 +1365,6 @@
       "saveDraftBtn": "حفظ مسودة الملاحظات",
       "successToast": "تم تحديث التقييم"
     },
-
     "formalReviewDialog": {
       "title": "تقييم أداء رسمي جديد",
       "employeeLabel": "الموظف",
@@ -1314,7 +1379,6 @@
       "validationError": "الموظف والفترة مطلوبان.",
       "successToast": "تم تسجيل تقييم الأداء"
     },
-
     "targetDialog": {
       "title": "تعيين هدف مؤشر الأداء",
       "description": "يستخدم نفس محرك مؤشرات الأداء والأداء — يُشعر الموظف.",
@@ -1330,7 +1394,6 @@
       "successToast": "تم تعيين الهدف — تم إشعار الموظف."
     }
   },
-
   "kpi": {
     "title": "مؤشرات الأداء الرئيسية والأداء",
     "subtitle": "الأهداف الشهرية وتتبع الإنجاز ولوحة المتصدرين",
@@ -1394,12 +1457,20 @@
       "logs": "السجلات"
     },
     "months": {
-      "jan": "يناير", "feb": "فبراير", "mar": "مارس", "apr": "أبريل",
-      "may": "مايو", "jun": "يونيو", "jul": "يوليو", "aug": "أغسطس",
-      "sep": "سبتمبر", "oct": "أكتوبر", "nov": "نوفمبر", "dec": "ديسمبر"
+      "jan": "يناير",
+      "feb": "فبراير",
+      "mar": "مارس",
+      "apr": "أبريل",
+      "may": "مايو",
+      "jun": "يونيو",
+      "jul": "يوليو",
+      "aug": "أغسطس",
+      "sep": "سبتمبر",
+      "oct": "أكتوبر",
+      "nov": "نوفمبر",
+      "dec": "ديسمبر"
     }
   },
-
   "insights": {
     "title": "رؤى الموارد البشرية",
     "subtitle": "سطح قرار لصحة القوى العاملة ومؤشرات الأداء وإنتاجية الموارد البشرية — افتح التفاصيل عند الحاجة فقط.",
@@ -1444,7 +1515,6 @@
     "reviewsLogged": "{{count}} تقييم مسجل",
     "reviewsLogged_plural": "{{count}} تقييمات مسجلة"
   },
-
   "recruitment": {
     "title": "التوظيف",
     "jobPosting": "إعلان وظيفي",
@@ -1453,7 +1523,6 @@
     "offer": "عرض عمل",
     "onboarding": "تأهيل الموظف"
   },
-
   "documents": {
     "title": "وثائق الموارد البشرية",
     "employmentContract": "عقد العمل",
@@ -1464,7 +1533,6 @@
     "salarySlip": "قسيمة الراتب",
     "hrLetter": "خطاب الموارد البشرية"
   },
-
   "filters": {
     "searchEmployees": "بحث بالاسم أو الدور أو القسم أو الجنسية أو رقم الموظف...",
     "allStatus": "جميع الحالات",
@@ -1485,67 +1553,6 @@
     "all": "الكل",
     "allJobs": "جميع الوظائف"
   },
-
-  "employees": {
-    "tabs": {
-      "allEmployees": "جميع الموظفين",
-      "byDepartment": "حسب القسم"
-    },
-    "needsAttention": "{{count}} يحتاج اهتماماً",
-    "showingOf": "عرض {{count}} من {{total}} موظف",
-    "noEmployees": "لا يوجد موظفون",
-    "noEmployeesSearch": "جرّب تعديل بحثك أو الفلاتر",
-    "noEmployeesFirst": "أضف أول موظف باستخدام الزر أعلاه",
-    "tags": {
-      "labourLaw": "متوافق مع قانون العمل",
-      "omanisation": "حصة التعمين",
-      "wps": "جاهز لنظام الرواتب",
-      "pasi": "متكامل مع PASI"
-    },
-    "omanisation": {
-      "title": "تقدم التعمين",
-      "target": "هدف التعمين: 35%",
-      "omaniNationals": "{{count}} عُماني",
-      "expatriates": "{{count}} وافد",
-      "belowTarget": "أقل من هدف التعمين. فكّر في توظيف {{count}} عُماني إضافي."
-    },
-    "departments": {
-      "omaniNationals": "العُمانيون",
-      "monthlyPayroll": "الرواتب الشهرية",
-      "avgProfileCompleteness": "متوسط اكتمال الملفات",
-      "noDepts": "لا توجد أقسام بعد",
-      "noDeptsDesc": "اذهب إلى الأقسام والمناصب لإنشاء الأقسام، ثم قم بتعيين الموظفين."
-    },
-    "bulk": {
-      "selected": "{{count}} محدد",
-      "assignDept": "تعيين قسم",
-      "assignDeptTitle": "تعيين قسم",
-      "assignDeptDesc": "تعيين {{count}} موظف إلى قسم.",
-      "updatePosition": "تحديث المنصب",
-      "updatePositionTitle": "تحديث المنصب",
-      "updatePositionDesc": "تعيين المنصب / المسمى الوظيفي لـ {{count}} موظف.",
-      "positionPlaceholder": "أدخل المسمى الوظيفي...",
-      "sendReminder": "إرسال تذكير",
-      "reminderSent": "تم إرسال التذكير إلى {{count}} موظف",
-      "clearSelection": "مسح",
-      "cancel": "إلغاء",
-      "assigning": "جارٍ التعيين...",
-      "assign": "تعيين",
-      "updating": "جارٍ التحديث...",
-      "update": "تحديث",
-      "positionUpdated": "تم تحديث المنصب لـ {{count}} موظف"
-    },
-    "actions": {
-      "quickView": "عرض سريع",
-      "fullProfile": "ملف دورة الحياة الكامل",
-      "documents": "المستندات",
-      "orgChart": "الهيكل التنظيمي"
-    },
-    "kpi": {
-      "omanisationRate": "نسبة التعمين"
-    }
-  },
-
   "expiry": {
     "expired": "منتهي",
     "expiring": "ينتهي قريباً",
@@ -1553,29 +1560,11 @@
     "permit": "تصريح العمل",
     "passport": "جواز السفر"
   },
-
   "completeness": {
     "profileComplete": "الملف مكتمل",
     "missing": "مفقود: {{fields}}",
     "missingMore": "+{{count}} أخرى"
   },
-
-  "payroll": {
-    "tableEmployee": "الموظف",
-    "tablePeriod": "الفترة",
-    "tableBasic": "الأساسي",
-    "tableAllowances": "البدلات",
-    "tableDeductions": "الخصومات",
-    "tableNetSalary": "صافي الراتب",
-    "tableStatus": "الحالة",
-    "noRecords": "لا توجد سجلات رواتب بعد",
-    "createFirst": "إنشاء أول سجل رواتب",
-    "employeeFallback": "موظف #{{id}}",
-    "statusPaid": "مدفوع",
-    "statusApproved": "موافق عليه",
-    "statusPending": "قيد الانتظار"
-  },
-
   "myTeam": {
     "title": "فريقي",
     "subtitle": "إدارة موظفي شركتك — إضافة وتعديل وتتبع القوى العاملة بالكامل",
@@ -1778,7 +1767,6 @@
       "deleting": "جارٍ الحذف…"
     }
   },
-
   "lifecycle": {
     "active": "نشط",
     "onProbation": "في فترة التجربة",

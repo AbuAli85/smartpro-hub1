@@ -1381,6 +1381,13 @@
         "linkCopied": "تم نسخ رابط الموافقة إلى الحافظة.",
         "tokenError": "فشل توليد رابط الموافقة.",
         "error": "حدث خطأ. يرجى المحاولة مرة أخرى."
+      },
+      "reminder": {
+        "copyReminderText": "نسخ نص التذكير",
+        "reminderCopied": "تم نسخ نص التذكير إلى الحافظة.",
+        "reminderGenerating": "جارٍ توليد الرابط…",
+        "reminderTextHeader": "مطلوب اعتماد الحضور",
+        "reminderTextFooter": "هذا الرابط صالح لمدة 14 يوماً. يرجى عدم مشاركته مع أطراف غير مصرح لهم.\n\n— فريق الموارد البشرية SmartPRO"
       }
     },
     "clientSheetPage": {

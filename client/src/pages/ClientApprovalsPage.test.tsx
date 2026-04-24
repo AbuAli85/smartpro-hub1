@@ -442,6 +442,48 @@ describe("ClientApprovalsPage", () => {
     });
   });
 
+  // 6b. "Copy Reminder Text" button appears for submitted batch
+  it("copy reminder text button appears for submitted batch in detail panel", async () => {
+    mockListBatches.mockReturnValue({
+      data: [makeBatch({ id: 15, status: "submitted", submittedAt: "2026-04-15T08:00:00Z" })],
+      isLoading: false,
+    });
+    mockGetBatch.mockReturnValue({
+      data: {
+        batch: makeBatch({ id: 15, status: "submitted", submittedAt: "2026-04-15T08:00:00Z" }),
+        items: [],
+      },
+      isLoading: false,
+    });
+    mockGenerateTokenMutate.mockResolvedValue({
+      token: "test-jwt",
+      expiresInDays: 14,
+      approvalUrl: "/attendance-approval/test-jwt",
+    });
+
+    render(<ClientApprovalsPage />);
+    fireEvent.click(screen.getByText(/attendance\.clientApproval\.batchId\({"id":15}\)/));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("copy-reminder-btn")).toBeInTheDocument();
+    });
+
+    // Clicking it should call generateToken and write to clipboard
+    fireEvent.click(screen.getByTestId("copy-reminder-btn"));
+    await waitFor(() => {
+      expect(mockGenerateTokenMutate).toHaveBeenCalledWith({ batchId: 15 });
+    });
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalled();
+    });
+    const copiedText: string = mockWriteText.mock.calls[0]?.[0] ?? "";
+    // The mock t() returns the i18n key, so batchId key contains "15" and period key contains the date
+    expect(copiedText).toContain("15");
+    expect(copiedText).toContain("2026-04-01");
+    // The approval URL should always be present verbatim
+    expect(copiedText).toContain("/attendance-approval/test-jwt");
+  });
+
   // 7. Rejected batch shows rejection reason
   it("rejected batch detail shows rejection reason", async () => {
     mockListBatches.mockReturnValue({

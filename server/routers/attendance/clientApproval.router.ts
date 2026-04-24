@@ -71,6 +71,11 @@ import {
   requireCanApproveAttendanceClientApproval,
   requireCanViewAttendanceClientApproval,
 } from "./helpers";
+import {
+  notifyHrOnBatchSubmitted,
+  notifyHrOnBatchApproved,
+  notifyHrOnBatchRejected,
+} from "../../clientApprovalNotification";
 import type { User } from "../../../drizzle/schema";
 
 // ─── Input schemas ────────────────────────────────────────────────────────────
@@ -356,6 +361,14 @@ export const clientApprovalRouter = router({
         afterPayload: attendancePayloadJson({ status: "submitted", submittedAt: now }),
         source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
       });
+
+      notifyHrOnBatchSubmitted({
+        submitterUserId: user.id,
+        companyId: cid,
+        batchId: input.batchId,
+        periodStart: batch.periodStart,
+        periodEnd: batch.periodEnd,
+      }).catch(() => {});
 
       return { batchId: input.batchId, status: "submitted" };
     }),
@@ -785,6 +798,16 @@ export const clientApprovalRouter = router({
         source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
       });
 
+      if (batch.submittedByUserId) {
+        notifyHrOnBatchApproved({
+          hrUserId: batch.submittedByUserId,
+          companyId: payload.companyId,
+          batchId: payload.batchId,
+          periodStart: batch.periodStart,
+          periodEnd: batch.periodEnd,
+        }).catch(() => {});
+      }
+
       return { batchId: payload.batchId, status: "approved" as const };
     }),
 
@@ -843,6 +866,17 @@ export const clientApprovalRouter = router({
         reason: input.rejectionReason,
         source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
       });
+
+      if (batch.submittedByUserId) {
+        notifyHrOnBatchRejected({
+          hrUserId: batch.submittedByUserId,
+          companyId: payload.companyId,
+          batchId: payload.batchId,
+          periodStart: batch.periodStart,
+          periodEnd: batch.periodEnd,
+          rejectionReason: input.rejectionReason,
+        }).catch(() => {});
+      }
 
       return { batchId: payload.batchId, status: "rejected" as const };
     }),

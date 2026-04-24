@@ -878,3 +878,76 @@ export async function sendSurveyResumeEmail(
     return { success: false, error: err?.message ?? "Unknown error" };
   }
 }
+
+/**
+ * Notify a client contact that an attendance approval batch has been submitted
+ * and is awaiting their review.
+ *
+ * UX-5A: Email adapter exists; client contact routing (clientCompanyId → email)
+ * is the remaining gap. This function accepts a pre-resolved `to` address.
+ * Call site is responsible for finding the contact email from clientCompanyId.
+ */
+export async function sendClientApprovalBatchEmail(params: {
+  to: string;
+  batchId: number;
+  periodStart: string;
+  periodEnd: string;
+  siteName: string | null;
+  approvalUrl: string;
+  expiresInDays: number;
+}): Promise<{ success: boolean; error?: string }> {
+  const { to, batchId, periodStart, periodEnd, siteName, approvalUrl, expiresInDays } = params;
+
+  const siteRow = siteName ? infoRow("Site", siteName) : "";
+  const body = `
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="display:inline-block;background:linear-gradient(135deg,${C.primary},${C.accent});border-radius:50%;width:64px;height:64px;line-height:64px;font-size:28px;color:${C.white};text-align:center;">&#10003;</div>
+    </div>
+    <h1 style="color:${C.text};font-size:22px;font-weight:800;margin:0 0 8px;text-align:center;">Attendance Approval Required</h1>
+    <p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 24px;">Please review the attendance records for the period below and approve or reject.</p>
+    <div style="background:${C.cardBg};border-radius:12px;border:1px solid ${C.border};padding:4px 20px;margin:0 0 24px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        ${infoRow("Batch Reference", `#${batchId}`, true)}
+        ${infoRow("Period", `${periodStart} – ${periodEnd}`)}
+        ${siteRow}
+        ${infoRow("Link expires in", `${expiresInDays} days`)}
+      </table>
+    </div>
+    <p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 4px;">Click the button below to review and respond:</p>
+    <div style="text-align:center;">
+      ${ctaButton(approvalUrl, "Review Attendance")}
+    </div>
+    <div style="background:${C.cardBg};border-radius:8px;border:1px solid ${C.border};padding:12px 16px;margin:8px 0 24px;word-break:break-all;">
+      <p style="color:${C.textMuted};font-size:12px;margin:0 0 4px;">Or copy this link into your browser:</p>
+      <a href="${approvalUrl}" style="color:${C.primary};font-size:12px;word-break:break-all;">${approvalUrl}</a>
+    </div>
+    ${trustStrip()}
+    <hr style="border:none;border-top:1px solid ${C.border};margin:28px 0 20px;" />
+    <p style="color:${C.textLight};font-size:12px;margin:0;text-align:center;line-height:1.6;">
+      This link is unique to this approval batch. Do not share it with unauthorized parties.<br/>
+      The link will expire in ${expiresInDays} days.
+    </p>
+  `;
+
+  try {
+    const resend = getResend();
+    const result = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [to],
+      subject: `Attendance Approval Required — Batch #${batchId} (${periodStart} – ${periodEnd})`,
+      html: baseLayout(
+        `Attendance Approval — Batch #${batchId}`,
+        `Attendance records for ${periodStart} – ${periodEnd} require your approval.`,
+        body,
+      ),
+    });
+    if (result.error) {
+      console.error("[Email] sendClientApprovalBatchEmail error:", result.error);
+      return { success: false, error: result.error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error("[Email] sendClientApprovalBatchEmail failed:", err);
+    return { success: false, error: err?.message ?? "Unknown error" };
+  }
+}

@@ -1381,6 +1381,13 @@
         "linkCopied": "Approval link copied to clipboard.",
         "tokenError": "Failed to generate approval link.",
         "error": "An error occurred. Please try again."
+      },
+      "reminder": {
+        "copyReminderText": "Copy Reminder Text",
+        "reminderCopied": "Reminder text copied to clipboard.",
+        "reminderGenerating": "Generating link…",
+        "reminderTextHeader": "Attendance Approval Required",
+        "reminderTextFooter": "This link is valid for 14 days. Please do not share it with unauthorized parties.\n\n— SmartPRO HR Team"
       }
     },
     "clientSheetPage": {

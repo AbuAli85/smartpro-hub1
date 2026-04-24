@@ -11,6 +11,7 @@ import {
   Send,
   FileText,
   AlertCircle,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -245,6 +246,34 @@ export default function ClientApprovalsPage() {
         ? result.approvalUrl
         : `${window.location.origin}${result.approvalUrl}`;
       window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      // onError handles the toast
+    }
+  };
+
+  const handleCopyReminderText = async (
+    batchId: number,
+    batch: { periodStart: string; periodEnd: string; siteId: number | null },
+  ) => {
+    try {
+      const result = await generateTokenMut.mutateAsync({ batchId });
+      const url = result.approvalUrl.startsWith("http")
+        ? result.approvalUrl
+        : `${window.location.origin}${result.approvalUrl}`;
+      const siteName = sites.find((s) => s.id === batch.siteId)?.name ?? null;
+      const lines = [
+        t("attendance.clientApprovalsPage.reminder.reminderTextHeader"),
+        "",
+        `${t("attendance.clientApproval.batchId", { id: batchId })}`,
+        `${t("attendance.clientApproval.period", { start: batch.periodStart, end: batch.periodEnd })}`,
+        ...(siteName ? [`${t("attendance.clientApproval.site")}: ${siteName}`] : []),
+        "",
+        url,
+        "",
+        t("attendance.clientApprovalsPage.reminder.reminderTextFooter"),
+      ];
+      await navigator.clipboard.writeText(lines.join("\n"));
+      toast.success(t("attendance.clientApprovalsPage.reminder.reminderCopied"));
     } catch {
       // onError handles the toast
     }
@@ -532,6 +561,7 @@ export default function ClientApprovalsPage() {
               onSubmit={handleSubmit}
               onCopyLink={handleCopyLink}
               onViewPublic={handleViewPublic}
+              onCopyReminderText={handleCopyReminderText}
               onApprove={handleOpenApprove}
               onReject={handleOpenReject}
             />
@@ -670,6 +700,7 @@ type BatchDetailPanelProps = {
   onSubmit: (id: number) => void;
   onCopyLink: (id: number) => void;
   onViewPublic: (id: number) => void;
+  onCopyReminderText: (id: number, batch: { periodStart: string; periodEnd: string; siteId: number | null }) => void;
   onApprove: (id: number) => void;
   onReject: (id: number) => void;
 };
@@ -686,6 +717,7 @@ function BatchDetailPanel({
   onSubmit,
   onCopyLink,
   onViewPublic,
+  onCopyReminderText,
   onApprove,
   onReject,
 }: BatchDetailPanelProps) {
@@ -791,6 +823,19 @@ function BatchDetailPanel({
               >
                 <ExternalLink size={14} />
                 {t("attendance.clientApprovalsPage.actions.viewPublic")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={isGeneratingToken}
+                onClick={() => onCopyReminderText(batch.id, batch)}
+                data-testid="copy-reminder-btn"
+              >
+                <MessageSquare size={14} />
+                {isGeneratingToken
+                  ? t("attendance.clientApprovalsPage.reminder.reminderGenerating")
+                  : t("attendance.clientApprovalsPage.reminder.copyReminderText")}
               </Button>
             </>
           )}

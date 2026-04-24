@@ -270,4 +270,56 @@ describe("DailyAttendanceCockpit", () => {
     expect(screen.queryByTestId("cockpit-action-cta")).not.toBeInTheDocument();
     expect(screen.getByTestId("cockpit-no-permission")).toBeInTheDocument();
   });
+
+  // 7. Digest panel — normal severity
+  it("renders digest panel with normal severity when no issues exist", () => {
+    const rows = [
+      makeRow({ employeeId: 1, canonicalStatus: "checked_in_on_time", payrollReadiness: "ready", riskLevel: "none", actionItems: [] }),
+      makeRow({ employeeId: 2, canonicalStatus: "checked_in_on_time", payrollReadiness: "ready", riskLevel: "none", actionItems: [] }),
+    ];
+    setupMocks(rows, { ...DEFAULT_SUMMARY, blocked: 0, needsReview: 0, actionItems: 0, employeesAffected: 0 });
+
+    render(<DailyAttendanceCockpit companyId={1} caps={FULL_CAPS} />);
+
+    expect(screen.getByTestId("digest-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("digest-severity-badge")).toHaveTextContent(
+      "attendance.dailyDigest.severity.normal"
+    );
+    expect(screen.getByTestId("digest-headline")).toHaveTextContent(
+      "attendance.dailyDigest.headline.normal"
+    );
+    expect(screen.getByTestId("digest-no-issues")).toBeInTheDocument();
+    expect(screen.queryByTestId("digest-payroll-blocked")).not.toBeInTheDocument();
+  });
+
+  // 8. Digest panel — critical severity
+  it("renders digest panel with critical severity when payroll is blocked", () => {
+    const item = {
+      ...makeActionItem({ category: "missing_checkout", riskLevel: "high", isPayrollBlocking: true }),
+      severity: "high",
+    };
+    const rows = [
+      makeRow({
+        employeeId: 1,
+        canonicalStatus: "checked_in_on_time",
+        payrollReadiness: "blocked_missing_checkout",
+        riskLevel: "high",
+        actionItems: [item],
+      }),
+    ];
+    setupMocks(rows, { ...DEFAULT_SUMMARY, blocked: 1, needsReview: 0, actionItems: 1, employeesAffected: 1 });
+
+    render(<DailyAttendanceCockpit companyId={1} caps={FULL_CAPS} />);
+
+    expect(screen.getByTestId("digest-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("digest-severity-badge")).toHaveTextContent(
+      "attendance.dailyDigest.severity.critical"
+    );
+    expect(screen.getByTestId("digest-headline")).toHaveTextContent(
+      "attendance.dailyDigest.headline.critical"
+    );
+    expect(screen.getByTestId("digest-payroll-blocked")).toBeInTheDocument();
+    expect(screen.getByTestId("digest-employees-affected")).toBeInTheDocument();
+    expect(screen.getByTestId("digest-top-issues")).toBeInTheDocument();
+  });
 });

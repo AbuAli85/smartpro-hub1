@@ -39,6 +39,26 @@ export type AttendanceActionQueueCategory =
 
 export type AttendanceActionQueueSeverity = "low" | "medium" | "high" | "critical";
 
+/**
+ * Semantic identifier for the HR page tab a CTA navigates to.
+ * Decoupled from the tab element's string ID so the shared module
+ * does not depend on React routing specifics.
+ *
+ *   live_today    → "today" tab
+ *   hr_records    → "records" tab
+ *   site_punches  → "site-punches" tab
+ *   corrections   → "corrections" tab
+ *   manual_checkins → "manual" tab
+ *   audit_log     → "audit" tab
+ */
+export type AttendanceActionQueueCtaTarget =
+  | "live_today"
+  | "hr_records"
+  | "site_punches"
+  | "corrections"
+  | "manual_checkins"
+  | "audit_log";
+
 export interface AttendanceActionQueueItem {
   /** Deterministic ID for deduplication. */
   id: string;
@@ -64,11 +84,8 @@ export interface AttendanceActionQueueItem {
   descriptionKey: string;
   /** i18n key for the recommended action text, if any. */
   recommendedActionKey?: string;
-  /**
-   * Tab ID the CTA navigates to in HRAttendancePage.
-   * Values: "today" | "corrections" | "manual" | "records"
-   */
-  ctaHref?: string;
+  /** Semantic target tab the CTA navigates to. Map to a concrete tab ID in the page layer. */
+  ctaTarget?: AttendanceActionQueueCtaTarget;
   /** i18n key for the CTA button label. */
   ctaLabelKey?: string;
   /** How many minutes ago this issue started (optional). */
@@ -130,17 +147,20 @@ function recommendedKey(category: AttendanceActionQueueCategory): string {
   return `${BASE_KEY}.recommendedActions.${category}`;
 }
 
-const CATEGORY_CTA: Record<AttendanceActionQueueCategory, { href: string; labelKey: string }> = {
-  missing_checkout: { href: "today", labelKey: `${BASE_KEY}.cta.viewLiveBoard` },
-  pending_correction: { href: "corrections", labelKey: `${BASE_KEY}.cta.openCorrections` },
-  pending_manual_checkin: { href: "manual", labelKey: `${BASE_KEY}.cta.openManualCheckins` },
-  schedule_conflict: { href: "today", labelKey: `${BASE_KEY}.cta.viewLiveBoard` },
-  holiday_attendance: { href: "records", labelKey: `${BASE_KEY}.cta.viewRecords` },
-  leave_attendance: { href: "records", labelKey: `${BASE_KEY}.cta.viewRecords` },
-  late_no_arrival: { href: "today", labelKey: `${BASE_KEY}.cta.viewLiveBoard` },
-  absent_pending: { href: "manual", labelKey: `${BASE_KEY}.cta.openManualCheckins` },
-  unscheduled_attendance: { href: "records", labelKey: `${BASE_KEY}.cta.viewRecords` },
-  manual_review: { href: "today", labelKey: `${BASE_KEY}.cta.viewLiveBoard` },
+const CATEGORY_CTA: Record<
+  AttendanceActionQueueCategory,
+  { target: AttendanceActionQueueCtaTarget; labelKey: string }
+> = {
+  missing_checkout:       { target: "live_today",     labelKey: `${BASE_KEY}.cta.viewLiveBoard` },
+  pending_correction:     { target: "corrections",    labelKey: `${BASE_KEY}.cta.openCorrections` },
+  pending_manual_checkin: { target: "manual_checkins",labelKey: `${BASE_KEY}.cta.openManualCheckins` },
+  schedule_conflict:      { target: "live_today",     labelKey: `${BASE_KEY}.cta.viewLiveBoard` },
+  holiday_attendance:     { target: "hr_records",     labelKey: `${BASE_KEY}.cta.viewRecords` },
+  leave_attendance:       { target: "hr_records",     labelKey: `${BASE_KEY}.cta.viewRecords` },
+  late_no_arrival:        { target: "live_today",     labelKey: `${BASE_KEY}.cta.viewLiveBoard` },
+  absent_pending:         { target: "manual_checkins",labelKey: `${BASE_KEY}.cta.openManualCheckins` },
+  unscheduled_attendance: { target: "hr_records",     labelKey: `${BASE_KEY}.cta.viewRecords` },
+  manual_review:          { target: "live_today",     labelKey: `${BASE_KEY}.cta.viewLiveBoard` },
 };
 
 // ---------------------------------------------------------------------------
@@ -203,7 +223,7 @@ export function buildAttendanceActionItems(
       titleKey: titleKey(category),
       descriptionKey: descriptionKey(category),
       recommendedActionKey: recommendedKey(category),
-      ctaHref: cta.href,
+      ctaTarget: cta.target,
       ctaLabelKey: cta.labelKey,
       ageMinutes,
       ownerUserId,

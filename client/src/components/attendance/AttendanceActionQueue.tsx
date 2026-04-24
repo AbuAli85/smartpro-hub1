@@ -259,7 +259,7 @@ export function AttendanceActionQueue({
                           )}
                         </div>
                       </div>
-                      {item.ctaHref && item.ctaLabelKey && onCanonicalCta && (
+                      {item.ctaTarget && item.ctaLabelKey && onCanonicalCta && (
                         <div className="flex flex-wrap gap-1.5 justify-end sm:justify-start">
                           <Button
                             type="button"

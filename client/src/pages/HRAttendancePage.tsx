@@ -60,9 +60,23 @@ import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
 import { buildAttendanceActionItems, sortAttendanceActionItems } from "@shared/attendanceActionQueue";
-import type { AttendanceActionQueueCategory, AttendanceActionQueueItem } from "@shared/attendanceActionQueue";
+import type {
+  AttendanceActionQueueCtaTarget,
+  AttendanceActionQueueItem,
+} from "@shared/attendanceActionQueue";
 import { OperationalIssueMetaStrip } from "@/components/attendance/OperationalIssueMetaStrip";
 import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
+
+/** Maps a canonical CTA target to the HRAttendancePage tab value. */
+const CTA_TARGET_TO_TAB: Record<AttendanceActionQueueCtaTarget, string> = {
+  live_today:     "today",
+  hr_records:     "records",
+  site_punches:   "site-punches",
+  corrections:    "corrections",
+  manual_checkins:"manual",
+  audit_log:      "audit",
+};
+
 // Audit action labels are resolved with t() at render time via attendanceAuditActionLabel()
 // Keeping static fallback map for non-i18n contexts (e.g. data exports)
 const AUDIT_ACTION_LABELS_STATIC: Record<string, string> = {
@@ -1833,11 +1847,9 @@ export default function HRAttendancePage() {
           assigneeNameByUserId={assigneeNameByUserId}
           onAction={(a, item) => handleQueueAction(a, item)}
           canonicalItems={canonicalActionItems}
-          onCanonicalCta={(category: AttendanceActionQueueCategory) => {
-            if (category === "pending_correction") setAttendanceTab("corrections");
-            else if (category === "pending_manual_checkin" || category === "absent_pending") setAttendanceTab("manual");
-            else if (category === "holiday_attendance" || category === "leave_attendance" || category === "unscheduled_attendance") setAttendanceTab("records");
-            else setAttendanceTab("today");
+          onCanonicalCta={(_category, item) => {
+            const tab = item.ctaTarget ? (CTA_TARGET_TO_TAB[item.ctaTarget] ?? "today") : "today";
+            setAttendanceTab(tab);
           }}
         />
       ) : null}

@@ -1,11 +1,12 @@
 /**
- * Pure tests for the attendance action queue builder (Phase 4).
+ * Pure tests for the attendance action queue builder (Phase 4B).
  * No database, no tRPC, no React.
  */
 import { describe, expect, it } from "vitest";
 import {
   buildAttendanceActionItems,
   hasPayrollBlockingItems,
+  type AttendanceActionQueueCtaTarget,
   type BuildAttendanceActionItemsParams,
 } from "./attendanceActionQueue";
 import type { AttendanceDayStateResult } from "./attendanceStatus";
@@ -42,7 +43,7 @@ function params(overrides: Partial<BuildAttendanceActionItemsParams>): BuildAtte
 }
 
 // ---------------------------------------------------------------------------
-// 1. Missing checkout → high, payroll-blocking
+// 1. Missing checkout → high, payroll-blocking, ctaTarget live_today
 // ---------------------------------------------------------------------------
 describe("1. missing checkout", () => {
   it("creates one high payroll-blocking item", () => {
@@ -61,12 +62,12 @@ describe("1. missing checkout", () => {
     expect(item.category).toBe("missing_checkout");
     expect(item.severity).toBe("high");
     expect(item.isPayrollBlocking).toBe(true);
-    expect(item.ctaHref).toBe("today");
+    expect(item.ctaTarget).toBe<AttendanceActionQueueCtaTarget>("live_today");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 2. Pending correction → high, payroll-blocking
+// 2. Pending correction → high, payroll-blocking, ctaTarget corrections
 // ---------------------------------------------------------------------------
 describe("2. pending correction", () => {
   it("creates one high payroll-blocking item", () => {
@@ -85,12 +86,12 @@ describe("2. pending correction", () => {
     expect(item.category).toBe("pending_correction");
     expect(item.severity).toBe("high");
     expect(item.isPayrollBlocking).toBe(true);
-    expect(item.ctaHref).toBe("corrections");
+    expect(item.ctaTarget).toBe<AttendanceActionQueueCtaTarget>("corrections");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 3. Pending manual check-in → high, payroll-blocking
+// 3. Pending manual check-in → high, payroll-blocking, ctaTarget manual_checkins
 // ---------------------------------------------------------------------------
 describe("3. pending manual check-in", () => {
   it("creates one high payroll-blocking item", () => {
@@ -109,7 +110,7 @@ describe("3. pending manual check-in", () => {
     expect(item.category).toBe("pending_manual_checkin");
     expect(item.severity).toBe("high");
     expect(item.isPayrollBlocking).toBe(true);
-    expect(item.ctaHref).toBe("manual");
+    expect(item.ctaTarget).toBe<AttendanceActionQueueCtaTarget>("manual_checkins");
   });
 
   it("does NOT also add absent_pending item when manual check-in is already included", () => {
@@ -129,7 +130,7 @@ describe("3. pending manual check-in", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Schedule conflict → critical, payroll-blocking
+// 4. Schedule conflict → critical, payroll-blocking, ctaTarget live_today
 // ---------------------------------------------------------------------------
 describe("4. schedule conflict", () => {
   it("creates one critical payroll-blocking item", () => {
@@ -148,12 +149,12 @@ describe("4. schedule conflict", () => {
     expect(item.category).toBe("schedule_conflict");
     expect(item.severity).toBe("critical");
     expect(item.isPayrollBlocking).toBe(true);
-    expect(item.ctaHref).toBe("today");
+    expect(item.ctaTarget).toBe<AttendanceActionQueueCtaTarget>("live_today");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 5. Attendance on holiday → medium, not payroll-blocking
+// 5. Attendance on holiday → medium, not payroll-blocking, ctaTarget hr_records
 // ---------------------------------------------------------------------------
 describe("5. attendance on holiday", () => {
   it("creates one medium review item that is NOT payroll-blocking", () => {
@@ -171,12 +172,12 @@ describe("5. attendance on holiday", () => {
     const item = items.find((i) => i.category === "holiday_attendance")!;
     expect(item.severity).toBe("medium");
     expect(item.isPayrollBlocking).toBe(false);
-    expect(item.ctaHref).toBe("records");
+    expect(item.ctaTarget).toBe<AttendanceActionQueueCtaTarget>("hr_records");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 6. Attendance during leave → medium, not payroll-blocking
+// 6. Attendance during leave → medium, not payroll-blocking, ctaTarget hr_records
 // ---------------------------------------------------------------------------
 describe("6. attendance during leave", () => {
   it("creates one medium review item that is NOT payroll-blocking", () => {
@@ -194,12 +195,12 @@ describe("6. attendance during leave", () => {
     const item = items.find((i) => i.category === "leave_attendance")!;
     expect(item.severity).toBe("medium");
     expect(item.isPayrollBlocking).toBe(false);
-    expect(item.ctaHref).toBe("records");
+    expect(item.ctaTarget).toBe<AttendanceActionQueueCtaTarget>("hr_records");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 7. late_no_arrival → high, not payroll-blocking
+// 7. late_no_arrival → high, not payroll-blocking, ctaTarget live_today
 // ---------------------------------------------------------------------------
 describe("7. late_no_arrival", () => {
   it("creates one high item that is NOT payroll-blocking", () => {
@@ -218,12 +219,12 @@ describe("7. late_no_arrival", () => {
     expect(item.category).toBe("late_no_arrival");
     expect(item.severity).toBe("high");
     expect(item.isPayrollBlocking).toBe(false);
-    expect(item.ctaHref).toBe("today");
+    expect(item.ctaTarget).toBe<AttendanceActionQueueCtaTarget>("live_today");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 8. absent_pending (no manual) → high, not payroll-blocking
+// 8. absent_pending (no manual) → high, not payroll-blocking, ctaTarget manual_checkins
 // ---------------------------------------------------------------------------
 describe("8. absent_pending without manual request", () => {
   it("creates one absent_pending item", () => {
@@ -242,11 +243,12 @@ describe("8. absent_pending without manual request", () => {
     expect(item.category).toBe("absent_pending");
     expect(item.severity).toBe("high");
     expect(item.isPayrollBlocking).toBe(false);
+    expect(item.ctaTarget).toBe<AttendanceActionQueueCtaTarget>("manual_checkins");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 9. unscheduled_attendance → high, payroll-blocking
+// 9. unscheduled_attendance → high, payroll-blocking, ctaTarget hr_records
 // ---------------------------------------------------------------------------
 describe("9. unscheduled_attendance", () => {
   it("creates one high payroll-blocking item", () => {
@@ -265,7 +267,7 @@ describe("9. unscheduled_attendance", () => {
     expect(item.category).toBe("unscheduled_attendance");
     expect(item.severity).toBe("high");
     expect(item.isPayrollBlocking).toBe(true);
-    expect(item.ctaHref).toBe("records");
+    expect(item.ctaTarget).toBe<AttendanceActionQueueCtaTarget>("hr_records");
   });
 });
 
@@ -326,8 +328,6 @@ describe("11. ready/checked_out produces no items", () => {
 // ---------------------------------------------------------------------------
 describe("12. Multiple reason codes produce deterministic order", () => {
   it("schedule_conflict comes before missing_checkout in the output", () => {
-    // If somehow both were present (e.g., schedule conflict + open session),
-    // critical should precede high.
     const items = buildAttendanceActionItems(
       params({
         resolvedState: state({
@@ -338,12 +338,10 @@ describe("12. Multiple reason codes produce deterministic order", () => {
         }),
       }),
     );
-    // Only one payroll-blocking category is produced per payrollReadiness value
     expect(items[0]?.category).toBe("schedule_conflict");
   });
 
   it("holiday_attendance and leave_attendance are sorted deterministically", () => {
-    // Both ATTENDANCE_ON_HOLIDAY and ATTENDANCE_DURING_LEAVE in reasonCodes
     const items = buildAttendanceActionItems(
       params({
         resolvedState: state({
@@ -360,7 +358,6 @@ describe("12. Multiple reason codes produce deterministic order", () => {
       }),
     );
     expect(items).toHaveLength(2);
-    // Both are "medium" severity — sorted alphabetically by category
     const categories = items.map((i) => i.category);
     // "holiday_attendance" < "leave_attendance" alphabetically
     expect(categories).toEqual(["holiday_attendance", "leave_attendance"]);
@@ -407,5 +404,67 @@ describe("12. Multiple reason codes produce deterministic order", () => {
     );
     expect(items[0]?.id).toContain(DATE);
     expect(items[0]?.id).toContain(String(EMP_ID));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 13. CTA target coverage — every category maps to an expected semantic target
+// ---------------------------------------------------------------------------
+describe("13. CTA target is correct for each category", () => {
+  const ctaOf = (overrides: Partial<BuildAttendanceActionItemsParams>) =>
+    buildAttendanceActionItems(params(overrides))[0]?.ctaTarget;
+
+  it("missing_checkout → live_today", () => {
+    expect(
+      ctaOf({ resolvedState: state({ payrollReadiness: "blocked_missing_checkout", status: "checked_in_on_time", reasonCodes: [ATTENDANCE_REASON.MISSING_CHECKOUT] }) }),
+    ).toBe<AttendanceActionQueueCtaTarget>("live_today");
+  });
+
+  it("pending_correction → corrections", () => {
+    expect(
+      ctaOf({ resolvedState: state({ payrollReadiness: "blocked_pending_correction", status: "checked_out", reasonCodes: [ATTENDANCE_REASON.CORRECTION_PENDING] }) }),
+    ).toBe<AttendanceActionQueueCtaTarget>("corrections");
+  });
+
+  it("pending_manual_checkin → manual_checkins", () => {
+    expect(
+      ctaOf({ resolvedState: state({ payrollReadiness: "blocked_pending_manual_checkin", status: "absent_pending", reasonCodes: [ATTENDANCE_REASON.MANUAL_CHECKIN_PENDING] }) }),
+    ).toBe<AttendanceActionQueueCtaTarget>("manual_checkins");
+  });
+
+  it("schedule_conflict → live_today", () => {
+    expect(
+      ctaOf({ resolvedState: state({ payrollReadiness: "blocked_schedule_conflict", status: "checked_in_on_time", reasonCodes: [ATTENDANCE_REASON.SCHEDULE_CONFLICT] }) }),
+    ).toBe<AttendanceActionQueueCtaTarget>("live_today");
+  });
+
+  it("holiday_attendance → hr_records", () => {
+    expect(
+      ctaOf({ resolvedState: state({ payrollReadiness: "needs_review", status: "holiday", reasonCodes: [ATTENDANCE_REASON.HOLIDAY, ATTENDANCE_REASON.ATTENDANCE_ON_HOLIDAY] }) }),
+    ).toBe<AttendanceActionQueueCtaTarget>("hr_records");
+  });
+
+  it("leave_attendance → hr_records", () => {
+    expect(
+      ctaOf({ resolvedState: state({ payrollReadiness: "needs_review", status: "leave", reasonCodes: [ATTENDANCE_REASON.LEAVE, ATTENDANCE_REASON.ATTENDANCE_DURING_LEAVE] }) }),
+    ).toBe<AttendanceActionQueueCtaTarget>("hr_records");
+  });
+
+  it("late_no_arrival → live_today", () => {
+    expect(
+      ctaOf({ resolvedState: state({ payrollReadiness: "ready", status: "late_no_arrival", reasonCodes: [ATTENDANCE_REASON.PAST_GRACE_NO_CHECKIN] }) }),
+    ).toBe<AttendanceActionQueueCtaTarget>("live_today");
+  });
+
+  it("absent_pending (no manual) → manual_checkins", () => {
+    expect(
+      ctaOf({ resolvedState: state({ payrollReadiness: "needs_review", status: "absent_pending", reasonCodes: [ATTENDANCE_REASON.SHIFT_ENDED_NO_CHECKIN] }) }),
+    ).toBe<AttendanceActionQueueCtaTarget>("manual_checkins");
+  });
+
+  it("unscheduled_attendance → hr_records", () => {
+    expect(
+      ctaOf({ resolvedState: state({ payrollReadiness: "needs_review", status: "unscheduled_attendance", reasonCodes: [ATTENDANCE_REASON.NO_SCHEDULE, ATTENDANCE_REASON.UNSCHEDULED_ATTENDANCE] }) }),
+    ).toBe<AttendanceActionQueueCtaTarget>("hr_records");
   });
 });

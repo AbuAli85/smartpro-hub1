@@ -24,7 +24,11 @@
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
       "Bash(node -e ' *)",
       "Bash(grep -A 5 \"return {$\" \"c:\\\\Users\\\\HP\\\\OneDrive\\\\Documents\\\\GitHub\\\\smartpro-hub1\\\\server\\\\routers\\\\scheduling.ts\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(grep -c \"drizzle:Name\\\\|pgTable\\\\|mysqlTable\\\\|sqliteTable\\\\|\\\\\\\\.\\(\\\\s*{\" drizzle/schema.ts)",
+      "Bash(\\\\K[^)",
+      "Bash(grep -oP \"CREATE TABLE IF NOT EXISTS `\\\\K[^`]+\" drizzle/0070_drizzle_baseline_schema_recovery.sql)",
+      "Bash(echo \"exit:$?\")"
     ]
   }
 }

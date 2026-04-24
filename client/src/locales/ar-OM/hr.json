@@ -466,6 +466,45 @@
         "cancel": "إلغاء"
       }
     },
+    "payrollGate": {
+      "cardTitle": "جاهزية الرواتب / الفواتير",
+      "cardDescription": "حالة البوابة لاستخدام حضور هذه الفترة في الرواتب أو فواتير العملاء.",
+      "status": {
+        "ready": "جاهز",
+        "needs_review": "جاهز (توجد بنود للمراجعة)",
+        "blocked_period_not_locked": "الفترة غير مقفلة",
+        "blocked_reconciliation": "التسوية محظورة",
+        "blocked_client_approval_pending": "موافقة العميل معلقة",
+        "blocked_client_approval_rejected": "موافقة العميل مرفوضة",
+        "not_required": "غير مطلوب"
+      },
+      "statusHint": {
+        "ready": "اجتازت جميع فحوصات البوابة. هذه الفترة قابلة للاستخدام في الرواتب والفواتير.",
+        "needs_review": "لا توجد بنود حظر، لكن توجد بنود للمراجعة. يمكن المتابعة في الرواتب.",
+        "blocked_period_not_locked": "يرجى قفل الفترة قبل تشغيل الرواتب أو الفواتير.",
+        "blocked_reconciliation": "حل بنود الحضور المحظورة في ملخص التسوية أعلاه.",
+        "blocked_client_approval_pending": "يجب الموافقة على دفعة موافقة العميل قبل الفوترة.",
+        "blocked_client_approval_rejected": "تم رفض موافقة العميل. يرجى الحل قبل الفوترة.",
+        "not_required": "بوابة الرواتب / الفواتير غير منطبقة على هذه الفترة."
+      },
+      "blockers": {
+        "periodNotLocked": "الفترة غير مقفلة. قفّل الفترة لتفعيل الرواتب.",
+        "reconciliationBlocked": "التسوية تحتوي على بنود حظر.",
+        "clientApprovalPending": "موافقة العميل معلقة ({{count}} دفعة).",
+        "clientApprovalRejected": "تم رفض موافقة العميل ({{count}} دفعة)."
+      },
+      "actions": {
+        "lockPeriod": "قفل الفترة",
+        "viewBlockers": "عرض المحظورات",
+        "viewClientApprovals": "موافقات العملاء",
+        "viewAttendanceSheet": "سجل الحضور"
+      },
+      "clientApproval": {
+        "approved": "معتمد",
+        "pending": "معلق",
+        "rejected": "مرفوض"
+      }
+    },
     "setupHealth": {
       "title": "إعداد الحضور غير مكتمل",
       "description": "بعض المتطلبات الأساسية مفقودة. أكمل الخطوات التالية قبل أن يعمل تتبع الحضور بشكل صحيح.",

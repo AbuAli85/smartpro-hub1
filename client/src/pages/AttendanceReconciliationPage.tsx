@@ -40,8 +40,10 @@ import {
   RefreshCw,
   Scale,
   Share2,
+  ShieldCheck,
   Wrench,
 } from "lucide-react";
+import type { AttendancePayrollGateStatus } from "@shared/attendancePayrollReadiness";
 
 const REPAIRABLE_ATTENDANCE_MISMATCH_TYPES = new Set([
   "RECORD_CLOSED_MISSING_SESSION",
@@ -108,6 +110,31 @@ function PeriodStatusBadge({ status }: { status: AttendancePeriodStatus }) {
     <Badge variant="outline" className={`flex items-center gap-1.5 ${cfg.badgeClass}`}>
       <Icon size={14} />
       {t(`attendance.periodLock.status.${status}`)}
+    </Badge>
+  );
+}
+
+const GATE_STATUS_CONFIG: Record<
+  AttendancePayrollGateStatus,
+  { icon: ComponentType<{ size?: number; className?: string }>; badgeClass: string }
+> = {
+  ready: { icon: ShieldCheck, badgeClass: "border-green-600 text-green-700 bg-green-50 dark:bg-green-950/40" },
+  needs_review: { icon: AlertTriangle, badgeClass: "border-amber-600 text-amber-800 bg-amber-50 dark:bg-amber-950/30" },
+  blocked_period_not_locked: { icon: LockOpen, badgeClass: "border-red-600 text-red-800 bg-red-50 dark:bg-red-950/30" },
+  blocked_reconciliation: { icon: AlertCircle, badgeClass: "border-red-600 text-red-800 bg-red-50 dark:bg-red-950/30" },
+  blocked_client_approval_pending: { icon: AlertTriangle, badgeClass: "border-amber-600 text-amber-800 bg-amber-50 dark:bg-amber-950/30" },
+  blocked_client_approval_rejected: { icon: AlertCircle, badgeClass: "border-red-600 text-red-800 bg-red-50 dark:bg-red-950/30" },
+  not_required: { icon: ShieldCheck, badgeClass: "border-slate-400 text-slate-600 bg-slate-50 dark:bg-slate-900/40" },
+};
+
+function PayrollGateBadge({ status }: { status: AttendancePayrollGateStatus }) {
+  const { t } = useTranslation("hr");
+  const cfg = GATE_STATUS_CONFIG[status];
+  const Icon = cfg.icon;
+  return (
+    <Badge variant="outline" className={`flex items-center gap-1.5 ${cfg.badgeClass}`}>
+      <Icon size={14} />
+      {t(`attendance.payrollGate.status.${status}`)}
     </Badge>
   );
 }
@@ -211,6 +238,11 @@ export default function AttendanceReconciliationPage() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const payrollGate = trpc.attendance.getPayrollGateReadiness.useQuery(
+    { companyId: activeCompanyId ?? undefined, year, month },
+    { enabled: activeCompanyId != null },
+  );
 
   const preflight = trpc.attendance.reconciliationPreflight.useQuery(
     {
@@ -394,10 +426,11 @@ export default function AttendanceReconciliationPage() {
               void preflight.refetch();
               void reconciliationSummary.refetch();
               void periodState.refetch();
+              void payrollGate.refetch();
             }}
-            disabled={!activeCompanyId || preflight.isFetching || reconciliationSummary.isFetching || periodState.isFetching}
+            disabled={!activeCompanyId || preflight.isFetching || reconciliationSummary.isFetching || periodState.isFetching || payrollGate.isFetching}
           >
-            <RefreshCw size={15} className={preflight.isFetching || reconciliationSummary.isFetching || periodState.isFetching ? "animate-spin" : ""} />
+            <RefreshCw size={15} className={preflight.isFetching || reconciliationSummary.isFetching || periodState.isFetching || payrollGate.isFetching ? "animate-spin" : ""} />
             {t("attendance.reconciliation.refresh")}
           </Button>
         </div>
@@ -565,6 +598,71 @@ export default function AttendanceReconciliationPage() {
                     </div>
                   );
                 })()}
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* ── Phase 11: Payroll/Billing readiness gate ─────────────────────────── */}
+      {activeCompanyId ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldCheck size={18} className="text-muted-foreground" />
+              {t("attendance.payrollGate.cardTitle")}
+            </CardTitle>
+            <CardDescription>{t("attendance.payrollGate.cardDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {payrollGate.isLoading ? (
+              <Skeleton className="h-10 w-full rounded-lg" />
+            ) : payrollGate.isError ? (
+              <p className="text-sm text-destructive">{payrollGate.error.message}</p>
+            ) : payrollGate.data ? (
+              <>
+                <div className="flex flex-wrap items-center gap-3">
+                  <PayrollGateBadge status={payrollGate.data.status} />
+                  <span className="text-sm text-muted-foreground">
+                    {t(`attendance.payrollGate.statusHint.${payrollGate.data.status}`)}
+                  </span>
+                </div>
+
+                {payrollGate.data.blockers.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {payrollGate.data.blockers.map((blocker) => (
+                      <div
+                        key={blocker.code}
+                        className="flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50/50 dark:bg-red-950/20 px-3 py-2 text-sm"
+                      >
+                        <span className="text-red-800 dark:text-red-300 font-medium">
+                          {t(blocker.messageKey, { count: blocker.count })}
+                        </span>
+                        {blocker.code === "PERIOD_NOT_LOCKED" ? (
+                          <Link href="/hr/attendance-reconciliation" className="text-xs text-primary hover:underline shrink-0">
+                            {t("attendance.payrollGate.actions.lockPeriod")}
+                          </Link>
+                        ) : blocker.code === "RECONCILIATION_BLOCKED" ? (
+                          <Link href="/hr/attendance-reconciliation" className="text-xs text-primary hover:underline shrink-0">
+                            {t("attendance.payrollGate.actions.viewBlockers")}
+                          </Link>
+                        ) : blocker.code === "CLIENT_APPROVAL_PENDING" || blocker.code === "CLIENT_APPROVAL_REJECTED" ? (
+                          <Link href="/hr/client-approvals" className="text-xs text-primary hover:underline shrink-0">
+                            {t("attendance.payrollGate.actions.viewClientApprovals")}
+                          </Link>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {payrollGate.data.clientApproval.required ? (
+                  <div className="flex gap-4 text-xs text-muted-foreground pt-1">
+                    <span>{t("attendance.payrollGate.clientApproval.approved")}: <strong>{payrollGate.data.clientApproval.approvedBatches}</strong></span>
+                    <span>{t("attendance.payrollGate.clientApproval.pending")}: <strong>{payrollGate.data.clientApproval.pendingBatches}</strong></span>
+                    <span>{t("attendance.payrollGate.clientApproval.rejected")}: <strong>{payrollGate.data.clientApproval.rejectedBatches}</strong></span>
+                  </div>
+                ) : null}
               </>
             ) : null}
           </CardContent>

@@ -466,6 +466,45 @@
         "cancel": "Cancel"
       }
     },
+    "payrollGate": {
+      "cardTitle": "Payroll / Billing Readiness",
+      "cardDescription": "Gate status for using this period's attendance in payroll or client billing.",
+      "status": {
+        "ready": "Ready",
+        "needs_review": "Ready (review items present)",
+        "blocked_period_not_locked": "Period not locked",
+        "blocked_reconciliation": "Reconciliation blocked",
+        "blocked_client_approval_pending": "Client approval pending",
+        "blocked_client_approval_rejected": "Client approval rejected",
+        "not_required": "Not required"
+      },
+      "statusHint": {
+        "ready": "All gate checks passed. This period is usable for payroll and billing.",
+        "needs_review": "No blocking items, but review items are present. Payroll can proceed.",
+        "blocked_period_not_locked": "Lock the period before running payroll or billing.",
+        "blocked_reconciliation": "Resolve attendance blockers in the reconciliation summary above.",
+        "blocked_client_approval_pending": "Client approval batch must be approved before billing.",
+        "blocked_client_approval_rejected": "Client approval was rejected. Resolve before billing.",
+        "not_required": "Payroll / billing gate is not applicable for this period."
+      },
+      "blockers": {
+        "periodNotLocked": "Period is not locked. Lock the period to enable payroll.",
+        "reconciliationBlocked": "Attendance reconciliation has blocking items.",
+        "clientApprovalPending": "Client approval pending ({{count}} batch).",
+        "clientApprovalRejected": "Client approval rejected ({{count}} batch)."
+      },
+      "actions": {
+        "lockPeriod": "Lock period",
+        "viewBlockers": "View blockers",
+        "viewClientApprovals": "Client Approvals",
+        "viewAttendanceSheet": "Attendance Sheet"
+      },
+      "clientApproval": {
+        "approved": "Approved",
+        "pending": "Pending",
+        "rejected": "Rejected"
+      }
+    },
     "setupHealth": {
       "title": "Attendance setup incomplete",
       "description": "Some prerequisites are missing. Complete the steps below before attendance tracking will work correctly.",

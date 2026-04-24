@@ -12,6 +12,7 @@ import {
   attendanceAudit,
   attendanceOperationalIssues,
   attendancePeriodLocks,
+  attendanceClientApprovalBatches,
   shiftTemplates,
   employeeSchedules,
   companyHolidays,
@@ -96,6 +97,8 @@ import {
 } from "@shared/attendanceActionQueue";
 import { ATTENDANCE_REASON } from "@shared/attendanceStatus";
 import { buildReconciliationSummary } from "@shared/attendanceReconciliationSummary";
+import { computeAttendancePayrollGate } from "@shared/attendancePayrollReadiness";
+import type { ReconciliationReadinessStatus } from "@shared/attendanceReconciliationSummary";
 import {
   defaultPeriodLockState,
   validateLockPeriod,
@@ -4269,6 +4272,155 @@ export const attendanceRouter = router({
         blockers,
         ...details,
       };
+    }),
+
+  // ─── Phase 11: Payroll/Billing readiness gate ────────────────────────────
+
+  /**
+   * Compute the payroll/billing readiness gate for a given month.
+   *
+   * Combines period lock state, attendance reconciliation readiness (blocking
+   * items only — open sessions, pending corrections, pending manual check-ins),
+   * and client approval batch statuses for the period.
+   *
+   * The `requireClientApproval` flag should be set to true for site/client work
+   * where external sign-off is required before billing/payroll can proceed.
+   *
+   * Requires canExportAttendanceReports (same gate as getReconciliationSummary).
+   * Tenant-scoped via requireActiveCompanyId through requireCanExportAttendanceReports.
+   */
+  getPayrollGateReadiness: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+        /** Filter client approval batches to a specific site. */
+        siteId: z.number().optional(),
+        /**
+         * Whether client approval is required for this period/site.
+         * Set to true for staffing/promoter work where client sign-off is needed.
+         * Default: false (approval check is informational only).
+         */
+        requireClientApproval: z.boolean().default(false),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const membership = await requireCanExportAttendanceReports(ctx.user as User, input.companyId);
+      const db = await requireDb();
+      const cid = membership.companyId;
+      const { year, month, siteId } = input;
+
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const fromYmd = `${year}-${pad(month)}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const toYmd = `${year}-${pad(month)}-${pad(lastDay)}`;
+      const today = muscatCalendarYmdNow();
+      const { startUtc, endExclusiveUtc } = muscatInclusiveYmdRangeToUtcHalfOpen(fromYmd, toYmd);
+
+      const [
+        periodLockRows,
+        [openSessionsRow],
+        [pendingCorrectionsRow],
+        [pendingManualCheckinsRow],
+        clientApprovalBatchRows,
+      ] = await Promise.all([
+        // 1. Period lock state (null row → virtual "open")
+        db
+          .select({ status: attendancePeriodLocks.status })
+          .from(attendancePeriodLocks)
+          .where(
+            and(
+              eq(attendancePeriodLocks.companyId, cid),
+              eq(attendancePeriodLocks.year, year),
+              eq(attendancePeriodLocks.month, month),
+            ),
+          )
+          .limit(1),
+
+        // 2. Open sessions for past Muscat dates → missing checkouts (blocking)
+        db
+          .select({ n: count() })
+          .from(attendanceSessions)
+          .where(
+            and(
+              eq(attendanceSessions.companyId, cid),
+              eq(attendanceSessions.status, "open"),
+              gte(attendanceSessions.businessDate, fromYmd),
+              lte(attendanceSessions.businessDate, toYmd),
+              lt(attendanceSessions.businessDate, today),
+            ),
+          ),
+
+        // 3. Pending corrections in the period (blocking)
+        db
+          .select({ n: count() })
+          .from(attendanceCorrections)
+          .where(
+            and(
+              eq(attendanceCorrections.companyId, cid),
+              eq(attendanceCorrections.status, "pending"),
+              gte(attendanceCorrections.requestedDate, fromYmd),
+              lte(attendanceCorrections.requestedDate, toYmd),
+            ),
+          ),
+
+        // 4. Pending manual check-in requests in the period (blocking)
+        db
+          .select({ n: count() })
+          .from(manualCheckinRequests)
+          .where(
+            and(
+              eq(manualCheckinRequests.companyId, cid),
+              eq(manualCheckinRequests.status, "pending"),
+              or(
+                and(
+                  isNotNull(manualCheckinRequests.requestedBusinessDate),
+                  gte(manualCheckinRequests.requestedBusinessDate, fromYmd),
+                  lte(manualCheckinRequests.requestedBusinessDate, toYmd),
+                ),
+                and(
+                  isNull(manualCheckinRequests.requestedBusinessDate),
+                  gte(manualCheckinRequests.requestedAt, startUtc),
+                  lt(manualCheckinRequests.requestedAt, endExclusiveUtc),
+                ),
+              ),
+            ),
+          ),
+
+        // 5. Client approval batches overlapping the period (optionally site-scoped)
+        db
+          .select({ status: attendanceClientApprovalBatches.status })
+          .from(attendanceClientApprovalBatches)
+          .where(
+            and(
+              eq(attendanceClientApprovalBatches.companyId, cid),
+              lte(attendanceClientApprovalBatches.periodStart, toYmd),
+              gte(attendanceClientApprovalBatches.periodEnd, fromYmd),
+              ...(siteId != null ? [eq(attendanceClientApprovalBatches.siteId, siteId)] : []),
+            ),
+          ),
+      ]);
+
+      const periodStatus = periodLockRows[0]?.status ?? "open";
+      const hasBlockingReconciliationItems =
+        Number(openSessionsRow?.n ?? 0) > 0 ||
+        Number(pendingCorrectionsRow?.n ?? 0) > 0 ||
+        Number(pendingManualCheckinsRow?.n ?? 0) > 0;
+
+      // Simplified reconciliation status for the gate: blocked or ready.
+      // Holiday/leave review items (non-blocking) are not counted here; use
+      // getReconciliationSummary for the full picture.
+      const reconciliationStatus: ReconciliationReadinessStatus = hasBlockingReconciliationItems
+        ? "blocked"
+        : "ready";
+
+      return computeAttendancePayrollGate({
+        periodStatus: periodStatus as "open" | "locked" | "exported" | "reopened",
+        reconciliationStatus,
+        requiresClientApproval: input.requireClientApproval,
+        clientApprovalBatches: clientApprovalBatchRows,
+      });
     }),
 
   /**

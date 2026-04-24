@@ -28,7 +28,11 @@
       "Bash(grep -c \"drizzle:Name\\\\|pgTable\\\\|mysqlTable\\\\|sqliteTable\\\\|\\\\\\\\.\\(\\\\s*{\" drizzle/schema.ts)",
       "Bash(\\\\K[^)",
       "Bash(grep -oP \"CREATE TABLE IF NOT EXISTS `\\\\K[^`]+\" drizzle/0070_drizzle_baseline_schema_recovery.sql)",
-      "Bash(echo \"exit:$?\")"
+      "Bash(echo \"exit:$?\")",
+      "Bash(cat)",
+      "Bash(bash /tmp/check_hardcoded.sh)",
+      "Read(//tmp/**)",
+      "Bash(node -e \"const fs = require\\('fs'\\); const content = fs.readFileSync\\('src/pages/AttendanceSitesPage.tsx'\\); const lines = content.toString\\('utf8'\\).split\\('\\\\n'\\); const line = lines[564]; console.log\\(JSON.stringify\\(line\\)\\); for\\(let i=0;i<line.length;i++\\) { const c = line.charCodeAt\\(i\\); if\\(c > 127\\) console.log\\(i, c, String.fromCharCode\\(c\\)\\); }\")"
     ]
   }
 }

@@ -223,13 +223,13 @@ export default function AttendanceReconciliationPage() {
 
   const repairSession = trpc.attendance.repairSessionFromAttendanceRecord.useMutation({
     onSuccess: () => {
-      toast.success("Session re-synced from clock record");
+      toast.success(t("attendance.reconciliation.toast.repairSuccess"));
       setRepairingRecordId(null);
       void preflight.refetch();
     },
     onError: (e) => {
       if (isAttendanceSessionsTableRequiredClientError(e)) {
-        toast.warning("Session repair blocked until the attendance_sessions migration is applied.");
+        toast.warning(t("attendance.reconciliation.toast.repairBlockedMigration"));
       } else {
         toast.error(e.message);
       }
@@ -256,7 +256,7 @@ export default function AttendanceReconciliationPage() {
 
   function exportJson() {
     if (!preflight.data) {
-      toast.error("Run preflight first");
+      toast.error(t("attendance.reconciliation.toast.preflightRequired"));
       return;
     }
     const payload = includeDetailsInExport
@@ -280,12 +280,12 @@ export default function AttendanceReconciliationPage() {
     a.download = `attendance-reconciliation-${fromYmd}_${toYmd}-company-${activeCompanyId ?? "unknown"}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
-    toast.success("Download started");
+    toast.success(t("attendance.reconciliation.toast.exportStarted"));
   }
 
   async function copySummary() {
     if (!preflight.data) {
-      toast.error("Nothing to copy yet");
+      toast.error(t("attendance.reconciliation.toast.preflightRequired"));
       return;
     }
     const text = JSON.stringify(
@@ -303,9 +303,9 @@ export default function AttendanceReconciliationPage() {
     );
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Summary copied to clipboard");
+      toast.success(t("attendance.reconciliation.toast.copiedToClipboard"));
     } catch {
-      toast.error("Could not copy to clipboard");
+      toast.error(t("attendance.reconciliation.toast.copyFailed"));
     }
   }
 
@@ -359,19 +359,18 @@ export default function AttendanceReconciliationPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Scale className="text-primary" size={26} />
-            Attendance reconciliation
+            {t("attendance.reconciliation.pageTitle")}
           </h1>
           <p className="text-muted-foreground text-sm mt-1 max-w-2xl">
-            Compare clock rows, payroll sessions, and legacy HR attendance for the selected Muscat calendar month.
-            Use this before payroll or when investigating drift. Payroll execution uses the same preflight rules.
+            {t("attendance.reconciliation.pageSubtitle")}
           </p>
           <p className="text-xs text-muted-foreground mt-2">
             <Link href="/payroll/process" className="text-primary hover:underline">
-              Open payroll processing
+              {t("attendance.reconciliation.linkPayroll")}
             </Link>
             {" · "}
             <Link href="/hr/attendance-anomalies" className="text-primary hover:underline">
-              Session anomaly report
+              {t("attendance.reconciliation.linkAnomalies")}
             </Link>
           </p>
         </div>
@@ -399,7 +398,7 @@ export default function AttendanceReconciliationPage() {
             disabled={!activeCompanyId || preflight.isFetching || reconciliationSummary.isFetching || periodState.isFetching}
           >
             <RefreshCw size={15} className={preflight.isFetching || reconciliationSummary.isFetching || periodState.isFetching ? "animate-spin" : ""} />
-            Refresh
+            {t("attendance.reconciliation.refresh")}
           </Button>
         </div>
       </div>
@@ -407,7 +406,7 @@ export default function AttendanceReconciliationPage() {
       {!activeCompanyId ? (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Select a company workspace to run reconciliation.
+            {t("attendance.reconciliation.noCompany")}
           </CardContent>
         </Card>
       ) : null}
@@ -577,10 +576,10 @@ export default function AttendanceReconciliationPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarDays size={18} className="text-muted-foreground" />
-              Preflight ({fromYmd} → {toYmd})
+              {t("attendance.reconciliation.preflightCardTitle", { from: fromYmd, to: toYmd })}
             </CardTitle>
             <CardDescription>
-              Muscat-inclusive range · half-open UTC on <code className="text-xs">check_in</code>
+              {t("attendance.reconciliation.preflightCardDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -608,35 +607,37 @@ export default function AttendanceReconciliationPage() {
                           : "border-red-600 text-red-800 bg-red-50 dark:bg-red-950/30"
                     }
                   >
-                    Payroll gate:{" "}
                     {(preflight.data as { payrollBlockedByIncompleteScan?: boolean }).payrollBlockedByIncompleteScan
-                      ? "block (incomplete scan)"
-                      : preflight.data.preflight.decision}
+                      ? t("attendance.reconciliation.payrollGate", { decision: t("attendance.reconciliation.payrollGateBlockedScan") })
+                      : t("attendance.reconciliation.payrollGate", { decision: preflight.data.preflight.decision })}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    Blocking {preflight.data.blockingCount} · Warnings {preflight.data.warningCount}
+                    {t("attendance.reconciliation.blockingWarnings", {
+                      blocking: preflight.data.blockingCount,
+                      warnings: preflight.data.warningCount,
+                    })}
                   </span>
                 </div>
                 {preflight.data.recordsScanMayBeIncomplete ? (
                   <p className="text-xs text-red-800 dark:text-red-200 bg-red-50/80 dark:bg-red-950/25 rounded-md px-3 py-2 border border-red-200 dark:border-red-800">
-                    {`Execute Payroll is blocked: scan hit the cap (${preflight.data.recordsLoadCap} clock rows). The month is incomplete — this cannot be bypassed with warning acknowledgment.`}
+                    {t("attendance.reconciliation.incompleteScanWarning", { cap: preflight.data.recordsLoadCap })}
                   </p>
                 ) : null}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                   <div className="rounded-lg border bg-muted/30 px-3 py-2">
-                    <p className="text-xs text-muted-foreground">Clock rows</p>
+                    <p className="text-xs text-muted-foreground">{t("attendance.reconciliation.stats.clockRows")}</p>
                     <p className="font-semibold">{preflight.data.totals.records}</p>
                   </div>
                   <div className="rounded-lg border bg-muted/30 px-3 py-2">
-                    <p className="text-xs text-muted-foreground">Sessions</p>
+                    <p className="text-xs text-muted-foreground">{t("attendance.reconciliation.stats.sessions")}</p>
                     <p className="font-semibold">{preflight.data.totals.sessions}</p>
                   </div>
                   <div className="rounded-lg border bg-muted/30 px-3 py-2">
-                    <p className="text-xs text-muted-foreground">Legacy HR rows</p>
+                    <p className="text-xs text-muted-foreground">{t("attendance.reconciliation.stats.legacyRows")}</p>
                     <p className="font-semibold">{preflight.data.totals.legacyRows}</p>
                   </div>
                   <div className="rounded-lg border bg-muted/30 px-3 py-2">
-                    <p className="text-xs text-muted-foreground">Affected employees</p>
+                    <p className="text-xs text-muted-foreground">{t("attendance.reconciliation.stats.affectedEmployees")}</p>
                     <p className="font-semibold">{preflight.data.affectedEmployeeIds.length}</p>
                   </div>
                 </div>
@@ -651,36 +652,36 @@ export default function AttendanceReconciliationPage() {
                 <div className="flex flex-wrap gap-2 items-center">
                   <Button type="button" variant="secondary" size="sm" className="gap-1.5" onClick={exportJson}>
                     <Download size={15} />
-                    Export JSON
+                    {t("attendance.reconciliation.exportJsonBtn")}
                   </Button>
                   <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => void copySummary()}>
                     <ClipboardCopy size={15} />
-                    Copy summary
+                    {t("attendance.reconciliation.copySummaryBtn")}
                   </Button>
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer ml-1">
                     <Checkbox
                       checked={includeDetailsInExport}
                       onCheckedChange={(v) => setIncludeDetailsInExport(v === true)}
                     />
-                    Include full mismatch rows in export
+                    {t("attendance.reconciliation.includeDetailsLabel")}
                   </label>
                 </div>
 
                 <div>
-                  <Label className="text-sm font-medium">Mismatch detail</Label>
+                  <Label className="text-sm font-medium">{t("attendance.reconciliation.mismatchDetail")}</Label>
                   {preflight.data.mismatches.length === 0 ? (
-                    <p className="text-sm text-muted-foreground mt-2">No mismatches for this window.</p>
+                    <p className="text-sm text-muted-foreground mt-2">{t("attendance.reconciliation.noMismatches")}</p>
                   ) : (
                     <ScrollArea className="h-[min(420px,50vh)] mt-2 rounded-md border">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-[88px]">Severity</TableHead>
-                            <TableHead className="w-[220px]">Type</TableHead>
-                            <TableHead className="w-20">Employee</TableHead>
-                            <TableHead className="w-28">Date</TableHead>
-                            <TableHead>Summary</TableHead>
-                            <TableHead className="w-20 text-right">Repair</TableHead>
+                            <TableHead className="w-[88px]">{t("attendance.reconciliation.tableHeaders.severity")}</TableHead>
+                            <TableHead className="w-[220px]">{t("attendance.reconciliation.tableHeaders.type")}</TableHead>
+                            <TableHead className="w-20">{t("attendance.reconciliation.tableHeaders.employee")}</TableHead>
+                            <TableHead className="w-28">{t("attendance.reconciliation.tableHeaders.date")}</TableHead>
+                            <TableHead>{t("attendance.reconciliation.tableHeaders.summary")}</TableHead>
+                            <TableHead className="w-20 text-right">{t("attendance.reconciliation.tableHeaders.repair")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>

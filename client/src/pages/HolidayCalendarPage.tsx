@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
@@ -37,11 +38,11 @@ import { toast } from "sonner";
 import { Plus, Trash2, CalendarDays, Globe, Building2, Star, Sparkles } from "lucide-react";
 import { DateInput } from "@/components/ui/date-input";
 
-const HOLIDAY_TYPE_CONFIG = {
-  public: { label: "Public Holiday", icon: Globe, color: "bg-red-100 text-red-700 border-red-200" },
-  company: { label: "Company Holiday", icon: Building2, color: "bg-blue-100 text-blue-700 border-blue-200" },
-  optional: { label: "Optional", icon: Star, color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
-};
+const HOLIDAY_TYPE_ICONS = {
+  public: { icon: Globe, color: "bg-red-100 text-red-700 border-red-200" },
+  company: { icon: Building2, color: "bg-blue-100 text-blue-700 border-blue-200" },
+  optional: { icon: Star, color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
+} as const;
 
 interface HolidayForm {
   name: string;
@@ -62,6 +63,7 @@ function makeDefaultForm(): HolidayForm {
 }
 
 export default function HolidayCalendarPage() {
+  const { t, i18n } = useTranslation("hr");
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
   const [year, setYear] = useState(() => parseInt(muscatCalendarYmdNow().slice(0, 4), 10));
@@ -79,7 +81,7 @@ export default function HolidayCalendarPage() {
     onSuccess: () => {
       utils.scheduling.listHolidays.invalidate();
       setOpen(false);
-      toast.success("Holiday added");
+      toast.success(t("attendance.holidays.toast.added"));
     },
     onError: (e) => toast.error(e.message),
   });
@@ -88,7 +90,7 @@ export default function HolidayCalendarPage() {
     onSuccess: () => {
       utils.scheduling.listHolidays.invalidate();
       setDeleteId(null);
-      toast.success("Holiday removed");
+      toast.success(t("attendance.holidays.toast.removed"));
     },
     onError: (e) => toast.error(e.message),
   });
@@ -97,7 +99,7 @@ export default function HolidayCalendarPage() {
     onSuccess: (data) => {
       utils.scheduling.listHolidays.invalidate();
       setSeeding(false);
-      toast.success(`${data.seeded} Oman public holidays added for ${year}`);
+      toast.success(t("attendance.holidays.seedSuccess", { count: data.seeded, year }));
     },
     onError: (e) => {
       setSeeding(false);
@@ -113,7 +115,7 @@ export default function HolidayCalendarPage() {
 
   function handleSubmit() {
     if (!activeCompanyId || !form.name || !form.holidayDate) {
-      toast.error("Please fill all required fields");
+      toast.error(t("attendance.holidays.toast.validationError"));
       return;
     }
     addMut.mutate({ companyId: activeCompanyId, ...form });
@@ -135,10 +137,10 @@ export default function HolidayCalendarPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CalendarDays className="text-primary" size={24} />
-            Holiday Calendar
+            {t("attendance.holidays.pageTitle")}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Manage public and company holidays — attendance is not required on these days
+            {t("attendance.holidays.pageSubtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -169,27 +171,28 @@ export default function HolidayCalendarPage() {
             disabled={seeding}
           >
             <Sparkles size={14} />
-            Seed Oman Holidays
+            {t("attendance.holidays.seedBtn")}
           </Button>
           <Button onClick={() => { setForm(makeDefaultForm()); setOpen(true); }} className="gap-2">
-            <Plus size={16} /> Add Holiday
+            <Plus size={16} /> {t("attendance.holidays.addBtn")}
           </Button>
         </div>
       </div>
 
       {/* Summary badges */}
       <div className="flex gap-3 flex-wrap">
-        {Object.entries(HOLIDAY_TYPE_CONFIG).map(([type, cfg]) => {
+        {(["public", "company", "optional"] as const).map((type) => {
+          const cfg = HOLIDAY_TYPE_ICONS[type];
           const count = holidays.filter((h) => h.type === type).length;
           return (
             <div key={type} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium ${cfg.color}`}>
               <cfg.icon size={12} />
-              {cfg.label}: {count}
+              {t(`attendance.holidays.types.${type}`)}: {count}
             </div>
           );
         })}
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-muted text-xs font-medium text-muted-foreground">
-          Total: {holidays.length} days
+          {t("attendance.holidays.total", { count: holidays.length })}
         </div>
       </div>
 
@@ -205,14 +208,14 @@ export default function HolidayCalendarPage() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
             <CalendarDays size={40} className="opacity-30" />
-            <p className="font-medium">No holidays for {year}</p>
-            <p className="text-sm">Add holidays manually or use the "Seed Oman Holidays" button</p>
+            <p className="font-medium">{t("attendance.holidays.noHolidaysTitle", { year })}</p>
+            <p className="text-sm">{t("attendance.holidays.noHolidaysHint")}</p>
             <div className="flex gap-2 mt-2">
               <Button onClick={handleSeed} variant="outline" className="gap-2" disabled={seeding}>
-                <Sparkles size={14} /> Seed Oman Holidays
+                <Sparkles size={14} /> {t("attendance.holidays.seedBtn")}
               </Button>
               <Button onClick={() => { setForm(makeDefaultForm()); setOpen(true); }} className="gap-2">
-                <Plus size={16} /> Add Holiday
+                <Plus size={16} /> {t("attendance.holidays.addBtn")}
               </Button>
             </div>
           </CardContent>
@@ -226,12 +229,12 @@ export default function HolidayCalendarPage() {
               <Card key={idx}>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold text-muted-foreground uppercase tracking-wide text-sm">
-                    {formatAttendanceMonthDisplay(year, idx + 1)}
+                    {formatAttendanceMonthDisplay(year, idx + 1, i18n.language)}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {monthHolidays.map((h) => {
-                    const cfg = HOLIDAY_TYPE_CONFIG[h.type as keyof typeof HOLIDAY_TYPE_CONFIG] ?? HOLIDAY_TYPE_CONFIG.public;
+                    const cfg = HOLIDAY_TYPE_ICONS[h.type as keyof typeof HOLIDAY_TYPE_ICONS] ?? HOLIDAY_TYPE_ICONS.public;
                     const isPast = h.holidayDate < today;
                     const isToday = h.holidayDate === today;
                     return (
@@ -254,9 +257,9 @@ export default function HolidayCalendarPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm">{h.name}</span>
-                            {isToday && <Badge className="text-[10px] py-0">Today</Badge>}
+                            {isToday && <Badge className="text-[10px] py-0">{t("attendance.holidays.today")}</Badge>}
                             {h.isRecurringYearly && (
-                              <Badge variant="outline" className="text-[10px] py-0">Yearly</Badge>
+                              <Badge variant="outline" className="text-[10px] py-0">{t("attendance.holidays.yearlyBadge")}</Badge>
                             )}
                           </div>
                           {h.notes && (
@@ -265,7 +268,7 @@ export default function HolidayCalendarPage() {
                         </div>
                         <Badge className={`text-[10px] border ${cfg.color}`} variant="outline">
                           <cfg.icon size={10} className="mr-1" />
-                          {cfg.label}
+                          {t(`attendance.holidays.types.${h.type as "public" | "company" | "optional"}`)}
                         </Badge>
                         <Button
                           size="icon"
@@ -289,42 +292,42 @@ export default function HolidayCalendarPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Holiday</DialogTitle>
+            <DialogTitle>{t("attendance.holidays.addDialog.title")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Holiday Name *</Label>
+              <Label>{t("attendance.holidays.addDialog.nameLabel")}</Label>
               <Input
-                placeholder="e.g. National Day"
+                placeholder={t("attendance.holidays.addDialog.namePlaceholder")}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Date *</Label>
+              <Label>{t("attendance.holidays.addDialog.dateLabel")}</Label>
               <DateInput
-                
+
                 value={form.holidayDate}
                 onChange={(e) => setForm({ ...form, holidayDate: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Type</Label>
+              <Label>{t("attendance.holidays.addDialog.typeLabel")}</Label>
               <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as "public" | "company" | "optional" })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="public">Public Holiday</SelectItem>
-                  <SelectItem value="company">Company Holiday</SelectItem>
-                  <SelectItem value="optional">Optional</SelectItem>
+                  <SelectItem value="public">{t("attendance.holidays.types.public")}</SelectItem>
+                  <SelectItem value="company">{t("attendance.holidays.types.company")}</SelectItem>
+                  <SelectItem value="optional">{t("attendance.holidays.types.optional")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="flex items-center justify-between">
               <div>
-                <Label>Recurring Yearly</Label>
-                <p className="text-xs text-muted-foreground">Repeat this holiday every year</p>
+                <Label>{t("attendance.holidays.addDialog.recurringLabel")}</Label>
+                <p className="text-xs text-muted-foreground">{t("attendance.holidays.addDialog.recurringHint")}</p>
               </div>
               <Switch
                 checked={form.isRecurringYearly}
@@ -332,18 +335,18 @@ export default function HolidayCalendarPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Notes (optional)</Label>
+              <Label>{t("attendance.holidays.addDialog.notesLabel")}</Label>
               <Input
-                placeholder="Any additional notes..."
+                placeholder={t("attendance.holidays.addDialog.notesPlaceholder")}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>{t("attendance.holidays.addDialog.cancel")}</Button>
             <Button onClick={handleSubmit} disabled={!form.name || !form.holidayDate || addMut.isPending}>
-              Add Holiday
+              {t("attendance.holidays.addDialog.submit")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -353,18 +356,18 @@ export default function HolidayCalendarPage() {
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Holiday?</AlertDialogTitle>
+            <AlertDialogTitle>{t("attendance.holidays.deleteDialog.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This holiday will be removed from the calendar. Attendance records will not be affected.
+              {t("attendance.holidays.deleteDialog.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("attendance.holidays.deleteDialog.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteId && deleteMut.mutate({ id: deleteId, companyId: activeCompanyId ?? undefined })}
             >
-              Remove
+              {t("attendance.holidays.deleteDialog.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

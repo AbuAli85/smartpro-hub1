@@ -765,6 +765,257 @@
       "description": "يُزيل هذا الخيار سجل الحضور القديم للموارد البشرية. صفوف ساعة الخدمة الذاتية وتاريخ المراجعة لا تتغير. يُسجَّل هذا الإجراء.",
       "cancel": "إلغاء",
       "confirm": "حذف"
+    },
+
+    "holidays": {
+      "pageTitle": "تقويم الإجازات",
+      "pageSubtitle": "إدارة الإجازات الرسمية وإجازات الشركة — لا يُطلب الحضور في هذه الأيام",
+      "types": {
+        "public": "عطلة رسمية",
+        "company": "إجازة الشركة",
+        "optional": "اختيارية"
+      },
+      "total": "الإجمالي: {{count}} يوم",
+      "noHolidaysTitle": "لا توجد إجازات لعام {{year}}",
+      "noHolidaysHint": "أضف الإجازات يدوياً أو استخدم زر \"تعبئة إجازات عُمان\"",
+      "seedBtn": "تعبئة إجازات عُمان",
+      "addBtn": "إضافة إجازة",
+      "seedSuccess": "تمت إضافة {{count}} إجازة رسمية عُمانية لعام {{year}}",
+      "today": "اليوم",
+      "yearlyBadge": "سنوياً",
+      "addDialog": {
+        "title": "إضافة إجازة",
+        "nameLabel": "اسم الإجازة *",
+        "namePlaceholder": "مثال: اليوم الوطني",
+        "dateLabel": "التاريخ *",
+        "typeLabel": "النوع",
+        "recurringLabel": "تكرار سنوي",
+        "recurringHint": "تكرار هذه الإجازة كل عام",
+        "notesLabel": "ملاحظات (اختياري)",
+        "notesPlaceholder": "أي ملاحظات إضافية...",
+        "cancel": "إلغاء",
+        "submit": "إضافة إجازة"
+      },
+      "deleteDialog": {
+        "title": "إزالة الإجازة؟",
+        "description": "ستُزال هذه الإجازة من التقويم. لن تتأثر سجلات الحضور.",
+        "cancel": "إلغاء",
+        "confirm": "إزالة"
+      },
+      "toast": {
+        "added": "تمت إضافة الإجازة",
+        "removed": "تمت إزالة الإجازة",
+        "validationError": "يرجى ملء جميع الحقول المطلوبة"
+      }
+    },
+
+    "overdueCheckouts": {
+      "panelTitle": "لا يزال مسجلاً بعد انتهاء الوردية",
+      "allClear": "كل شيء على ما يرام",
+      "allClearDesc": "لا يوجد موظفون مسجلون بعد نهاية وردياتهم.",
+      "updatedAt": "آخر تحديث {{time}}",
+      "remindHint": "· انقر على تذكير لإرسال رسالة مخصصة",
+      "issueLabel": "المشكلة: {{status}}",
+      "inEnd": "الحضور: {{checkIn}} · النهاية: {{end}}",
+      "ack": "إقرار",
+      "forceOut": "إجبار الخروج",
+      "remind": "تذكير",
+      "sent": "أُرسل",
+      "minutesOverdue": "متأخر {{minutes}} دقيقة",
+      "hoursMinutesOverdue": "متأخر {{hours}} ساعة {{minutes}} دقيقة",
+      "hoursOverdue": "متأخر {{hours}} ساعة",
+      "reminderDialog": {
+        "title": "إرسال تذكير",
+        "descriptionTo": "إرسال إشعار داخل التطبيق إلى",
+        "descriptionEdit": "عدّل الرسالة أدناه قبل الإرسال.",
+        "messageLabel": "الرسالة",
+        "messageHint": "(تظهر في إشعار الموظف)",
+        "messagePlaceholder": "اكتب رسالة التذكير…",
+        "resetToDefault": "إعادة تعيين الرسالة الافتراضية",
+        "cancel": "إلغاء",
+        "send": "إرسال تذكير",
+        "sending": "جارٍ الإرسال…"
+      },
+      "forceCheckoutDialog": {
+        "title": "إجبار الانصراف",
+        "descriptionFor": "يغلق تسجيل الحضور المفتوح لـ",
+        "descriptionAudit": "في الوقت الحالي. يتطلب سبباً للمراجعة (10 أحرف كحد أدنى).",
+        "reasonLabel": "السبب",
+        "reasonPlaceholder": "ملاحظة الامتثال — من طلب ذلك، أو سبب تبرير الإغلاق…",
+        "cancel": "إلغاء",
+        "confirm": "تأكيد"
+      },
+      "ackDialog": {
+        "title": "إقرار",
+        "descriptionFor": "وضع علامة إقرار على هذه الحالة المتأخرة لـ",
+        "descriptionNote": "(لا يغلق تسجيل الحضور).",
+        "noteLabel": "ملاحظة (اختياري)",
+        "cancel": "إلغاء",
+        "confirm": "إقرار"
+      },
+      "toast": {
+        "reminderSent": "تم إرسال التذكير إلى {{name}}",
+        "reminderError": "فشل إرسال التذكير: {{error}}"
+      }
+    },
+
+    "anomalyReport": {
+      "pageTitle": "تقرير حالات الحضور الشاذة",
+      "pageSubtitle": "اكتشاف وحل تسجيلات الحضور المكررة والجلسات المنفلتة وإعادة تسجيل الدخول.",
+      "dedupBtn": "إلغاء تكرار الجلسات المفتوحة",
+      "dateFrom": "من",
+      "dateTo": "إلى",
+      "refresh": "تحديث",
+      "allClean": "لا توجد حالات شاذة في هذه النافذة — البيانات تبدو نظيفة.",
+      "allCleanEmpty": "جميع سجلات الحضور في النافذة المحددة نظيفة.",
+      "criticalCount": "حرج: {{count}}",
+      "warningCount": "تحذير: {{count}}",
+      "totalCount": "الإجمالي: {{count}}",
+      "criticalBadge": "حرج",
+      "warningBadge": "تحذير",
+      "anomalyTypes": {
+        "MULTIPLE_OPEN_SESSIONS": "جلسات مفتوحة متعددة",
+        "MULTIPLE_SESSIONS": "جلسات متعددة في نفس الوردية",
+        "RUNAWAY_SESSION": "جلسة منفلتة (أكثر من 16 ساعة)",
+        "EARLY_CHECKIN_RECHECKIN": "إعادة تسجيل الدخول بعد الخروج المبكر"
+      },
+      "anomalyDescriptions": {
+        "MULTIPLE_OPEN_SESSIONS": "الموظف لديه تسجيلان أو أكثر مفتوحان في نفس الوردية — يجب الاحتفاظ بالأحدث فقط.",
+        "MULTIPLE_SESSIONS": "صفوف حضور متعددة موجودة لنفس يوم الوردية — تحقق من أن الصفوف الإضافية متوقعة.",
+        "RUNAWAY_SESSION": "الموظف مسجّل الحضور لأكثر من 16 ساعة — على الأرجح أغفل تسجيل الانصراف.",
+        "EARLY_CHECKIN_RECHECKIN": "سجّل الموظف انصرافه مبكراً ثم عاد وسجّل حضوره في نفس الوردية."
+      },
+      "forceCheckoutBtn": "إجبار الانصراف #{{id}}",
+      "forceReasonPrompt": "سبب إغلاق السجل #{{id}} (مطلوب، 10 أحرف كحد أدنى):",
+      "forceReasonPlaceholder": "مثال: نسي الموظف تسجيل الانصراف — تم التأكيد مع المدير",
+      "confirmForceCheckout": "تأكيد إجبار الانصراف",
+      "cancel": "إلغاء",
+      "dedupDialog": {
+        "title": "إلغاء تكرار الجلسات المفتوحة",
+        "description": "يبحث عن موظفين لديهم تسجيلان مفتوحان أو أكثر في نفس الوردية. يحتفظ بالصف الأحدث ويطبق انصرافاً اصطناعياً (دقيقة واحدة قبل تسجيل الدخول التالي) على جميع التكرارات السابقة.",
+        "dryRunHint": "شغّل اختباراً جافاً أولاً لمعاينة ما سيتغير دون تعديل أي سجلات.",
+        "previewBtn": "معاينة (اختبار جاف)",
+        "noDuplicates": "لم يُعثر على جلسات مفتوحة مكررة — لا شيء للإصلاح.",
+        "foundGroups": "وُجد <strong>{{groups}}</strong> مجموعة تحتوي على تكرارات. سيُرقَّع <strong>{{rows}}</strong> صف.",
+        "previewOnly": "(معاينة فقط — لم يتغير أي شيء بعد)",
+        "moreGroups": "...و{{count}} مجموعة أخرى.",
+        "applyFixBtn": "تطبيق الإصلاح ({{rows}} صف)",
+        "closeBtn": "إغلاق"
+      },
+      "toast": {
+        "fixedDuplicates": "تم إصلاح {{rows}} صف مكرر عبر {{groups}} مجموعة.",
+        "sessionClosed": "تم إغلاق الجلسة."
+      }
+    },
+
+    "reconciliation": {
+      "pageTitle": "مراجعة الحضور",
+      "pageSubtitle": "مقارنة صفوف ساعة الحضور والجلسات وسجلات الموارد البشرية القديمة للشهر الميلادي المحدد في مسقط. استخدم هذا قبل الرواتب أو عند التحقيق في الانحرافات.",
+      "linkPayroll": "فتح معالجة الرواتب",
+      "linkAnomalies": "تقرير حالات الجلسات الشاذة",
+      "refresh": "تحديث",
+      "noCompany": "اختر بيئة عمل شركة لتشغيل المراجعة.",
+      "preflightCardTitle": "الفحص المسبق ({{from}} → {{to}})",
+      "preflightCardDesc": "نطاق شامل للتاريخ في مسقط · نهاية مفتوحة بتوقيت UTC على check_in",
+      "payrollGate": "بوابة الرواتب: {{decision}}",
+      "payrollGateBlockedScan": "محظور (مسح غير مكتمل)",
+      "blockingWarnings": "محجوب {{blocking}} · تحذيرات {{warnings}}",
+      "incompleteScanWarning": "تنفيذ الرواتب محظور: وصل المسح إلى الحد الأقصى ({{cap}} صف). الشهر غير مكتمل — لا يمكن تجاوز ذلك بإقرار التحذيرات.",
+      "stats": {
+        "clockRows": "صفوف الساعة",
+        "sessions": "الجلسات",
+        "legacyRows": "صفوف HR القديمة",
+        "affectedEmployees": "الموظفون المتأثرون"
+      },
+      "exportJsonBtn": "تصدير JSON",
+      "copySummaryBtn": "نسخ الملخص",
+      "includeDetailsLabel": "تضمين صفوف التناقض الكاملة في التصدير",
+      "mismatchDetail": "تفاصيل التناقض",
+      "noMismatches": "لا توجد تناقضات في هذه النافذة.",
+      "tableHeaders": {
+        "severity": "الخطورة",
+        "type": "النوع",
+        "employee": "الموظف",
+        "date": "التاريخ",
+        "summary": "الملخص",
+        "repair": "الإصلاح"
+      },
+      "toast": {
+        "repairSuccess": "تمت إعادة مزامنة الجلسة من سجل الساعة",
+        "repairBlockedMigration": "إصلاح الجلسة محظور حتى تطبيق ترحيل attendance_sessions.",
+        "exportStarted": "بدأ التنزيل",
+        "preflightRequired": "شغّل الفحص المسبق أولاً",
+        "copiedToClipboard": "تم نسخ الملخص إلى الحافظة",
+        "copyFailed": "تعذّر النسخ إلى الحافظة"
+      }
+    },
+
+    "sites": {
+      "pageTitle": "مواقع الحضور",
+      "pageSubtitle": "تسجيل حضور ذكي برمز QR مع سياج جغرافي وساعات عمل ومراقبة مباشرة",
+      "newSiteBtn": "موقع جديد",
+      "stats": {
+        "checkedInNow": "موجودون حالياً",
+        "activeSites": "المواقع النشطة",
+        "recordsToday": "السجلات اليوم"
+      },
+      "tabs": {
+        "sitesQr": "المواقع ورموز QR",
+        "liveBoard": "اللوحة المباشرة",
+        "history": "السجل",
+        "manual": "الطلبات اليدوية"
+      },
+      "empty": {
+        "noCompany": "اختر شركة من محوّل مساحة العمل لإدارة مواقع الحضور.",
+        "loading": "جارٍ تحميل المواقع...",
+        "noSitesTitle": "لا توجد مواقع حضور بعد",
+        "noSitesHint": "أنشئ موقعك الأول لتوليد رمز QR يمكن للموظفين مسحه.",
+        "noSitesBtn": "إنشاء أول موقع",
+        "noLiveBoardRecords": "لا توجد سجلات حضور لهذا التاريخ بعد.",
+        "noHistoryRecords": "لا توجد سجلات لهذا التاريخ.",
+        "noManualRequests": "لا توجد طلبات تسجيل حضور يدوية معلقة",
+        "noManualRequestsHint": "عندما يكون الموظفون خارج السياج الجغرافي ويقدمون مبرراً، تظهر الطلبات هنا."
+      },
+      "siteForm": {
+        "newTitle": "موقع حضور جديد",
+        "editTitle": "تعديل الموقع",
+        "tabBasic": "المعلومات الأساسية",
+        "tabLocation": "الموقع والسياج الجغرافي",
+        "tabHours": "الساعات والإعدادات",
+        "cancel": "إلغاء",
+        "saving": "جارٍ الحفظ...",
+        "saveChanges": "حفظ التغييرات",
+        "createSite": "إنشاء الموقع"
+      },
+      "reviewDialog": {
+        "title": "مراجعة طلب تسجيل الحضور اليدوي",
+        "reviewNoteLabel": "ملاحظة المراجعة (اختياري)",
+        "reject": "رفض",
+        "rejecting": "جارٍ الرفض...",
+        "approve": "قبول",
+        "approving": "جارٍ القبول..."
+      },
+      "toast": {
+        "siteCreated": "تم إنشاء الموقع",
+        "siteUpdated": "تم تحديث الموقع",
+        "validationError": "اسم الموقع مطلوب",
+        "noCompanyError": "اختر شركة من محوّل مساحة العمل قبل إنشاء موقع.",
+        "approved": "تمت الموافقة على الطلب — تم تسجيل الحضور",
+        "rejected": "تم رفض الطلب"
+      }
+    },
+
+    "schedules": {
+      "toast": {
+        "scheduleAssigned": "تم تعيين الجدول",
+        "scheduleRemoved": "تمت إزالة الجدول",
+        "scheduleUpdated": "تم تحديث الجدول",
+        "validationError": "يرجى ملء جميع الحقول المطلوبة",
+        "assignError": "فشل تعيين الجدول",
+        "removeError": "فشلت إزالة الجدول",
+        "updateError": "فشل تحديث الجدول",
+        "noEmployeeSelected": "يرجى اختيار موظف"
+      }
     }
   },
 

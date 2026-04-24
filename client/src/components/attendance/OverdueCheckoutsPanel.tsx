@@ -6,6 +6,7 @@
  * an in-app notification to the employee.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useAttendanceOperationalMutations } from "@/hooks/useAttendanceOperationalMutations";
@@ -40,11 +41,13 @@ function initials(name: string): string {
     .join("");
 }
 
-function overdueLabel(minutes: number): string {
-  if (minutes < 60) return `${minutes}m overdue`;
+function overdueLabel(minutes: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  if (minutes < 60) return t("attendance.overdueCheckouts.minutesOverdue", { minutes });
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m > 0 ? `${h}h ${m}m overdue` : `${h}h overdue`;
+  return m > 0
+    ? t("attendance.overdueCheckouts.hoursMinutesOverdue", { hours: h, minutes: m })
+    : t("attendance.overdueCheckouts.hoursOverdue", { hours: h });
 }
 
 function overdueSeverity(minutes: number): "low" | "medium" | "high" {
@@ -94,6 +97,7 @@ function ReminderButton({
   minutesOverdue: number;
   companyId: number | undefined;
 }) {
+  const { t } = useTranslation("hr");
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
@@ -104,10 +108,10 @@ function ReminderButton({
     onSuccess: () => {
       setSent(true);
       setOpen(false);
-      toast.success(`Reminder sent to ${employeeDisplayName}`);
+      toast.success(t("attendance.overdueCheckouts.toast.reminderSent", { name: employeeDisplayName }));
     },
     onError: (err) => {
-      toast.error(`Failed to send reminder: ${err.message}`);
+      toast.error(t("attendance.overdueCheckouts.toast.reminderError", { error: err.message }));
     },
   });
 
@@ -137,7 +141,7 @@ function ReminderButton({
         className="h-7 px-2.5 text-[11px] gap-1 border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 shrink-0"
       >
         <Check className="w-3 h-3" />
-        Sent
+        {t("attendance.overdueCheckouts.sent")}
       </Button>
     );
   }
@@ -152,7 +156,7 @@ function ReminderButton({
         title={`Send check-out reminder to ${employeeDisplayName}`}
       >
         <BellRing className="w-3 h-3" />
-        Remind
+        {t("attendance.overdueCheckouts.remind")}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -160,12 +164,12 @@ function ReminderButton({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <Bell className="w-4 h-4 text-orange-500" />
-              Send Reminder
+              {t("attendance.overdueCheckouts.reminderDialog.title")}
             </DialogTitle>
             <DialogDescription className="text-sm">
-              Sending an in-app notification to{" "}
-              <span className="font-semibold text-foreground">{employeeDisplayName}</span>.
-              Edit the message below before sending.
+              {t("attendance.overdueCheckouts.reminderDialog.descriptionTo")}{" "}
+              <span className="font-semibold text-foreground">{employeeDisplayName}</span>.{" "}
+              {t("attendance.overdueCheckouts.reminderDialog.descriptionEdit")}
             </DialogDescription>
           </DialogHeader>
 
@@ -181,7 +185,7 @@ function ReminderButton({
                 <p className="text-sm font-medium truncate leading-tight">{employeeDisplayName}</p>
                 <p className="text-[11px] text-muted-foreground truncate">
                   {shiftName ? `${shiftName} · ` : ""}End: {expectedEnd} ·{" "}
-                  <span className="text-orange-600 font-medium">{overdueLabel(minutesOverdue)}</span>
+                  <span className="text-orange-600 font-medium">{overdueLabel(minutesOverdue, t)}</span>
                 </p>
               </div>
             </div>
@@ -189,8 +193,8 @@ function ReminderButton({
             {/* Message editor */}
             <div className="space-y-1.5">
               <Label htmlFor="reminder-message" className="text-xs font-medium">
-                Message
-                <span className="ml-1 text-muted-foreground font-normal">(shown in employee notification)</span>
+                {t("attendance.overdueCheckouts.reminderDialog.messageLabel")}
+                <span className="ml-1 text-muted-foreground font-normal">{t("attendance.overdueCheckouts.reminderDialog.messageHint")}</span>
               </Label>
               <Textarea
                 id="reminder-message"
@@ -198,7 +202,7 @@ function ReminderButton({
                 onChange={(e) => setMessage(e.target.value)}
                 rows={4}
                 maxLength={1000}
-                placeholder="Write your reminder message…"
+                placeholder={t("attendance.overdueCheckouts.reminderDialog.messagePlaceholder")}
                 className="text-sm resize-none"
               />
               <p className="text-[10px] text-muted-foreground text-right">
@@ -213,7 +217,7 @@ function ReminderButton({
                 onClick={() => setMessage(defaultMessage)}
                 className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
               >
-                Reset to default message
+                {t("attendance.overdueCheckouts.reminderDialog.resetToDefault")}
               </button>
             )}
           </div>
@@ -225,7 +229,7 @@ function ReminderButton({
               onClick={() => setOpen(false)}
               disabled={remind.isPending}
             >
-              Cancel
+              {t("attendance.overdueCheckouts.reminderDialog.cancel")}
             </Button>
             <Button
               size="sm"
@@ -238,7 +242,9 @@ function ReminderButton({
               ) : (
                 <Send className="w-3.5 h-3.5" />
               )}
-              {remind.isPending ? "Sending…" : "Send Reminder"}
+              {remind.isPending
+                ? t("attendance.overdueCheckouts.reminderDialog.sending")
+                : t("attendance.overdueCheckouts.reminderDialog.send")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -265,6 +271,7 @@ type OverdueEmp = {
 };
 
 export function OverdueCheckoutsPanel({ className }: { className?: string }) {
+  const { t } = useTranslation("hr");
   const { activeCompanyId } = useActiveCompany();
   const { acknowledgeOverdueCheckout, forceCheckout, isPending: operationalPending } =
     useAttendanceOperationalMutations(activeCompanyId);
@@ -293,7 +300,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-orange-500" />
-            Still Clocked In After Shift
+            {t("attendance.overdueCheckouts.panelTitle")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -325,7 +332,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
                 overdue.length > 0 ? "text-orange-500" : "text-muted-foreground"
               )}
             />
-            Still Clocked In After Shift
+            {t("attendance.overdueCheckouts.panelTitle")}
             {overdue.length > 0 && (
               <Badge
                 variant="outline"
@@ -346,10 +353,12 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
         </div>
         {updatedAt && (
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            Updated {updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {t("attendance.overdueCheckouts.updatedAt", {
+              time: updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            })}
             {overdue.length > 0 && (
               <span className="ml-2 text-muted-foreground/70">
-                · Click <Bell className="w-2.5 h-2.5 inline-block mx-0.5" /> Remind to send a custom message
+                {t("attendance.overdueCheckouts.remindHint")}
               </span>
             )}
           </p>
@@ -360,9 +369,9 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
         {overdue.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
             <Clock className="w-8 h-8 opacity-30" />
-            <p className="text-sm font-medium">All clear</p>
+            <p className="text-sm font-medium">{t("attendance.overdueCheckouts.allClear")}</p>
             <p className="text-xs text-center leading-snug">
-              No employees are clocked in past their shift end time.
+              {t("attendance.overdueCheckouts.allClearDesc")}
             </p>
           </div>
         ) : (
@@ -387,7 +396,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
                     </p>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                       <Badge variant="outline" className="text-[9px] h-5 capitalize border-slate-300">
-                        Issue: {triage}
+                        {t("attendance.overdueCheckouts.issueLabel", { status: triage })}
                       </Badge>
                       {emp.shiftName && (
                         <span className="text-[11px] text-muted-foreground truncate">
@@ -402,7 +411,10 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
                       )}
                       <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
                         <Clock className="w-2.5 h-2.5 shrink-0" />
-                        In: {fmtTime(emp.checkInAt)} · End: {emp.expectedEnd}
+                        {t("attendance.overdueCheckouts.inEnd", {
+                          checkIn: fmtTime(emp.checkInAt),
+                          end: emp.expectedEnd,
+                        })}
                       </span>
                     </div>
                   </div>
@@ -412,7 +424,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
                       variant="outline"
                       className={cn("text-[10px] font-semibold whitespace-nowrap hidden sm:inline-flex", SEVERITY_BADGE[sev])}
                     >
-                      {overdueLabel(emp.minutesOverdue)}
+                      {overdueLabel(emp.minutesOverdue, t)}
                     </Badge>
                     {triage === "open" ? (
                       <Button
@@ -426,7 +438,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
                         }}
                       >
                         <UserCheck className="w-3 h-3" />
-                        Ack
+                        {t("attendance.overdueCheckouts.ack")}
                       </Button>
                     ) : null}
                     <Button
@@ -440,7 +452,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
                       }}
                     >
                       <LogOut className="w-3 h-3" />
-                      Force out
+                      {t("attendance.overdueCheckouts.forceOut")}
                     </Button>
                     <ReminderButton
                       employeeUserId={emp.employeeUserId}
@@ -473,26 +485,27 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
     <Dialog open={forceTarget != null} onOpenChange={(o) => !o && setForceTarget(null)}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Force checkout</DialogTitle>
+          <DialogTitle>{t("attendance.overdueCheckouts.forceCheckoutDialog.title")}</DialogTitle>
           <DialogDescription>
-            Closes the open punch for <span className="font-medium text-foreground">{forceTarget?.employeeDisplayName}</span>{" "}
-            at the current time. Requires an audit reason (min. 10 characters).
+            {t("attendance.overdueCheckouts.forceCheckoutDialog.descriptionFor")}{" "}
+            <span className="font-medium text-foreground">{forceTarget?.employeeDisplayName}</span>{" "}
+            {t("attendance.overdueCheckouts.forceCheckoutDialog.descriptionAudit")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <Label htmlFor="ov-force-reason">Reason</Label>
+          <Label htmlFor="ov-force-reason">{t("attendance.overdueCheckouts.forceCheckoutDialog.reasonLabel")}</Label>
           <Textarea
             id="ov-force-reason"
             value={forceReason}
             onChange={(e) => setForceReason(e.target.value)}
             rows={4}
             className="text-sm"
-            placeholder="Compliance note — who asked, or why this close is justified…"
+            placeholder={t("attendance.overdueCheckouts.forceCheckoutDialog.reasonPlaceholder")}
           />
         </div>
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" onClick={() => setForceTarget(null)}>
-            Cancel
+            {t("attendance.overdueCheckouts.forceCheckoutDialog.cancel")}
           </Button>
           <Button
             type="button"
@@ -513,7 +526,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
               }
             }}
           >
-            Confirm
+            {t("attendance.overdueCheckouts.forceCheckoutDialog.confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -522,18 +535,20 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
     <Dialog open={ackTarget != null} onOpenChange={(o) => !o && setAckTarget(null)}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Acknowledge</DialogTitle>
+          <DialogTitle>{t("attendance.overdueCheckouts.ackDialog.title")}</DialogTitle>
           <DialogDescription>
-            Mark this overdue case as acknowledged for {ackTarget?.employeeDisplayName} (does not close the punch).
+            {t("attendance.overdueCheckouts.ackDialog.descriptionFor")}{" "}
+            {ackTarget?.employeeDisplayName}{" "}
+            {t("attendance.overdueCheckouts.ackDialog.descriptionNote")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <Label htmlFor="ov-ack-note">Note (optional)</Label>
+          <Label htmlFor="ov-ack-note">{t("attendance.overdueCheckouts.ackDialog.noteLabel")}</Label>
           <Textarea id="ov-ack-note" value={ackNote} onChange={(e) => setAckNote(e.target.value)} rows={3} className="text-sm" />
         </div>
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" onClick={() => setAckTarget(null)}>
-            Cancel
+            {t("attendance.overdueCheckouts.ackDialog.cancel")}
           </Button>
           <Button
             type="button"
@@ -548,7 +563,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
               }
             }}
           >
-            Acknowledge
+            {t("attendance.overdueCheckouts.ackDialog.confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import type { RouterOutputs } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -39,27 +40,11 @@ type AnomalyType = NonNullable<
 >[number];
 type DedupResult = RouterOutputs["attendance"]["deduplicateAttendanceRecords"];
 
-const ANOMALY_META: Record<string, { label: string; description: string; icon: React.ReactNode }> = {
-  MULTIPLE_OPEN_SESSIONS: {
-    label: "Multiple open sessions",
-    description: "Employee has 2+ open punches on the same shift — only the newest should be kept.",
-    icon: <Copy className="h-4 w-4 text-red-600" />,
-  },
-  MULTIPLE_SESSIONS: {
-    label: "Multiple sessions on same shift",
-    description: "Multiple attendance rows exist for the same shift day — verify the extra rows are expected.",
-    icon: <Layers className="h-4 w-4 text-amber-600" />,
-  },
-  RUNAWAY_SESSION: {
-    label: "Runaway session (>16 hours)",
-    description: "Employee has been clocked in for over 16 hours — likely a missed checkout.",
-    icon: <Clock className="h-4 w-4 text-red-600" />,
-  },
-  EARLY_CHECKIN_RECHECKIN: {
-    label: "Re-check-in after early exit",
-    description: "Employee checked out early then checked back in for the same shift.",
-    icon: <RotateCcw className="h-4 w-4 text-amber-600" />,
-  },
+const ANOMALY_ICONS: Record<string, React.ReactNode> = {
+  MULTIPLE_OPEN_SESSIONS: <Copy className="h-4 w-4 text-red-600" />,
+  MULTIPLE_SESSIONS: <Layers className="h-4 w-4 text-amber-600" />,
+  RUNAWAY_SESSION: <Clock className="h-4 w-4 text-red-600" />,
+  EARLY_CHECKIN_RECHECKIN: <RotateCcw className="h-4 w-4 text-amber-600" />,
 };
 
 function AnomalyCard({
@@ -71,10 +56,15 @@ function AnomalyCard({
   onForceCheckout: (recordId: number, reason: string) => void;
   isForcing: boolean;
 }) {
-  const meta = ANOMALY_META[anomaly.type];
+  const { t } = useTranslation("hr");
+  const icon = ANOMALY_ICONS[anomaly.type];
   const isCritical = anomaly.severity === "critical";
   const [forceReason, setForceReason] = useState("");
   const [forceTarget, setForceTarget] = useState<number | null>(null);
+
+  const typeKey = anomaly.type as keyof typeof ANOMALY_ICONS;
+  const label = t(`attendance.anomalyReport.anomalyTypes.${typeKey}`, { defaultValue: anomaly.type });
+  const description = t(`attendance.anomalyReport.anomalyDescriptions.${typeKey}`, { defaultValue: "" });
 
   return (
     <Card
@@ -91,16 +81,16 @@ function AnomalyCard({
               isCritical ? "bg-red-100 dark:bg-red-950" : "bg-amber-100 dark:bg-amber-950",
             )}
           >
-            {meta?.icon}
+            {icon}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm">{meta?.label ?? anomaly.type}</span>
+              <span className="font-medium text-sm">{label}</span>
               <Badge variant={isCritical ? "destructive" : "outline"} className="text-[10px] px-1.5">
-                {isCritical ? "Critical" : "Warning"}
+                {isCritical ? t("attendance.anomalyReport.criticalBadge") : t("attendance.anomalyReport.warningBadge")}
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">{meta?.description}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
             <p className="text-xs text-foreground mt-1.5 font-mono bg-muted/50 rounded px-2 py-1">
               {anomaly.detail}
             </p>
@@ -123,19 +113,19 @@ function AnomalyCard({
                         onClick={() => setForceTarget(id)}
                       >
                         <LogOut className="h-3 w-3" />
-                        Force checkout #{id}
+                        {t("attendance.anomalyReport.forceCheckoutBtn", { id })}
                       </Button>
                     ))}
                   </div>
                 ) : (
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">
-                      Reason for force-closing record #{forceTarget} (required, min 10 chars):
+                      {t("attendance.anomalyReport.forceReasonPrompt", { id: forceTarget })}
                     </p>
                     <Textarea
                       value={forceReason}
                       onChange={(e) => setForceReason(e.target.value)}
-                      placeholder="e.g. Employee forgot to check out — confirmed with manager"
+                      placeholder={t("attendance.anomalyReport.forceReasonPlaceholder")}
                       className="text-xs h-16 resize-none"
                     />
                     <div className="flex gap-2">
@@ -151,7 +141,7 @@ function AnomalyCard({
                         }}
                       >
                         <LogOut className="h-3 w-3" />
-                        Confirm force checkout
+                        {t("attendance.anomalyReport.confirmForceCheckout")}
                       </Button>
                       <Button
                         size="sm"
@@ -162,7 +152,7 @@ function AnomalyCard({
                           setForceReason("");
                         }}
                       >
-                        Cancel
+                        {t("attendance.anomalyReport.cancel")}
                       </Button>
                     </div>
                   </div>
@@ -191,24 +181,24 @@ function DedupDialog({
   onRunFix: () => void;
   isPending: boolean;
 }) {
+  const { t } = useTranslation("hr");
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wrench className="h-4 w-4" />
-            Deduplicate open sessions
+            {t("attendance.anomalyReport.dedupDialog.title")}
           </DialogTitle>
           <DialogDescription>
-            Finds employees with 2+ open punches on the same shift. Keeps the newest open row and
-            applies a synthetic checkout (1 min before the next check-in) to all earlier duplicates.
+            {t("attendance.anomalyReport.dedupDialog.description")}
           </DialogDescription>
         </DialogHeader>
 
         {!preview && (
           <div className="space-y-3 py-2">
             <p className="text-sm text-muted-foreground">
-              Run a dry-run first to preview what will be changed without modifying any records.
+              {t("attendance.anomalyReport.dedupDialog.dryRunHint")}
             </p>
             <Button
               onClick={onRunDryRun}
@@ -221,7 +211,7 @@ function DedupDialog({
               ) : (
                 <Eye className="h-3.5 w-3.5" />
               )}
-              Preview (dry run)
+              {t("attendance.anomalyReport.dedupDialog.previewBtn")}
             </Button>
           </div>
         )}
@@ -231,14 +221,14 @@ function DedupDialog({
             {preview.affectedGroups === 0 ? (
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-sm">
                 <CheckCircle2 className="h-4 w-4" />
-                No duplicate open sessions found — nothing to fix.
+                {t("attendance.anomalyReport.dedupDialog.noDuplicates")}
               </div>
             ) : (
               <>
                 <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-sm">
                   Found <strong>{preview.affectedGroups}</strong> group(s) with duplicates. Would patch{" "}
                   <strong>{preview.patchedRows}</strong> row(s).
-                  {preview.dryRun && " (preview only — no changes made yet)"}
+                  {preview.dryRun && ` ${t("attendance.anomalyReport.dedupDialog.previewOnly")}`}
                 </div>
                 {preview.groups.slice(0, 5).map((g, i) => (
                   <div key={i} className="text-xs text-muted-foreground font-mono bg-muted/40 rounded px-2 py-1">
@@ -248,7 +238,7 @@ function DedupDialog({
                 ))}
                 {preview.groups.length > 5 && (
                   <p className="text-xs text-muted-foreground">
-                    ...and {preview.groups.length - 5} more groups.
+                    {t("attendance.anomalyReport.dedupDialog.moreGroups", { count: preview.groups.length - 5 })}
                   </p>
                 )}
                 {preview.dryRun && (
@@ -263,7 +253,7 @@ function DedupDialog({
                     ) : (
                       <Wrench className="h-3.5 w-3.5" />
                     )}
-                    Apply fix ({preview.patchedRows} rows)
+                    {t("attendance.anomalyReport.dedupDialog.applyFixBtn", { rows: preview.patchedRows })}
                   </Button>
                 )}
               </>
@@ -273,7 +263,7 @@ function DedupDialog({
 
         <DialogFooter>
           <Button variant="ghost" size="sm" onClick={onClose}>
-            Close
+            {t("attendance.anomalyReport.dedupDialog.closeBtn")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -282,6 +272,7 @@ function DedupDialog({
 }
 
 export default function AttendanceAnomaliesPage() {
+  const { t } = useTranslation("hr");
   const { activeCompanyId, loading: companiesLoading } = useActiveCompany();
 
   const today = muscatCalendarYmdNow();
@@ -305,7 +296,10 @@ export default function AttendanceAnomaliesPage() {
     onSuccess: (data) => {
       setDedupPreview(data);
       if (!data.dryRun) {
-        toast.success(`Fixed ${data.patchedRows} duplicate row(s) across ${data.affectedGroups} group(s).`);
+        toast.success(t("attendance.anomalyReport.toast.fixedDuplicates", {
+          rows: data.patchedRows,
+          groups: data.affectedGroups,
+        }));
         void anomalyQuery.refetch();
         setDedupOpen(false);
         setDedupPreview(null);
@@ -316,7 +310,7 @@ export default function AttendanceAnomaliesPage() {
 
   const forceCheckoutMutation = trpc.attendance.forceCheckout.useMutation({
     onSuccess: () => {
-      toast.success("Session closed.");
+      toast.success(t("attendance.anomalyReport.toast.sessionClosed"));
       void anomalyQuery.refetch();
     },
     onError: (e) => toast.error(e.message),
@@ -331,10 +325,10 @@ export default function AttendanceAnomaliesPage() {
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2">
             <AlertOctagon className="h-5 w-5 text-[var(--smartpro-orange)]" />
-            Attendance Anomaly Report
+            {t("attendance.anomalyReport.pageTitle")}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Detect and resolve duplicate punches, runaway sessions, and re-check-ins.
+            {t("attendance.anomalyReport.pageSubtitle")}
           </p>
         </div>
         <Button
@@ -345,13 +339,13 @@ export default function AttendanceAnomaliesPage() {
           className="gap-1.5 shrink-0"
         >
           <Wrench className="h-3.5 w-3.5" />
-          Dedup open sessions
+          {t("attendance.anomalyReport.dedupBtn")}
         </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 text-sm">
-          <Label className="shrink-0 text-muted-foreground">From</Label>
+          <Label className="shrink-0 text-muted-foreground">{t("attendance.anomalyReport.dateFrom")}</Label>
           <Input
             type="date"
             value={dateFrom}
@@ -361,7 +355,7 @@ export default function AttendanceAnomaliesPage() {
           />
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <Label className="shrink-0 text-muted-foreground">To</Label>
+          <Label className="shrink-0 text-muted-foreground">{t("attendance.anomalyReport.dateTo")}</Label>
           <Input
             type="date"
             value={dateTo}
@@ -379,7 +373,7 @@ export default function AttendanceAnomaliesPage() {
           className="gap-1.5"
         >
           <RefreshCw className={cn("h-3.5 w-3.5", anomalyQuery.isFetching && "animate-spin")} />
-          Refresh
+          {t("attendance.anomalyReport.refresh")}
         </Button>
       </div>
 
@@ -397,17 +391,17 @@ export default function AttendanceAnomaliesPage() {
           {anomalyQuery.data.total === 0 ? (
             <span className="text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1.5">
               <CheckCircle2 className="h-4 w-4" />
-              No anomalies found in this window — data looks clean.
+              {t("attendance.anomalyReport.allClean")}
             </span>
           ) : (
             <>
               {critical.length > 0 && (
-                <span className="text-red-700 dark:text-red-400 font-semibold">🔴 Critical: {critical.length}</span>
+                <span className="text-red-700 dark:text-red-400 font-semibold">🔴 {t("attendance.anomalyReport.criticalCount", { count: critical.length })}</span>
               )}
               {warnings.length > 0 && (
-                <span className="text-amber-700 dark:text-amber-400 font-semibold">🟡 Warning: {warnings.length}</span>
+                <span className="text-amber-700 dark:text-amber-400 font-semibold">🟡 {t("attendance.anomalyReport.warningCount", { count: warnings.length })}</span>
               )}
-              <span className="text-muted-foreground">Total: {anomalyQuery.data.total}</span>
+              <span className="text-muted-foreground">{t("attendance.anomalyReport.totalCount", { count: anomalyQuery.data.total })}</span>
             </>
           )}
           <span className="text-xs text-muted-foreground ml-auto">
@@ -426,7 +420,7 @@ export default function AttendanceAnomaliesPage() {
 
       {!anomalyQuery.isLoading && anomalyQuery.data?.total === 0 && (
         <p className="text-sm text-center text-muted-foreground py-8">
-          All attendance records in the selected window are clean.
+          {t("attendance.anomalyReport.allCleanEmpty")}
         </p>
       )}
 

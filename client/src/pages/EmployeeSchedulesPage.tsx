@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -341,6 +342,7 @@ function ShiftSegmentRow({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function EmployeeSchedulesPage() {
+  const { t } = useTranslation("hr");
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
 
@@ -399,28 +401,28 @@ export default function EmployeeSchedulesPage() {
   }
 
   const assignGroupMut = trpc.scheduling.assignScheduleGroup.useMutation({
-    onSuccess: () => { invalidate(); setOpen(false); toast.success("Schedule assigned"); },
+    onSuccess: () => { invalidate(); setOpen(false); toast.success(t("attendance.schedules.toast.scheduleAssigned")); },
     onError: (e) => toast.error(e.message),
   });
 
   const updateGroupMut = trpc.scheduling.updateScheduleGroup.useMutation({
-    onSuccess: () => { invalidate(); setOpen(false); toast.success("Schedule updated"); },
+    onSuccess: () => { invalidate(); setOpen(false); toast.success(t("attendance.schedules.toast.scheduleUpdated")); },
     onError: (e) => toast.error(e.message),
   });
 
   // Legacy single-row mutations (backward compat)
   const updateLegacyMut = trpc.scheduling.updateSchedule.useMutation({
-    onSuccess: () => { invalidate(); setOpen(false); toast.success("Schedule updated"); },
+    onSuccess: () => { invalidate(); setOpen(false); toast.success(t("attendance.schedules.toast.scheduleUpdated")); },
     onError: (e) => toast.error(e.message),
   });
 
   const deleteGroupMut = trpc.scheduling.deleteScheduleGroup.useMutation({
-    onSuccess: () => { invalidate(); setDeleteTarget(null); toast.success("Schedule group removed"); },
+    onSuccess: () => { invalidate(); setDeleteTarget(null); toast.success(t("attendance.schedules.toast.scheduleRemoved")); },
     onError: (e) => toast.error(e.message),
   });
 
   const deleteLegacyMut = trpc.scheduling.deleteSchedule.useMutation({
-    onSuccess: () => { invalidate(); setDeleteTarget(null); toast.success("Schedule removed"); },
+    onSuccess: () => { invalidate(); setDeleteTarget(null); toast.success(t("attendance.schedules.toast.scheduleRemoved")); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -596,7 +598,7 @@ export default function EmployeeSchedulesPage() {
 
     if (Object.keys(err).length > 0) {
       setFieldErrors(err);
-      toast.error("Please fix the highlighted fields.");
+      toast.error(t("attendance.schedules.toast.validationError"));
       return false;
     }
     setFieldErrors({});

@@ -765,6 +765,257 @@
       "description": "This removes the legacy HR attendance record. Self-service clock rows and audit history are unchanged. This action is logged.",
       "cancel": "Cancel",
       "confirm": "Delete"
+    },
+
+    "holidays": {
+      "pageTitle": "Holiday Calendar",
+      "pageSubtitle": "Manage public and company holidays — attendance is not required on these days",
+      "types": {
+        "public": "Public Holiday",
+        "company": "Company Holiday",
+        "optional": "Optional"
+      },
+      "total": "Total: {{count}} days",
+      "noHolidaysTitle": "No holidays for {{year}}",
+      "noHolidaysHint": "Add holidays manually or use the \"Seed Oman Holidays\" button",
+      "seedBtn": "Seed Oman Holidays",
+      "addBtn": "Add Holiday",
+      "seedSuccess": "{{count}} Oman public holidays added for {{year}}",
+      "today": "Today",
+      "yearlyBadge": "Yearly",
+      "addDialog": {
+        "title": "Add Holiday",
+        "nameLabel": "Holiday Name *",
+        "namePlaceholder": "e.g. National Day",
+        "dateLabel": "Date *",
+        "typeLabel": "Type",
+        "recurringLabel": "Recurring Yearly",
+        "recurringHint": "Repeat this holiday every year",
+        "notesLabel": "Notes (optional)",
+        "notesPlaceholder": "Any additional notes...",
+        "cancel": "Cancel",
+        "submit": "Add Holiday"
+      },
+      "deleteDialog": {
+        "title": "Remove Holiday?",
+        "description": "This holiday will be removed from the calendar. Attendance records will not be affected.",
+        "cancel": "Cancel",
+        "confirm": "Remove"
+      },
+      "toast": {
+        "added": "Holiday added",
+        "removed": "Holiday removed",
+        "validationError": "Please fill all required fields"
+      }
+    },
+
+    "overdueCheckouts": {
+      "panelTitle": "Still Clocked In After Shift",
+      "allClear": "All clear",
+      "allClearDesc": "No employees are clocked in past their shift end time.",
+      "updatedAt": "Updated {{time}}",
+      "remindHint": "· Click Remind to send a custom message",
+      "issueLabel": "Issue: {{status}}",
+      "inEnd": "In: {{checkIn}} · End: {{end}}",
+      "ack": "Ack",
+      "forceOut": "Force out",
+      "remind": "Remind",
+      "sent": "Sent",
+      "minutesOverdue": "{{minutes}}m overdue",
+      "hoursMinutesOverdue": "{{hours}}h {{minutes}}m overdue",
+      "hoursOverdue": "{{hours}}h overdue",
+      "reminderDialog": {
+        "title": "Send Reminder",
+        "descriptionTo": "Sending an in-app notification to",
+        "descriptionEdit": "Edit the message below before sending.",
+        "messageLabel": "Message",
+        "messageHint": "(shown in employee notification)",
+        "messagePlaceholder": "Write your reminder message…",
+        "resetToDefault": "Reset to default message",
+        "cancel": "Cancel",
+        "send": "Send Reminder",
+        "sending": "Sending…"
+      },
+      "forceCheckoutDialog": {
+        "title": "Force checkout",
+        "descriptionFor": "Closes the open punch for",
+        "descriptionAudit": "at the current time. Requires an audit reason (min. 10 characters).",
+        "reasonLabel": "Reason",
+        "reasonPlaceholder": "Compliance note — who asked, or why this close is justified…",
+        "cancel": "Cancel",
+        "confirm": "Confirm"
+      },
+      "ackDialog": {
+        "title": "Acknowledge",
+        "descriptionFor": "Mark this overdue case as acknowledged for",
+        "descriptionNote": "(does not close the punch).",
+        "noteLabel": "Note (optional)",
+        "cancel": "Cancel",
+        "confirm": "Acknowledge"
+      },
+      "toast": {
+        "reminderSent": "Reminder sent to {{name}}",
+        "reminderError": "Failed to send reminder: {{error}}"
+      }
+    },
+
+    "anomalyReport": {
+      "pageTitle": "Attendance Anomaly Report",
+      "pageSubtitle": "Detect and resolve duplicate punches, runaway sessions, and re-check-ins.",
+      "dedupBtn": "Dedup open sessions",
+      "dateFrom": "From",
+      "dateTo": "To",
+      "refresh": "Refresh",
+      "allClean": "No anomalies found in this window — data looks clean.",
+      "allCleanEmpty": "All attendance records in the selected window are clean.",
+      "criticalCount": "Critical: {{count}}",
+      "warningCount": "Warning: {{count}}",
+      "totalCount": "Total: {{count}}",
+      "criticalBadge": "Critical",
+      "warningBadge": "Warning",
+      "anomalyTypes": {
+        "MULTIPLE_OPEN_SESSIONS": "Multiple open sessions",
+        "MULTIPLE_SESSIONS": "Multiple sessions on same shift",
+        "RUNAWAY_SESSION": "Runaway session (>16 hours)",
+        "EARLY_CHECKIN_RECHECKIN": "Re-check-in after early exit"
+      },
+      "anomalyDescriptions": {
+        "MULTIPLE_OPEN_SESSIONS": "Employee has 2+ open punches on the same shift — only the newest should be kept.",
+        "MULTIPLE_SESSIONS": "Multiple attendance rows exist for the same shift day — verify the extra rows are expected.",
+        "RUNAWAY_SESSION": "Employee has been clocked in for over 16 hours — likely a missed checkout.",
+        "EARLY_CHECKIN_RECHECKIN": "Employee checked out early then checked back in for the same shift."
+      },
+      "forceCheckoutBtn": "Force checkout #{{id}}",
+      "forceReasonPrompt": "Reason for force-closing record #{{id}} (required, min 10 chars):",
+      "forceReasonPlaceholder": "e.g. Employee forgot to check out — confirmed with manager",
+      "confirmForceCheckout": "Confirm force checkout",
+      "cancel": "Cancel",
+      "dedupDialog": {
+        "title": "Deduplicate open sessions",
+        "description": "Finds employees with 2+ open punches on the same shift. Keeps the newest open row and applies a synthetic checkout (1 min before the next check-in) to all earlier duplicates.",
+        "dryRunHint": "Run a dry-run first to preview what will be changed without modifying any records.",
+        "previewBtn": "Preview (dry run)",
+        "noDuplicates": "No duplicate open sessions found — nothing to fix.",
+        "foundGroups": "Found <strong>{{groups}}</strong> group(s) with duplicates. Would patch <strong>{{rows}}</strong> row(s).",
+        "previewOnly": "(preview only — no changes made yet)",
+        "moreGroups": "...and {{count}} more groups.",
+        "applyFixBtn": "Apply fix ({{rows}} rows)",
+        "closeBtn": "Close"
+      },
+      "toast": {
+        "fixedDuplicates": "Fixed {{rows}} duplicate row(s) across {{groups}} group(s).",
+        "sessionClosed": "Session closed."
+      }
+    },
+
+    "reconciliation": {
+      "pageTitle": "Attendance reconciliation",
+      "pageSubtitle": "Compare clock rows, payroll sessions, and legacy HR attendance for the selected Muscat calendar month. Use this before payroll or when investigating drift. Payroll execution uses the same preflight rules.",
+      "linkPayroll": "Open payroll processing",
+      "linkAnomalies": "Session anomaly report",
+      "refresh": "Refresh",
+      "noCompany": "Select a company workspace to run reconciliation.",
+      "preflightCardTitle": "Preflight ({{from}} → {{to}})",
+      "preflightCardDesc": "Muscat-inclusive range · half-open UTC on check_in",
+      "payrollGate": "Payroll gate: {{decision}}",
+      "payrollGateBlockedScan": "block (incomplete scan)",
+      "blockingWarnings": "Blocking {{blocking}} · Warnings {{warnings}}",
+      "incompleteScanWarning": "Execute Payroll is blocked: scan hit the cap ({{cap}} clock rows). The month is incomplete — this cannot be bypassed with warning acknowledgment.",
+      "stats": {
+        "clockRows": "Clock rows",
+        "sessions": "Sessions",
+        "legacyRows": "Legacy HR rows",
+        "affectedEmployees": "Affected employees"
+      },
+      "exportJsonBtn": "Export JSON",
+      "copySummaryBtn": "Copy summary",
+      "includeDetailsLabel": "Include full mismatch rows in export",
+      "mismatchDetail": "Mismatch detail",
+      "noMismatches": "No mismatches for this window.",
+      "tableHeaders": {
+        "severity": "Severity",
+        "type": "Type",
+        "employee": "Employee",
+        "date": "Date",
+        "summary": "Summary",
+        "repair": "Repair"
+      },
+      "toast": {
+        "repairSuccess": "Session re-synced from clock record",
+        "repairBlockedMigration": "Session repair blocked until the attendance_sessions migration is applied.",
+        "exportStarted": "Download started",
+        "preflightRequired": "Run preflight first",
+        "copiedToClipboard": "Summary copied to clipboard",
+        "copyFailed": "Could not copy to clipboard"
+      }
+    },
+
+    "sites": {
+      "pageTitle": "Attendance Sites",
+      "pageSubtitle": "Smart QR check-in with geo-fence, operating hours, and live monitoring",
+      "newSiteBtn": "New Site",
+      "stats": {
+        "checkedInNow": "Currently Checked In",
+        "activeSites": "Active Sites",
+        "recordsToday": "Records Today"
+      },
+      "tabs": {
+        "sitesQr": "Sites & QR Codes",
+        "liveBoard": "Live Board",
+        "history": "History",
+        "manual": "Manual Requests"
+      },
+      "empty": {
+        "noCompany": "Select a company in the workspace switcher to manage attendance sites.",
+        "loading": "Loading sites...",
+        "noSitesTitle": "No attendance sites yet",
+        "noSitesHint": "Create your first site to generate a QR code for employees to scan.",
+        "noSitesBtn": "Create First Site",
+        "noLiveBoardRecords": "No check-in records for this date yet.",
+        "noHistoryRecords": "No records for this date.",
+        "noManualRequests": "No pending manual check-in requests",
+        "noManualRequestsHint": "When employees are outside the geo-fence and submit a justification, requests appear here."
+      },
+      "siteForm": {
+        "newTitle": "New Attendance Site",
+        "editTitle": "Edit Site",
+        "tabBasic": "Basic Info",
+        "tabLocation": "Location & Geo-fence",
+        "tabHours": "Hours & Settings",
+        "cancel": "Cancel",
+        "saving": "Saving...",
+        "saveChanges": "Save Changes",
+        "createSite": "Create Site"
+      },
+      "reviewDialog": {
+        "title": "Review Manual Check-in Request",
+        "reviewNoteLabel": "Review note (optional)",
+        "reject": "Reject",
+        "rejecting": "Rejecting...",
+        "approve": "Approve",
+        "approving": "Approving..."
+      },
+      "toast": {
+        "siteCreated": "Site created",
+        "siteUpdated": "Site updated",
+        "validationError": "Site name is required",
+        "noCompanyError": "Select a company in the workspace switcher before creating a site.",
+        "approved": "Request approved — attendance recorded",
+        "rejected": "Request rejected"
+      }
+    },
+
+    "schedules": {
+      "toast": {
+        "scheduleAssigned": "Schedule assigned",
+        "scheduleRemoved": "Schedule removed",
+        "scheduleUpdated": "Schedule updated",
+        "validationError": "Please fill all required fields",
+        "assignError": "Failed to assign schedule",
+        "removeError": "Failed to remove schedule",
+        "updateError": "Failed to update schedule",
+        "noEmployeeSelected": "Please select an employee"
+      }
     }
   },
 

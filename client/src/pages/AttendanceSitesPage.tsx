@@ -217,6 +217,7 @@ function SiteFormDialog({
   companyId: number | null;
   onSuccess: () => void;
 }) {
+  const { t } = useTranslation("hr");
   const [form, setForm] = useState<SiteFormData>(DEFAULT_FORM);
   const [tab, setTab] = useState("basic");
 
@@ -252,18 +253,18 @@ function SiteFormDialog({
   );
 
   const createMutation = trpc.attendance.createSite.useMutation({
-    onSuccess: () => { toast.success("Site created"); onSuccess(); onClose(); },
+    onSuccess: () => { toast.success(t("attendance.sites.toast.siteCreated")); onSuccess(); onClose(); },
     onError: (e) => toast.error(e.message),
   });
   const updateMutation = trpc.attendance.updateSite.useMutation({
-    onSuccess: () => { toast.success("Site updated"); onSuccess(); onClose(); },
+    onSuccess: () => { toast.success(t("attendance.sites.toast.siteUpdated")); onSuccess(); onClose(); },
     onError: (e) => toast.error(e.message),
   });
 
   const saving = createMutation.isPending || updateMutation.isPending;
 
   const handleSave = () => {
-    if (!form.name.trim()) { toast.error("Site name is required"); return; }
+    if (!form.name.trim()) { toast.error(t("attendance.sites.toast.validationError")); return; }
     const payload = {
       name: form.name.trim(),
       location: form.location || undefined,
@@ -284,7 +285,7 @@ function SiteFormDialog({
       updateMutation.mutate({ siteId: editSite.id, ...payload });
     } else {
       if (companyId == null) {
-        toast.error("Select a company in the workspace switcher before creating a site.");
+        toast.error(t("attendance.sites.toast.noCompanyError"));
         return;
       }
       createMutation.mutate({ companyId, ...payload });
@@ -295,14 +296,14 @@ function SiteFormDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editSite ? "Edit Site" : "New Attendance Site"}</DialogTitle>
+          <DialogTitle>{editSite ? t("attendance.sites.siteForm.editTitle") : t("attendance.sites.siteForm.newTitle")}</DialogTitle>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="grid grid-cols-3 w-full">
-            <TabsTrigger value="basic">Basic Info</TabsTrigger>
-            <TabsTrigger value="location">Location & Geo-fence</TabsTrigger>
-            <TabsTrigger value="hours">Hours & Settings</TabsTrigger>
+            <TabsTrigger value="basic">{t("attendance.sites.siteForm.tabBasic")}</TabsTrigger>
+            <TabsTrigger value="location">{t("attendance.sites.siteForm.tabLocation")}</TabsTrigger>
+            <TabsTrigger value="hours">{t("attendance.sites.siteForm.tabHours")}</TabsTrigger>
           </TabsList>
 
           {/* Tab 1: Basic Info */}
@@ -459,9 +460,9 @@ function SiteFormDialog({
         </Tabs>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving}>{t("attendance.sites.siteForm.cancel")}</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : editSite ? "Save Changes" : "Create Site"}
+            {saving ? t("attendance.sites.siteForm.saving") : editSite ? t("attendance.sites.siteForm.saveChanges") : t("attendance.sites.siteForm.createSite")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -561,7 +562,7 @@ export default function AttendanceSitesPage() {
 
   const approveMutation = trpc.attendance.approveManualCheckIn.useMutation({
     onSuccess: () => {
-      toast.success("Request approved â€” attendance recorded");
+      toast.success(t("attendance.sites.toast.approved"));
       refetchManual();
       setReviewingRequest(null);
       setReviewNote("");
@@ -571,7 +572,7 @@ export default function AttendanceSitesPage() {
   });
   const rejectMutation = trpc.attendance.rejectManualCheckIn.useMutation({
     onSuccess: () => {
-      toast.success("Request rejected");
+      toast.success(t("attendance.sites.toast.rejected"));
       refetchManual();
       setReviewingRequest(null);
       setReviewNote("");
@@ -585,22 +586,22 @@ export default function AttendanceSitesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Attendance Sites</h1>
+          <h1 className="text-2xl font-bold">{t("attendance.sites.pageTitle")}</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Smart QR check-in with geo-fence, operating hours, and live monitoring
+            {t("attendance.sites.pageSubtitle")}
           </p>
         </div>
         <Button
           onClick={() => {
             if (activeCompanyId == null) {
-              toast.error("Select a company in the workspace switcher first.");
+              toast.error(t("attendance.sites.toast.noCompanyError"));
               return;
             }
             setEditSite(null);
             setShowForm(true);
           }}
         >
-          <Plus className="h-4 w-4 mr-2" /> New Site
+          <Plus className="h-4 w-4 mr-2" /> {t("attendance.sites.newSiteBtn")}
         </Button>
       </div>
 
@@ -614,7 +615,7 @@ export default function AttendanceSitesPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{checkedInNow.length}</p>
-                <p className="text-xs text-muted-foreground">Currently Checked In</p>
+                <p className="text-xs text-muted-foreground">{t("attendance.sites.stats.checkedInNow")}</p>
               </div>
             </div>
           </CardContent>
@@ -627,7 +628,7 @@ export default function AttendanceSitesPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{sites.filter((s) => s.isActive).length}</p>
-                <p className="text-xs text-muted-foreground">Active Sites</p>
+                <p className="text-xs text-muted-foreground">{t("attendance.sites.stats.activeSites")}</p>
               </div>
             </div>
           </CardContent>
@@ -640,7 +641,7 @@ export default function AttendanceSitesPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{board.length}</p>
-                <p className="text-xs text-muted-foreground">Records Today</p>
+                <p className="text-xs text-muted-foreground">{t("attendance.sites.stats.recordsToday")}</p>
               </div>
             </div>
           </CardContent>
@@ -650,16 +651,16 @@ export default function AttendanceSitesPage() {
       {/* Main Tabs */}
       <Tabs value={mainTab} onValueChange={setMainTab}>
         <TabsList>
-          <TabsTrigger value="sites">Sites & QR Codes</TabsTrigger>
+          <TabsTrigger value="sites">{t("attendance.sites.tabs.sitesQr")}</TabsTrigger>
           <TabsTrigger value="live">
-            Live Board
+            {t("attendance.sites.tabs.liveBoard")}
             {checkedInNow.length > 0 && (
               <Badge className="ml-2 bg-green-500 text-white text-xs px-1.5 py-0">{checkedInNow.length}</Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="history">{t("attendance.sites.tabs.history")}</TabsTrigger>
           <TabsTrigger value="manual" className="flex items-center gap-1.5">
-            <FileText className="h-3.5 w-3.5" /> Manual Requests
+            <FileText className="h-3.5 w-3.5" /> {t("attendance.sites.tabs.manual")}
             {manualRequests.length > 0 && (
               <Badge className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0">{manualRequests.length}</Badge>
             )}
@@ -670,19 +671,19 @@ export default function AttendanceSitesPage() {
         <TabsContent value="sites" className="pt-4">
           {activeCompanyId == null ? (
             <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
-              Select a company in the workspace switcher to manage attendance sites.
+              {t("attendance.sites.empty.noCompany")}
             </div>
           ) : isLoading ? (
-            <div className="text-center py-12 text-muted-foreground">Loading sites...</div>
+            <div className="text-center py-12 text-muted-foreground">{t("attendance.sites.empty.loading")}</div>
           ) : sites.length === 0 ? (
             <div className="text-center py-16 border border-dashed rounded-xl">
               <MapPin className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No attendance sites yet</p>
+              <p className="font-medium">{t("attendance.sites.empty.noSitesTitle")}</p>
               <p className="text-sm text-muted-foreground mb-4">
-                Create your first site to generate a QR code for employees to scan.
+                {t("attendance.sites.empty.noSitesHint")}
               </p>
               <Button onClick={() => setShowForm(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Create First Site
+                <Plus className="h-4 w-4 mr-2" /> {t("attendance.sites.empty.noSitesBtn")}
               </Button>
             </div>
           ) : (
@@ -767,7 +768,7 @@ export default function AttendanceSitesPage() {
           {board.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl space-y-2">
               <Users className="h-8 w-8 mx-auto opacity-30" />
-              <p>No check-in records for this date yet.</p>
+              <p>{t("attendance.sites.empty.noLiveBoardRecords")}</p>
               <p className="text-xs max-w-md mx-auto">
                 This list shows raw clock events. For scheduled employees and phase-based status (upcoming, absent only after shift end), use HR â†’ Attendance â†’ Today&apos;s Board.
               </p>
@@ -842,7 +843,7 @@ export default function AttendanceSitesPage() {
           </div>
           {historyBoard.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground border border-dashed rounded-xl">
-              No records for this date.
+              {t("attendance.sites.empty.noHistoryRecords")}
             </div>
           ) : (
             <div className="rounded-xl border overflow-hidden">
@@ -885,9 +886,9 @@ export default function AttendanceSitesPage() {
           {manualRequests.length === 0 ? (
             <div className="text-center py-16 border border-dashed rounded-xl">
               <FileText className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No pending manual check-in requests</p>
+              <p className="font-medium">{t("attendance.sites.empty.noManualRequests")}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                When employees are outside the geo-fence and submit a justification, requests appear here.
+                {t("attendance.sites.empty.noManualRequestsHint")}
               </p>
             </div>
           ) : (
@@ -943,7 +944,7 @@ export default function AttendanceSitesPage() {
         <Dialog open onOpenChange={() => { setReviewingRequest(null); setReviewNote(""); }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Review Manual Check-in Request</DialogTitle>
+              <DialogTitle>{t("attendance.sites.reviewDialog.title")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="rounded-lg bg-muted/50 p-3 space-y-1 text-sm">
@@ -961,7 +962,7 @@ export default function AttendanceSitesPage() {
                 </p>
               </div>
               <div>
-                <Label className="text-sm">Review note (optional)</Label>
+                <Label className="text-sm">{t("attendance.sites.reviewDialog.reviewNoteLabel")}</Label>
                 <Textarea
                   value={reviewNote}
                   onChange={(e) => setReviewNote(e.target.value)}
@@ -983,7 +984,7 @@ export default function AttendanceSitesPage() {
                     adminNote: reviewNote || "Request rejected by admin",
                   })}
               >
-                {rejectMutation.isPending ? "Rejecting..." : <><ThumbsDown className="h-4 w-4 mr-1.5" /> Reject</>}
+                {rejectMutation.isPending ? t("attendance.sites.reviewDialog.rejecting") : <><ThumbsDown className="h-4 w-4 mr-1.5" /> {t("attendance.sites.reviewDialog.reject")}</>}
               </Button>
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white"
@@ -996,7 +997,7 @@ export default function AttendanceSitesPage() {
                     adminNote: reviewNote || undefined,
                   })}
               >
-                {approveMutation.isPending ? "Approving..." : <><ThumbsUp className="h-4 w-4 mr-1.5" /> Approve</>}
+                {approveMutation.isPending ? t("attendance.sites.reviewDialog.approving") : <><ThumbsUp className="h-4 w-4 mr-1.5" /> {t("attendance.sites.reviewDialog.approve")}</>}
               </Button>
             </DialogFooter>
           </DialogContent>

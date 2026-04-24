@@ -1319,8 +1319,16 @@
     },
     "clientSheet": {
       "title": "Client Attendance Sheet",
-      "subtitle": "Daily attendance report for client review. Filter by date, site, and employee.",
+      "subtitle": "Period attendance report for client review. Filter by date range, site, and employee.",
+      "quickFilters": {
+        "today": "Today",
+        "thisWeek": "This Week",
+        "thisMonth": "This Month",
+        "custom": "Custom"
+      },
       "filters": {
+        "startDate": "From",
+        "endDate": "To",
         "date": "Date",
         "site": "Site",
         "allSites": "All Sites",
@@ -1337,7 +1345,11 @@
         "missingCheckout": "Missing Checkout",
         "payrollBlocked": "Payroll Blocked",
         "needsReview": "Needs Review",
-        "ready": "Ready"
+        "ready": "Ready",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "pendingApproval": "Pending",
+        "notSubmitted": "Not Submitted"
       },
       "table": {
         "employee": "Employee",
@@ -1359,7 +1371,12 @@
         "none": "—"
       },
       "approvalStatus": {
-        "notSubmitted": "Not submitted"
+        "not_submitted": "Not submitted",
+        "notSubmitted": "Not submitted",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "disputed": "Disputed"
       },
       "statusFilter": {
         "all": "All",
@@ -1396,20 +1413,25 @@
         "blocked_schedule_conflict": "Schedule Conflict",
         "excluded": "Excluded"
       },
-      "emptyState": "No attendance rows found for this date / site.",
+      "rangeEndBeforeStart": "End date must be on or after start date.",
+      "rangeTooLarge": "Date range cannot exceed {{max}} days.",
+      "emptyState": "No attendance rows found for this period / site.",
       "emptyStateHint": "Check Setup Health if employees are missing.",
       "emptyStateLink": "Go to Setup Health",
       "exportExcel": "Export Excel",
       "exporting": "Exporting...",
       "exportSuccess": "Export downloaded",
       "exportFailed": "Export failed",
+      "exportRangeTitle": "Attendance Sheet {{startDate}} to {{endDate}}",
       "excelHeader": {
         "title": "Company Attendance Sheet",
         "date": "Date",
+        "dateRange": "Period",
         "site": "Site",
         "generatedAt": "Generated at"
       },
-      "loading": "Loading attendance data..."
+      "loading": "Loading attendance data...",
+      "loadingRange": "Loading attendance data for period..."
     }
   },
   "leave": {

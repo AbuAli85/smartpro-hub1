@@ -1319,8 +1319,16 @@
     },
     "clientSheet": {
       "title": "جدول حضور العميل",
-      "subtitle": "تقرير الحضور اليومي لمراجعة العميل. فلتر حسب التاريخ والموقع والموظف.",
+      "subtitle": "تقرير الحضور الدوري لمراجعة العميل. فلتر حسب الفترة والموقع والموظف.",
+      "quickFilters": {
+        "today": "اليوم",
+        "thisWeek": "هذا الأسبوع",
+        "thisMonth": "هذا الشهر",
+        "custom": "مخصص"
+      },
       "filters": {
+        "startDate": "من",
+        "endDate": "إلى",
         "date": "التاريخ",
         "site": "الموقع",
         "allSites": "جميع المواقع",
@@ -1337,7 +1345,11 @@
         "missingCheckout": "انصراف مفقود",
         "payrollBlocked": "محجوب من الراتب",
         "needsReview": "يحتاج مراجعة",
-        "ready": "جاهز"
+        "ready": "جاهز",
+        "approved": "معتمد",
+        "rejected": "مرفوض",
+        "pendingApproval": "في الانتظار",
+        "notSubmitted": "لم يُقدَّم"
       },
       "table": {
         "employee": "الموظف",
@@ -1359,7 +1371,12 @@
         "none": "—"
       },
       "approvalStatus": {
-        "notSubmitted": "لم يُقدَّم"
+        "not_submitted": "لم يُقدَّم",
+        "notSubmitted": "لم يُقدَّم",
+        "pending": "في الانتظار",
+        "approved": "معتمد",
+        "rejected": "مرفوض",
+        "disputed": "متنازع عليه"
       },
       "statusFilter": {
         "all": "الكل",
@@ -1396,20 +1413,25 @@
         "blocked_schedule_conflict": "تعارض في الجدول",
         "excluded": "مستثنى"
       },
-      "emptyState": "لا توجد سجلات حضور لهذا التاريخ / الموقع.",
+      "rangeEndBeforeStart": "يجب أن يكون تاريخ النهاية بعد تاريخ البداية أو مساوياً له.",
+      "rangeTooLarge": "لا يمكن أن تتجاوز الفترة {{max}} يوماً.",
+      "emptyState": "لا توجد سجلات حضور لهذه الفترة / الموقع.",
       "emptyStateHint": "تحقق من صحة الإعداد إذا كانت هناك موظفون مفقودون.",
       "emptyStateLink": "الانتقال إلى صحة الإعداد",
       "exportExcel": "تصدير Excel",
       "exporting": "جارٍ التصدير...",
       "exportSuccess": "تم تنزيل التصدير",
       "exportFailed": "فشل التصدير",
+      "exportRangeTitle": "جدول الحضور {{startDate}} إلى {{endDate}}",
       "excelHeader": {
         "title": "جدول حضور الشركة",
         "date": "التاريخ",
+        "dateRange": "الفترة",
         "site": "الموقع",
         "generatedAt": "تاريخ الإنشاء"
       },
-      "loading": "جارٍ تحميل بيانات الحضور..."
+      "loading": "جارٍ تحميل بيانات الحضور...",
+      "loadingRange": "جارٍ تحميل بيانات الحضور للفترة..."
     }
   },
   "leave": {

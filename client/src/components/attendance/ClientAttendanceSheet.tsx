@@ -1,13 +1,7 @@
-// @ts-check
 import { useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
-import {
-  Download,
-  Search,
-  FileText,
-  AlertCircle,
-} from "lucide-react";
+import { Download, Search, FileText, AlertCircle, Calendar } from "lucide-react";
 import * as ExcelJS from "exceljs";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -37,6 +31,60 @@ type StatusFilter =
   | "absent"
   | "needsReview"
   | "payrollBlocked";
+
+type QuickFilter = "today" | "thisWeek" | "thisMonth" | "custom";
+
+type ClientApprovalStatus =
+  | "not_submitted"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "disputed";
+
+type EnrichedRow = DailyAttendanceState & {
+  clientApprovalStatus: ClientApprovalStatus;
+  clientApprovalComment: string | null;
+  clientApprovalBatchId: number | null;
+};
+
+// ---------------------------------------------------------------------------
+// Date range helpers
+// ---------------------------------------------------------------------------
+
+/** Inclusive diff in calendar days (end - start). */
+function daysBetween(start: string, end: string): number {
+  return Math.round(
+    (new Date(end + "T12:00:00Z").getTime() -
+      new Date(start + "T12:00:00Z").getTime()) /
+      86_400_000
+  );
+}
+
+function getMuscatWeekRange(today: string): { start: string; end: string } {
+  const d = new Date(today + "T08:00:00Z");
+  const dow = d.getUTCDay(); // 0=Sun…6=Sat
+  const daysFromMon = dow === 0 ? 6 : dow - 1;
+  const mon = new Date(d);
+  mon.setUTCDate(d.getUTCDate() - daysFromMon);
+  const sun = new Date(mon);
+  sun.setUTCDate(mon.getUTCDate() + 6);
+  return {
+    start: mon.toISOString().slice(0, 10),
+    end: sun.toISOString().slice(0, 10),
+  };
+}
+
+function getMuscatMonthRange(today: string): { start: string; end: string } {
+  const [y, m] = today.split("-").map(Number);
+  const year = y!;
+  const month = m!;
+  const mm = String(month).padStart(2, "0");
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return {
+    start: `${year}-${mm}-01`,
+    end: `${year}-${mm}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -69,7 +117,6 @@ function calcWorkedHoursDecimal(
 }
 
 function getDayShort(dateYmd: string): string {
-  // Anchor at noon UTC which is 16:00 Muscat — safely within the correct day
   const d = new Date(dateYmd + "T08:00:00Z");
   return d.toLocaleDateString("en-GB", {
     weekday: "short",
@@ -108,34 +155,7 @@ function matchesStatusFilter(
 }
 
 // ---------------------------------------------------------------------------
-// Summary card
-// ---------------------------------------------------------------------------
-
-function SummaryCard({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number;
-  accent?: string;
-}) {
-  return (
-    <div className="rounded-lg border bg-card px-4 py-3 text-center min-w-[80px]">
-      <div
-        className={`text-2xl font-bold tabular-nums ${accent ?? "text-foreground"}`}
-      >
-        {value}
-      </div>
-      <div className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap">
-        {label}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Status badge
+// Badge helpers
 // ---------------------------------------------------------------------------
 
 function statusBadgeClass(status: string): string {
@@ -169,9 +189,53 @@ function payrollBadgeClass(readiness: string): string {
   return "bg-gray-100 text-gray-600";
 }
 
+function approvalBadgeClass(status: ClientApprovalStatus): string {
+  switch (status) {
+    case "approved":
+      return "bg-green-100 text-green-800";
+    case "rejected":
+      return "bg-red-100 text-red-700";
+    case "pending":
+      return "bg-blue-100 text-blue-700";
+    case "disputed":
+      return "bg-amber-100 text-amber-800";
+    default:
+      return "bg-gray-100 text-gray-500";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Summary card
+// ---------------------------------------------------------------------------
+
+function SummaryCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-card px-4 py-3 text-center min-w-[80px]">
+      <div
+        className={`text-2xl font-bold tabular-nums ${accent ?? "text-foreground"}`}
+      >
+        {value}
+      </div>
+      <div className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap">
+        {label}
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
+
+const MAX_RANGE_DAYS = 30;
 
 export function ClientAttendanceSheet({
   companyId,
@@ -179,12 +243,56 @@ export function ClientAttendanceSheet({
   companyId: number | null | undefined;
 }) {
   const { t } = useTranslation("hr");
+  const today = muscatCalendarYmdNow();
 
-  const [date, setDate] = useState(() => muscatCalendarYmdNow());
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("today");
   const [siteFilter, setSiteFilter] = useState<string>("all");
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [exporting, setExporting] = useState(false);
+
+  // ── Quick filter handlers ────────────────────────────────────────────────
+
+  const applyQuickFilter = useCallback(
+    (filter: QuickFilter) => {
+      setQuickFilter(filter);
+      if (filter === "today") {
+        setStartDate(today);
+        setEndDate(today);
+      } else if (filter === "thisWeek") {
+        const { start, end } = getMuscatWeekRange(today);
+        setStartDate(start);
+        setEndDate(end);
+      } else if (filter === "thisMonth") {
+        const { start, end } = getMuscatMonthRange(today);
+        setStartDate(start);
+        setEndDate(end);
+      }
+      // "custom" — leave start/end as-is
+    },
+    [today]
+  );
+
+  // If user edits dates manually, switch to custom
+  const handleStartDateChange = useCallback((v: string) => {
+    setStartDate(v);
+    setQuickFilter("custom");
+  }, []);
+
+  const handleEndDateChange = useCallback((v: string) => {
+    setEndDate(v);
+    setQuickFilter("custom");
+  }, []);
+
+  // ── Validation ─────────────────────────────────────────────────────────────
+
+  const rangeDays = useMemo(
+    () => (startDate && endDate ? daysBetween(startDate, endDate) : 0),
+    [startDate, endDate]
+  );
+  const rangeInvalid = rangeDays < 0 || rangeDays > MAX_RANGE_DAYS;
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -206,12 +314,15 @@ export function ClientAttendanceSheet({
     [sitesData]
   );
 
-  const { data, isLoading } = trpc.attendance.getDailyStates.useQuery(
-    { date, siteId: siteIdParam },
-    { enabled: companyId != null, staleTime: 30_000 }
+  const { data, isLoading } = trpc.attendance.getDailyStatesForRange.useQuery(
+    { startDate, endDate, siteId: siteIdParam },
+    {
+      enabled: companyId != null && !rangeInvalid,
+      staleTime: 30_000,
+    }
   );
 
-  const allRows = data?.rows ?? [];
+  const allRows = (data?.rows ?? []) as EnrichedRow[];
 
   // ── Client-side filtering ─────────────────────────────────────────────────
 
@@ -229,7 +340,7 @@ export function ClientAttendanceSheet({
     });
   }, [allRows, employeeSearch, statusFilter]);
 
-  // ── Summary counts ─────────────────────────────────────────────────────────
+  // ── Summary counts (from filtered rows) ────────────────────────────────────
 
   const summary = useMemo(() => {
     let present = 0,
@@ -238,7 +349,11 @@ export function ClientAttendanceSheet({
       missingCheckout = 0,
       payrollBlocked = 0,
       needsReview = 0,
-      ready = 0;
+      ready = 0,
+      approved = 0,
+      rejected = 0,
+      pendingApproval = 0,
+      notSubmitted = 0;
 
     for (const row of filteredRows) {
       const s = row.canonicalStatus;
@@ -261,9 +376,27 @@ export function ClientAttendanceSheet({
       if (p.startsWith("blocked_")) payrollBlocked++;
       if (s === "needs_review" || p === "needs_review") needsReview++;
       if (p === "ready" || p === "excluded") ready++;
+
+      const as_ = row.clientApprovalStatus;
+      if (as_ === "approved") approved++;
+      else if (as_ === "rejected") rejected++;
+      else if (as_ === "pending" || as_ === "disputed") pendingApproval++;
+      else notSubmitted++;
     }
 
-    return { present, late, absent, missingCheckout, payrollBlocked, needsReview, ready };
+    return {
+      present,
+      late,
+      absent,
+      missingCheckout,
+      payrollBlocked,
+      needsReview,
+      ready,
+      approved,
+      rejected,
+      pendingApproval,
+      notSubmitted,
+    };
   }, [filteredRows]);
 
   // ── Selected site name ────────────────────────────────────────────────────
@@ -281,9 +414,7 @@ export function ClientAttendanceSheet({
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet("Attendance Sheet");
 
-      // Header block
-      const now = new Date();
-      const generatedAt = now.toLocaleString("en-GB", {
+      const generatedAt = new Date().toLocaleString("en-GB", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -293,17 +424,23 @@ export function ClientAttendanceSheet({
         timeZone: "Asia/Muscat",
       });
 
+      const dateRangeLabel =
+        startDate === endDate
+          ? startDate
+          : `${startDate} – ${endDate}`;
+
       ws.addRow([t("attendance.clientSheet.excelHeader.title")]);
-      ws.addRow([`${t("attendance.clientSheet.excelHeader.date")}: ${date}`]);
+      ws.addRow([
+        `${t("attendance.clientSheet.excelHeader.dateRange")}: ${dateRangeLabel}`,
+      ]);
       ws.addRow([
         `${t("attendance.clientSheet.excelHeader.site")}: ${selectedSiteName ?? t("attendance.clientSheet.filters.allSites")}`,
       ]);
       ws.addRow([
         `${t("attendance.clientSheet.excelHeader.generatedAt")}: ${generatedAt}`,
       ]);
-      ws.addRow([]); // blank row
+      ws.addRow([]);
 
-      // Column headers
       ws.columns = [
         { key: "employee", width: 28 },
         { key: "site", width: 22 },
@@ -356,21 +493,24 @@ export function ClientAttendanceSheet({
               ? calcWorkedHoursDecimal(row.checkInAt, row.checkOutAt)
               : t("attendance.clientSheet.workedHours.open")
             : "—",
-          status: t(
-            `attendance.clientSheet.statusLabel.${row.canonicalStatus}`
-          ),
+          status: t(`attendance.clientSheet.statusLabel.${row.canonicalStatus}`),
           payroll: t(
             `attendance.clientSheet.payrollLabel.${row.payrollReadiness}`
           ),
-          // TODO UX-3B: join attendance_client_approval_items to show approval status/comment
-          approvalStatus: t("attendance.clientSheet.approvalStatus.notSubmitted"),
-          comment: "—",
+          approvalStatus: t(
+            `attendance.clientSheet.approvalStatus.${row.clientApprovalStatus}`
+          ),
+          comment: row.clientApprovalComment ?? "—",
         });
       }
 
-      const filename = selectedSiteName
-        ? `client-attendance-sheet-${date}-${selectedSiteName.replace(/\s+/g, "-")}.xlsx`
-        : `client-attendance-sheet-${date}.xlsx`;
+      const safeSite = selectedSiteName
+        ? `-${selectedSiteName.replace(/\s+/g, "-")}`
+        : "";
+      const filename =
+        startDate === endDate
+          ? `client-attendance-sheet${safeSite}-${startDate}.xlsx`
+          : `client-attendance-sheet${safeSite}-${startDate}-to-${endDate}.xlsx`;
 
       const buffer = await wb.xlsx.writeBuffer();
       const blob = new Blob([buffer], {
@@ -384,30 +524,58 @@ export function ClientAttendanceSheet({
       URL.revokeObjectURL(url);
       toast.success(t("attendance.clientSheet.exportSuccess"));
     } catch (e: unknown) {
-      const msg =
-        e instanceof Error
-          ? e.message
-          : t("attendance.clientSheet.exportFailed");
-      toast.error(msg);
+      toast.error(
+        e instanceof Error ? e.message : t("attendance.clientSheet.exportFailed")
+      );
     } finally {
       setExporting(false);
     }
-  }, [date, filteredRows, siteById, selectedSiteName, t]);
+  }, [startDate, endDate, filteredRows, siteById, selectedSiteName, t]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* Quick filters */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <Calendar size={14} className="text-muted-foreground" />
+        {(["today", "thisWeek", "thisMonth", "custom"] as QuickFilter[]).map(
+          (qf) => (
+            <Button
+              key={qf}
+              variant={quickFilter === qf ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs px-3"
+              onClick={() => applyQuickFilter(qf)}
+            >
+              {t(`attendance.clientSheet.quickFilters.${qf}`)}
+            </Button>
+          )
+        )}
+      </div>
+
+      {/* Date range + other filters */}
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground font-medium">
-            {t("attendance.clientSheet.filters.date")}
+            {t("attendance.clientSheet.filters.startDate")}
           </label>
           <Input
             type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
+            value={startDate}
+            onChange={(e) => handleStartDateChange(e.target.value)}
+            className="w-40 h-9 text-sm"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground font-medium">
+            {t("attendance.clientSheet.filters.endDate")}
+          </label>
+          <Input
+            type="date"
+            value={endDate}
+            onChange={(e) => handleEndDateChange(e.target.value)}
             className="w-40 h-9 text-sm"
           />
         </div>
@@ -445,7 +613,9 @@ export function ClientAttendanceSheet({
             <Input
               value={employeeSearch}
               onChange={(e) => setEmployeeSearch(e.target.value)}
-              placeholder={t("attendance.clientSheet.filters.employeePlaceholder")}
+              placeholder={t(
+                "attendance.clientSheet.filters.employeePlaceholder"
+              )}
               className="pl-8 w-48 h-9 text-sm"
             />
           </div>
@@ -498,8 +668,21 @@ export function ClientAttendanceSheet({
         </div>
       </div>
 
+      {/* Range validation error */}
+      {rangeInvalid && (
+        <Card className="border-red-200 bg-red-50/40">
+          <CardContent className="py-3 px-4 text-sm text-red-700">
+            {rangeDays < 0
+              ? t("attendance.clientSheet.rangeEndBeforeStart")
+              : t("attendance.clientSheet.rangeTooLarge", {
+                  max: MAX_RANGE_DAYS + 1,
+                })}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary cards */}
-      {!isLoading && filteredRows.length > 0 && (
+      {!isLoading && !rangeInvalid && filteredRows.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <SummaryCard
             label={t("attendance.clientSheet.summaryCards.total")}
@@ -540,6 +723,26 @@ export function ClientAttendanceSheet({
             value={summary.ready}
             accent="text-green-600"
           />
+          <SummaryCard
+            label={t("attendance.clientSheet.summaryCards.approved")}
+            value={summary.approved}
+            accent="text-green-700"
+          />
+          <SummaryCard
+            label={t("attendance.clientSheet.summaryCards.rejected")}
+            value={summary.rejected}
+            accent="text-red-700"
+          />
+          <SummaryCard
+            label={t("attendance.clientSheet.summaryCards.pendingApproval")}
+            value={summary.pendingApproval}
+            accent="text-blue-600"
+          />
+          <SummaryCard
+            label={t("attendance.clientSheet.summaryCards.notSubmitted")}
+            value={summary.notSubmitted}
+            accent="text-gray-500"
+          />
         </div>
       )}
 
@@ -547,10 +750,10 @@ export function ClientAttendanceSheet({
       {isLoading ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {t("attendance.clientSheet.loading")}
+            {t("attendance.clientSheet.loadingRange")}
           </CardContent>
         </Card>
-      ) : filteredRows.length === 0 ? (
+      ) : rangeInvalid ? null : filteredRows.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center space-y-3">
             <AlertCircle
@@ -577,45 +780,28 @@ export function ClientAttendanceSheet({
           <table className="w-full text-sm min-w-[1100px]">
             <thead>
               <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
-                <th className="text-left py-2.5 px-4 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.employee")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.site")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.date")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.day")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.shiftStart")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.shiftEnd")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.checkIn")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.checkOut")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.workedHours")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.status")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.payroll")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.approvalStatus")}
-                </th>
-                <th className="text-left py-2.5 px-3 font-medium whitespace-nowrap">
-                  {t("attendance.clientSheet.table.comment")}
-                </th>
+                {[
+                  "employee",
+                  "site",
+                  "date",
+                  "day",
+                  "shiftStart",
+                  "shiftEnd",
+                  "checkIn",
+                  "checkOut",
+                  "workedHours",
+                  "status",
+                  "payroll",
+                  "approvalStatus",
+                  "comment",
+                ].map((col) => (
+                  <th
+                    key={col}
+                    className="text-left py-2.5 px-3 font-medium whitespace-nowrap first:px-4"
+                  >
+                    {t(`attendance.clientSheet.table.${col}`)}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -625,8 +811,7 @@ export function ClientAttendanceSheet({
                     ? (siteById.get(row.siteId)?.name ?? String(row.siteId))
                     : "—";
                 const worked = calcWorkedHours(row.checkInAt, row.checkOutAt, t);
-                const isOpen =
-                  row.checkInAt != null && row.checkOutAt == null;
+                const isOpen = row.checkInAt != null && row.checkOutAt == null;
 
                 return (
                   <tr
@@ -684,11 +869,18 @@ export function ClientAttendanceSheet({
                         )}
                       </span>
                     </td>
-                    {/* TODO UX-3B: join attendance_client_approval_items to show approval status/comment */}
-                    <td className="py-2.5 px-3 text-muted-foreground text-xs">
-                      {t("attendance.clientSheet.approvalStatus.notSubmitted")}
+                    <td className="py-2.5 px-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${approvalBadgeClass(row.clientApprovalStatus)}`}
+                      >
+                        {t(
+                          `attendance.clientSheet.approvalStatus.${row.clientApprovalStatus}`
+                        )}
+                      </span>
                     </td>
-                    <td className="py-2.5 px-3 text-muted-foreground">—</td>
+                    <td className="py-2.5 px-3 text-muted-foreground text-xs max-w-[160px] truncate">
+                      {row.clientApprovalComment ?? "—"}
+                    </td>
                   </tr>
                 );
               })}

@@ -9,8 +9,8 @@ import { ClientAttendanceSheet } from "./ClientAttendanceSheet";
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { mockGetDailyStates, mockListSites } = vi.hoisted(() => ({
-  mockGetDailyStates: vi.fn(),
+const { mockGetDailyStatesForRange, mockListSites } = vi.hoisted(() => ({
+  mockGetDailyStatesForRange: vi.fn(),
   mockListSites: vi.fn(),
 }));
 
@@ -19,7 +19,9 @@ vi.stubGlobal("React", React);
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     attendance: {
-      getDailyStates: { useQuery: (...args: unknown[]) => mockGetDailyStates(...args) },
+      getDailyStatesForRange: {
+        useQuery: (...args: unknown[]) => mockGetDailyStatesForRange(...args),
+      },
       listSites: { useQuery: (...args: unknown[]) => mockListSites(...args) },
     },
   },
@@ -27,7 +29,10 @@ vi.mock("@/lib/trpc", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, opts?: Record<string, unknown>) => {
+      if (opts) return `${key}(${JSON.stringify(opts)})`;
+      return key;
+    },
   }),
 }));
 
@@ -46,25 +51,38 @@ vi.mock("wouter", () => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-// Radix Select doesn't work well in jsdom; swap to a plain native <select>
+// Radix Select → native <select> for easy testing
 vi.mock("@/components/ui/select", () => ({
-  Select: ({ value, onValueChange, children }: {
+  Select: ({
+    value,
+    onValueChange,
+    children,
+  }: {
     value: string;
     onValueChange: (v: string) => void;
     children: React.ReactNode;
   }) =>
-    React.createElement("select", {
-      value,
-      onChange: (e: React.ChangeEvent<HTMLSelectElement>) =>
-        onValueChange(e.target.value),
-    }, children),
+    React.createElement(
+      "select",
+      {
+        value,
+        onChange: (e: React.ChangeEvent<HTMLSelectElement>) =>
+          onValueChange(e.target.value),
+      },
+      children
+    ),
   SelectTrigger: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
   SelectValue: () => null,
   SelectContent: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
-  SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) =>
-    React.createElement("option", { value }, children),
+  SelectItem: ({
+    value,
+    children,
+  }: {
+    value: string;
+    children: React.ReactNode;
+  }) => React.createElement("option", { value }, children),
 }));
 
 vi.mock("exceljs", () => ({
@@ -92,18 +110,24 @@ vi.mock("exceljs", () => ({
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeRow(overrides: Partial<{
-  employeeId: number;
-  employeeName: string;
-  canonicalStatus: string;
-  payrollReadiness: string;
-  siteId: number | null;
-  shiftStartAt: string | null;
-  shiftEndAt: string | null;
-  checkInAt: string | null;
-  checkOutAt: string | null;
-  hasOpenSession: boolean;
-}> = {}) {
+function makeRow(
+  overrides: Partial<{
+    employeeId: number;
+    employeeName: string;
+    attendanceDate: string;
+    canonicalStatus: string;
+    payrollReadiness: string;
+    siteId: number | null;
+    shiftStartAt: string | null;
+    shiftEndAt: string | null;
+    checkInAt: string | null;
+    checkOutAt: string | null;
+    hasOpenSession: boolean;
+    clientApprovalStatus: string;
+    clientApprovalComment: string | null;
+    clientApprovalBatchId: number | null;
+  }> = {}
+) {
   return {
     employeeId: 1,
     employeeName: "Ahmed Al-Balushi",
@@ -126,27 +150,19 @@ function makeRow(overrides: Partial<{
     isOnLeave: false,
     reasonCodes: [],
     actionItems: [],
+    clientApprovalStatus: "not_submitted",
+    clientApprovalComment: null,
+    clientApprovalBatchId: null,
     ...overrides,
   };
 }
 
-function defaultQueryResult(rows: ReturnType<typeof makeRow>[] = [makeRow()]) {
+function defaultRangeResult(rows: ReturnType<typeof makeRow>[] = [makeRow()]) {
   return {
     data: {
-      date: "2026-04-25",
-      isHoliday: false,
+      startDate: "2026-04-25",
+      endDate: "2026-04-25",
       rows,
-      summary: {
-        total: rows.length,
-        scheduled: rows.length,
-        notScheduled: 0,
-        conflicts: 0,
-        ready: rows.length,
-        blocked: 0,
-        needsReview: 0,
-        actionItems: 0,
-        employeesAffected: 0,
-      },
     },
     isLoading: false,
   };
@@ -160,7 +176,7 @@ beforeEach(() => {
   mockListSites.mockReturnValue({
     data: [{ id: 10, name: "Al-Khuwair Site", isActive: true }],
   });
-  mockGetDailyStates.mockReturnValue(defaultQueryResult());
+  mockGetDailyStatesForRange.mockReturnValue(defaultRangeResult());
 });
 
 afterEach(() => {
@@ -173,50 +189,120 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("ClientAttendanceSheet", () => {
-  it("renders rows from mocked getDailyStates data", () => {
+  // 1. Default date range
+  it("defaults to today for both start and end date", () => {
     render(<ClientAttendanceSheet companyId={1} />);
-    expect(screen.getByText("Ahmed Al-Balushi")).toBeInTheDocument();
+    const [startInput, endInput] = screen.getAllByDisplayValue("2026-04-25");
+    expect(startInput).toBeInTheDocument();
+    expect(endInput).toBeInTheDocument();
   });
 
-  it("shows all 13 column headers", () => {
+  // 2. Quick filter Today
+  it("quick filter Today sets start and end to today", () => {
     render(<ClientAttendanceSheet companyId={1} />);
+    const todayBtn = screen.getByRole("button", {
+      name: /attendance\.clientSheet\.quickFilters\.today/i,
+    });
+    fireEvent.click(todayBtn);
+    const dateInputs = screen.getAllByDisplayValue("2026-04-25");
+    expect(dateInputs).toHaveLength(2);
+  });
+
+  // 3. Quick filter This month
+  it("quick filter This Month sets first and last day of month", () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    const monthBtn = screen.getByRole("button", {
+      name: /attendance\.clientSheet\.quickFilters\.thisMonth/i,
+    });
+    fireEvent.click(monthBtn);
+    const startInput = screen.getByDisplayValue("2026-04-01");
+    const endInput = screen.getByDisplayValue("2026-04-30");
+    expect(startInput).toBeInTheDocument();
+    expect(endInput).toBeInTheDocument();
+  });
+
+  // 4. Range > 31 days shows error and disables query
+  it("shows range error when range exceeds 31 days", () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    const [startInput] = screen.getAllByDisplayValue("2026-04-25");
+    // Set start to 2026-01-01, end stays 2026-04-25 → >31 days
+    fireEvent.change(startInput, { target: { value: "2026-01-01" } });
+    // t() mock returns key(opts) when opts present
     expect(
-      screen.getByText("attendance.clientSheet.table.employee")
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("attendance.clientSheet.table.workedHours")
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("attendance.clientSheet.table.approvalStatus")
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("attendance.clientSheet.table.comment")
+      screen.getByText(/attendance\.clientSheet\.rangeTooLarge/)
     ).toBeInTheDocument();
   });
 
-  it("employee search filters rows", () => {
-    mockGetDailyStates.mockReturnValue(
-      defaultQueryResult([
-        makeRow({ employeeName: "Ahmed Al-Balushi", employeeId: 1 }),
-        makeRow({ employeeName: "Sara Al-Harthi", employeeId: 2 }),
+  // 5. Renders rows from multiple dates
+  it("renders rows across multiple dates", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
+        makeRow({ attendanceDate: "2026-04-24", employeeName: "Ahmed Al-Balushi", employeeId: 1 }),
+        makeRow({ attendanceDate: "2026-04-25", employeeName: "Ahmed Al-Balushi", employeeId: 1 }),
+        makeRow({ attendanceDate: "2026-04-25", employeeName: "Sara Al-Harthi", employeeId: 2 }),
       ])
     );
     render(<ClientAttendanceSheet companyId={1} />);
-    expect(screen.getByText("Ahmed Al-Balushi")).toBeInTheDocument();
+    expect(screen.getAllByText("Ahmed Al-Balushi")).toHaveLength(2);
     expect(screen.getByText("Sara Al-Harthi")).toBeInTheDocument();
-
-    const searchInput = screen.getByPlaceholderText(
-      "attendance.clientSheet.filters.employeePlaceholder"
-    );
-    fireEvent.change(searchInput, { target: { value: "Sara" } });
-
-    expect(screen.queryByText("Ahmed Al-Balushi")).not.toBeInTheDocument();
-    expect(screen.getByText("Sara Al-Harthi")).toBeInTheDocument();
+    expect(screen.getByText("2026-04-24")).toBeInTheDocument();
   });
 
-  it("status filter hides non-matching rows", () => {
-    mockGetDailyStates.mockReturnValue(
-      defaultQueryResult([
+  // 6. Approval status pending renders correctly
+  it("renders pending approval status badge", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
+        makeRow({ clientApprovalStatus: "pending" }),
+      ])
+    );
+    render(<ClientAttendanceSheet companyId={1} />);
+    expect(
+      screen.getByText("attendance.clientSheet.approvalStatus.pending")
+    ).toBeInTheDocument();
+  });
+
+  // 7. Approval status approved renders correctly
+  it("renders approved approval status badge", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
+        makeRow({ clientApprovalStatus: "approved" }),
+      ])
+    );
+    render(<ClientAttendanceSheet companyId={1} />);
+    expect(
+      screen.getByText("attendance.clientSheet.approvalStatus.approved")
+    ).toBeInTheDocument();
+  });
+
+  // 8. Client approval comment renders
+  it("renders client approval comment", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
+        makeRow({
+          clientApprovalStatus: "rejected",
+          clientApprovalComment: "Hours mismatch, please review",
+        }),
+      ])
+    );
+    render(<ClientAttendanceSheet companyId={1} />);
+    expect(
+      screen.getByText("Hours mismatch, please review")
+    ).toBeInTheDocument();
+  });
+
+  // 9. Export button exists and includes date range in its behavior
+  it("export button is present and enabled when rows exist", () => {
+    render(<ClientAttendanceSheet companyId={1} />);
+    const exportBtn = screen.getByRole("button", {
+      name: /attendance\.clientSheet\.exportExcel/i,
+    });
+    expect(exportBtn).not.toBeDisabled();
+  });
+
+  // 10. Status filter still works across range
+  it("status filter hides non-matching rows across range", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
         makeRow({
           employeeName: "Ahmed Al-Balushi",
           employeeId: 1,
@@ -232,71 +318,37 @@ describe("ClientAttendanceSheet", () => {
       ])
     );
     render(<ClientAttendanceSheet companyId={1} />);
-
-    // Both rows visible initially
     expect(screen.getByText("Ahmed Al-Balushi")).toBeInTheDocument();
     expect(screen.getByText("Sara Al-Harthi")).toBeInTheDocument();
 
-    // The Select mock renders a native <select>; pick the status one (second select)
+    // site=0, status=1
     const selects = screen.getAllByRole("combobox");
-    const statusSelect = selects[1]; // site=0, status=1
+    fireEvent.change(selects[1], { target: { value: "payrollBlocked" } });
 
-    fireEvent.change(statusSelect, { target: { value: "payrollBlocked" } });
-
-    // Ahmed is not payroll-blocked, Sara is
     expect(screen.queryByText("Ahmed Al-Balushi")).not.toBeInTheDocument();
     expect(screen.getByText("Sara Al-Harthi")).toBeInTheDocument();
   });
 
-  it("worked hours displays correctly when both check-in and check-out exist", () => {
-    mockGetDailyStates.mockReturnValue(
-      defaultQueryResult([
-        makeRow({
-          checkInAt: "2026-04-25T05:00:00.000Z",
-          checkOutAt: "2026-04-25T13:00:00.000Z",
-        }),
+  // 11. Employee search still works across range
+  it("employee search filters rows", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
+        makeRow({ employeeName: "Ahmed Al-Balushi", employeeId: 1 }),
+        makeRow({ employeeName: "Sara Al-Harthi", employeeId: 2 }),
       ])
     );
     render(<ClientAttendanceSheet companyId={1} />);
-    expect(screen.getByText("8h")).toBeInTheDocument();
-  });
-
-  it("shows Open for missing checkout", () => {
-    mockGetDailyStates.mockReturnValue(
-      defaultQueryResult([
-        makeRow({
-          checkInAt: "2026-04-25T05:05:00.000Z",
-          checkOutAt: null,
-          hasOpenSession: true,
-        }),
-      ])
+    const searchInput = screen.getByPlaceholderText(
+      "attendance.clientSheet.filters.employeePlaceholder"
     );
-    render(<ClientAttendanceSheet companyId={1} />);
-    expect(
-      screen.getByText("attendance.clientSheet.workedHours.open")
-    ).toBeInTheDocument();
+    fireEvent.change(searchInput, { target: { value: "Sara" } });
+    expect(screen.queryByText("Ahmed Al-Balushi")).not.toBeInTheDocument();
+    expect(screen.getByText("Sara Al-Harthi")).toBeInTheDocument();
   });
 
-  it("shows — when neither check-in nor check-out exists", () => {
-    mockGetDailyStates.mockReturnValue(
-      defaultQueryResult([
-        makeRow({
-          checkInAt: null,
-          checkOutAt: null,
-          canonicalStatus: "absent_confirmed",
-        }),
-      ])
-    );
-    render(<ClientAttendanceSheet companyId={1} />);
-    expect(
-      screen.getByText("attendance.clientSheet.workedHours.none")
-    ).toBeInTheDocument();
-  });
-
+  // 12. Empty state links to setup health
   it("empty state links to setup health", () => {
-    mockGetDailyStates.mockReturnValue(
-      defaultQueryResult([])
-    );
+    mockGetDailyStatesForRange.mockReturnValue(defaultRangeResult([]));
     render(<ClientAttendanceSheet companyId={1} />);
     expect(
       screen.getByText("attendance.clientSheet.emptyState")
@@ -308,36 +360,85 @@ describe("ClientAttendanceSheet", () => {
     );
   });
 
-  it("export button exists and is disabled when no rows", () => {
-    mockGetDailyStates.mockReturnValue(defaultQueryResult([]));
-    render(<ClientAttendanceSheet companyId={1} />);
-    const exportBtn = screen.getByRole("button", {
-      name: /attendance\.clientSheet\.exportExcel/i,
-    });
-    expect(exportBtn).toBeDisabled();
-  });
-
-  it("export button is enabled when rows are present", () => {
-    render(<ClientAttendanceSheet companyId={1} />);
-    const exportBtn = screen.getByRole("button", {
-      name: /attendance\.clientSheet\.exportExcel/i,
-    });
-    expect(exportBtn).not.toBeDisabled();
-  });
-
-  it("shows approval status as not submitted", () => {
-    render(<ClientAttendanceSheet companyId={1} />);
-    const cells = screen.getAllByText(
-      "attendance.clientSheet.approvalStatus.notSubmitted"
+  // 13. Worked hours calculation
+  it("worked hours displays correctly", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
+        makeRow({
+          checkInAt: "2026-04-25T05:00:00.000Z",
+          checkOutAt: "2026-04-25T13:00:00.000Z",
+        }),
+      ])
     );
-    expect(cells.length).toBeGreaterThan(0);
+    render(<ClientAttendanceSheet companyId={1} />);
+    expect(screen.getByText("8h")).toBeInTheDocument();
   });
 
-  it("shows loading state when isLoading is true", () => {
-    mockGetDailyStates.mockReturnValue({ data: undefined, isLoading: true });
+  // 14. Missing checkout shows Open
+  it("shows Open for missing checkout", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
+        makeRow({ checkInAt: "2026-04-25T05:05:00.000Z", checkOutAt: null }),
+      ])
+    );
     render(<ClientAttendanceSheet companyId={1} />);
     expect(
-      screen.getByText("attendance.clientSheet.loading")
+      screen.getByText("attendance.clientSheet.workedHours.open")
     ).toBeInTheDocument();
+  });
+
+  // 15. Loading state
+  it("shows loading state when isLoading is true", () => {
+    mockGetDailyStatesForRange.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    });
+    render(<ClientAttendanceSheet companyId={1} />);
+    expect(
+      screen.getByText("attendance.clientSheet.loadingRange")
+    ).toBeInTheDocument();
+  });
+
+  // 16. Summary cards include approval counts
+  it("summary cards show approval counts", () => {
+    mockGetDailyStatesForRange.mockReturnValue(
+      defaultRangeResult([
+        makeRow({ clientApprovalStatus: "approved", employeeId: 1 }),
+        makeRow({
+          clientApprovalStatus: "rejected",
+          employeeId: 2,
+          attendanceDate: "2026-04-25",
+        }),
+        makeRow({
+          clientApprovalStatus: "not_submitted",
+          employeeId: 3,
+          attendanceDate: "2026-04-25",
+        }),
+      ])
+    );
+    render(<ClientAttendanceSheet companyId={1} />);
+    expect(
+      screen.getByText("attendance.clientSheet.summaryCards.approved")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("attendance.clientSheet.summaryCards.rejected")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("attendance.clientSheet.summaryCards.notSubmitted")
+    ).toBeInTheDocument();
+  });
+
+  // 17. Quick filter This week sets Mon-Sun range
+  it("quick filter This Week sets monday to sunday range", () => {
+    // 2026-04-25 is a Saturday (dow=6), so Mon=2026-04-20, Sun=2026-04-26
+    render(<ClientAttendanceSheet companyId={1} />);
+    const weekBtn = screen.getByRole("button", {
+      name: /attendance\.clientSheet\.quickFilters\.thisWeek/i,
+    });
+    fireEvent.click(weekBtn);
+    const startInput = screen.getByDisplayValue("2026-04-20");
+    const endInput = screen.getByDisplayValue("2026-04-26");
+    expect(startInput).toBeInTheDocument();
+    expect(endInput).toBeInTheDocument();
   });
 });

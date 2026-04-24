@@ -24,6 +24,7 @@ import { and, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import {
   attendance,
+  attendanceClientApprovalItems,
   attendanceCorrections,
   attendanceRecords,
   attendanceSessions,
@@ -517,5 +518,133 @@ export const dailyStateRouter = router({
         siteName,
         siteNameMap: siteNames,
       });
+    }),
+
+  /**
+   * getDailyStatesForRange — fetch resolved daily attendance states for a date
+   * range (up to 31 days), enriched with client approval status from
+   * attendance_client_approval_items.
+   *
+   * Approval matching: companyId + employeeId + attendanceDate.
+   * When multiple approval items exist for the same employee+date (across
+   * different batches), the item with the highest id (most recently created)
+   * wins.
+   *
+   * Limitation: approval status reflects the latest batch only. Items from
+   * cancelled or superseded batches are included if no newer item exists.
+   * Full site/client scoping can be added in UX-3C once batch-level site
+   * tagging is more consistently populated.
+   */
+  getDailyStatesForRange: protectedProcedure
+    .input(
+      z.object({
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD"),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD"),
+        siteId: z.number().int().positive().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const auth = await requireAdminOrHR(ctx.user as User);
+      const db = await requireDb();
+      const cid = auth.companyId;
+
+      // Validate range
+      const startMs = new Date(input.startDate + "T12:00:00Z").getTime();
+      const endMs = new Date(input.endDate + "T12:00:00Z").getTime();
+      if (endMs < startMs) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "endDate must be on or after startDate",
+        });
+      }
+      const diffDays = Math.round((endMs - startMs) / 86_400_000);
+      if (diffDays > 30) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Date range cannot exceed 31 days",
+        });
+      }
+
+      // Build ordered date list
+      const dateList: string[] = [];
+      const cur = new Date(input.startDate + "T12:00:00Z");
+      const endBound = new Date(input.endDate + "T12:00:00Z");
+      while (cur <= endBound) {
+        dateList.push(cur.toISOString().slice(0, 10));
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+
+      // Load rows in chunks of 7 to bound DB concurrency
+      const CHUNK = 7;
+      const allRows: DailyAttendanceState[] = [];
+      for (let i = 0; i < dateList.length; i += CHUNK) {
+        const chunk = dateList.slice(i, i + CHUNK);
+        const results = await Promise.all(
+          chunk.map((date) => loadDailyRows(db, cid, date, { siteId: input.siteId }))
+        );
+        for (const r of results) {
+          allRows.push(...r.rows);
+        }
+      }
+
+      // Fetch all approval items for the range in one query
+      const approvalItems = await db
+        .select({
+          id: attendanceClientApprovalItems.id,
+          employeeId: attendanceClientApprovalItems.employeeId,
+          attendanceDate: attendanceClientApprovalItems.attendanceDate,
+          status: attendanceClientApprovalItems.status,
+          clientComment: attendanceClientApprovalItems.clientComment,
+          batchId: attendanceClientApprovalItems.batchId,
+        })
+        .from(attendanceClientApprovalItems)
+        .where(
+          and(
+            eq(attendanceClientApprovalItems.companyId, cid),
+            gte(attendanceClientApprovalItems.attendanceDate, input.startDate),
+            lte(attendanceClientApprovalItems.attendanceDate, input.endDate)
+          )
+        );
+
+      // Latest item per employeeId:attendanceDate (highest id wins)
+      const approvalMap = new Map<
+        string,
+        { status: string; clientComment: string | null; batchId: number; id: number }
+      >();
+      for (const item of approvalItems) {
+        const key = `${item.employeeId}:${item.attendanceDate}`;
+        const existing = approvalMap.get(key);
+        if (!existing || item.id > existing.id) {
+          approvalMap.set(key, {
+            status: item.status,
+            clientComment: item.clientComment ?? null,
+            batchId: item.batchId,
+            id: item.id,
+          });
+        }
+      }
+
+      // Enrich each row with approval data
+      const enrichedRows = allRows.map((row) => {
+        const key = `${row.employeeId}:${row.attendanceDate}`;
+        const approval = approvalMap.get(key);
+        return {
+          ...row,
+          clientApprovalStatus: (approval?.status ?? "not_submitted") as
+            | "not_submitted"
+            | "pending"
+            | "approved"
+            | "rejected"
+            | "disputed",
+          clientApprovalComment: approval?.clientComment ?? null,
+          clientApprovalBatchId: approval?.batchId ?? null,
+        };
+      });
+
+      return {
+        startDate: input.startDate,
+        endDate: input.endDate,
+        rows: enrichedRows,
+      };
     }),
 });

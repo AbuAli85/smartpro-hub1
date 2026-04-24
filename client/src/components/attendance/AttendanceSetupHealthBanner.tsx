@@ -1,0 +1,81 @@
+import { useTranslation } from "react-i18next";
+import { trpc } from "@/lib/trpc";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, Settings, Users, MapPin, Clock, Calendar } from "lucide-react";
+import { Link } from "wouter";
+
+type BlockerKey =
+  | "no_active_employees"
+  | "no_employees_with_portal_access"
+  | "no_attendance_sites"
+  | "no_shift_templates"
+  | "no_schedules_today";
+
+const BLOCKER_ICON: Record<BlockerKey, React.ReactNode> = {
+  no_active_employees: <Users className="h-4 w-4" />,
+  no_employees_with_portal_access: <Users className="h-4 w-4" />,
+  no_attendance_sites: <MapPin className="h-4 w-4" />,
+  no_shift_templates: <Clock className="h-4 w-4" />,
+  no_schedules_today: <Calendar className="h-4 w-4" />,
+};
+
+const BLOCKER_ROUTE: Record<BlockerKey, string> = {
+  no_active_employees: "/hr/employees",
+  no_employees_with_portal_access: "/hr/employees",
+  no_attendance_sites: "/hr/attendance/sites",
+  no_shift_templates: "/hr/attendance/shift-templates",
+  no_schedules_today: "/hr/attendance/schedules",
+};
+
+export function AttendanceSetupHealthBanner({
+  companyId,
+  className,
+}: {
+  companyId: number | null | undefined;
+  className?: string;
+}) {
+  const { t } = useTranslation("hr");
+
+  const { data, isLoading } = trpc.attendance.getSetupHealth.useQuery(
+    { companyId: companyId ?? undefined },
+    { enabled: companyId != null, staleTime: 60_000 },
+  );
+
+  if (isLoading || !data || data.blockers.length === 0) return null;
+
+  const blockers = data.blockers as BlockerKey[];
+
+  return (
+    <Alert variant="destructive" className={className}>
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle className="flex items-center gap-2">
+        <Settings className="h-4 w-4" />
+        {t("attendance.setupHealth.title")}
+      </AlertTitle>
+      <AlertDescription>
+        <p className="mb-3 text-sm">{t("attendance.setupHealth.description")}</p>
+        <ul className="space-y-2">
+          {blockers.map((key) => (
+            <li key={key} className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-sm">
+                {BLOCKER_ICON[key]}
+                {t(`attendance.setupHealth.blockers.${key}`)}
+              </span>
+              <Button asChild size="sm" variant="outline" className="h-7 text-xs shrink-0">
+                <Link href={BLOCKER_ROUTE[key]}>
+                  {t("attendance.setupHealth.fixCta")}
+                </Link>
+              </Button>
+            </li>
+          ))}
+        </ul>
+        {data.holidayToday && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            {t("attendance.setupHealth.holidayTodayNote")}
+          </p>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
+}

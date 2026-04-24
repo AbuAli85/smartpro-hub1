@@ -248,7 +248,20 @@
     "recordDeleted": "Record deleted",
     "exportFailed": "Export failed",
     "recordAttendance": "Record Attendance",
-    "operationalControlDesc": "Operational control center — live workforce state, approvals, and legacy HR grid in one place.",
+    "operationalControlDesc": "Operational control center — live workforce state, approvals, and attendance records in one place.",
+    "setupHealth": {
+      "title": "Attendance setup incomplete",
+      "description": "Some prerequisites are missing. Complete the steps below before attendance tracking will work correctly.",
+      "fixCta": "Set up",
+      "holidayTodayNote": "Today is a public holiday — no attendance is expected.",
+      "blockers": {
+        "no_active_employees": "No active employees found. Add employees to get started.",
+        "no_employees_with_portal_access": "No employees have portal access. Invite employees to enable self check-in.",
+        "no_attendance_sites": "No attendance sites configured. Add at least one site with a QR code.",
+        "no_shift_templates": "No shift templates defined. Create shift templates before assigning schedules.",
+        "no_schedules_today": "No employee schedules are active today. Assign schedules to employees."
+      }
+    },
     "tabs": {
       "today": "Today",
       "monthly": "Monthly",
@@ -401,8 +414,9 @@
       }
     },
     "clockInDialog": {
-      "trigger": "Record Attendance",
-      "title": "Record Attendance",
+      "trigger": "Add Attendance Record",
+      "title": "Add Manual Attendance Record",
+      "description": "Creates an HR attendance record on behalf of an employee. Requires a reason for audit purposes.",
       "employeeLabel": "Employee *",
       "selectEmployee": "Select employee",
       "dateLabel": "Date *",
@@ -415,8 +429,11 @@
       "reasonNote": "Reason / audit note *",
       "reasonPlaceholder": "Required for compliance — who asked for this entry, why, or evidence (min. 10 characters)…",
       "reasonHint": "Stored on the record for audit. Use clear, factual wording.",
-      "recording": "Recording...",
-      "recorded": "Attendance recorded"
+      "recording": "Saving...",
+      "save": "Save attendance record",
+      "recorded": "Attendance record added",
+      "noEmployeesTooltip": "No active employees available. Add employees first.",
+      "noEmployeesHint": "No active employees are available. Go to Employees to add or activate employees before recording attendance."
     },
     "editDialog": {
       "title": "Edit HR attendance record",
@@ -519,9 +536,9 @@
       "todaySummary": {
         "title": "Today's HR attendance",
         "records": "{{count}} records",
-        "legacyNote": "Legacy HR grid for today. Live punches appear on Today's Board and in employee records.",
-        "noRows": "No HR grid rows for today",
-        "noRowsHint": "Use Record Attendance to add entries, or rely on self check-in and corrections."
+        "legacyNote": "HR attendance records for today. Live clock punches appear on Today's Board and in employee records.",
+        "noRows": "No attendance records for today",
+        "noRowsHint": "Use Add Attendance Record to add entries, or rely on self check-in and corrections."
       },
       "table": {
         "title": "Attendance Records — {{month}}",

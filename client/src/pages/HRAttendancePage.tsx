@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { OverdueCheckoutsPanel } from "@/components/attendance/OverdueCheckoutsPanel";
 import { AttendanceActionQueue } from "@/components/attendance/AttendanceActionQueue";
+import { AttendanceSetupHealthBanner } from "@/components/attendance/AttendanceSetupHealthBanner";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Clock, Users, CheckCircle2, XCircle, AlertCircle, Calendar,
@@ -150,8 +151,8 @@ function AttendanceAuditLog({
   persistQueryString?: boolean;
 }) {
   const { t } = useTranslation("hr");
-  const defaultTo = new Date().toISOString().slice(0, 10);
-  const defaultFrom = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const defaultTo = muscatCalendarYmdNow();
+  const defaultFrom = muscatCalendarYmdFromUtcInstant(new Date(Date.now() - 7 * 86400_000));
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
   const [employeeId, setEmployeeId] = useState<string>("all");
@@ -610,57 +611,71 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
     onError: (e) => toast.error(e.message),
   });
 
+  const noEligibleEmployees = employees.length === 0;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-2"><Clock size={14} /> {t("attendance.clockInDialog.trigger")}</Button>
+        <Button size="sm" className="gap-2" disabled={noEligibleEmployees} title={noEligibleEmployees ? t("attendance.clockInDialog.noEmployeesTooltip") : undefined}>
+          <Clock size={14} /> {t("attendance.clockInDialog.trigger")}
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>{t("attendance.clockInDialog.title")}</DialogTitle></DialogHeader>
-        <div className="space-y-4 mt-2">
-          <div className="space-y-1.5">
-            <Label>{t("attendance.clockInDialog.employeeLabel")}</Label>
-            <Select value={form.employeeId} onValueChange={(v) => setForm({ ...form, employeeId: v })}>
-              <SelectTrigger><SelectValue placeholder={t("attendance.clockInDialog.selectEmployee")} /></SelectTrigger>
-              <SelectContent>
-                {employees.map((e) => (
-                  <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName} ? {e.department}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <DialogHeader>
+          <DialogTitle>{t("attendance.clockInDialog.title")}</DialogTitle>
+          <p className="text-sm text-muted-foreground">{t("attendance.clockInDialog.description")}</p>
+        </DialogHeader>
+        {noEligibleEmployees ? (
+          <div className="py-6 text-center space-y-2">
+            <Users className="mx-auto h-8 w-8 text-muted-foreground opacity-40" />
+            <p className="text-sm text-muted-foreground">{t("attendance.clockInDialog.noEmployeesHint")}</p>
           </div>
-          <div className="space-y-1.5">
-            <Label>{t("attendance.clockInDialog.dateLabel")}</Label>
-            <DateInput value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="text-sm" />
+        ) : (
+          <div className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <Label>{t("attendance.clockInDialog.employeeLabel")}</Label>
+              <Select value={form.employeeId} onValueChange={(v) => setForm({ ...form, employeeId: v })}>
+                <SelectTrigger><SelectValue placeholder={t("attendance.clockInDialog.selectEmployee")} /></SelectTrigger>
+                <SelectContent>
+                  {employees.map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}{e.department ? ` · ${e.department}` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("attendance.clockInDialog.dateLabel")}</Label>
+              <DateInput value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("attendance.clockInDialog.statusLabel")}</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as AttendanceStatus })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="present">{t("attendance.clockInDialog.present")}</SelectItem>
+                  <SelectItem value="absent">{t("attendance.clockInDialog.absent")}</SelectItem>
+                  <SelectItem value="late">{t("attendance.clockInDialog.late")}</SelectItem>
+                  <SelectItem value="half_day">{t("attendance.clockInDialog.halfDay")}</SelectItem>
+                  <SelectItem value="remote">{t("attendance.clockInDialog.remote")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("attendance.clockInDialog.reasonNote")}</Label>
+              <Textarea
+                placeholder={t("attendance.clockInDialog.reasonPlaceholder")}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                className="text-sm min-h-[88px]"
+              />
+              <p className="text-[11px] text-muted-foreground">{t("attendance.clockInDialog.reasonHint")}</p>
+            </div>
+            <Button className="w-full" disabled={!form.employeeId || !reasonOk || createMutation.isPending}
+              onClick={() => createMutation.mutate({ employeeId: Number(form.employeeId), status: form.status, notes: form.notes.trim(), date: form.date, companyId: companyId ?? undefined })}>
+              {createMutation.isPending ? t("attendance.clockInDialog.recording") : t("attendance.clockInDialog.save")}
+            </Button>
           </div>
-          <div className="space-y-1.5">
-            <Label>{t("attendance.clockInDialog.statusLabel")}</Label>
-            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as AttendanceStatus })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="present">{t("attendance.clockInDialog.present")}</SelectItem>
-                <SelectItem value="absent">{t("attendance.clockInDialog.absent")}</SelectItem>
-                <SelectItem value="late">{t("attendance.clockInDialog.late")}</SelectItem>
-                <SelectItem value="half_day">{t("attendance.clockInDialog.halfDay")}</SelectItem>
-                <SelectItem value="remote">{t("attendance.clockInDialog.remote")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>{t("attendance.clockInDialog.reasonNote")}</Label>
-            <Textarea
-              placeholder={t("attendance.clockInDialog.reasonPlaceholder")}
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="text-sm min-h-[88px]"
-            />
-            <p className="text-[11px] text-muted-foreground">{t("attendance.clockInDialog.reasonHint")}</p>
-          </div>
-          <Button className="w-full" disabled={!form.employeeId || !reasonOk || createMutation.isPending}
-            onClick={() => createMutation.mutate({ employeeId: Number(form.employeeId), status: form.status, notes: form.notes.trim(), date: form.date, companyId: companyId ?? undefined })}>
-            {createMutation.isPending ? t("attendance.clockInDialog.recording") : t("attendance.clockInDialog.trigger")}
-          </Button>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -1738,6 +1753,8 @@ export default function HRAttendancePage() {
           <ClockInDialog employees={(employees ?? []).map(e => ({ ...e, department: e.department ?? null }))} onSuccess={refetch} companyId={activeCompanyId} />
         </div>
       </div>
+
+      <AttendanceSetupHealthBanner companyId={activeCompanyId} />
 
       <HrAttendanceExceptionStrip
         companyId={activeCompanyId}

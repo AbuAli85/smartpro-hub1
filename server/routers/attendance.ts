@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, gte, like, lt, lte, isNull, ne, inArray, or, sql } from "drizzle-orm";
+import { eq, and, desc, gte, like, lt, lte, isNull, ne, inArray, or, sql, count, isNotNull } from "drizzle-orm";
 import {
   attendance,
   attendanceSites,
@@ -13,6 +13,7 @@ import {
   attendanceOperationalIssues,
   shiftTemplates,
   employeeSchedules,
+  companyHolidays,
 } from "../../drizzle/schema";
 import { buildEmployeeDayShiftStatuses } from "@shared/employeeDayShiftStatus";
 import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
@@ -3208,6 +3209,86 @@ export const attendanceRouter = router({
       const preflight = evaluatePayrollPreflight(report.mismatches);
       const payrollBlockedByIncompleteScan = report.recordsScanMayBeIncomplete === true;
       return { ...report, preflight, payrollBlockedByIncompleteScan };
+    }),
+
+  /**
+   * Setup health check — tells the UI which prerequisites are missing so empty
+   * states can show actionable guidance instead of unexplained zeros.
+   */
+  getSetupHealth: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
+      const db = await requireDb();
+      const cid = membership.company.id;
+      const todayYmd = muscatCalendarYmdNow();
+
+      const [[empRow], [portalRow], [siteRow], [shiftRow], [schedRow], [holidayRow]] = await Promise.all([
+        db
+          .select({ n: count() })
+          .from(employees)
+          .where(and(eq(employees.companyId, cid), eq(employees.status, "active"))),
+        db
+          .select({ n: count() })
+          .from(employees)
+          .where(and(eq(employees.companyId, cid), eq(employees.status, "active"), isNotNull(employees.userId))),
+        db
+          .select({ n: count() })
+          .from(attendanceSites)
+          .where(and(eq(attendanceSites.companyId, cid), eq(attendanceSites.isActive, true))),
+        db
+          .select({ n: count() })
+          .from(shiftTemplates)
+          .where(and(eq(shiftTemplates.companyId, cid), eq(shiftTemplates.isActive, true))),
+        db
+          .select({ n: count() })
+          .from(employeeSchedules)
+          .where(
+            and(
+              eq(employeeSchedules.companyId, cid),
+              eq(employeeSchedules.isActive, true),
+              lte(employeeSchedules.startDate, todayYmd),
+              or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, todayYmd)),
+            ),
+          ),
+        db
+          .select({ n: count() })
+          .from(companyHolidays)
+          .where(and(eq(companyHolidays.companyId, cid), eq(companyHolidays.holidayDate, todayYmd))),
+      ]);
+
+      const activeEmployeesCount = empRow?.n ?? 0;
+      const employeesWithPortalAccessCount = portalRow?.n ?? 0;
+      const attendanceSitesCount = siteRow?.n ?? 0;
+      const activeShiftTemplatesCount = shiftRow?.n ?? 0;
+      const scheduledTodayCount = schedRow?.n ?? 0;
+      const missingSchedulesCount = Math.max(0, activeEmployeesCount - scheduledTodayCount);
+      const holidayToday = (holidayRow?.n ?? 0) > 0;
+      const canTrackToday =
+        activeEmployeesCount > 0 &&
+        employeesWithPortalAccessCount > 0 &&
+        attendanceSitesCount > 0 &&
+        activeShiftTemplatesCount > 0;
+
+      const blockers: string[] = [];
+      if (activeEmployeesCount === 0) blockers.push("no_active_employees");
+      if (employeesWithPortalAccessCount === 0 && activeEmployeesCount > 0)
+        blockers.push("no_employees_with_portal_access");
+      if (attendanceSitesCount === 0) blockers.push("no_attendance_sites");
+      if (activeShiftTemplatesCount === 0) blockers.push("no_shift_templates");
+      if (scheduledTodayCount === 0 && activeEmployeesCount > 0) blockers.push("no_schedules_today");
+
+      return {
+        activeEmployeesCount,
+        employeesWithPortalAccessCount,
+        attendanceSitesCount,
+        activeShiftTemplatesCount,
+        scheduledTodayCount,
+        missingSchedulesCount,
+        holidayToday,
+        canTrackToday,
+        blockers,
+      };
     }),
 
   /**

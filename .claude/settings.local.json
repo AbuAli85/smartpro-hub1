@@ -12,7 +12,11 @@
       "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\HP\\\\OneDrive\\\\Documents\\\\GitHub\\\\smartpro-hub1\\\\client\\\\src\\\\pages\\\\TeamAccessPage.tsx' -Raw\\) -replace 'HR rows that resolve to a company_members row .*used to exclude those from .*direct only.*member counts\\\\.', 'HR rows that resolve to a company_members row — used to exclude those from \\\\\"direct only\\\\\" member counts.' | Set-Content 'c:\\\\Users\\\\HP\\\\OneDrive\\\\Documents\\\\GitHub\\\\smartpro-hub1\\\\client\\\\src\\\\pages\\\\TeamAccessPage.tsx' -NoNewline\")",
       "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\HP\\\\OneDrive\\\\Documents\\\\GitHub\\\\smartpro-hub1\\\\client\\\\src\\\\pages\\\\TeamAccessPage.tsx' -Raw -Encoding UTF8\\) | Select-String -Pattern 'HR rows that resolve'\")",
       "Bash(git stash *)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(grep -E \"\\\\.\\(tsx?|prisma\\)$\")",
+      "Bash(powershell -command \"\\(Get-Content 'c:\\\\Users\\\\HP\\\\OneDrive\\\\Documents\\\\GitHub\\\\smartpro-hub1\\\\server\\\\routers\\\\attendance.ts'\\).Count\")",
+      "Bash(npm run *)",
+      "Bash(npm test *)"
     ]
   }
 }

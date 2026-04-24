@@ -1316,6 +1316,100 @@
       "emptyStateHint": "Select a date range and site to generate a client-ready attendance report with check-in/out times, worked hours, and status.",
       "plannedColumnsTitle": "Planned report columns:",
       "plannedColumnsDesc": "Employee · Site / Client · Date · Shift · Check-in · Check-out · Worked Hours · Overtime · Holiday flag · Status · Approval status · Client comment"
+    },
+    "clientSheet": {
+      "title": "Client Attendance Sheet",
+      "subtitle": "Daily attendance report for client review. Filter by date, site, and employee.",
+      "filters": {
+        "date": "Date",
+        "site": "Site",
+        "allSites": "All Sites",
+        "employee": "Employee",
+        "employeePlaceholder": "Search employee...",
+        "status": "Status",
+        "allStatuses": "All Statuses"
+      },
+      "summaryCards": {
+        "total": "Total",
+        "present": "Present",
+        "late": "Late",
+        "absent": "Absent",
+        "missingCheckout": "Missing Checkout",
+        "payrollBlocked": "Payroll Blocked",
+        "needsReview": "Needs Review",
+        "ready": "Ready"
+      },
+      "table": {
+        "employee": "Employee",
+        "site": "Site / Location",
+        "date": "Date",
+        "day": "Day",
+        "shiftStart": "Shift Start",
+        "shiftEnd": "Shift End",
+        "checkIn": "Check-in",
+        "checkOut": "Check-out",
+        "workedHours": "Worked Hours",
+        "status": "Status",
+        "payroll": "Payroll",
+        "approvalStatus": "Approval Status",
+        "comment": "Comment"
+      },
+      "workedHours": {
+        "open": "Open",
+        "none": "—"
+      },
+      "approvalStatus": {
+        "notSubmitted": "Not submitted"
+      },
+      "statusFilter": {
+        "all": "All",
+        "checkedIn": "Checked In",
+        "checkedOut": "Checked Out",
+        "late": "Late",
+        "absent": "Absent / No Arrival",
+        "needsReview": "Needs Review",
+        "payrollBlocked": "Payroll Blocked"
+      },
+      "statusLabel": {
+        "scheduled": "Scheduled",
+        "upcoming": "Upcoming",
+        "awaiting_check_in": "Awaiting Check-in",
+        "checked_in_on_time": "Checked In",
+        "checked_in_late": "Late",
+        "checked_out": "Checked Out",
+        "late_no_arrival": "Late – No Arrival",
+        "absent_pending": "Absent (Pending)",
+        "absent_confirmed": "Absent",
+        "holiday": "Holiday",
+        "leave": "On Leave",
+        "remote": "Remote",
+        "unscheduled_attendance": "Unscheduled",
+        "not_scheduled": "Not Scheduled",
+        "needs_review": "Needs Review"
+      },
+      "payrollLabel": {
+        "ready": "Ready",
+        "needs_review": "Review",
+        "blocked_missing_checkout": "Missing Checkout",
+        "blocked_pending_correction": "Pending Correction",
+        "blocked_pending_manual_checkin": "Pending Check-in",
+        "blocked_schedule_conflict": "Schedule Conflict",
+        "excluded": "Excluded"
+      },
+      "emptyState": "No attendance rows found for this date / site.",
+      "emptyStateHint": "Check Setup Health if employees are missing.",
+      "emptyStateLink": "Go to Setup Health",
+      "exportExcel": "Export Excel",
+      "exporting": "Exporting...",
+      "exportSuccess": "Export downloaded",
+      "exportFailed": "Export failed",
+      "excelHeader": {
+        "title": "Company Attendance Sheet",
+        "date": "Date",
+        "site": "Site",
+        "generatedAt": "Generated at"
+      },
+      "loading": "Loading attendance data..."
     }
   },
   "leave": {

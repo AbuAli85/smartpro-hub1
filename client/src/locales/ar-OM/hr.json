@@ -1316,6 +1316,100 @@
       "emptyStateHint": "اختر نطاقاً زمنياً وموقعاً لإنشاء تقرير حضور جاهز للعميل يتضمن أوقات الحضور والانصراف وساعات العمل والحالة.",
       "plannedColumnsTitle": "أعمدة التقرير المخططة:",
       "plannedColumnsDesc": "الموظف · الموقع / العميل · التاريخ · الوردية · وقت الحضور · وقت الانصراف · ساعات العمل · الإضافي · علامة العطلة · الحالة · حالة الموافقة · تعليق العميل"
+    },
+    "clientSheet": {
+      "title": "جدول حضور العميل",
+      "subtitle": "تقرير الحضور اليومي لمراجعة العميل. فلتر حسب التاريخ والموقع والموظف.",
+      "filters": {
+        "date": "التاريخ",
+        "site": "الموقع",
+        "allSites": "جميع المواقع",
+        "employee": "الموظف",
+        "employeePlaceholder": "بحث عن موظف...",
+        "status": "الحالة",
+        "allStatuses": "جميع الحالات"
+      },
+      "summaryCards": {
+        "total": "الإجمالي",
+        "present": "حاضر",
+        "late": "متأخر",
+        "absent": "غائب",
+        "missingCheckout": "انصراف مفقود",
+        "payrollBlocked": "محجوب من الراتب",
+        "needsReview": "يحتاج مراجعة",
+        "ready": "جاهز"
+      },
+      "table": {
+        "employee": "الموظف",
+        "site": "الموقع / المكان",
+        "date": "التاريخ",
+        "day": "اليوم",
+        "shiftStart": "بداية الوردية",
+        "shiftEnd": "نهاية الوردية",
+        "checkIn": "وقت الحضور",
+        "checkOut": "وقت الانصراف",
+        "workedHours": "ساعات العمل",
+        "status": "الحالة",
+        "payroll": "الراتب",
+        "approvalStatus": "حالة الموافقة",
+        "comment": "ملاحظات"
+      },
+      "workedHours": {
+        "open": "مفتوح",
+        "none": "—"
+      },
+      "approvalStatus": {
+        "notSubmitted": "لم يُقدَّم"
+      },
+      "statusFilter": {
+        "all": "الكل",
+        "checkedIn": "تم تسجيل الحضور",
+        "checkedOut": "تم تسجيل الانصراف",
+        "late": "متأخر",
+        "absent": "غائب / لم يصل",
+        "needsReview": "يحتاج مراجعة",
+        "payrollBlocked": "محجوب من الراتب"
+      },
+      "statusLabel": {
+        "scheduled": "مجدول",
+        "upcoming": "قادم",
+        "awaiting_check_in": "في انتظار الحضور",
+        "checked_in_on_time": "حاضر",
+        "checked_in_late": "متأخر",
+        "checked_out": "منصرف",
+        "late_no_arrival": "متأخر – لم يصل",
+        "absent_pending": "غائب (قيد الانتظار)",
+        "absent_confirmed": "غائب",
+        "holiday": "إجازة رسمية",
+        "leave": "في إجازة",
+        "remote": "عمل عن بعد",
+        "unscheduled_attendance": "حضور غير مجدول",
+        "not_scheduled": "غير مجدول",
+        "needs_review": "يحتاج مراجعة"
+      },
+      "payrollLabel": {
+        "ready": "جاهز",
+        "needs_review": "مراجعة",
+        "blocked_missing_checkout": "انصراف مفقود",
+        "blocked_pending_correction": "تصحيح معلق",
+        "blocked_pending_manual_checkin": "حضور يدوي معلق",
+        "blocked_schedule_conflict": "تعارض في الجدول",
+        "excluded": "مستثنى"
+      },
+      "emptyState": "لا توجد سجلات حضور لهذا التاريخ / الموقع.",
+      "emptyStateHint": "تحقق من صحة الإعداد إذا كانت هناك موظفون مفقودون.",
+      "emptyStateLink": "الانتقال إلى صحة الإعداد",
+      "exportExcel": "تصدير Excel",
+      "exporting": "جارٍ التصدير...",
+      "exportSuccess": "تم تنزيل التصدير",
+      "exportFailed": "فشل التصدير",
+      "excelHeader": {
+        "title": "جدول حضور الشركة",
+        "date": "التاريخ",
+        "site": "الموقع",
+        "generatedAt": "تاريخ الإنشاء"
+      },
+      "loading": "جارٍ تحميل بيانات الحضور..."
     }
   },
   "leave": {

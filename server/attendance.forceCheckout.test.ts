@@ -37,12 +37,34 @@ function makeHrCtx(): TrpcContext {
 }
 
 /**
- * Returns a fake DB where:
- *  - call 0 (resolveVisibilityScope → companyMembers query): returns hr_admin membership row
- *  - call 1+ (business logic query): returns `subsequentResult`
+ * Returns a fake DB where every select → from → where → limit chain returns `result`.
  *
- * This satisfies the two-phase pattern introduced by requireAttendanceAdmin:
- *   requireAdminOrHR → resolveVisibilityScope (DB call 0) → business logic (DB call 1+)
+ * Phase 7.1 note: forceCheckout now uses requireCanForceCheckout (granular guard) which
+ * does NOT call resolveVisibilityScope.  The old two-phase structure is no longer needed
+ * for forceCheckout; the guard reads membership via the mocked companiesRepo.getUserCompanyById
+ * and the first DB call is the business-logic attendance record lookup.
+ *
+ * setOperationalIssueStatus / getOperationalIssueHistory still use requireAttendanceAdmin
+ * and need a DB call for resolveVisibilityScope → use makeDbWithMembership for those.
+ */
+function makeSimpleSelectDb(result: unknown[] = [], extra: Record<string, unknown> = {}) {
+  return {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => Promise.resolve(result)),
+        })),
+      })),
+    })),
+    ...extra,
+  };
+}
+
+/**
+ * Two-phase DB mock for procedures that still use requireAttendanceAdmin
+ * (setOperationalIssueStatus, getOperationalIssueHistory).
+ *  - call 0 (resolveVisibilityScope → companyMembers query): returns hr_admin row
+ *  - call 1+ (business logic query): returns `subsequentResult`
  */
 function makeDbWithMembership(subsequentResult: unknown[] = [], extra: Record<string, unknown> = {}) {
   let callCount = 0;
@@ -51,7 +73,7 @@ function makeDbWithMembership(subsequentResult: unknown[] = [], extra: Record<st
       where: vi.fn(() => ({
         limit: vi.fn(() => {
           const result = callCount === 0
-            ? Promise.resolve([{ role: "hr_admin" }])  // companyMembers row for resolveVisibilityScope
+            ? Promise.resolve([{ role: "hr_admin" }])
             : Promise.resolve(subsequentResult);
           callCount++;
           return result;
@@ -75,7 +97,7 @@ describe("attendance.forceCheckout", () => {
 
   it("throws NOT_FOUND when attendance record is missing for this company", async () => {
     vi.mocked(db.getDb).mockResolvedValue(
-      makeDbWithMembership([]) as never,
+      makeSimpleSelectDb([]) as never,
     );
 
     const caller = attendanceRouter.createCaller(makeHrCtx());
@@ -90,7 +112,7 @@ describe("attendance.forceCheckout", () => {
 
   it("throws BAD_REQUEST when session is already closed", async () => {
     vi.mocked(db.getDb).mockResolvedValue(
-      makeDbWithMembership([
+      makeSimpleSelectDb([
         {
           id: 5,
           companyId: 10,

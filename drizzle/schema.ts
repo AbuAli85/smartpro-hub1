@@ -5343,3 +5343,59 @@ export type AttendanceInvoicePaymentRecord = typeof attendanceInvoicePaymentReco
 export type InsertAttendanceInvoicePaymentRecord = typeof attendanceInvoicePaymentRecords.$inferInsert;
 
 export type EngagementPaymentTransfer = typeof engagementPaymentTransfers.$inferSelect;
+
+// ─── CONTROL TOWER ITEM STATES ────────────────────────────────────────────────
+
+/**
+ * Persisted lifecycle state for Control Tower signals.
+ *
+ * Signals are computed fresh on every request from source tables.  This table
+ * overlays user-driven state (acknowledged / in_progress / resolved / dismissed)
+ * so that lifecycle decisions survive across refreshes.
+ *
+ * Stable item_key: the deterministic id computed by the signal builder
+ * (e.g. "payroll:1:2026:4:draft", "hr:1:leave:pending").  Because many signals
+ * aggregate multiple source rows into one item, we key on the same string the
+ * builder emits — not on a random UUID.
+ *
+ * Cross-company isolation: (company_id, item_key) is the unique constraint.
+ * Every query in this table must include a companyId predicate.
+ */
+export const controlTowerItemStates = mysqlTable(
+  "control_tower_item_states",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    /** Stable deterministic key from the signal builder (= ControlTowerItem.id). */
+    itemKey: varchar("item_key", { length: 255 }).notNull(),
+    domain: varchar("domain", { length: 64 }).notNull(),
+    status: mysqlEnum("status", [
+      "open",
+      "acknowledged",
+      "in_progress",
+      "resolved",
+      "dismissed",
+    ])
+      .notNull()
+      .default("open"),
+    ownerUserId: int("owner_user_id"),
+    acknowledgedBy: int("acknowledged_by"),
+    acknowledgedAt: timestamp("acknowledged_at"),
+    resolvedBy: int("resolved_by"),
+    resolvedAt: timestamp("resolved_at"),
+    dismissedBy: int("dismissed_by"),
+    dismissedAt: timestamp("dismissed_at"),
+    dismissalReason: text("dismissal_reason"),
+    /** Updated every time the signal is still present in the active queue. */
+    lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_ct_state_company_item").on(t.companyId, t.itemKey),
+    index("idx_ct_state_company_status").on(t.companyId, t.status),
+    index("idx_ct_state_domain").on(t.companyId, t.domain),
+  ],
+);
+export type ControlTowerItemState = typeof controlTowerItemStates.$inferSelect;
+export type InsertControlTowerItemState = typeof controlTowerItemStates.$inferInsert;

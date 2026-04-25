@@ -98,6 +98,7 @@ vi.mock("@/lib/trpc", () => ({
       },
       controlTower: {
         items: { invalidate: vi.fn() },
+        summary: { invalidate: vi.fn() },
       },
     }),
     controlTower: {

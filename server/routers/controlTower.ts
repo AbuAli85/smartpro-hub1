@@ -12,8 +12,18 @@
  *    hr_admin, finance_admin only.
  *  - Per-domain signal procedures call requireControlTowerSignalAccess(domain)
  *    so hr_admin cannot call finance procedures and vice-versa.
+ *  - Domain-action policy: hr_admin may only mutate hr/documents/compliance
+ *    items; finance_admin may only mutate finance/payroll items.
  *  - Scope filtering is applied to every query so dept/team managers only
  *    receive items inside their scope.
+ *
+ * Persistence:
+ *  - All lifecycle mutations (acknowledge, mark_in_progress, assign, resolve,
+ *    dismiss) write to control_tower_item_states and the shared audit_logs
+ *    table.
+ *  - Items queries load persisted states and overlay them on generated signals.
+ *  - Resolved and dismissed items are filtered from the active queue; the
+ *    underlying source condition drives re-emergence automatically.
  *
  * Platform Control Tower (cross-tenant) is served by the platformOps router
  * and guarded by adminProcedure + canAccessGlobalAdminProcedures.
@@ -46,6 +56,19 @@ import {
   buildContractSignals,
 } from "../controlTower/signalBuilders";
 import { rankItems, topRankedItems } from "../controlTower/rankItems";
+import {
+  getItemStatesByCompany,
+  getItemStateByKey,
+  upsertItemState,
+  buildStateMap,
+} from "../controlTower/itemStateRepository";
+import { logCtMutation } from "../controlTower/controlTowerAudit";
+import {
+  overlayStateOnItems,
+  filterActiveItems,
+  assertDomainActionAllowed,
+  assertNotReadOnly,
+} from "../controlTower/stateOverlay";
 import { getDb } from "../db";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type {
@@ -158,6 +181,7 @@ export const controlTowerRouter = router({
   /**
    * Aggregated summary: open item counts by severity and domain.
    * Domains invisible to the caller are omitted — never padded with zeros.
+   * State overlay is applied; resolved/dismissed items are excluded from counts.
    */
   summary: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
@@ -178,15 +202,13 @@ export const controlTowerRouter = router({
         !caps.canAssignControlTowerItems;
       const allowed = computeAllowedActions(caps, isReadOnly);
 
-      // Use builders so summary counts are always consistent with the items list
-      const allItems = await buildAllVisibleSignals(
-        db,
-        m.companyId,
-        scope,
-        new Set(domains),
-        allowed,
-        now,
-      );
+      const [rawItems, states] = await Promise.all([
+        buildAllVisibleSignals(db, m.companyId, scope, new Set(domains), allowed, now),
+        getItemStatesByCompany(db, m.companyId),
+      ]);
+
+      const stateMap = buildStateMap(states);
+      const allItems = filterActiveItems(overlayStateOnItems(rawItems, stateMap, allowed));
 
       const bySeverity: Record<ControlTowerSeverity, number> = {
         critical: 0,
@@ -210,9 +232,13 @@ export const controlTowerRouter = router({
     }),
 
   /**
-   * Ranked list of all open Control Tower items visible to the caller.
-   * Builders are run only for domains the caller can see; results are
-   * ranked by the deterministic priority engine (severity → overdue → due-soon → status → age).
+   * Ranked list of active Control Tower items visible to the caller.
+   *
+   * Pipeline:
+   *   build signals → state overlay → filter resolved/dismissed
+   *   → rank → domain filter → paginate
+   *
+   * Pagination applied after all filtering, so total reflects the filtered count.
    */
   items: protectedProcedure
     .input(
@@ -240,12 +266,19 @@ export const controlTowerRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const now = new Date();
-      const domainSet = new Set(
-        input.domain ? [input.domain] : domains,
-      );
+      const domainSet = new Set(input.domain ? [input.domain] : domains);
 
-      const allItems = await buildAllVisibleSignals(db, m.companyId, scope, domainSet, allowed, now);
-      const ranked = rankItems(allItems, now);
+      const [rawItems, states] = await Promise.all([
+        buildAllVisibleSignals(db, m.companyId, scope, domainSet, allowed, now),
+        getItemStatesByCompany(db, m.companyId),
+      ]);
+
+      const stateMap = buildStateMap(states);
+
+      // Overlay → filter resolved/dismissed → rank → domain filter → paginate
+      const withState = overlayStateOnItems(rawItems, stateMap, allowed);
+      const active = filterActiveItems(withState);
+      const ranked = rankItems(active, now);
       const total = ranked.length;
       const page = ranked.slice(input.offset, input.offset + input.limit);
 
@@ -363,35 +396,173 @@ export const controlTowerRouter = router({
       };
     }),
 
+  // ─── Lifecycle mutations ────────────────────────────────────────────────────
+
   /**
-   * Acknowledges a Control Tower item (moves open → acknowledged).
-   * Requires canManageControlTowerItems.
+   * Acknowledges a Control Tower item (open → acknowledged).
+   *
+   * Policy:
+   *  - Requires canManageControlTowerItems.
+   *  - Domain-scoped: hr_admin → hr/documents/compliance;
+   *    finance_admin → finance/payroll; company_admin → any.
+   *  - Read-only roles (reviewer / external_auditor) are blocked.
+   *
+   * Persists state and writes audit log.
    */
   acknowledgeItem: protectedProcedure
     .input(
       z.object({
         companyId: z.number().optional(),
-        itemId: z.string(),
+        itemKey: z.string().min(1),
+        domain: z.string().min(1),
         note: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const user = ctx.user as User;
-      await requireCanManageControlTower(user, input.companyId);
-      // In a full implementation this would update a control_tower_items table row.
-      // For now we return the acknowledged shape so the client optimistic update works.
-      return { itemId: input.itemId, status: "acknowledged" as ControlTowerStatus };
+      const m = await requireCanManageControlTower(user, input.companyId);
+      const scope = await resolveVisibilityScope(user, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+
+      assertNotReadOnly(m.role);
+      if (!caps.canManageControlTowerItems) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Cannot manage Control Tower items." });
+      }
+      assertDomainActionAllowed(m.role, input.domain, "acknowledge");
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const existing = await getItemStateByKey(db, m.companyId, input.itemKey);
+      const previousStatus = (existing?.status ?? "open") as ControlTowerStatus;
+
+      if (previousStatus === "resolved" || previousStatus === "dismissed") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot acknowledge an item that is already resolved or dismissed.",
+        });
+      }
+
+      const now = new Date();
+      await upsertItemState(db, {
+        companyId: m.companyId,
+        itemKey: input.itemKey,
+        domain: input.domain,
+        status: "acknowledged",
+        ownerUserId: existing?.ownerUserId ?? null,
+        acknowledgedBy: user.id,
+        acknowledgedAt: now,
+        resolvedBy: existing?.resolvedBy ?? null,
+        resolvedAt: existing?.resolvedAt ?? null,
+        dismissedBy: null,
+        dismissedAt: null,
+        dismissalReason: null,
+        lastSeenAt: now,
+      });
+
+      await logCtMutation(db, {
+        companyId: m.companyId,
+        itemKey: input.itemKey,
+        domain: input.domain,
+        action: "acknowledge",
+        actorUserId: user.id,
+        previousStatus,
+        nextStatus: "acknowledged",
+        reason: input.note,
+      });
+
+      return { itemKey: input.itemKey, status: "acknowledged" as ControlTowerStatus };
+    }),
+
+  /**
+   * Marks a Control Tower item as in-progress (open|acknowledged → in_progress).
+   * Same domain-policy rules as acknowledgeItem.
+   */
+  markInProgress: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        itemKey: z.string().min(1),
+        domain: z.string().min(1),
+        note: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const user = ctx.user as User;
+      const m = await requireCanManageControlTower(user, input.companyId);
+      const scope = await resolveVisibilityScope(user, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+
+      assertNotReadOnly(m.role);
+      if (!caps.canManageControlTowerItems) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Cannot manage Control Tower items." });
+      }
+      assertDomainActionAllowed(m.role, input.domain, "mark_in_progress");
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const existing = await getItemStateByKey(db, m.companyId, input.itemKey);
+      const previousStatus = (existing?.status ?? "open") as ControlTowerStatus;
+
+      if (previousStatus === "resolved" || previousStatus === "dismissed") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot mark as in-progress an item that is already resolved or dismissed.",
+        });
+      }
+
+      const now = new Date();
+      await upsertItemState(db, {
+        companyId: m.companyId,
+        itemKey: input.itemKey,
+        domain: input.domain,
+        status: "in_progress",
+        ownerUserId: existing?.ownerUserId ?? null,
+        acknowledgedBy: existing?.acknowledgedBy ?? null,
+        acknowledgedAt: existing?.acknowledgedAt ?? null,
+        resolvedBy: null,
+        resolvedAt: null,
+        dismissedBy: null,
+        dismissedAt: null,
+        dismissalReason: null,
+        lastSeenAt: now,
+      });
+
+      await logCtMutation(db, {
+        companyId: m.companyId,
+        itemKey: input.itemKey,
+        domain: input.domain,
+        action: "mark_in_progress",
+        actorUserId: user.id,
+        previousStatus,
+        nextStatus: "in_progress",
+        reason: input.note,
+      });
+
+      return { itemKey: input.itemKey, status: "in_progress" as ControlTowerStatus };
     }),
 
   /**
    * Resolves a Control Tower item.
-   * Requires canResolveControlTowerItems.
+   *
+   * Policy:
+   *  - Requires canResolveControlTowerItems.
+   *  - Domain-scoped: same rules as acknowledgeItem.
+   *  - resolution text is required (becomes the audit reason).
+   *
+   * Important: if the underlying source condition still exists, the signal
+   * builder will re-generate the item on the next refresh.  The state overlay
+   * will suppress it from the active queue (resolved items are filtered out),
+   * but the source data remains live.  For durable resolution, the operator
+   * should fix the source (pay the payroll, renew the document, etc.).
    */
   resolveItem: protectedProcedure
     .input(
       z.object({
         companyId: z.number().optional(),
-        itemId: z.string(),
+        itemKey: z.string().min(1),
+        domain: z.string().min(1),
         resolution: z.string().min(1),
       }),
     )
@@ -400,24 +571,66 @@ export const controlTowerRouter = router({
       const m = await requireCanManageControlTower(user, input.companyId);
       const scope = await resolveVisibilityScope(user, m.companyId);
       const caps = deriveCapabilities(m.role, scope);
+
+      assertNotReadOnly(m.role);
       if (!caps.canResolveControlTowerItems) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Your role does not permit resolving Control Tower items.",
         });
       }
-      return { itemId: input.itemId, status: "resolved" as ControlTowerStatus };
+      assertDomainActionAllowed(m.role, input.domain, "resolve");
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const existing = await getItemStateByKey(db, m.companyId, input.itemKey);
+      const previousStatus = (existing?.status ?? "open") as ControlTowerStatus;
+
+      const now = new Date();
+      await upsertItemState(db, {
+        companyId: m.companyId,
+        itemKey: input.itemKey,
+        domain: input.domain,
+        status: "resolved",
+        ownerUserId: existing?.ownerUserId ?? null,
+        acknowledgedBy: existing?.acknowledgedBy ?? null,
+        acknowledgedAt: existing?.acknowledgedAt ?? null,
+        resolvedBy: user.id,
+        resolvedAt: now,
+        dismissedBy: null,
+        dismissedAt: null,
+        dismissalReason: null,
+        lastSeenAt: now,
+      });
+
+      await logCtMutation(db, {
+        companyId: m.companyId,
+        itemKey: input.itemKey,
+        domain: input.domain,
+        action: "resolve",
+        actorUserId: user.id,
+        previousStatus,
+        nextStatus: "resolved",
+        reason: input.resolution,
+      });
+
+      return { itemKey: input.itemKey, status: "resolved" as ControlTowerStatus };
     }),
 
   /**
    * Assigns a Control Tower item to a user.
-   * Requires canAssignControlTowerItems.
+   *
+   * Policy:
+   *  - Requires canAssignControlTowerItems.
+   *  - Domain-scoped policy applies.
    */
   assignItem: protectedProcedure
     .input(
       z.object({
         companyId: z.number().optional(),
-        itemId: z.string(),
+        itemKey: z.string().min(1),
+        domain: z.string().min(1),
         assignToUserId: z.number(),
       }),
     )
@@ -426,12 +639,121 @@ export const controlTowerRouter = router({
       const m = await requireCanManageControlTower(user, input.companyId);
       const scope = await resolveVisibilityScope(user, m.companyId);
       const caps = deriveCapabilities(m.role, scope);
+
+      assertNotReadOnly(m.role);
       if (!caps.canAssignControlTowerItems) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Your role does not permit assigning Control Tower items.",
         });
       }
-      return { itemId: input.itemId, assignedToUserId: input.assignToUserId };
+      assertDomainActionAllowed(m.role, input.domain, "assign");
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const existing = await getItemStateByKey(db, m.companyId, input.itemKey);
+      const previousStatus = (existing?.status ?? "open") as ControlTowerStatus;
+
+      const now = new Date();
+      await upsertItemState(db, {
+        companyId: m.companyId,
+        itemKey: input.itemKey,
+        domain: input.domain,
+        status: previousStatus === "open" ? "in_progress" : previousStatus,
+        ownerUserId: input.assignToUserId,
+        acknowledgedBy: existing?.acknowledgedBy ?? null,
+        acknowledgedAt: existing?.acknowledgedAt ?? null,
+        resolvedBy: existing?.resolvedBy ?? null,
+        resolvedAt: existing?.resolvedAt ?? null,
+        dismissedBy: existing?.dismissedBy ?? null,
+        dismissedAt: existing?.dismissedAt ?? null,
+        dismissalReason: existing?.dismissalReason ?? null,
+        lastSeenAt: now,
+      });
+
+      await logCtMutation(db, {
+        companyId: m.companyId,
+        itemKey: input.itemKey,
+        domain: input.domain,
+        action: "assign",
+        actorUserId: user.id,
+        previousStatus,
+        nextStatus: previousStatus === "open" ? "in_progress" : previousStatus,
+        assignedToUserId: input.assignToUserId,
+      });
+
+      return { itemKey: input.itemKey, assignedToUserId: input.assignToUserId };
+    }),
+
+  /**
+   * Dismisses a Control Tower item.
+   *
+   * Policy:
+   *  - Requires canResolveControlTowerItems (same gate as resolve).
+   *  - Domain-scoped policy applies.
+   *  - reason is always required (ensures intentional dismissal).
+   *  - company_admin or domain manager only; hr_admin/finance_admin limited
+   *    to their domain (via assertDomainActionAllowed).
+   */
+  dismissItem: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        itemKey: z.string().min(1),
+        domain: z.string().min(1),
+        reason: z.string().min(1, "Dismissal reason is required."),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const user = ctx.user as User;
+      const m = await requireCanManageControlTower(user, input.companyId);
+      const scope = await resolveVisibilityScope(user, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+
+      assertNotReadOnly(m.role);
+      if (!caps.canResolveControlTowerItems) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Your role does not permit dismissing Control Tower items.",
+        });
+      }
+      assertDomainActionAllowed(m.role, input.domain, "dismiss");
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const existing = await getItemStateByKey(db, m.companyId, input.itemKey);
+      const previousStatus = (existing?.status ?? "open") as ControlTowerStatus;
+
+      const now = new Date();
+      await upsertItemState(db, {
+        companyId: m.companyId,
+        itemKey: input.itemKey,
+        domain: input.domain,
+        status: "dismissed",
+        ownerUserId: existing?.ownerUserId ?? null,
+        acknowledgedBy: existing?.acknowledgedBy ?? null,
+        acknowledgedAt: existing?.acknowledgedAt ?? null,
+        resolvedBy: null,
+        resolvedAt: null,
+        dismissedBy: user.id,
+        dismissedAt: now,
+        dismissalReason: input.reason,
+        lastSeenAt: now,
+      });
+
+      await logCtMutation(db, {
+        companyId: m.companyId,
+        itemKey: input.itemKey,
+        domain: input.domain,
+        action: "dismiss",
+        actorUserId: user.id,
+        previousStatus,
+        nextStatus: "dismissed",
+        reason: input.reason,
+      });
+
+      return { itemKey: input.itemKey, status: "dismissed" as ControlTowerStatus };
     }),
 });

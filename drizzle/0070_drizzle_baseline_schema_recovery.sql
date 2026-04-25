@@ -3200,3 +3200,24 @@ CREATE TABLE IF NOT EXISTS `attendance_invoice_payment_records` (
 `created_at` timestamp NOT NULL DEFAULT (now()),
 CONSTRAINT `attendance_invoice_payment_records_id` PRIMARY KEY(`id`)
 );
+
+
+CREATE TABLE IF NOT EXISTS `control_tower_item_states` (
+`id` int AUTO_INCREMENT NOT NULL,
+`company_id` int NOT NULL,
+`item_key` varchar(255) NOT NULL,
+`domain` varchar(64) NOT NULL,
+`status` enum('open','acknowledged','in_progress','resolved','dismissed') NOT NULL DEFAULT 'open',
+`owner_user_id` int DEFAULT NULL,
+`acknowledged_by` int DEFAULT NULL,
+`acknowledged_at` timestamp NULL DEFAULT NULL,
+`resolved_by` int DEFAULT NULL,
+`resolved_at` timestamp NULL DEFAULT NULL,
+`dismissed_by` int DEFAULT NULL,
+`dismissed_at` timestamp NULL DEFAULT NULL,
+`dismissal_reason` text DEFAULT NULL,
+`last_seen_at` timestamp NOT NULL DEFAULT (now()),
+`created_at` timestamp NOT NULL DEFAULT (now()),
+`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+CONSTRAINT `control_tower_item_states_id` PRIMARY KEY(`id`)
+);

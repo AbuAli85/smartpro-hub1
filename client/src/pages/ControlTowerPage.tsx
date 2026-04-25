@@ -135,7 +135,10 @@ export default function ControlTowerPage() {
       { enabled: ctEnabled, staleTime: 60_000 },
     );
   const acknowledgeItem = trpc.controlTower.acknowledgeItem.useMutation({
-    onSuccess: () => void utils.controlTower.items.invalidate(),
+    onSuccess: () => {
+      void utils.controlTower.items.invalidate();
+      void utils.controlTower.summary.invalidate();
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -643,26 +646,58 @@ export default function ControlTowerPage() {
                     )}
                   />
                   <div className="flex-1 min-w-0 space-y-0.5">
-                    <p className="text-xs font-medium leading-snug">{item.title}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-xs font-medium leading-snug">{item.title}</p>
+                      {item.status !== "open" && (
+                        <span
+                          className={cn(
+                            "inline-flex items-center rounded px-1 py-0 text-[10px] font-medium leading-4",
+                            item.status === "acknowledged" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+                            item.status === "in_progress" && "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+                          )}
+                        >
+                          {item.status === "acknowledged" ? "Ack" : "In progress"}
+                        </span>
+                      )}
+                      {item.ownerUserId != null && (
+                        <span className="text-[10px] text-muted-foreground">
+                          owner:{item.ownerUserId}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-muted-foreground leading-snug">{item.description}</p>
                   </div>
-                  {!isReadOnly && item.allowedActions.includes("acknowledge") && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0 text-xs h-7 px-2"
-                      disabled={acknowledgeItem.isPending}
-                      onClick={() =>
-                        acknowledgeItem.mutate({
-                          companyId: activeCompanyId ?? undefined,
-                          itemId: item.id,
-                        })
-                      }
-                    >
-                      Ack
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {item.relatedEntityType != null && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 px-2"
+                        asChild
+                      >
+                        <a href={`/${item.relatedEntityType.replace(/_/g, "-")}`}>Open</a>
+                      </Button>
+                    )}
+                    {!isReadOnly && item.allowedActions.includes("acknowledge") && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 px-2"
+                        disabled={acknowledgeItem.isPending}
+                        onClick={() =>
+                          acknowledgeItem.mutate({
+                            companyId: activeCompanyId ?? undefined,
+                            itemKey: item.id,
+                            domain: item.domain,
+                          })
+                        }
+                      >
+                        Ack
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
               {ctItems != null && ctItems.total > 15 && (

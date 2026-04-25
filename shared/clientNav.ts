@@ -497,7 +497,7 @@ export function getRoleDefaultRoute(memberRole?: string | null, isManager?: bool
     case "reviewer": return "/control-tower";
     case "external_auditor": return "/control-tower";
     case "client": return "/client";
-    default: return "/dashboard";
+    default: return "/control-tower";
   }
 }
 

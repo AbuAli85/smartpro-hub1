@@ -37,14 +37,18 @@ describe("ATTENDANCE_AUDIT_SOURCE", () => {
 // ---------------------------------------------------------------------------
 
 describe("onClientApprovalComplete", () => {
-  it("is a no-op that resolves without error", async () => {
+  it("resolves without error for internal source", async () => {
     const { onClientApprovalComplete } = await import("./lib/attendanceClientApprovalHooks");
-    await expect(onClientApprovalComplete(1, 42)).resolves.toBeUndefined();
+    await expect(
+      onClientApprovalComplete({ batchId: 1, companyId: 42, approvedByUserId: 7, source: "internal" }),
+    ).resolves.toBeUndefined();
   });
 
-  it("can be called with any batchId/companyId without throwing", async () => {
+  it("resolves without error for client_portal_token source", async () => {
     const { onClientApprovalComplete } = await import("./lib/attendanceClientApprovalHooks");
-    await expect(onClientApprovalComplete(999, 1)).resolves.toBeUndefined();
+    await expect(
+      onClientApprovalComplete({ batchId: 999, companyId: 1, approvedByUserId: null, source: "client_portal_token" }),
+    ).resolves.toBeUndefined();
   });
 });
 
@@ -98,6 +102,8 @@ vi.mock("./lib/attendanceClientApprovalHooks", () => ({
 import * as dbModule from "./db.client";
 import * as tokenModule from "./attendanceApprovalToken";
 import * as auditModule from "./attendanceAudit";
+import * as companiesRepo from "./repositories/companies.repository";
+import * as hooksModule from "./lib/attendanceClientApprovalHooks";
 import { attendanceRouter } from "./routers/attendance";
 import type { TrpcContext } from "./_core/context";
 
@@ -108,6 +114,43 @@ function makePublicCtx(): TrpcContext {
     res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
   };
 }
+
+function makeHrCtx(userId = 2): TrpcContext {
+  return {
+    user: {
+      id: userId,
+      openId: `o${userId}`,
+      email: "hr@test.om",
+      name: "HR",
+      loginMethod: "manus",
+      role: "user",
+      platformRole: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    },
+    req: { protocol: "https", headers: {} } as TrpcContext["req"],
+    res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+  };
+}
+
+const HR_MEMBERSHIP = {
+  company: { id: 1 },
+  member: { role: "hr_admin", status: "active" },
+};
+
+const SUBMITTED_BATCH = {
+  id: 10,
+  companyId: 1,
+  status: "submitted",
+  periodStart: "2026-04-01",
+  periodEnd: "2026-04-30",
+  submittedByUserId: 5,
+  approvedAt: null,
+  rejectedAt: null,
+  rejectionReason: null,
+  clientComment: null,
+};
 
 function makeMockDbFull(batchRow: object | null, itemRow: object | null, companyId = 1) {
   const batchForCompany = batchRow ? [batchRow] : [];
@@ -145,6 +188,12 @@ function makeMockDbFull(batchRow: object | null, itemRow: object | null, company
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(hooksModule.onClientApprovalComplete).mockResolvedValue(undefined);
+  vi.mocked(companiesRepo.getUserCompanyById).mockResolvedValue(HR_MEMBERSHIP as never);
+  // Needed when input has no explicit companyId: requireActiveCompanyId falls through to getUserCompanies.
+  vi.mocked(companiesRepo.getUserCompanies).mockResolvedValue([
+    { company: { id: 1, name: "Test Co" }, member: { role: "hr_admin" } },
+  ] as never);
 });
 
 describe("clientDisputeItemByToken", () => {
@@ -186,5 +235,105 @@ describe("clientDisputeItemByToken", () => {
     await expect(
       caller.clientDisputeItemByToken({ token: validToken, itemId: 5, disputeReason: "Some valid dispute reason" }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hook wiring — internal approve path
+// ---------------------------------------------------------------------------
+
+describe("hook wiring — approveClientApprovalBatch", () => {
+  it("calls onClientApprovalComplete with source 'internal' after approval", async () => {
+    const db = makeMockDbFull(SUBMITTED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = attendanceRouter.createCaller(makeHrCtx());
+    const result = await caller.approveClientApprovalBatch({ batchId: 10 });
+
+    expect(result.status).toBe("approved");
+    expect(hooksModule.onClientApprovalComplete).toHaveBeenCalledOnce();
+    expect(hooksModule.onClientApprovalComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ batchId: 10, companyId: 1, source: "internal" }),
+    );
+  });
+
+  it("approval succeeds even if hook rejects (best-effort)", async () => {
+    vi.mocked(hooksModule.onClientApprovalComplete).mockRejectedValueOnce(new Error("billing outage"));
+
+    const db = makeMockDbFull(SUBMITTED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = attendanceRouter.createCaller(makeHrCtx());
+    const result = await caller.approveClientApprovalBatch({ batchId: 10 });
+
+    expect(result.status).toBe("approved");
+  });
+
+  it("does NOT call hook on rejectClientApprovalBatch", async () => {
+    const db = makeMockDbFull(SUBMITTED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = attendanceRouter.createCaller(makeHrCtx());
+    const result = await caller.rejectClientApprovalBatch({
+      batchId: 10,
+      rejectionReason: "Hours do not match records.",
+    });
+
+    expect(result.status).toBe("rejected");
+    expect(hooksModule.onClientApprovalComplete).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hook wiring — token approval path
+// ---------------------------------------------------------------------------
+
+describe("hook wiring — clientApproveByToken", () => {
+  const TOKEN = "valid-jwt-token";
+  const TOKEN_PAYLOAD = { batchId: 10, companyId: 1 };
+
+  it("calls onClientApprovalComplete with source 'client_portal_token' after approval", async () => {
+    (tokenModule.verifyClientApprovalToken as any).mockResolvedValue(TOKEN_PAYLOAD);
+
+    const db = makeMockDbFull(SUBMITTED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = (attendanceRouter as any).createCaller(makePublicCtx());
+    const result = await caller.clientApproveByToken({ token: TOKEN });
+
+    expect(result.status).toBe("approved");
+    expect(hooksModule.onClientApprovalComplete).toHaveBeenCalledOnce();
+    expect(hooksModule.onClientApprovalComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ batchId: 10, companyId: 1, source: "client_portal_token" }),
+    );
+  });
+
+  it("approval succeeds even if hook rejects (best-effort)", async () => {
+    vi.mocked(hooksModule.onClientApprovalComplete).mockRejectedValueOnce(new Error("billing outage"));
+    (tokenModule.verifyClientApprovalToken as any).mockResolvedValue(TOKEN_PAYLOAD);
+
+    const db = makeMockDbFull(SUBMITTED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = (attendanceRouter as any).createCaller(makePublicCtx());
+    const result = await caller.clientApproveByToken({ token: TOKEN });
+
+    expect(result.status).toBe("approved");
+  });
+
+  it("does NOT call hook on clientRejectByToken", async () => {
+    (tokenModule.verifyClientApprovalToken as any).mockResolvedValue(TOKEN_PAYLOAD);
+
+    const db = makeMockDbFull(SUBMITTED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = (attendanceRouter as any).createCaller(makePublicCtx());
+    const result = await caller.clientRejectByToken({
+      token: TOKEN,
+      rejectionReason: "Attendance records mismatch.",
+    });
+
+    expect(result.status).toBe("rejected");
+    expect(hooksModule.onClientApprovalComplete).not.toHaveBeenCalled();
   });
 });

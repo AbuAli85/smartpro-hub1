@@ -430,7 +430,12 @@ export const clientApprovalRouter = router({
         source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
       });
 
-      onClientApprovalComplete(input.batchId, cid).catch(() => {});
+      onClientApprovalComplete({
+        batchId: input.batchId,
+        companyId: cid,
+        approvedByUserId: user.id,
+        source: "internal",
+      }).catch(() => {});
 
       return { batchId: input.batchId, status: "approved" };
     }),
@@ -815,7 +820,12 @@ export const clientApprovalRouter = router({
         }).catch(() => {});
       }
 
-      onClientApprovalComplete(payload.batchId, payload.companyId).catch(() => {});
+      onClientApprovalComplete({
+        batchId: payload.batchId,
+        companyId: payload.companyId,
+        approvedByUserId: null,
+        source: "client_portal_token",
+      }).catch(() => {});
 
       return { batchId: payload.batchId, status: "approved" as const };
     }),

@@ -5292,6 +5292,10 @@ export const attendanceInvoices = mysqlTable(
     snapshotWarningOverrideReason: text("snapshot_warning_override_reason"),
     issuedAt: timestamp("issued_at"),
     issuedByUserId: int("issued_by_user_id"),
+    /** Storage key for the issued HTML artifact; set when issueAttendanceInvoice runs. */
+    htmlArtifactKey: varchar("html_artifact_key", { length: 500 }),
+    /** Proxy-issued URL for the issued HTML artifact; set when issueAttendanceInvoice runs. */
+    htmlArtifactUrl: varchar("html_artifact_url", { length: 1000 }),
     createdByUserId: int("created_by_user_id").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

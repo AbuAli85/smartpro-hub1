@@ -1,5 +1,5 @@
 /**
- * Attendance Billing router (Phase 12C + 12D).
+ * Attendance Billing router (Phase 12C + 12D + 12E).
  *
  * Phase 12C — Candidate review surface (finance/admin):
  *   listAttendanceBillingCandidates    — paginated list with filters
@@ -12,17 +12,21 @@
  *   convertAttendanceBillingCandidateToInvoice — review_ready candidate → draft invoice
  *   listAttendanceInvoices             — paginated list with filters
  *   getAttendanceInvoice               — detail with parsed billing lines
- *   cancelAttendanceInvoice            — draft/review_ready → cancelled
+ *   cancelAttendanceInvoice            — draft/review_ready → cancelled (no reason)
+ *
+ * Phase 12E — Invoice issuance and HTML artifact (finance/admin):
+ *   issueAttendanceInvoice             — draft/review_ready → issued + HTML artifact stored
+ *   voidAttendanceInvoice              — issued/sent → cancelled with mandatory reason
  *
  * Access: company_admin and finance_admin only (requireFinanceOrAdmin).
- * hr_admin is excluded — Phase 12C/12D policy.
+ * hr_admin is excluded — Phase 12C/12D/12E policy.
  *
- * No invoice issuance, no payment records, no PDF/HTML artifacts in this phase.
+ * No PDF, no email, no payment records in this phase.
  */
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gte, lte, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireDb } from "../db.client";
 import { requireFinanceOrAdmin } from "../_core/policy";
@@ -33,6 +37,12 @@ import {
   type AttendanceBillingLineItem,
   type User,
 } from "../../drizzle/schema";
+import {
+  canCancelAttendanceInvoice,
+  canVoidAttendanceInvoice,
+  type AttendanceInvoiceStatus,
+} from "../../shared/attendanceInvoiceStateMachine";
+import { issueAttendanceInvoice } from "../services/attendanceBillingExecution.service";
 
 // ─── Shared input schemas ─────────────────────────────────────────────────────
 
@@ -487,6 +497,7 @@ export const attendanceBillingRouter = router({
           totalOmr: attendanceInvoices.totalOmr,
           status: attendanceInvoices.status,
           dueDateYmd: attendanceInvoices.dueDateYmd,
+          htmlArtifactUrl: attendanceInvoices.htmlArtifactUrl,
           createdAt: attendanceInvoices.createdAt,
           updatedAt: attendanceInvoices.updatedAt,
         })
@@ -539,10 +550,134 @@ export const attendanceBillingRouter = router({
       };
     }),
 
+  // ─── Phase 12E: Issuance + void ──────────────────────────────────────────────
+
   /**
-   * Cancel a draft or review_ready attendance invoice.
+   * Issue a draft or review_ready attendance invoice.
+   * Builds and stores an HTML artifact, sets status = "issued".
+   * Idempotent when already issued/sent (returns skipped: true).
+   * Rejects paid and cancelled invoices.
+   */
+  issueAttendanceInvoice: protectedProcedure
+    .input(invoiceIdInput)
+    .mutation(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User);
+      const db = await requireDb();
+
+      // Load company info for the HTML artifact supplier block
+      const companyRows = await db
+        .select({
+          name: companies.name,
+          taxNumber: companies.taxNumber,
+          crNumber: companies.crNumber,
+          address: companies.address,
+        })
+        .from(companies)
+        .where(eq(companies.id, companyId))
+        .limit(1);
+
+      const companyRow = companyRows[0];
+      const companyInfo = {
+        name: companyRow?.name ?? `Company #${companyId}`,
+        taxNumber: companyRow?.taxNumber ?? null,
+        crNumber: companyRow?.crNumber ?? null,
+        address: companyRow?.address ?? null,
+      };
+
+      return issueAttendanceInvoice(db, {
+        companyId,
+        invoiceId: input.invoiceId,
+        userId: ctx.user.id,
+        companyInfo,
+      });
+    }),
+
+  /**
+   * Void an issued or sent attendance invoice with a mandatory reason.
+   * Sets status = "cancelled" and appends the void reason to the notes field.
+   * Draft/review_ready invoices must use cancelAttendanceInvoice instead.
+   * Paid invoices cannot be voided.
+   */
+  voidAttendanceInvoice: protectedProcedure
+    .input(
+      invoiceIdInput.merge(
+        z.object({
+          voidReason: z.string().min(5, "Void reason must be at least 5 characters.").max(500),
+        }),
+      ),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User);
+      const db = await requireDb();
+
+      const rows = await db
+        .select({
+          id: attendanceInvoices.id,
+          status: attendanceInvoices.status,
+          notes: attendanceInvoices.notes,
+        })
+        .from(attendanceInvoices)
+        .where(
+          and(
+            eq(attendanceInvoices.id, input.invoiceId),
+            eq(attendanceInvoices.companyId, companyId),
+          ),
+        )
+        .limit(1);
+
+      const invoice = rows[0];
+      if (!invoice) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Attendance invoice not found." });
+      }
+
+      const status = invoice.status as AttendanceInvoiceStatus;
+
+      if (status === "draft" || status === "review_ready") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Use cancelAttendanceInvoice for draft or review_ready invoices.",
+        });
+      }
+      if (status === "paid") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot void a paid invoice.",
+        });
+      }
+      if (status === "cancelled") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invoice is already cancelled.",
+        });
+      }
+      if (!canVoidAttendanceInvoice(status)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot void invoice with status '${status}'.`,
+        });
+      }
+
+      const timestamp = new Date().toISOString();
+      const voidNote = `[VOIDED ${timestamp} by user ${ctx.user.id}]: ${input.voidReason}`;
+      const updatedNotes = invoice.notes ? `${invoice.notes}\n${voidNote}` : voidNote;
+
+      await db
+        .update(attendanceInvoices)
+        .set({ status: "cancelled", notes: updatedNotes })
+        .where(eq(attendanceInvoices.id, input.invoiceId));
+
+      console.log(
+        `[billing] invoice ${input.invoiceId} voided userId=${ctx.user.id} companyId=${companyId} reason="${input.voidReason}"`,
+      );
+
+      return { invoiceId: input.invoiceId, status: "cancelled" as const };
+    }),
+
+  /**
+   * Cancel a draft or review_ready attendance invoice (no reason required).
    * Idempotent on already-cancelled.
-   * Rejects issued/sent/paid invoices.
+   * Issued/sent invoices must use voidAttendanceInvoice (requires reason).
+   * Paid invoices cannot be cancelled.
    */
   cancelAttendanceInvoice: protectedProcedure
     .input(invoiceIdInput)
@@ -565,13 +700,31 @@ export const attendanceBillingRouter = router({
       if (!invoice) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Attendance invoice not found." });
       }
-      if (invoice.status === "cancelled") {
+
+      const status = invoice.status as AttendanceInvoiceStatus;
+
+      if (status === "cancelled") {
         return { invoiceId: input.invoiceId, status: "cancelled" as const };
       }
-      if (invoice.status !== "draft" && invoice.status !== "review_ready") {
+
+      if (status === "issued" || status === "sent") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Cannot cancel an invoice with status '${invoice.status}'. Only draft or review_ready invoices can be cancelled.`,
+          message: "Use voidAttendanceInvoice for issued or sent invoices (requires a void reason).",
+        });
+      }
+
+      if (status === "paid") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot cancel a paid invoice.",
+        });
+      }
+
+      if (!canCancelAttendanceInvoice(status)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot cancel an invoice with status '${status}'.`,
         });
       }
 

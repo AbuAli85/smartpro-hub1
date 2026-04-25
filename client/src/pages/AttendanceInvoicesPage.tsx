@@ -18,6 +18,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -25,6 +32,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -36,6 +45,9 @@ import {
   ExternalLink,
   Clock,
   CheckCircle2,
+  Send,
+  Download,
+  Ban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -98,6 +110,78 @@ function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
   );
 }
 
+// ─── Void reason modal ────────────────────────────────────────────────────────
+
+function VoidInvoiceDialog({
+  open,
+  invoiceId,
+  onClose,
+  onVoided,
+}: {
+  open: boolean;
+  invoiceId: number;
+  onClose: () => void;
+  onVoided: () => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  const voidInvoice = trpc.attendanceBilling.voidAttendanceInvoice.useMutation({
+    onSuccess: () => {
+      toast.success("Invoice voided");
+      setReason("");
+      onVoided();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function handleSubmit() {
+    if (reason.trim().length < 5) {
+      toast.error("Void reason must be at least 5 characters.");
+      return;
+    }
+    voidInvoice.mutate({ invoiceId, voidReason: reason.trim() });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Void invoice #{invoiceId}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <p className="text-sm text-muted-foreground">
+            Voiding an issued invoice marks it cancelled and records a reason. This cannot be undone.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="void-reason">Void reason</Label>
+            <Textarea
+              id="void-reason"
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Describe why this invoice is being voided…"
+            />
+            <p className="text-xs text-muted-foreground">{reason.length}/500</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={voidInvoice.isPending}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleSubmit}
+            disabled={voidInvoice.isPending || reason.trim().length < 5}
+          >
+            {voidInvoice.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+            Void invoice
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Invoice detail sheet ─────────────────────────────────────────────────────
 
 function InvoiceDetailSheet({
@@ -110,6 +194,7 @@ function InvoiceDetailSheet({
   onClose: () => void;
 }) {
   const utils = trpc.useUtils();
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
 
   const { data: invoice, isLoading } = trpc.attendanceBilling.getAttendanceInvoice.useQuery(
     { invoiceId: invoiceId! },
@@ -127,178 +212,253 @@ function InvoiceDetailSheet({
     onError: (e) => toast.error(e.message),
   });
 
+  const issueInvoice = trpc.attendanceBilling.issueAttendanceInvoice.useMutation({
+    onSuccess: (result) => {
+      if (result.skipped) {
+        toast.info("Invoice was already issued.");
+      } else {
+        toast.success("Invoice issued successfully.");
+      }
+      utils.attendanceBilling.listAttendanceInvoices.invalidate();
+      utils.attendanceBilling.getAttendanceInvoice.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   function formatTime(iso: string | null) {
     if (!iso) return "—";
     return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   }
 
   const lines: BillingLine[] = (invoice?.billingLinesJson as BillingLine[] | undefined) ?? [];
-  const canCancel = invoice?.status === "draft" || invoice?.status === "review_ready";
+  const status = invoice?.status as InvoiceStatus | undefined;
+  const canCancel = status === "draft" || status === "review_ready";
+  const canIssue = status === "draft" || status === "review_ready";
+  const canVoid = status === "issued" || status === "sent";
+  const artifactUrl = invoice && "htmlArtifactUrl" in invoice
+    ? (invoice as { htmlArtifactUrl?: string | null }).htmlArtifactUrl
+    : null;
 
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Invoice #{invoiceId}</SheetTitle>
-        </SheetHeader>
+    <>
+      <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Invoice #{invoiceId}</SheetTitle>
+          </SheetHeader>
 
-        {isLoading && (
-          <div className="flex items-center justify-center h-40">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
-        )}
-
-        {invoice && (
-          <div className="mt-4 space-y-4">
-            {/* Invoice number + status */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-sm font-semibold">{invoice.invoiceNumber}</span>
-              <InvoiceStatusBadge status={invoice.status as InvoiceStatus} />
+          {isLoading && (
+            <div className="flex items-center justify-center h-40">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
+          )}
 
-            {/* Summary grid */}
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-muted-foreground">Client</span>
-                <div className="mt-1 font-medium">{invoice.clientDisplayName}</div>
+          {invoice && (
+            <div className="mt-4 space-y-4">
+              {/* Invoice number + status */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-sm font-semibold">{invoice.invoiceNumber}</span>
+                <InvoiceStatusBadge status={invoice.status as InvoiceStatus} />
               </div>
-              <div>
-                <span className="text-muted-foreground">Period</span>
-                <div className="mt-1 font-medium">
-                  {invoice.periodStart} → {invoice.periodEnd}
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Total hours</span>
-                <div className="mt-1 font-medium">
-                  {invoice.totalHours != null ? `${invoice.totalHours}h` : "—"}
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Rate / hour</span>
-                <div className="mt-1 font-medium">{invoice.ratePerHourOmr} OMR</div>
-              </div>
-              {invoice.dueDateYmd && (
+
+              {/* Summary grid */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <span className="text-muted-foreground">Due date</span>
-                  <div className="mt-1 font-medium">{invoice.dueDateYmd}</div>
+                  <span className="text-muted-foreground">Client</span>
+                  <div className="mt-1 font-medium">{invoice.clientDisplayName}</div>
                 </div>
-              )}
-              <div>
-                <span className="text-muted-foreground">Source candidate</span>
-                <div className="mt-1">
-                  <Link
-                    href="/finance/attendance-billing"
-                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                  >
-                    Candidate #{invoice.candidateId}
-                    <ExternalLink className="w-3 h-3" />
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            {/* Financials */}
-            <div className="rounded-md border bg-muted/30 p-3 space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span>{invoice.subtotalOmr} OMR</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">VAT ({invoice.vatRatePct}%)</span>
-                <span>{invoice.vatOmr} OMR</span>
-              </div>
-              <div className="flex justify-between font-semibold border-t pt-1 mt-1">
-                <span>Total</span>
-                <span>{invoice.totalOmr} OMR</span>
-              </div>
-            </div>
-
-            {/* Notes */}
-            {invoice.notes && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Notes</span>
-                <p className="mt-1">{invoice.notes}</p>
-              </div>
-            )}
-
-            {/* Snapshot warning override */}
-            {invoice.snapshotWarningOverrideReason && (
-              <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
-                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                 <div>
-                  <p className="font-medium">Snapshot warning override recorded</p>
-                  <p className="mt-0.5 text-xs">{invoice.snapshotWarningOverrideReason}</p>
+                  <span className="text-muted-foreground">Period</span>
+                  <div className="mt-1 font-medium">
+                    {invoice.periodStart} → {invoice.periodEnd}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Total hours</span>
+                  <div className="mt-1 font-medium">
+                    {invoice.totalHours != null ? `${invoice.totalHours}h` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Rate / hour</span>
+                  <div className="mt-1 font-medium">{invoice.ratePerHourOmr} OMR</div>
+                </div>
+                {invoice.dueDateYmd && (
+                  <div>
+                    <span className="text-muted-foreground">Due date</span>
+                    <div className="mt-1 font-medium">{invoice.dueDateYmd}</div>
+                  </div>
+                )}
+                <div>
+                  <span className="text-muted-foreground">Source candidate</span>
+                  <div className="mt-1">
+                    <Link
+                      href="/finance/attendance-billing"
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                    >
+                      Candidate #{invoice.candidateId}
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* Billing lines */}
-            <div>
-              <h3 className="text-sm font-semibold mb-2">Billing lines ({lines.length})</h3>
-              {lines.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No billing lines.</p>
-              ) : (
-                <div className="border rounded-md overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Check-in</TableHead>
-                        <TableHead>Check-out</TableHead>
-                        <TableHead className="text-right">Minutes</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {lines.map((line) => (
-                        <TableRow
-                          key={line.itemId}
-                          className={line.snapshotMissing ? "bg-amber-50" : undefined}
-                        >
-                          <TableCell className="font-medium">
-                            {line.employeeDisplayName ?? `#${line.employeeId}`}
-                            {line.snapshotMissing && (
-                              <span className="ml-1 text-amber-600 text-xs">(no snapshot)</span>
-                            )}
-                          </TableCell>
-                          <TableCell>{line.attendanceDate}</TableCell>
-                          <TableCell>{formatTime(line.checkInAt)}</TableCell>
-                          <TableCell>{formatTime(line.checkOutAt)}</TableCell>
-                          <TableCell className="text-right">
-                            {line.durationMinutes ?? "—"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+              {/* Financials */}
+              <div className="rounded-md border bg-muted/30 p-3 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>{invoice.subtotalOmr} OMR</span>
                 </div>
-              )}
-            </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">VAT ({invoice.vatRatePct}%)</span>
+                  <span>{invoice.vatOmr} OMR</span>
+                </div>
+                <div className="flex justify-between font-semibold border-t pt-1 mt-1">
+                  <span>Total</span>
+                  <span>{invoice.totalOmr} OMR</span>
+                </div>
+              </div>
 
-            {/* Actions */}
-            {canCancel && (
-              <div className="flex gap-2 pt-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={() => cancelInvoice.mutate({ invoiceId: invoice.id })}
-                  disabled={cancelInvoice.isPending}
+              {/* HTML artifact download */}
+              {artifactUrl && (
+                <a
+                  href={artifactUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
                 >
-                  {cancelInvoice.isPending ? (
-                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                  ) : (
-                    <XCircle className="w-4 h-4 mr-1" />
-                  )}
-                  Cancel invoice
-                </Button>
+                  <Download className="w-4 h-4" />
+                  Download invoice (HTML)
+                </a>
+              )}
+
+              {/* Notes */}
+              {invoice.notes && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Notes</span>
+                  <p className="mt-1 whitespace-pre-wrap">{invoice.notes}</p>
+                </div>
+              )}
+
+              {/* Snapshot warning override */}
+              {invoice.snapshotWarningOverrideReason && (
+                <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Snapshot warning override recorded</p>
+                    <p className="mt-0.5 text-xs">{invoice.snapshotWarningOverrideReason}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Billing lines */}
+              <div>
+                <h3 className="text-sm font-semibold mb-2">Billing lines ({lines.length})</h3>
+                {lines.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No billing lines.</p>
+                ) : (
+                  <div className="border rounded-md overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Employee</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Check-in</TableHead>
+                          <TableHead>Check-out</TableHead>
+                          <TableHead className="text-right">Minutes</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {lines.map((line) => (
+                          <TableRow
+                            key={line.itemId}
+                            className={line.snapshotMissing ? "bg-amber-50" : undefined}
+                          >
+                            <TableCell className="font-medium">
+                              {line.employeeDisplayName ?? `#${line.employeeId}`}
+                              {line.snapshotMissing && (
+                                <span className="ml-1 text-amber-600 text-xs">(no snapshot)</span>
+                              )}
+                            </TableCell>
+                            <TableCell>{line.attendanceDate}</TableCell>
+                            <TableCell>{formatTime(line.checkInAt)}</TableCell>
+                            <TableCell>{formatTime(line.checkOutAt)}</TableCell>
+                            <TableCell className="text-right">
+                              {line.durationMinutes ?? "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
-      </SheetContent>
-    </Sheet>
+
+              {/* Actions */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {canIssue && (
+                  <Button
+                    size="sm"
+                    onClick={() => issueInvoice.mutate({ invoiceId: invoice.id })}
+                    disabled={issueInvoice.isPending}
+                  >
+                    {issueInvoice.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4 mr-1" />
+                    )}
+                    Issue invoice
+                  </Button>
+                )}
+
+                {canVoid && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                    onClick={() => setVoidDialogOpen(true)}
+                  >
+                    <Ban className="w-4 h-4 mr-1" />
+                    Void invoice
+                  </Button>
+                )}
+
+                {canCancel && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={() => cancelInvoice.mutate({ invoiceId: invoice.id })}
+                    disabled={cancelInvoice.isPending}
+                  >
+                    {cancelInvoice.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <XCircle className="w-4 h-4 mr-1" />
+                    )}
+                    Cancel invoice
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {invoiceId != null && (
+        <VoidInvoiceDialog
+          open={voidDialogOpen}
+          invoiceId={invoiceId}
+          onClose={() => setVoidDialogOpen(false)}
+          onVoided={() => {
+            setVoidDialogOpen(false);
+            utils.attendanceBilling.listAttendanceInvoices.invalidate();
+            utils.attendanceBilling.getAttendanceInvoice.invalidate();
+            onClose();
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -323,8 +483,7 @@ export default function AttendanceInvoicesPage() {
         <div>
           <h1 className="text-xl font-semibold">Attendance Invoices</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Draft invoices converted from approved attendance billing candidates.
-            No issuance or payment in this phase.
+            Issue and manage attendance invoices. Download HTML artifacts for issued invoices.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -396,6 +555,12 @@ export default function AttendanceInvoicesPage() {
                         {inv.invoiceNumber}
                       </span>
                       <InvoiceStatusBadge status={inv.status as InvoiceStatus} />
+                      {inv.htmlArtifactUrl && (
+                        <span className="inline-flex items-center gap-0.5 text-xs text-emerald-600">
+                          <Download className="w-3 h-3" />
+                          HTML
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm font-medium truncate">{inv.clientDisplayName}</p>
                     <p className="text-xs text-muted-foreground">

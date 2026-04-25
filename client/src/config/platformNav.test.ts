@@ -97,6 +97,7 @@ describe("platformNav IA & routing", () => {
       "/analytics",
       "/finance/overview",
       "/finance/attendance-billing",
+      "/finance/attendance-invoices",
       "/compliance",
     ]);
   });

@@ -3157,3 +3157,32 @@ CREATE TABLE IF NOT EXISTS `attendance_billing_candidates` (
 CONSTRAINT `attendance_billing_candidates_id` PRIMARY KEY(`id`),
 CONSTRAINT `uq_abc_batch_id` UNIQUE(`batch_id`)
 );
+
+CREATE TABLE IF NOT EXISTS `attendance_invoices` (
+`id` int NOT NULL AUTO_INCREMENT,
+`candidate_id` int NOT NULL,
+`company_id` int NOT NULL,
+`client_company_id` int NOT NULL,
+`client_display_name` varchar(255) NOT NULL,
+`invoice_number` varchar(64) NOT NULL,
+`period_start` varchar(10) NOT NULL,
+`period_end` varchar(10) NOT NULL,
+`currency_code` varchar(3) NOT NULL DEFAULT 'OMR',
+`rate_per_hour_omr` decimal(14,3) NOT NULL,
+`total_duration_minutes` int DEFAULT NULL,
+`subtotal_omr` decimal(14,3) NOT NULL DEFAULT '0.000',
+`vat_rate_pct` decimal(5,2) NOT NULL DEFAULT '0.00',
+`vat_omr` decimal(14,3) NOT NULL DEFAULT '0.000',
+`total_omr` decimal(14,3) NOT NULL DEFAULT '0.000',
+`billing_lines_json` json NOT NULL,
+`status` enum('draft','review_ready','issued','sent','paid','cancelled') NOT NULL DEFAULT 'draft',
+`due_date_ymd` varchar(10) DEFAULT NULL,
+`notes` text DEFAULT NULL,
+`snapshot_warning_override_reason` text DEFAULT NULL,
+`issued_at` timestamp NULL DEFAULT NULL,
+`issued_by_user_id` int DEFAULT NULL,
+`created_by_user_id` int NOT NULL,
+`created_at` timestamp NOT NULL DEFAULT (now()),
+`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+CONSTRAINT `attendance_invoices_id` PRIMARY KEY(`id`)
+);

@@ -46,9 +46,8 @@ import {
   MapPin,
   Calendar,
   CalendarCheck,
-  FileText,
   ChevronRight,
-  RefreshCw,
+  ListChecks,
   Info,
 } from "lucide-react";
 
@@ -381,12 +380,14 @@ export default function AttendanceTodayCard({
   todaySchedule,
   operationalHints,
   operationalHintsReady,
+  onViewRequests,
 }: {
   employeeId: number | null;
   companyId: number | null;
   todaySchedule?: any;
   operationalHints: ServerEligibilityHints | null | undefined;
   operationalHintsReady: boolean;
+  onViewRequests?: () => void;
 }) {
   const utils = trpc.useUtils();
   const handleCheckInRef = useRef<() => void>(() => {});
@@ -420,13 +421,6 @@ export default function AttendanceTodayCard({
   const { data: myCorrList, refetch: refetchCorr } = trpc.attendance.myCorrections.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!employeeId && companyId != null },
-  );
-  const { data: myManualList } = trpc.attendance.myManualCheckIns.useQuery(
-    { limit: 15 },
-    {
-      enabled: !!employeeId && companyId != null,
-      retry: false,
-    },
   );
   const { data: todayShiftsData } = trpc.attendance.myTodayShifts.useQuery(
     { companyId: companyId ?? undefined },
@@ -1328,7 +1322,7 @@ export default function AttendanceTodayCard({
                 aria-live="polite"
                 className="mt-3 rounded-md border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100"
               >
-                <span className="font-semibold">Can&apos;t check out yet.</span> Refresh, or contact HR if you need to clock out.
+                <span className="font-semibold">Check-out not available yet.</span> Your session may still be opening &mdash; try refreshing in a moment. If this persists, contact HR.
               </div>
             )}
             {operationalHintsReady && (
@@ -1373,96 +1367,31 @@ export default function AttendanceTodayCard({
         </Card>
       )}
 
-      {/* Correction requests history */}
-      {(myCorrList ?? []).length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <RefreshCw className="w-3.5 h-3.5" /> My Correction Requests
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {(myCorrList as any[]).slice(0, 5).map((c: any) => (
-              <div key={c.id} className="flex items-center justify-between text-sm border-b last:border-0 pb-2 last:pb-0">
-                <div>
-                  <p className="font-medium">{c.requestedDate}</p>
-                  {(c.requestedCheckIn || c.requestedCheckOut) && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {c.requestedCheckIn && <span>In {String(c.requestedCheckIn).slice(0, 5)}</span>}
-                      {c.requestedCheckIn && c.requestedCheckOut && <span> &middot; </span>}
-                      {c.requestedCheckOut && <span>Out {String(c.requestedCheckOut).slice(0, 5)}</span>}
-                      <span className="text-[10px]"> (Asia/Muscat)</span>
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-0.5">{c.reason}</p>
-                  {c.status === "pending" && (
-                    <p className="text-[11px] text-muted-foreground mt-1">With HR for review &mdash; you&apos;ll see the result here.</p>
-                  )}
-                  {c.status === "approved" && (
-                    <p className="text-[11px] text-emerald-800 dark:text-emerald-200/90 mt-1">
-                      Approved{c.adminNote ? ` — HR note: ${c.adminNote}` : " — times updated when HR saved the decision."}
-                    </p>
-                  )}
-                  {c.status === "rejected" && (
-                    <p className="text-[11px] text-red-800 dark:text-red-200/90 mt-1">
-                      Not approved{c.adminNote ? ` — HR: ${c.adminNote}` : "."} Contact HR if you disagree.
-                    </p>
-                  )}
-                </div>
-                {c.status === "pending"
-                  ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50"><span className="sr-only">Status: </span>Pending</Badge>
-                  : c.status === "approved"
-                  ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50"><span className="sr-only">Status: </span>Approved</Badge>
-                  : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50"><span className="sr-only">Status: </span>Rejected</Badge>}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {(myManualList ?? []).length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <FileText className="w-3.5 h-3.5" /> My Manual Check-in Requests
-            </CardTitle>
-            <p className="text-[11px] text-muted-foreground font-normal leading-snug">
-              When you could not use normal check-in (for example outside the geo-fence), HR reviews these before they count.
+      {/* Pending requests indicator — links to the Requests tab */}
+      {(pendingCorr > 0 || operationalHints?.hasPendingManualCheckIn) && (
+        <div className="rounded-lg border border-amber-200/80 bg-amber-50/60 dark:border-amber-800/40 dark:bg-amber-950/20 px-3 py-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <ListChecks className="h-4 w-4 text-amber-600 shrink-0" />
+            <p className="text-xs text-amber-900 dark:text-amber-100 leading-snug">
+              {[
+                pendingCorr > 0 ? `${pendingCorr} correction${pendingCorr > 1 ? "s" : ""}` : null,
+                operationalHints?.hasPendingManualCheckIn ? "manual attendance" : null,
+              ]
+                .filter(Boolean)
+                .join(" and ")}{" "}
+              pending HR review
             </p>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {(myManualList as { req: any; site: { name?: string | null } | null }[]).slice(0, 8).map((row) => {
-              const req = row.req;
-              const rowSite = row.site;
-              return (
-                <div key={req.id} className="flex items-center justify-between gap-2 text-sm border-b last:border-0 pb-2 last:pb-0">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{rowSite?.name ?? "Attendance site"}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{req.justification}</p>
-                    {req.requestedAt && (
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        {new Date(req.requestedAt).toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                  {req.status === "pending" ? (
-                    <Badge variant="outline" className="border-amber-300 text-amber-800 bg-amber-50 shrink-0">
-                      <span className="sr-only">Status: </span>Pending
-                    </Badge>
-                  ) : req.status === "approved" ? (
-                    <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50 shrink-0">
-                      <span className="sr-only">Status: </span>Approved
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50 shrink-0">
-                      <span className="sr-only">Status: </span>Rejected
-                    </Badge>
-                  )}
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
+          </div>
+          {onViewRequests && (
+            <button
+              type="button"
+              onClick={onViewRequests}
+              className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:underline shrink-0"
+            >
+              See Requests
+            </button>
+          )}
+        </div>
       )}
 
       {/* Manual attendance dialog */}
@@ -1493,7 +1422,7 @@ export default function AttendanceTodayCard({
                   </p>
                 ) : null}
                 <p>
-                  <span className="font-medium text-foreground">System message:</span>{" "}
+                  <span className="font-medium text-foreground">What blocked check-in:</span>{" "}
                   {operationalHints.eligibilityHeadline} &mdash; {operationalHints.eligibilityDetail}
                 </p>
               </div>

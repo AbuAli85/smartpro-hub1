@@ -54,6 +54,41 @@ function statusBadge(status: string) {
 // History tab
 // ---------------------------------------------------------------------------
 
+const RECORD_STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  present: { label: "Present", cls: "bg-green-100 text-green-800 border-green-300" },
+  late: { label: "Late", cls: "bg-amber-100 text-amber-800 border-amber-300" },
+  absent: { label: "Absent", cls: "bg-red-100 text-red-800 border-red-300" },
+  half_day: { label: "Half day", cls: "bg-blue-100 text-blue-800 border-blue-300" },
+  remote: { label: "Remote", cls: "bg-purple-100 text-purple-800 border-purple-300" },
+  early_checkout: { label: "Left early", cls: "bg-orange-100 text-orange-800 border-orange-300" },
+  checked_out: { label: "Complete", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  in_progress: { label: "Active", cls: "bg-sky-100 text-sky-800 border-sky-300" },
+};
+
+function friendlyRecordStatus(status: string | undefined): { label: string; cls: string } {
+  if (!status) return { label: "—", cls: "" };
+  return RECORD_STATUS_MAP[status] ?? { label: status.replace(/_/g, " "), cls: "" };
+}
+
+function fmtShortDate(dateStr: string | undefined): string {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  } catch {
+    return dateStr;
+  }
+}
+
+function fmtWallTime(ts: string | null | undefined): string {
+  if (!ts) return "";
+  try {
+    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
 function HistoryTab({ activeCompanyId }: { activeCompanyId: number | null }) {
   const [attMonth, setAttMonth] = useState(() => {
     const d = new Date();
@@ -149,18 +184,30 @@ function HistoryTab({ activeCompanyId }: { activeCompanyId: number | null }) {
             <Skeleton className="h-40 w-full" />
           ) : records.length > 0 ? (
             <div className="divide-y">
-              {records.map((rec: any, i: number) => (
-                <div key={rec.id ?? i} className="py-2 flex items-center justify-between gap-4 text-sm">
-                  <span className="font-medium">{rec.businessDate ?? rec.date ?? "—"}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {rec.shiftName ?? "—"}
-                    {rec.shiftStart && rec.shiftEnd ? ` (${rec.shiftStart}–${rec.shiftEnd})` : ""}
-                  </span>
-                  <Badge variant="outline" className="text-xs capitalize shrink-0">
-                    {rec.completionStatus ?? rec.status ?? "—"}
-                  </Badge>
-                </div>
-              ))}
+              {records.map((rec: any, i: number) => {
+                const status = friendlyRecordStatus(rec.completionStatus ?? rec.status);
+                const inTime = fmtWallTime(rec.checkIn);
+                const outTime = fmtWallTime(rec.checkOut);
+                return (
+                  <div key={rec.id ?? i} className="py-2.5 space-y-0.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium">{fmtShortDate(rec.businessDate ?? rec.date)}</span>
+                      <Badge variant="outline" className={`text-xs shrink-0 ${status.cls}`}>
+                        {status.label}
+                      </Badge>
+                    </div>
+                    {(rec.shiftName || inTime || outTime) && (
+                      <p className="text-xs text-muted-foreground">
+                        {rec.shiftName && <span>{rec.shiftName}</span>}
+                        {rec.shiftName && (inTime || outTime) && <span> &middot; </span>}
+                        {inTime && <span>In {inTime}</span>}
+                        {inTime && outTime && <span> &middot; </span>}
+                        {outTime && <span>Out {outTime}</span>}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No attendance records for this month.</p>
@@ -350,6 +397,7 @@ export default function EmployeeAttendancePage() {
             todaySchedule={myActiveSchedule}
             operationalHints={operationalHintsReady ? (operationalHints as ServerEligibilityHints | null | undefined) ?? null : undefined}
             operationalHintsReady={operationalHintsReady}
+            onViewRequests={() => navigate("/my-portal/attendance/requests")}
           />
         </TabsContent>
 

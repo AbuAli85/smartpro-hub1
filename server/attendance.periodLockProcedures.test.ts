@@ -133,6 +133,38 @@ function makeMockDb(responses: Array<unknown[]>): any {
   };
 }
 
+/**
+ * Custom mock for deduplicateAttendanceRecords: the outer openRows query ends
+ * at .where() (no .limit()), while the inner per-pair query ends at .orderBy().
+ */
+function makeDeduplicateMockDb(outerRows: unknown[], innerRows: unknown[]): any {
+  let selectCount = 0;
+  return {
+    select: vi.fn().mockImplementation(() => {
+      const idx = selectCount++;
+      if (idx === 0) {
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(outerRows),
+          }),
+        };
+      }
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockResolvedValue(innerRows),
+          }),
+        }),
+      };
+    }),
+    update: vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+    }),
+    transaction: vi.fn().mockResolvedValue(undefined),
+    insert: vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue([]) }),
+  };
+}
+
 const LOCKED_ERROR = new TRPCError({
   code: "CONFLICT",
   message: "Period 2026-04 is locked. Reopen the period before making further attendance changes.",
@@ -282,6 +314,129 @@ describe("period lock enforcement — procedure-level", () => {
       ).rejects.toMatchObject({ code: "CONFLICT" });
 
       expect(periodGuard.loadAndAssertPeriodNotLocked).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ── rejectCorrection ───────────────────────────────────────────────────────
+
+  describe("rejectCorrection", () => {
+    it("throws CONFLICT when the correction's date period is locked", async () => {
+      const correctionReq = {
+        id: 1,
+        companyId: 10,
+        employeeId: 3,
+        attendanceRecordId: null,
+        requestedDate: "2026-04-15",
+        requestedCheckIn: "2026-04-15T07:00:00.000Z",
+        requestedCheckOut: "2026-04-15T15:00:00.000Z",
+        status: "pending",
+        justification: "Wrong times",
+        reviewedByUserId: null,
+        reviewedAt: null,
+        adminNote: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      // DB: select [0] = correction request lookup
+      vi.mocked(dbModule.getDb).mockResolvedValue(makeMockDb([[correctionReq]]) as never);
+
+      const caller = attendanceRouter.createCaller(makeHrCtx());
+      await expect(
+        caller.rejectCorrection({ correctionId: 1, companyId: 10, adminNote: "Incorrect times submitted" }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+
+      expect(periodGuard.loadAndAssertPeriodNotLocked).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ── rejectManualCheckIn ────────────────────────────────────────────────────
+
+  describe("rejectManualCheckIn", () => {
+    it("throws CONFLICT when the request's business date period is locked", async () => {
+      const manualReq = {
+        id: 1,
+        companyId: 10,
+        employeeUserId: 5,
+        siteId: null,
+        requestedAt: new Date("2026-04-15T08:00:00Z"),
+        requestedBusinessDate: "2026-04-15",
+        requestedScheduleId: 1,
+        justification: "QR offline",
+        lat: null,
+        lng: null,
+        distanceMeters: null,
+        status: "pending",
+        reviewedByUserId: null,
+        reviewedAt: null,
+        adminNote: null,
+        attendanceRecordId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const empRow = { id: 3, companyId: 10, userId: 5 };
+      // DB calls in order:
+      //   [0] manualCheckinRequests lookup
+      //   [1] employees lookup
+      vi.mocked(dbModule.getDb).mockResolvedValue(makeMockDb([[manualReq], [empRow]]) as never);
+
+      const caller = attendanceRouter.createCaller(makeHrCtx());
+      await expect(
+        caller.rejectManualCheckIn({ requestId: 1, companyId: 10, adminNote: "Absent without leave" }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+
+      expect(periodGuard.loadAndAssertPeriodNotLocked).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ── repairSessionFromAttendanceRecord ──────────────────────────────────────
+
+  describe("repairSessionFromAttendanceRecord", () => {
+    it("throws CONFLICT when the record's check-in period is locked", async () => {
+      const openRecord = {
+        id: 5,
+        companyId: 10,
+        employeeId: 3,
+        checkIn: new Date("2026-04-15T06:00:00Z"),
+        checkOut: null,
+        method: "self",
+        scheduleId: null,
+        siteId: null,
+      };
+      // DB: select [0] = attendance record lookup
+      vi.mocked(dbModule.getDb).mockResolvedValue(makeMockDb([[openRecord]]) as never);
+
+      const caller = attendanceRouter.createCaller(makeHrCtx());
+      await expect(
+        caller.repairSessionFromAttendanceRecord({ attendanceRecordId: 5, companyId: 10 }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+
+      expect(periodGuard.loadAndAssertPeriodNotLockedForInstant).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ── deduplicateAttendanceRecords ───────────────────────────────────────────
+
+  describe("deduplicateAttendanceRecords", () => {
+    it("silently skips locked rows — succeeds but returns patchedIds: []", async () => {
+      // Two open rows for the same (employee=3, schedule=7) pair → one duplicate group
+      const outerRows = [
+        { employeeId: 3, scheduleId: 7 },
+        { employeeId: 3, scheduleId: 7 },
+      ];
+      // The per-pair detail query returns: keep (id=10, newer) + stale (id=9, older)
+      const innerRows = [
+        { id: 10, checkIn: new Date("2026-04-15T08:00:00Z"), checkOut: null },
+        { id: 9, checkIn: new Date("2026-04-14T08:00:00Z"), checkOut: null },
+      ];
+      vi.mocked(dbModule.getDb).mockResolvedValue(makeDeduplicateMockDb(outerRows, innerRows) as never);
+
+      const caller = attendanceRouter.createCaller(makeHrCtx());
+      // dryRun: false so the guard is reached; guard throws → stale row skipped
+      const result = await caller.deduplicateAttendanceRecords({ companyId: 10, dryRun: false });
+
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0]?.patchedIds).toEqual([]);
+      expect(periodGuard.loadAndAssertPeriodNotLockedForInstant).toHaveBeenCalledOnce();
     });
   });
 });

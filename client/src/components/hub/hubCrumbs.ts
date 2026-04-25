@@ -31,6 +31,18 @@ export function organizationTrail(pageTitle: string, t?: TFunction): HubCrumb[] 
   ];
 }
 
+export const ATTENDANCE_SETUP_HUB_HREF = "/hr/attendance-setup";
+
+/** People → Attendance → Attendance Setup → … */
+export function attendanceSetupTrail(pageTitle: string, t?: TFunction): HubCrumb[] {
+  return [
+    { label: t ? t("home") : "Home", href: "/dashboard" },
+    { label: t ? t("people") : "People", href: "/hr/attendance" },
+    { label: t ? t("attendanceSetup") : "Attendance Setup", href: ATTENDANCE_SETUP_HUB_HREF },
+    { label: pageTitle },
+  ];
+}
+
 /** Compliance → Renewals & expiry → … */
 export function renewalsTrail(pageTitle: string, t?: TFunction): HubCrumb[] {
   return [

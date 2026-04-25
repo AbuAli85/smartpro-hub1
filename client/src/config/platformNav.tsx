@@ -334,6 +334,9 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
             Settings,
             "workspace",
             [
+              leaf("people.attendanceSetupHub", "attendanceSetupHub", "Setup Overview", "/hr/attendance-setup", ListTodo, {
+                intent: "workspace",
+              }),
               leaf("people.attendanceSites", "attendanceSites", "Attendance Sites", "/hr/attendance-sites", QrCode, {
                 intent: "workspace",
               }),

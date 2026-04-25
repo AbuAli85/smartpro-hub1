@@ -400,7 +400,7 @@ function ChecklistRow({ step }: { step: SetupStep }) {
       {statusIcon}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium leading-tight">{step.label}</p>
-        <p className="text-xs text-muted-foreground mt-0.5 truncate">{step.description}</p>
+        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{step.description}</p>
       </div>
       {step.status === "blocked" ? (
         <Button size="sm" variant="ghost" className="shrink-0 h-7 text-xs" disabled>

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -59,7 +59,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { Textarea } from "@/components/ui/textarea";
-import { CardHeader, CardTitle } from "@/components/ui/card";
+import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
 import { DateInput } from "@/components/ui/date-input";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1664,10 +1664,8 @@ function ScheduleReadinessSummary({
   employees: Array<{ userId?: number | null; status?: string }>;
   groups: ScheduleGroupEntry[];
 }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const today = muscatCalendarYmdNow();
+  const sevenDaysLater = muscatCalendarYmdNow(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
 
   const scheduledUserIds = new Set(groups.map((g) => g.employeeUserId));
   const activeEmployees = employees.filter((e) => !e.status || e.status === "active");

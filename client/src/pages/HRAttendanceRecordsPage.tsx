@@ -81,6 +81,7 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
         onClick={() => setOpen(true)}
         className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-muted transition-colors"
         aria-label="Edit attendance record"
+        title="Edit record"
       >
         <Pencil size={12} />
       </button>
@@ -426,6 +427,7 @@ export default function HRAttendanceRecordsPage() {
                               disabled={deleteMutation.isPending}
                               onClick={() => setDeleteTargetId(r.id)}
                               aria-label="Delete attendance record"
+                              title="Delete record"
                             >
                               <Trash2 size={12} />
                             </button>

@@ -69,6 +69,7 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
   };
   return (
     <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">Employee requests to fix wrong or missing attendance.</p>
       <div className="flex items-center gap-3">
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>

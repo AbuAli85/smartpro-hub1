@@ -13,7 +13,7 @@ import type {
   AttendanceActionQueueItem,
   AttendanceActionQueueCategory,
 } from "@shared/attendanceActionQueue";
-import { AlertTriangle, ArrowRight, ClipboardList, Inbox, ListTodo, ShieldAlert } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, Inbox, ListTodo, ShieldAlert } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -84,13 +84,15 @@ export function AttendanceActionQueue({
 
   const totalCount = items.length + (canonicalItems?.length ?? 0);
 
+  const isEmpty = items.length === 0 && (!canonicalItems || canonicalItems.length === 0);
+
   return (
-    <Card className={cn("border-primary/20", className)}>
+    <Card className={cn(isEmpty ? "border-border/50" : "border-primary/20", className)}>
       <CardHeader className="pb-2 space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <ListTodo className="h-4 w-4 text-primary" />
+              <ListTodo className={cn("h-4 w-4", isEmpty ? "text-muted-foreground" : "text-primary")} />
               {t("attendance.actionQueue.title")}
               {totalCount > 0 ? (
                 <Badge variant="secondary" className="text-[10px] font-semibold">
@@ -98,11 +100,13 @@ export function AttendanceActionQueue({
                 </Badge>
               ) : null}
             </CardTitle>
-            <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-              Triage, assign, and resolve exceptions. Use the Today tab for force-checkout and reminders.
-            </p>
+            {!isEmpty && (
+              <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                Triage, assign, and resolve exceptions. Use the Today tab for force-checkout and reminders.
+              </p>
+            )}
           </div>
-          {onFilterChange ? (
+          {onFilterChange && !isEmpty ? (
             <div className="flex flex-col gap-1 min-w-[10rem]">
               <Label className="text-[10px] text-muted-foreground">
                 {t("attendance.actionQueue.filterLabel")}
@@ -125,11 +129,10 @@ export function AttendanceActionQueue({
       </CardHeader>
       <CardContent className="pt-0 space-y-2">
         {/* ── Legacy triage items ──────────────────────────────────────── */}
-        {items.length === 0 && (!canonicalItems || canonicalItems.length === 0) ? (
-          <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground border border-dashed rounded-lg">
-            <Inbox className="h-9 w-9 opacity-35" />
-            <p className="text-sm font-medium">{t("attendance.actionQueue.emptyTitle")}</p>
-            <p className="text-xs text-center max-w-sm">{t("attendance.actionQueue.emptyHint")}</p>
+        {isEmpty ? (
+          <div className="flex items-center gap-2 py-2 text-muted-foreground">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+            <p className="text-sm">{t("attendance.actionQueue.emptyTitle")}</p>
           </div>
         ) : (
           <>

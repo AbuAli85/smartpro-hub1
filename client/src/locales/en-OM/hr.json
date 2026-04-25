@@ -578,11 +578,11 @@
       "corrections": "Corrections",
       "manual": "Manual Check-ins",
       "audit": "Audit Log",
-      "liveToday": "Live today",
-      "hrRecords": "HR Records",
+      "liveToday": "Today",
+      "hrRecords": "Records",
       "sitePunches": "Site Punches",
-      "manualCheckins": "Manual Check-ins",
-      "auditLog": "Audit Log"
+      "manualCheckins": "Manual requests",
+      "auditLog": "Audit"
     },
     "filters": {
       "from": "From",
@@ -1213,7 +1213,7 @@
         "noData": "No attendance data for {date}.",
         "noSchedulesHint": "Use the setup links above to configure employees, sites, and shifts."
       },
-      "detailedRecordsLabel": "Detailed Records"
+      "detailedRecordsLabel": "Operational views"
     },
     "dailyDigest": {
       "title": "Daily Digest",

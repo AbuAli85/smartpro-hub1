@@ -31,6 +31,7 @@ function SitePunchesSection({ companyId }: { companyId: number | null }) {
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">Raw QR/site clock punches for the selected date.</p>
       <div className="flex flex-wrap gap-3 items-end">
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">{t("attendance.sitePunches.dateLabel")}</Label>

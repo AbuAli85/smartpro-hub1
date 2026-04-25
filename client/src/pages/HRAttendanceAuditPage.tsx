@@ -186,6 +186,7 @@ function AttendanceAuditLog({
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">Structural audit trail for attendance actions and linked records.</p>
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">{t("attendance.filters.from")}</Label>

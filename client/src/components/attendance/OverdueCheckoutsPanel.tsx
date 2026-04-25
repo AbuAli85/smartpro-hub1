@@ -367,12 +367,9 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
 
       <CardContent className="pt-0">
         {overdue.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
-            <Clock className="w-8 h-8 opacity-30" />
-            <p className="text-sm font-medium">{t("attendance.overdueCheckouts.allClear")}</p>
-            <p className="text-xs text-center leading-snug">
-              {t("attendance.overdueCheckouts.allClearDesc")}
-            </p>
+          <div className="flex items-center gap-2 py-2 text-muted-foreground">
+            <UserCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+            <p className="text-sm">{t("attendance.overdueCheckouts.allClear")}</p>
           </div>
         ) : (
           <div className="space-y-2">

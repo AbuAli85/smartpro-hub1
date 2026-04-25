@@ -264,7 +264,7 @@ export async function issueAttendanceInvoice(
   // 5. Build HTML artifact
   const issuedAt = new Date();
   const lines = Array.isArray(invoice.billingLinesJson)
-    ? (invoice.billingLinesJson as BillingLine[])
+    ? (invoice.billingLinesJson as unknown as BillingLine[])
     : [];
 
   const html = buildAttendanceInvoiceHtml(

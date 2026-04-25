@@ -483,7 +483,7 @@ function InvoiceDetailSheet({
   const outstandingNum = balanceOmr != null ? parseFloat(balanceOmr) : 0;
   const showPaymentProgress = status === "issued" || status === "sent" || status === "paid";
 
-  const paymentRows = (payments ?? []) as PaymentRecord[];
+  const paymentRows = (payments ?? []) as unknown as PaymentRecord[];
 
   return (
     <>

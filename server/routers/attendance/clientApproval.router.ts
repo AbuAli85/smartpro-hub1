@@ -175,7 +175,7 @@ export const clientApprovalRouter = router({
 
       // Load active employees (scoped to site via schedules if siteId given)
       const empQuery = db
-        .selectDistinct({ id: employees.id })
+        .selectDistinct({ id: employees.id, firstName: employees.firstName, lastName: employees.lastName })
         .from(employees)
         .where(
           and(
@@ -184,7 +184,7 @@ export const clientApprovalRouter = router({
           )
         );
 
-      let empRows: { id: number }[];
+      let empRows: { id: number; firstName: string; lastName: string }[];
       if (input.siteId != null) {
         const siteId = input.siteId;
         const scheduleRows = await db
@@ -205,7 +205,7 @@ export const clientApprovalRouter = router({
           empRows = [];
         } else {
           empRows = await db
-            .select({ id: employees.id })
+            .select({ id: employees.id, firstName: employees.firstName, lastName: employees.lastName })
             .from(employees)
             .where(
               and(
@@ -235,6 +235,10 @@ export const clientApprovalRouter = router({
             id: attendanceSessions.id,
             employeeId: attendanceSessions.employeeId,
             businessDate: attendanceSessions.businessDate,
+            checkInAt: attendanceSessions.checkInAt,
+            checkOutAt: attendanceSessions.checkOutAt,
+            status: attendanceSessions.status,
+            siteId: attendanceSessions.siteId,
           })
           .from(attendanceSessions)
           .where(
@@ -260,16 +264,35 @@ export const clientApprovalRouter = router({
           ),
       ]);
 
-      // Build quick lookup: "employeeId:date" → session id
-      const sessionByKey = new Map<string, number>();
+      // Build lookup: "employeeId:date" → session snapshot data
+      type SessionSnapshot = {
+        id: number;
+        checkInAt: Date;
+        checkOutAt: Date | null;
+        status: string;
+        siteId: number | null;
+      };
+      const sessionByKey = new Map<string, SessionSnapshot>();
       for (const s of sessionRows) {
-        sessionByKey.set(`${s.employeeId}:${s.businessDate}`, s.id);
+        sessionByKey.set(`${s.employeeId}:${s.businessDate}`, {
+          id: s.id,
+          checkInAt: s.checkInAt,
+          checkOutAt: s.checkOutAt ?? null,
+          status: s.status,
+          siteId: s.siteId ?? null,
+        });
       }
 
       // Build lookup: employeeId → first record id (rough linkage; Phase 10B can refine)
       const recordByEmployee = new Map<number, number>();
       for (const r of recordRows) {
         if (!recordByEmployee.has(r.employeeId)) recordByEmployee.set(r.employeeId, r.id);
+      }
+
+      // Build employee display name map for snapshot
+      const employeeNameById = new Map<number, string>();
+      for (const emp of empRows) {
+        employeeNameById.set(emp.id, `${emp.firstName} ${emp.lastName}`.trim());
       }
 
       // Create batch row
@@ -287,19 +310,44 @@ export const clientApprovalRouter = router({
         .$returningId();
 
       const batchId = batchInsert.id;
+      const snapshotCreatedAt = new Date().toISOString();
 
-      // Build item rows — one per employee × date
+      // Build item rows — one per employee × date.
+      // dailyStateJson is an immutable billing snapshot of attendance state at batch-creation
+      // time. Future billing must read from this snapshot, NOT from live session rows, because
+      // sessions may be corrected or updated after the client has approved the batch.
       const itemValues = dates.flatMap((date) =>
-        employeeIds.map((employeeId) => ({
-          batchId,
-          companyId: cid,
-          employeeId,
-          attendanceDate: date,
-          attendanceSessionId: sessionByKey.get(`${employeeId}:${date}`) ?? null,
-          attendanceRecordId: recordByEmployee.get(employeeId) ?? null,
-          dailyStateJson: null,
-          status: "pending" as const,
-        }))
+        employeeIds.map((employeeId) => {
+          const session = sessionByKey.get(`${employeeId}:${date}`) ?? null;
+          const durationMinutes =
+            session?.checkInAt && session.checkOutAt
+              ? Math.round((session.checkOutAt.getTime() - session.checkInAt.getTime()) / 60000)
+              : null;
+          const dailyStateJson: Record<string, unknown> = {
+            source: "client_approval_batch_creation",
+            snapshotCreatedAt,
+            attendanceDate: date,
+            employeeId,
+            employeeDisplayName: employeeNameById.get(employeeId) ?? null,
+            attendanceSessionId: session?.id ?? null,
+            attendanceRecordId: recordByEmployee.get(employeeId) ?? null,
+            checkInAt: session?.checkInAt?.toISOString() ?? null,
+            checkOutAt: session?.checkOutAt?.toISOString() ?? null,
+            durationMinutes,
+            sessionStatus: session?.status ?? null,
+            siteId: session?.siteId ?? null,
+          };
+          return {
+            batchId,
+            companyId: cid,
+            employeeId,
+            attendanceDate: date,
+            attendanceSessionId: session?.id ?? null,
+            attendanceRecordId: recordByEmployee.get(employeeId) ?? null,
+            dailyStateJson,
+            status: "pending" as const,
+          };
+        })
       );
 
       if (itemValues.length > 0) {
@@ -389,12 +437,22 @@ export const clientApprovalRouter = router({
       const db = await requireDb();
 
       const batch = await requireBatchForCompany(db, input.batchId, cid);
+
+      // Idempotency: if already approved, return success without re-triggering hooks.
+      // This is safe for billing — calling approve twice must not create duplicate artifacts.
+      if (batch.status === "approved") {
+        return { batchId: input.batchId, status: "approved" as const };
+      }
+
       if (!canApproveBatch(batch.status as BatchStatus)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `Cannot approve a batch with status '${batch.status}'. Only submitted batches can be approved.`,
         });
       }
+
+      // Period lock guard: internal HR path must match the protection on the token path.
+      await loadAndAssertPeriodNotLocked(db, cid, batch.periodStart);
 
       const now = new Date();
       await db
@@ -762,6 +820,11 @@ export const clientApprovalRouter = router({
 
       const db = await requireDb();
       const batch = await requireBatchForCompany(db, payload.batchId, payload.companyId);
+
+      // Idempotency: if already approved, return success without re-triggering hooks.
+      if (batch.status === "approved") {
+        return { batchId: payload.batchId, status: "approved" as const };
+      }
 
       if (!canApproveBatch(batch.status as BatchStatus)) {
         throw new TRPCError({

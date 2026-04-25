@@ -37,3 +37,33 @@ export async function onClientApprovalComplete(
     `[attendance] client_approval_complete batchId=${batchId} companyId=${companyId} source=${source}`,
   );
 }
+
+// ─── Disputed-item billing policy ────────────────────────────────────────────
+//
+// Policy (Phase 12A, established here):
+//   • Items with status "approved" are billable and included in automated draft invoices.
+//   • Items with status "disputed" remain disputed after batch approval — they are NOT
+//     automatically resolved and must be reviewed manually by HR or finance before billing.
+//   • Items with status "rejected" or "pending" are excluded from billing.
+//
+// Consequence: a batch can be fully approved while still containing disputed items.
+// Phase 12 billing must always call getBillableApprovalItems() rather than
+// querying all items, to ensure disputed items never silently appear on an invoice.
+
+/** Minimal shape required from a client approval item to determine billing eligibility. */
+export interface ApprovalItemBillabilityShape {
+  status: string;
+  dailyStateJson?: Record<string, unknown> | null;
+}
+
+/**
+ * Returns only the items that are eligible for automated draft-invoice creation.
+ * Excluded: disputed, rejected, and pending items.
+ *
+ * Phase 12 billing must call this before building invoice lines, not filter manually.
+ */
+export function getBillableApprovalItems<T extends ApprovalItemBillabilityShape>(
+  items: T[],
+): T[] {
+  return items.filter((item) => item.status === "approved");
+}

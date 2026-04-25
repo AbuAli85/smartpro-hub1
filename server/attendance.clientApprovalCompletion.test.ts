@@ -95,9 +95,13 @@ vi.mock("./lib/attendancePeriodGuard", () => ({
   loadAndAssertPeriodNotLockedForInstant: vi.fn().mockResolvedValue({ status: "open", year: 2026, month: 4, companyId: 1 }),
 }));
 
-vi.mock("./lib/attendanceClientApprovalHooks", () => ({
-  onClientApprovalComplete: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock("./lib/attendanceClientApprovalHooks", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./lib/attendanceClientApprovalHooks")>();
+  return {
+    ...actual,
+    onClientApprovalComplete: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 import * as dbModule from "./db.client";
 import * as tokenModule from "./attendanceApprovalToken";
@@ -335,5 +339,193 @@ describe("hook wiring — clientApproveByToken", () => {
 
     expect(result.status).toBe("rejected");
     expect(hooksModule.onClientApprovalComplete).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P12A: Idempotency — internal approve path
+// ---------------------------------------------------------------------------
+
+const APPROVED_BATCH = {
+  ...SUBMITTED_BATCH,
+  status: "approved",
+  approvedAt: new Date("2026-04-10T08:00:00Z"),
+};
+
+describe("P12A idempotency — approveClientApprovalBatch", () => {
+  it("returns approved result without calling hook when batch is already approved", async () => {
+    const db = makeMockDbFull(APPROVED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = attendanceRouter.createCaller(makeHrCtx());
+    const result = await caller.approveClientApprovalBatch({ batchId: 10 });
+
+    expect(result.status).toBe("approved");
+    expect(hooksModule.onClientApprovalComplete).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P12A: Idempotency — token approve path
+// ---------------------------------------------------------------------------
+
+describe("P12A idempotency — clientApproveByToken", () => {
+  const TOKEN = "valid-jwt-token";
+  const TOKEN_PAYLOAD = { batchId: 10, companyId: 1 };
+
+  it("returns approved result without calling hook when batch is already approved", async () => {
+    (tokenModule.verifyClientApprovalToken as any).mockResolvedValue(TOKEN_PAYLOAD);
+    const db = makeMockDbFull(APPROVED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = (attendanceRouter as any).createCaller(makePublicCtx());
+    const result = await caller.clientApproveByToken({ token: TOKEN });
+
+    expect(result.status).toBe("approved");
+    expect(hooksModule.onClientApprovalComplete).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P12A: Period lock — internal approve path
+// ---------------------------------------------------------------------------
+
+import * as periodGuardModule from "./lib/attendancePeriodGuard";
+
+describe("P12A period lock — approveClientApprovalBatch", () => {
+  it("rejects with CONFLICT when period is locked", async () => {
+    vi.mocked(periodGuardModule.loadAndAssertPeriodNotLocked).mockRejectedValueOnce(
+      new TRPCError({ code: "CONFLICT", message: "Period 2026-04 is locked." }),
+    );
+
+    const db = makeMockDbFull(SUBMITTED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = attendanceRouter.createCaller(makeHrCtx());
+    await expect(caller.approveClientApprovalBatch({ batchId: 10 })).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    expect(hooksModule.onClientApprovalComplete).not.toHaveBeenCalled();
+  });
+
+  it("succeeds when period is open (period guard passes)", async () => {
+    vi.mocked(periodGuardModule.loadAndAssertPeriodNotLocked).mockResolvedValueOnce({
+      status: "open",
+      year: 2026,
+      month: 4,
+      companyId: 1,
+    });
+
+    const db = makeMockDbFull(SUBMITTED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = attendanceRouter.createCaller(makeHrCtx());
+    const result = await caller.approveClientApprovalBatch({ batchId: 10 });
+
+    expect(result.status).toBe("approved");
+    expect(hooksModule.onClientApprovalComplete).toHaveBeenCalledOnce();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P12A: Period lock — token approve path
+// ---------------------------------------------------------------------------
+
+describe("P12A period lock — clientApproveByToken", () => {
+  const TOKEN = "valid-jwt-token";
+  const TOKEN_PAYLOAD = { batchId: 10, companyId: 1 };
+
+  it("rejects with CONFLICT when period is locked", async () => {
+    (tokenModule.verifyClientApprovalToken as any).mockResolvedValue(TOKEN_PAYLOAD);
+    vi.mocked(periodGuardModule.loadAndAssertPeriodNotLocked).mockRejectedValueOnce(
+      new TRPCError({ code: "CONFLICT", message: "Period 2026-04 is locked." }),
+    );
+
+    const db = makeMockDbFull(SUBMITTED_BATCH, null);
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = (attendanceRouter as any).createCaller(makePublicCtx());
+    await expect(caller.clientApproveByToken({ token: TOKEN })).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    expect(hooksModule.onClientApprovalComplete).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P12A: Disputed items remain disputed after batch approval
+// ---------------------------------------------------------------------------
+
+describe("P12A disputed items remain after approval", () => {
+  it("item update targets only status='pending', not disputed items", async () => {
+    const db = makeMockDbFull(SUBMITTED_BATCH, null);
+    const updateSetSpy = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+    (db.update as any).mockReturnValue({ set: updateSetSpy });
+    (dbModule.requireDb as any).mockResolvedValue(db);
+
+    const caller = attendanceRouter.createCaller(makeHrCtx());
+    await caller.approveClientApprovalBatch({ batchId: 10 });
+
+    // The set payload only sets status: "approved" — disputed items are excluded by
+    // the where clause in the router (status = "pending"). Verify payload is correct.
+    expect(updateSetSpy).toHaveBeenCalledWith({ status: "approved" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P12A: getBillableApprovalItems helper
+// ---------------------------------------------------------------------------
+
+describe("getBillableApprovalItems", () => {
+  it("returns only approved items", async () => {
+    const { getBillableApprovalItems } = await import("./lib/attendanceClientApprovalHooks");
+    const items = [
+      { status: "approved", dailyStateJson: { employeeId: 1 } },
+      { status: "disputed", dailyStateJson: null },
+      { status: "pending", dailyStateJson: null },
+      { status: "rejected", dailyStateJson: null },
+      { status: "approved", dailyStateJson: { employeeId: 2 } },
+    ];
+    const billable = getBillableApprovalItems(items);
+    expect(billable).toHaveLength(2);
+    expect(billable.every((i) => i.status === "approved")).toBe(true);
+  });
+
+  it("returns empty array when no items are approved", async () => {
+    const { getBillableApprovalItems } = await import("./lib/attendanceClientApprovalHooks");
+    const items = [
+      { status: "disputed", dailyStateJson: null },
+      { status: "pending", dailyStateJson: null },
+    ];
+    expect(getBillableApprovalItems(items)).toHaveLength(0);
+  });
+
+  it("returns empty array for empty input", async () => {
+    const { getBillableApprovalItems } = await import("./lib/attendanceClientApprovalHooks");
+    expect(getBillableApprovalItems([])).toHaveLength(0);
+  });
+
+  it("preserves dailyStateJson on approved items for billing line generation", async () => {
+    const { getBillableApprovalItems } = await import("./lib/attendanceClientApprovalHooks");
+    const snapshot = {
+      source: "client_approval_batch_creation",
+      snapshotCreatedAt: "2026-04-25T10:00:00.000Z",
+      attendanceDate: "2026-04-01",
+      employeeId: 5,
+      employeeDisplayName: "Jane Doe",
+      checkInAt: "2026-04-01T06:00:00.000Z",
+      checkOutAt: "2026-04-01T14:00:00.000Z",
+      durationMinutes: 480,
+      sessionStatus: "closed",
+      siteId: 3,
+    };
+    const items = [{ status: "approved", dailyStateJson: snapshot }];
+    const billable = getBillableApprovalItems(items);
+    expect(billable[0].dailyStateJson).toMatchObject({
+      source: "client_approval_batch_creation",
+      checkInAt: "2026-04-01T06:00:00.000Z",
+      checkOutAt: "2026-04-01T14:00:00.000Z",
+      durationMinutes: 480,
+    });
   });
 });

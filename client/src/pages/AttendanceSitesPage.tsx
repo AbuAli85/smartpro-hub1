@@ -1,5 +1,5 @@
 ﻿/**
- * AttendanceSitesPage â€” Smart map-powered attendance site management
+ * AttendanceSitesPage — Smart map-powered attendance site management
  *
  * Route: /hr/attendance-sites
  * Access: company_admin, hr_admin
@@ -59,15 +59,15 @@ import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
 // â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type SiteType = "mall" | "brand_store" | "office" | "warehouse" | "client_site" | "showroom" | "factory" | "other";
 
-const SITE_TYPE_META: Record<SiteType, { label: string; icon: string; color: string }> = {
-  mall:        { label: "Shopping Mall",       icon: "ðŸ¬", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" },
-  brand_store: { label: "Brand / Retail Store",icon: "ðŸ›ï¸", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300" },
-  office:      { label: "Office",              icon: "ðŸ¢", color: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300" },
-  warehouse:   { label: "Warehouse",           icon: "ðŸ­", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
-  client_site: { label: "Client Site",         icon: "ðŸ“", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
-  showroom:    { label: "Showroom",            icon: "âœ¨", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300" },
-  factory:     { label: "Factory",             icon: "âš™ï¸", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
-  other:       { label: "Other",               icon: "ðŸ“Œ", color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300" },
+const SITE_TYPE_META: Record<SiteType, { label: string; color: string }> = {
+  mall:        { label: "Shopping Mall",        color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" },
+  brand_store: { label: "Brand / Retail Store", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300" },
+  office:      { label: "Office",               color: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300" },
+  warehouse:   { label: "Warehouse",            color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
+  client_site: { label: "Client Site",          color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
+  showroom:    { label: "Showroom",             color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300" },
+  factory:     { label: "Factory",              color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+  other:       { label: "Other",                color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300" },
 };
 
 const TIMEZONES = [
@@ -313,7 +313,7 @@ function SiteFormDialog({
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Lulu Hypermarket â€” Electronics Promotions"
+                placeholder="e.g. Lulu Hypermarket — Electronics Promotions"
               />
             </div>
             <div className="space-y-2">
@@ -322,7 +322,7 @@ function SiteFormDialog({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(Object.entries(SITE_TYPE_META) as [SiteType, typeof SITE_TYPE_META[SiteType]][]).map(([v, m]) => (
-                    <SelectItem key={v} value={v}>{m.icon} {m.label}</SelectItem>
+                    <SelectItem key={v} value={v}>{m.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -334,7 +334,7 @@ function SiteFormDialog({
                 onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))}
                 placeholder="e.g. Samsung, LG, Panasonic"
               />
-              <p className="text-xs text-muted-foreground">For outsourced promoters â€” the brand they represent at this site.</p>
+              <p className="text-xs text-muted-foreground">For outsourced promoters — the brand they represent at this site.</p>
             </div>
             <div className="space-y-2">
               <Label>Billing Customer</Label>
@@ -355,7 +355,7 @@ function SiteFormDialog({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Link this site to a billing customer for invoice generation and deployment tracking.
+                Used for attendance billing and client approval reports.
               </p>
             </div>
             <div className="space-y-1">
@@ -374,7 +374,7 @@ function SiteFormDialog({
                 />
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Contracted daily billing rate for this client site â€” used for monthly invoice summaries.
+                Contracted daily rate for this site. Used in monthly invoice summaries (optional, reporting only).
               </p>
             </div>
           </TabsContent>
@@ -407,14 +407,13 @@ function SiteFormDialog({
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>30m (tight)</span><span>500m</span><span>2000m (wide)</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">Recommended: 100â€“300m for indoor malls, 300â€“500m for outdoor sites.</p>
+                  <p className="text-xs text-muted-foreground">Recommended: 100–300m for indoor malls, 300–500m for outdoor sites.</p>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-medium text-sm">Enforce geo-fence</p>
                     <p className="text-xs text-muted-foreground">
-                      Block check-ins from outside the radius â€” employees cannot clock in unless they are within the fence
-                      (when enabled).
+                      Block check-ins from outside the radius. Employees cannot clock in unless they are within the geo-fence boundary.
                     </p>
                   </div>
                   <Switch checked={form.enforceGeofence} onCheckedChange={(v) => setForm((f) => ({ ...f, enforceGeofence: v }))} />
@@ -490,21 +489,22 @@ function QrCodeDialog({ site, onClose }: { site: any; onClose: () => void }) {
               <p className="text-xs text-muted-foreground">OMR {Number(site.dailyRateOmr).toFixed(3)}/day</p>
             )}
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-1 inline-block ${meta.color}`}>
-              {meta.icon} {meta.label}
+              {meta.label}
             </span>
           </div>
           <img src={qrUrl} alt="QR Code" className="rounded-lg border p-2 bg-white w-56 h-56" />
           {site.enforceGeofence && site.lat && (
             <p className="text-xs text-amber-600 flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3" /> Geo-fence enabled â€” {site.radiusMeters}m radius
+              <ShieldCheck className="h-3 w-3" /> Geo-fence active – {site.radiusMeters}m radius
             </p>
           )}
           {site.operatingHoursStart && site.operatingHoursEnd && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" /> {site.operatingHoursStart} â€“ {site.operatingHoursEnd} ({site.timezone})
+              <Clock className="h-3 w-3" /> {site.operatingHoursStart} – {site.operatingHoursEnd} ({site.timezone})
             </p>
           )}
-          <p className="text-xs text-center text-muted-foreground break-all">{checkInUrl}</p>
+          <p className="text-xs text-center text-muted-foreground break-all">{checkInUrl.length > 55 ? checkInUrl.slice(0, 55) + "..." : checkInUrl}</p>
+          <p className="text-xs text-center text-muted-foreground">Post this QR at the site. Employees may need location permission enabled.</p>
           <div className="flex gap-2 w-full">
             <Button variant="outline" className="flex-1" onClick={() => { navigator.clipboard.writeText(checkInUrl); toast.success("Link copied!"); }}>
               <Copy className="h-4 w-4 mr-1" /> Copy Link
@@ -696,7 +696,7 @@ export default function AttendanceSitesPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${meta.color}`}>
-                            {meta.icon} {meta.label}
+                            {meta.label}
                           </span>
                           {!site.isActive && <Badge variant="secondary" className="text-xs">Inactive</Badge>}
                         </div>
@@ -733,8 +733,8 @@ export default function AttendanceSitesPage() {
                       {site.operatingHoursStart && site.operatingHoursEnd && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-muted flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {site.operatingHoursStart}â€“{site.operatingHoursEnd}
-                          {site.enforceHours ? " ðŸ”’" : ""}
+                          {site.operatingHoursStart} – {site.operatingHoursEnd}
+                          {site.enforceHours && <ShieldCheck className="h-3 w-3 text-amber-600 ml-0.5" />}
                         </span>
                       )}
                     </div>
@@ -795,19 +795,19 @@ export default function AttendanceSitesPage() {
                         <p className="font-medium">{row.employee.firstName} {row.employee.lastName}</p>
                         <p className="text-xs text-muted-foreground">{row.employee.position ?? row.employee.department}</p>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{row.record!.siteName ?? "â€”"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{row.record!.siteName ?? "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{new Date(row.record!.checkIn).toLocaleTimeString()}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{row.record!.checkOut ? new Date(row.record!.checkOut).toLocaleTimeString() : "â€”"}</td>
-                      <td className="px-4 py-3 text-xs whitespace-nowrap">{row.durationMinutes != null ? `${row.durationMinutes}m` : "â€”"}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{row.methodLabel ?? "â€”"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{row.record!.checkOut ? new Date(row.record!.checkOut).toLocaleTimeString() : "—"}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">{row.durationMinutes != null ? `${row.durationMinutes}m` : "—"}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{row.methodLabel ?? "—"}</td>
                       <td className="px-4 py-3 text-xs">
                         {row.hasCheckInGeo ? (
-                          <span className="text-emerald-600">In âœ“</span>
+                          <span className="text-emerald-600 flex items-center gap-0.5"><CheckCircle2 className="h-3 w-3" /> In</span>
                         ) : (
-                          <span className="text-muted-foreground">â€”</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
-                        {row.record.checkOut && (
-                          <span className="text-muted-foreground ml-1">{row.hasCheckOutGeo ? "Â· Out âœ“" : ""}</span>
+                        {row.record.checkOut && row.hasCheckOutGeo && (
+                          <span className="text-muted-foreground ml-1">· Out</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -868,10 +868,10 @@ export default function AttendanceSitesPage() {
                           <p className="font-medium">{row.employee.firstName} {row.employee.lastName}</p>
                           <p className="text-xs text-muted-foreground">{row.employee.position ?? row.employee.department}</p>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">{row.record!.siteName ?? "â€”"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{row.record!.siteName ?? "—"}</td>
                         <td className="px-4 py-3">{new Date(row.record!.checkIn).toLocaleTimeString()}</td>
-                        <td className="px-4 py-3">{row.record!.checkOut ? new Date(row.record!.checkOut).toLocaleTimeString() : "â€”"}</td>
-                        <td className="px-4 py-3">{hours ? `${hours}h` : "â€”"}</td>
+                        <td className="px-4 py-3">{row.record!.checkOut ? new Date(row.record!.checkOut).toLocaleTimeString() : "—"}</td>
+                        <td className="px-4 py-3">{hours ? `${hours}h` : "—"}</td>
                       </tr>
                     );
                   })}
@@ -949,7 +949,7 @@ export default function AttendanceSitesPage() {
             <div className="space-y-4 py-2">
               <div className="rounded-lg bg-muted/50 p-3 space-y-1 text-sm">
                 <p><span className="text-muted-foreground">Employee:</span> {reviewingRequest.employeeName ?? `#${reviewingRequest.employeeUserId}`}</p>
-                <p><span className="text-muted-foreground">Site:</span> {reviewingRequest.siteName ?? "â€”"}</p>
+                <p><span className="text-muted-foreground">Site:</span> {reviewingRequest.siteName ?? "—"}</p>
                 <p><span className="text-muted-foreground">Requested at:</span> {new Date(reviewingRequest.requestedAt).toLocaleString("en-GB")}</p>
                 {reviewingRequest.distanceMeters != null && (
                   <p><span className="text-muted-foreground">Distance from site:</span> <span className="text-amber-600 font-medium">{reviewingRequest.distanceMeters}m</span></p>

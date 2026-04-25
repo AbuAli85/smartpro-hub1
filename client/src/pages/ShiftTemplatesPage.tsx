@@ -200,7 +200,7 @@ export default function ShiftTemplatesPage() {
               <CardContent className="space-y-2">
                 <div className="flex items-center gap-2 text-sm">
                   <Clock size={14} className="text-muted-foreground" />
-                  <span className="font-medium">{s.startTime} â€“ {s.endTime}</span>
+                  <span className="font-medium">{s.startTime} – {s.endTime}</span>
                   <Badge variant="secondary" className="text-xs ml-auto">
                     {formatDuration(s.startTime, s.endTime)}
                   </Badge>
@@ -218,10 +218,10 @@ export default function ShiftTemplatesPage() {
                     that).
                   </p>
                   <p className="text-[11px] leading-snug">
-                    Completion vs early leave uses the shared 80% worked rule for closed punches (checkout policy).
+                    Employees are marked early checkout if they work less than 80% of the shift.
                   </p>
                   <Badge variant="outline" className="text-[10px] font-normal">
-                    {s.activeScheduleAssignmentCount ?? 0} active roster
+                    {s.activeScheduleAssignmentCount ?? 0} active schedule
                     {(s.activeScheduleAssignmentCount ?? 0) === 1 ? " link" : " links"}
                   </Badge>
                 </div>

@@ -349,7 +349,7 @@ export function RequestsCalendar({
             if (monthItems.length === 0) {
               return (
                 <p className="text-xs text-muted-foreground text-center py-4">
-                  No requests in {MONTH_NAMES[month]}
+                  No schedule or time-off requests for this month.
                 </p>
               );
             }

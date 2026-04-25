@@ -31,6 +31,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -526,6 +536,7 @@ export default function AttendanceSitesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editSite, setEditSite] = useState<any>(null);
   const [qrSite, setQrSite] = useState<any>(null);
+  const [toggleConfirmSite, setToggleConfirmSite] = useState<any>(null);
   const [mainTab, setMainTab] = useState("sites");
   const [historyDate, setHistoryDate] = useState(() => muscatCalendarYmdNow());
   const [reviewingRequest, setReviewingRequest] = useState<any>(null);
@@ -771,8 +782,14 @@ export default function AttendanceSitesPage() {
                       </Button>
                       <Button
                         size="sm" variant="outline"
-                        onClick={() => toggleMutation.mutate({ siteId: site.id, isActive: !site.isActive })}
-                        title={site.isActive ? "Deactivate" : "Activate"}
+                        onClick={() => {
+                          if (site.isActive) {
+                            setToggleConfirmSite(site);
+                          } else {
+                            toggleMutation.mutate({ siteId: site.id, isActive: true });
+                          }
+                        }}
+                        title={site.isActive ? "Deactivate site" : "Activate site"}
                       >
                         {site.isActive
                           ? <ToggleRight className="h-3.5 w-3.5 text-green-600" />
@@ -1038,6 +1055,49 @@ export default function AttendanceSitesPage() {
         />
       )}
       {qrSite && <QrCodeDialog site={qrSite} onClose={() => setQrSite(null)} />}
+
+      {/* ── Deactivate site confirmation ──────────────────────────────────────── */}
+      <AlertDialog
+        open={toggleConfirmSite != null}
+        onOpenChange={(o) => { if (!o) setToggleConfirmSite(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deactivate site?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  You are about to deactivate{" "}
+                  <strong>{toggleConfirmSite?.name}</strong>.
+                </p>
+                <p className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 px-3 py-2 text-amber-800 dark:text-amber-200 text-xs">
+                  Deactivating this site will prevent employees from checking in here.
+                  Any active schedules that reference this site will stop resolving
+                  valid check-in locations until the site is reactivated or schedules
+                  are reassigned.
+                </p>
+                <p>Existing attendance records are not affected.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setToggleConfirmSite(null)}>
+              Keep active
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => {
+                if (toggleConfirmSite) {
+                  toggleMutation.mutate({ siteId: toggleConfirmSite.id, isActive: false });
+                  setToggleConfirmSite(null);
+                }
+              }}
+            >
+              Deactivate site
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

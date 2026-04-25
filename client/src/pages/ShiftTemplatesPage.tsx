@@ -88,7 +88,8 @@ export default function ShiftTemplatesPage() {
     onSuccess: () => {
       utils.scheduling.listShiftTemplates.invalidate();
       setDeleteId(null);
-      toast.success("Shift template deleted");
+      setDeleteActiveCount(0);
+      toast.success("Shift template deactivated");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -334,34 +335,49 @@ export default function ShiftTemplatesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
+      {/* Deactivate Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) { setDeleteId(null); setDeleteActiveCount(0); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Shift Template?</AlertDialogTitle>
+            <AlertDialogTitle>Deactivate Shift Template?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>This will mark the shift template as inactive.</p>
                 {deleteActiveCount > 0 ? (
-                  <p className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 px-3 py-2 text-amber-800 dark:text-amber-200">
-                    ⚠ This shift is linked to{" "}
-                    <strong>{deleteActiveCount} active schedule{deleteActiveCount === 1 ? "" : "s"}</strong>.
-                    Those schedules may stop resolving shift hours until reassigned to an active template.
-                  </p>
+                  <>
+                    <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive text-xs font-medium">
+                      Cannot deactivate: this shift is currently assigned to{" "}
+                      <strong>
+                        {deleteActiveCount} active schedule{deleteActiveCount === 1 ? "" : "s"}
+                      </strong>
+                      . Those employees would lose their shift hours until the template is replaced.
+                    </p>
+                    <p>
+                      Reassign those schedules to a different shift template first, then come back to
+                      deactivate this one.
+                    </p>
+                  </>
                 ) : (
-                  <p>No active schedules are using this shift — safe to delete.</p>
+                  <>
+                    <p>
+                      This will deactivate the shift template. It will no longer appear in schedule
+                      dropdowns.
+                    </p>
+                    <p>No active schedules are using this shift — safe to deactivate.</p>
+                  </>
                 )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteId && deleteMut.mutate({ id: deleteId, companyId: activeCompanyId ?? undefined })}
-            >
-              {deleteActiveCount > 0 ? "Delete anyway" : "Delete"}
-            </AlertDialogAction>
+            {deleteActiveCount === 0 && (
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => deleteId && deleteMut.mutate({ id: deleteId, companyId: activeCompanyId ?? undefined })}
+              >
+                Deactivate
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

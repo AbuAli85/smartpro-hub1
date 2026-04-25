@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect, useRef } from "react";
+﻿﻿import React, { useState, useMemo, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Link, useSearch } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { parseEmployeePortalTabFromSearch } from "@shared/employeePortalDeepLink";
 import { getLoginUrl } from "@/const";
 import {
@@ -1850,6 +1850,7 @@ export default function EmployeePortalPage() {
   const loginUrl = getLoginUrl();
   const urlSearch = useSearch();
   const [activeTab, setActiveTab] = useState("overview");
+  const [, navigate] = useLocation();
 
   useEffect(() => {
     const tab = parseEmployeePortalTabFromSearch(urlSearch);
@@ -2709,393 +2710,45 @@ export default function EmployeePortalPage() {
               unifiedCorrections={overviewCorrectionList ?? []}
               unifiedExpenses={myExpenses ?? []}
             />
-          </TabsContent>
-
-          {/* Ã¢â€¢ÂÃ¢â€¢Â ATTENDANCE TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+          </TabsContent>          {/* ── ATTENDANCE TAB ── */}
           <TabsContent value="attendance" className="mt-0 space-y-4 focus-visible:outline-none">
-            {/* Today's Status + Correction Request */}
-            <AttendanceTodayCard
-              employeeId={emp.id}
-              companyId={activeCompanyId}
-              todaySchedule={myActiveSchedule}
-              operationalHints={operationalHintsSuccess ? operationalHints ?? null : undefined}
-              operationalHintsReady={operationalHintsSuccess}
-            />
-
-            {/* Self-service clock stats */}
-            <div className="space-y-2">
-              <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Self-service clock â€” this month
-              </p>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                <Card className="bg-green-50 dark:bg-green-950/20 border-0">
-                  <CardContent className="p-2.5 text-center sm:p-3">
-                    <p className="text-2xl font-bold text-green-700">{realAttSummary.total}</p>
-                    <p className="text-xs text-muted-foreground">Check-ins</p>
-                  </CardContent>
-                </Card>
-                <Card className="bg-blue-50 dark:bg-blue-950/20 border-0">
-                  <CardContent className="p-2.5 text-center sm:p-3">
-                    <p className="text-2xl font-bold text-blue-700">
-                      {realAttSummary.total > 0 ? `${realAttSummary.hoursWorked}h` : "â€”"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Hours worked</p>
-                  </CardContent>
-                </Card>
-                <Card className="bg-purple-50 dark:bg-purple-950/20 border-0">
-                  <CardContent className="p-2.5 text-center sm:p-3">
-                    <p className="text-2xl font-bold text-purple-700">
-                      {realAttSummary.total > 0
-                        ? `${Math.round((realAttSummary.hoursWorked / realAttSummary.total) * 10) / 10}h`
-                        : "â€”"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Avg / day</p>
-                  </CardContent>
-                </Card>
-              </div>
-              {realAttSummary.total === 0 && isCurrentMonth && (
-                <p className="px-1 text-center text-[10px] leading-snug text-muted-foreground">
-                  Zeros until you check in this month.
-                </p>
-              )}
-            </div>
-
-            {/* HR-marked monthly history */}
-            <Card className="overflow-hidden">
-              <CardHeader className="px-3 pb-2 pt-3 sm:px-6">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={prevMonth}>
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="font-semibold">
-                    {new Date(attMonth + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
-                  </span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={nextMonth} disabled={isCurrentMonth}>
-                    <ChevronRightIcon className="w-4 h-4" />
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-3 pb-4 sm:px-6">
-                {/* HR-marked attendance summary pills */}
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Official HR attendance status
-                </p>
-                <p className="mb-2 text-[10px] text-muted-foreground leading-tight">
-                  Counts are set by HR and may not yet reflect today&apos;s self-service clock activity.
-                </p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {[
-                    { label: "Present", count: attSummary.present, color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
-                    { label: "Absent", count: attSummary.absent, color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-                    { label: "Late", count: attSummary.late, color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-                    { label: "Half Day", count: attSummary.halfDay, color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-                    { label: "Remote", count: attSummary.remote, color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
-                  ].map(({ label, count, color }) => (
-                    <span key={label} className={`text-xs px-2.5 py-1 rounded-full font-medium ${color}`}>
-                      {label}: {count}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Calendar grid */}
-                {attLoading ? (
-                  <div className="grid grid-cols-7 gap-1">
-                    {Array(35).fill(0).map((_, i) => <Skeleton key={i} className="h-10" />)}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-7 gap-1 text-center">
-                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                      <div key={d} className="text-xs font-medium text-muted-foreground py-1">{d}</div>
-                    ))}
-                    {calendarDays.map((day, idx) => {
-                      if (!day) return <div key={idx} />;
-                      const rec = attMap[day];
-                      const isToday = day === today.toISOString().split("T")[0];
-                      const dayNum = parseInt(day.split("-")[2]);
-                      const statusColors: Record<string, string> = {
-                        present: "bg-green-500",
-                        late: "bg-amber-500",
-                        half_day: "bg-blue-400",
-                        remote: "bg-purple-500",
-                        absent: "bg-red-500",
-                      };
-                      return (
-                        <button
-                          type="button"
-                          key={day}
-                          onClick={() => setAttSelectedDay(day)}
-                          className={`relative rounded-lg p-1.5 text-xs text-center transition-colors hover:bg-muted/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                            isToday ? "ring-2 ring-primary" : ""
-                          } ${attSelectedDay === day ? "bg-primary/10 ring-1 ring-primary/50" : ""}`}
-                          title={rec ? `${rec.status} â€” In: ${formatTime(rec.checkIn)} Out: ${formatTime(rec.checkOut)}` : "View day details"}
-                        >
-                          <span className={`block text-xs font-medium mb-0.5 ${isToday ? "text-primary" : ""}`}>{dayNum}</span>
-                          {rec && <div className={`w-2 h-2 rounded-full mx-auto ${statusColors[rec.status] ?? "bg-gray-400"}`} />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {attSelectedDay && !attLoading && (() => {
-                  const hrRec = attMap[attSelectedDay];
-                  const scanRecs = realAttRecords.filter(
-                    (r: any) => new Date(r.checkIn).toISOString().split("T")[0] === attSelectedDay
-                  );
-                  const label = new Date(`${attSelectedDay}T12:00:00`).toLocaleDateString("en-GB", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  });
-                  return (
-                    <div className="rounded-lg border bg-muted/20 p-3 mt-3 text-left space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold">{label}</p>
-                        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={() => setAttSelectedDay(null)}>
-                          Close
-                        </Button>
-                      </div>
-                      {scanRecs.length === 0 && !hrRec ? (
-                        <div className="space-y-2">
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            Nothing logged for this day yet.
-                          </p>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-9 w-full touch-manipulation sm:w-auto"
-                            onClick={() => document.getElementById("portal-attendance-today")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                          >
-                            Today&apos;s card
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2 text-xs">
-                          {scanRecs.length > 0 && (
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Self-service clock
-                            </p>
-                          )}
-                          {scanRecs.map((r: any) => {
-                            const cin = new Date(r.checkIn);
-                            const cout = r.checkOut ? new Date(r.checkOut) : null;
-                            const dMin = cout ? Math.round((cout.getTime() - cin.getTime()) / 60_000) : null;
-                            const dur = dMin != null ? (dMin >= 60 ? `${Math.floor(dMin/60)}h ${dMin%60}m` : `${dMin}m`) : null;
-                            const status: string = r.completionStatus ?? (cout ? "checked_out" : "in_progress");
-                            // Canonical status labels for the calendar day panel
-                            const canonicalLabel: Record<string, string> = {
-                              in_progress: "Active",
-                              completed: "Completed",
-                              early_checkout: "Completed",
-                              checked_out: "Completed",
-                            };
-                            return (
-                              <div key={`sel-${r.id}`} className="border-b border-border/60 pb-2 last:border-0 last:pb-0">
-                                <p className="font-medium text-foreground">
-                                  {r.shiftName ?? "Shift"}
-                                  {r.shiftStart && r.shiftEnd ? ` Â· ${r.shiftStart}â€“${r.shiftEnd}` : ""}
-                                  {" "}
-                                  <span className={`text-[10px] font-normal ${status === "in_progress" ? "text-green-600" : "text-emerald-600"}`}>
-                                    {canonicalLabel[status] ?? status}
-                                  </span>
-                                </p>
-                                <p className="text-muted-foreground mt-0.5">
-                                  In: {formatTime(r.checkIn)}
-                                  {cout ? ` Â· Out: ${formatTime(r.checkOut)}` : " Â· Open session"}
-                                  {dur ? ` Â· ${dur}` : ""}
-                                  {r.siteName ? ` Â· ${r.siteName}` : ""}
-                                </p>
-                              </div>
-                            );
-                          })}
-                          {hrRec ? (
-                            <div className={`${scanRecs.length > 0 ? "border-t border-border/60 pt-2" : ""}`}>
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">HR record</p>
-                              <p className="font-medium text-foreground mt-0.5 capitalize">
-                                {(hrRec.status as string)?.replace(/_/g, " ") ?? hrRec.status}
-                              </p>
-                              {(hrRec.checkIn || hrRec.checkOut) && (
-                                <p className="text-muted-foreground">
-                                  {hrRec.checkIn ? `In: ${formatTime(hrRec.checkIn)}` : ""}
-                                  {hrRec.checkOut ? ` Â· Out: ${formatTime(hrRec.checkOut)}` : ""}
-                                </p>
-                              )}
-                            </div>
-                          ) : scanRecs.length > 0 ? (
-                            /* Pending HR posting â€” self-service data exists but HR hasn't posted yet */
-                            <div className="border-t border-border/60 pt-2">
-                              <div className="flex items-center gap-2">
-                                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">HR record</p>
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                                  Pending HR posting
-                                </span>
-                              </div>
-                              <p className="text-muted-foreground mt-1 leading-snug">
-                                Your self-service record is saved. HR will post the official status â€” usually by end of day.
-                              </p>
-                            </div>
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* Legend */}
-                <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t">
-                  {[
-                    { status: "present", color: "bg-green-500", label: "Present" },
-                    { status: "late", color: "bg-amber-500", label: "Late" },
-                    { status: "half_day", color: "bg-blue-400", label: "Half Day" },
-                    { status: "remote", color: "bg-purple-500", label: "Remote" },
-                    { status: "absent", color: "bg-red-500", label: "Absent" },
-                  ].map(({ color, label }) => (
-                    <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
-                      {label}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Attendance log â€” self-service punches + HR records side by side */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <CalendarCheck className="w-3.5 h-3.5" /> Attendance Log
+                  <Clock className="h-4 w-4" />
+                  Today&apos;s Attendance
                 </CardTitle>
-                <p className="text-[11px] text-muted-foreground leading-snug">
-                  Self-service clock punches. HR-marked records shown separately below.
-                </p>
               </CardHeader>
-              <CardContent>
-                {attLoading ? (
-                  <div className="space-y-2">
-                    {Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-12" />)}
-                  </div>
-                ) : realAttRecords.length === 0 && attRecords.length === 0 ? (
-                  <div className="space-y-2 py-7 text-center text-muted-foreground">
-                    <UserCheck className="mx-auto h-10 w-10 opacity-30" />
-                    <div className="space-y-1 px-2">
-                      <p className="text-sm font-medium text-foreground">No records yet</p>
-                      <p className="mx-auto max-w-sm text-xs leading-snug">
-                        Check in above. HR marks show here too.
-                      </p>
+              <CardContent className="space-y-3">
+                {todayAttendanceLoading ? (
+                  <Skeleton className="h-12 w-full" />
+                ) : todayAttendanceRecord?.checkIn ? (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <UserCheck className="h-4 w-4 text-green-500" />
+                      <span className="text-sm font-medium">
+                        Checked in at {new Date(todayAttendanceRecord.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
                     </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="min-h-10 touch-manipulation text-sm"
-                      onClick={() => document.getElementById("portal-attendance-today")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                    >
-                      Today&apos;s card
-                    </Button>
+                    {todayAttendanceRecord.checkOut ? (
+                      <p className="text-xs text-muted-foreground pl-6">
+                        Checked out: {new Date(todayAttendanceRecord.checkOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-blue-600 pl-6">Session still open</p>
+                    )}
                   </div>
                 ) : (
-                  <AttendanceLogGrouped
-                    realAttRecords={realAttRecords}
-                    attRecords={attRecords}
-                  />
+                  <p className="text-sm text-muted-foreground">No check-in recorded for today.</p>
                 )}
               </CardContent>
             </Card>
-            {/* Ã¢â€¢ÂÃ¢â€¢Â SHIFT CHANGE & TIME OFF REQUESTS Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <ArrowLeftRight className="h-4 w-4 text-primary" /> HR requests
-                  </CardTitle>
-                  <Button size="sm" className="min-h-9 gap-1.5 touch-manipulation" onClick={() => setShowShiftRequestDialog(true)}>
-                    <Plus className="h-3.5 w-3.5" /> New request
-                  </Button>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Shift changes, time off, swaps â€” same form as the Requests tab.
-                </p>
-                {/* Filter */}
-                <div className="flex gap-1.5 mt-2 flex-wrap">
-                  {(["all", "pending", "approved", "rejected", "cancelled"] as const).map(f => (
-                    <button key={f} onClick={() => setShiftReqFilter(f)}
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
-                        shiftReqFilter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      }`}>
-                      {f.charAt(0).toUpperCase() + f.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {(() => {
-                  const allReqs = (myShiftRequests ?? []) as any[];
-                  const filtered = shiftReqFilter === "all" ? allReqs : allReqs.filter((r: any) => r.request?.status === shiftReqFilter);
-                  if (filtered.length === 0) return (
-                    <div className="space-y-3 py-8 text-center text-muted-foreground">
-                      <Repeat className="mx-auto mb-1 h-8 w-8 opacity-30" />
-                      <p className="text-sm font-medium text-foreground">No requests in this filter</p>
-                      <p className="mx-auto max-w-xs text-xs leading-relaxed">Submit one to HR â€” approvals appear here.</p>
-                      <Button type="button" size="sm" className="min-h-10 touch-manipulation" onClick={() => setShowShiftRequestDialog(true)}>
-                        Submit HR request
-                      </Button>
-                    </div>
-                  );
-                  return (
-                    <div className="divide-y">
-                      {filtered.map((item: any) => {
-                        const req = item.request ?? item;
-                        const ps = item.preferredShift;
-                        const statusColors: Record<string, string> = {
-                          pending: "bg-amber-100 text-amber-700 border-amber-200",
-                          approved: "bg-green-100 text-green-700 border-green-200",
-                          rejected: "bg-red-100 text-red-700 border-red-200",
-                          cancelled: "bg-gray-100 text-gray-500 border-gray-200",
-                        };
-                        const typeLabels: Record<string, string> = {
-                          shift_change: "Shift Change",
-                          time_off: "Time Off",
-                          early_leave: "Early Leave",
-                          late_arrival: "Late Arrival",
-                          day_swap: "Day Swap",
-                        };
-                        return (
-                          <div key={req.id} className="py-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-medium text-sm">{typeLabels[req.requestType] ?? req.requestType}</span>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusColors[req.status] ?? "bg-muted text-muted-foreground"}`}>
-                                    {req.status?.charAt(0).toUpperCase() + req.status?.slice(1)}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {formatDate(req.requestedDate)}
-                                  {req.requestedEndDate && req.requestedEndDate !== req.requestedDate ? ` Ã¢â€ â€™ ${formatDate(req.requestedEndDate)}` : ""}
-                                  {req.requestedTime ? ` at ${req.requestedTime}` : ""}
-                                  {ps ? ` Â· Preferred: ${ps.name} (${ps.startTime}â€“${ps.endTime})` : ""}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{req.reason}</p>
-                                {req.adminNotes && (
-                                  <p className="text-xs mt-1 text-primary italic">HR note: {req.adminNotes}</p>
-                                )}
-                              </div>
-                              {req.status === "pending" && (
-                                <Button size="sm" variant="ghost" className="text-xs text-red-500 hover:text-red-600 shrink-0"
-                                  onClick={() => cancelShiftRequest.mutate({ id: req.id })}>
-                                  Cancel
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
+            <Link href="/my-portal/attendance">
+              <Button className="w-full gap-2">
+                <CalendarCheck className="h-4 w-4" />
+                Open Attendance Page
+              </Button>
+            </Link>
           </TabsContent>
           {/* Ã¢â€¢ÂÃ¢â€¢Â LEAVE TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="leave" className="mt-4 space-y-4">
@@ -4277,7 +3930,13 @@ export default function EmployeePortalPage() {
 
       <EmployeePortalBottomNav
         activeTab={activeTab}
-        onNavigate={setActiveTab}
+        onNavigate={(tab) => {
+          if (tab === "attendance") {
+            navigate("/my-portal/attendance");
+          } else {
+            setActiveTab(tab);
+          }
+        }}
         taskBadge={pendingTasks}
         requestBadge={pendingShiftRequestsCount}
       />

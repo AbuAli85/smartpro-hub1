@@ -71,6 +71,8 @@ import {
   requireCanApproveAttendanceClientApproval,
   requireCanViewAttendanceClientApproval,
 } from "./helpers";
+import { loadAndAssertPeriodNotLocked } from "../../lib/attendancePeriodGuard";
+import { onClientApprovalComplete } from "../../lib/attendanceClientApprovalHooks";
 import {
   notifyHrOnBatchSubmitted,
   notifyHrOnBatchApproved,
@@ -428,6 +430,8 @@ export const clientApprovalRouter = router({
         source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
       });
 
+      onClientApprovalComplete(input.batchId, cid).catch(() => {});
+
       return { batchId: input.batchId, status: "approved" };
     }),
 
@@ -761,6 +765,9 @@ export const clientApprovalRouter = router({
         });
       }
 
+      // Period lock guard: block approval if the batch period is locked/exported.
+      await loadAndAssertPeriodNotLocked(db, payload.companyId, batch.periodStart);
+
       const now = new Date();
       await db
         .update(attendanceClientApprovalBatches)
@@ -795,7 +802,7 @@ export const clientApprovalRouter = router({
           clientComment: input.clientComment,
           via: "client_portal_token",
         }),
-        source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
+        source: ATTENDANCE_AUDIT_SOURCE.CLIENT_PORTAL,
       });
 
       if (batch.submittedByUserId) {
@@ -807,6 +814,8 @@ export const clientApprovalRouter = router({
           periodEnd: batch.periodEnd,
         }).catch(() => {});
       }
+
+      onClientApprovalComplete(payload.batchId, payload.companyId).catch(() => {});
 
       return { batchId: payload.batchId, status: "approved" as const };
     }),
@@ -838,6 +847,9 @@ export const clientApprovalRouter = router({
         });
       }
 
+      // Period lock guard: block rejection if the batch period is locked/exported.
+      await loadAndAssertPeriodNotLocked(db, payload.companyId, batch.periodStart);
+
       const now = new Date();
       await db
         .update(attendanceClientApprovalBatches)
@@ -864,7 +876,7 @@ export const clientApprovalRouter = router({
           via: "client_portal_token",
         }),
         reason: input.rejectionReason,
-        source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
+        source: ATTENDANCE_AUDIT_SOURCE.CLIENT_PORTAL,
       });
 
       if (batch.submittedByUserId) {
@@ -879,5 +891,85 @@ export const clientApprovalRouter = router({
       }
 
       return { batchId: payload.batchId, status: "rejected" as const };
+    }),
+
+  /**
+   * Public: dispute a single item within a submitted batch via a signed JWT.
+   *
+   * Sets the item status to "disputed" and keeps the batch in "submitted" state.
+   * The client must supply a dispute reason (≥ 10 chars).
+   * HR will see the dispute when they review the batch — they can then correct
+   * the item and re-submit or cancel the batch.
+   *
+   * Audit actor is identified as "client_portal_token" (no user account).
+   */
+  clientDisputeItemByToken: publicProcedure
+    .input(z.object({
+      token: z.string().min(1),
+      itemId: z.number().int().positive(),
+      disputeReason: z.string().min(10, "Dispute reason must be at least 10 characters.").max(2000),
+    }))
+    .mutation(async ({ input }) => {
+      const payload = await verifyClientApprovalToken(input.token);
+      if (!payload) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid or expired approval token." });
+      }
+
+      const db = await requireDb();
+      const batch = await requireBatchForCompany(db, payload.batchId, payload.companyId);
+
+      if (batch.status !== "submitted") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot dispute items on a batch with status '${batch.status}'. Only submitted batches can have items disputed.`,
+        });
+      }
+
+      // Verify the item belongs to this batch (tenant isolation).
+      const [item] = await db
+        .select({ id: attendanceClientApprovalItems.id, status: attendanceClientApprovalItems.status })
+        .from(attendanceClientApprovalItems)
+        .where(
+          and(
+            eq(attendanceClientApprovalItems.id, input.itemId),
+            eq(attendanceClientApprovalItems.batchId, payload.batchId),
+          )
+        )
+        .limit(1);
+
+      if (!item) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Item not found in this batch." });
+      }
+
+      if (item.status !== "pending") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `Cannot dispute an item with status '${item.status}'. Only pending items can be disputed.`,
+        });
+      }
+
+      await db
+        .update(attendanceClientApprovalItems)
+        .set({ status: "disputed", clientComment: input.disputeReason })
+        .where(eq(attendanceClientApprovalItems.id, input.itemId));
+
+      await logAttendanceAuditSafe({
+        companyId: payload.companyId,
+        actorUserId: 0,
+        actorRole: "client_portal_token",
+        actionType: ATTENDANCE_AUDIT_ACTION.CLIENT_APPROVAL_BATCH_SUBMITTED,
+        entityType: ATTENDANCE_AUDIT_ENTITY.CLIENT_APPROVAL_BATCH,
+        entityId: payload.batchId,
+        afterPayload: attendancePayloadJson({
+          itemId: input.itemId,
+          itemStatus: "disputed",
+          disputeReason: input.disputeReason,
+          via: "client_portal_token",
+        }),
+        reason: input.disputeReason,
+        source: ATTENDANCE_AUDIT_SOURCE.CLIENT_PORTAL,
+      });
+
+      return { itemId: input.itemId, status: "disputed" as const };
     }),
 });

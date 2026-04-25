@@ -64,6 +64,7 @@ describe("company_admin", () => {
         canManageAttendanceSites: true,
         canManageEmployeeSchedules: true,
         canManagePromoterAssignments: true,
+        canRepairAttendanceData: true,
       });
     }
   });
@@ -111,6 +112,8 @@ describe("hr_admin", () => {
     expect(caps.canMarkPayrollPaid).toBe(false);
     expect(caps.canEditPayrollLineItem).toBe(false);
     expect(caps.canGenerateWpsFile).toBe(false);
+    // Repair mutations require company_admin — hr_admin does NOT have this
+    expect(caps.canRepairAttendanceData).toBe(false);
   });
 
   it("scope does not change hr_admin capabilities", () => {

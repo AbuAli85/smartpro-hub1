@@ -162,6 +162,19 @@ export async function requireCanExportAttendanceReports(user: User, companyId?: 
   return { ...m, caps };
 }
 
+/** Guard for destructive attendance data repair (company_admin only). */
+export async function requireCanRepairAttendanceData(user: User, companyId?: number | null) {
+  const m = await requireAnyOperatorRole(user, companyId);
+  const caps = deriveCapabilities(m.role, { type: "company", companyId: m.companyId });
+  if (!caps.canRepairAttendanceData) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Repairing attendance data requires Company Admin access.",
+    });
+  }
+  return { ...m, caps };
+}
+
 /**
  * Haversine distance in metres between two GPS coordinates.
  */

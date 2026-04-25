@@ -138,6 +138,10 @@ export interface Capabilities {
   canApproveAttendanceClientApproval: boolean;
   /** View client approval batches and their items. */
   canViewAttendanceClientApproval: boolean;
+
+  // Attendance data repair (Phase P4)
+  /** Run destructive attendance repair mutations: repairSessionFromAttendanceRecord, deduplicateAttendanceRecords. */
+  canRepairAttendanceData: boolean;
 }
 
 // ─── Baseline capability sets ─────────────────────────────────────────────────
@@ -182,6 +186,7 @@ const ALL_CAPS: Capabilities = {
   canSubmitAttendanceClientApproval: true,
   canApproveAttendanceClientApproval: true,
   canViewAttendanceClientApproval: true,
+  canRepairAttendanceData: true,
 };
 
 const NO_CAPS: Capabilities = {
@@ -224,6 +229,7 @@ const NO_CAPS: Capabilities = {
   canSubmitAttendanceClientApproval: false,
   canApproveAttendanceClientApproval: false,
   canViewAttendanceClientApproval: false,
+  canRepairAttendanceData: false,
 };
 
 // ─── Core deriver ─────────────────────────────────────────────────────────────

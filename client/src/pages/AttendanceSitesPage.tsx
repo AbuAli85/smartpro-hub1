@@ -553,7 +553,7 @@ export default function AttendanceSitesPage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const checkedInNow = board.filter((r) => !r.record.checkOut);
+  const checkedInNow = board.filter((r) => r.record != null && !r.record.checkOut);
 
   const { data: manualRequests = [], refetch: refetchManual } = trpc.attendance.listManualCheckIns.useQuery(
     { companyId: activeCompanyId ?? undefined, status: "pending" },
@@ -790,14 +790,14 @@ export default function AttendanceSitesPage() {
                 </thead>
                 <tbody className="divide-y">
                   {board.map((row: any) => (
-                    <tr key={row.record.id} className="hover:bg-muted/30">
+                    <tr key={row.record!.id} className="hover:bg-muted/30">
                       <td className="px-4 py-3">
                         <p className="font-medium">{row.employee.firstName} {row.employee.lastName}</p>
                         <p className="text-xs text-muted-foreground">{row.employee.position ?? row.employee.department}</p>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{row.record.siteName ?? "â€”"}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{new Date(row.record.checkIn).toLocaleTimeString()}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{row.record.checkOut ? new Date(row.record.checkOut).toLocaleTimeString() : "â€”"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{row.record!.siteName ?? "â€”"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{new Date(row.record!.checkIn).toLocaleTimeString()}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{row.record!.checkOut ? new Date(row.record!.checkOut).toLocaleTimeString() : "â€”"}</td>
                       <td className="px-4 py-3 text-xs whitespace-nowrap">{row.durationMinutes != null ? `${row.durationMinutes}m` : "â€”"}</td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">{row.methodLabel ?? "â€”"}</td>
                       <td className="px-4 py-3 text-xs">
@@ -858,19 +858,19 @@ export default function AttendanceSitesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {historyBoard.map((row) => {
-                    const hours = row.record.checkOut
-                      ? ((new Date(row.record.checkOut).getTime() - new Date(row.record.checkIn).getTime()) / 3600000).toFixed(1)
+                  {historyBoard.filter((row) => row.record != null).map((row) => {
+                    const hours = row.record!.checkOut
+                      ? ((new Date(row.record!.checkOut).getTime() - new Date(row.record!.checkIn).getTime()) / 3600000).toFixed(1)
                       : null;
                     return (
-                      <tr key={row.record.id} className="hover:bg-muted/30">
+                      <tr key={row.record!.id} className="hover:bg-muted/30">
                         <td className="px-4 py-3">
                           <p className="font-medium">{row.employee.firstName} {row.employee.lastName}</p>
                           <p className="text-xs text-muted-foreground">{row.employee.position ?? row.employee.department}</p>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">{row.record.siteName ?? "â€”"}</td>
-                        <td className="px-4 py-3">{new Date(row.record.checkIn).toLocaleTimeString()}</td>
-                        <td className="px-4 py-3">{row.record.checkOut ? new Date(row.record.checkOut).toLocaleTimeString() : "â€”"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{row.record!.siteName ?? "â€”"}</td>
+                        <td className="px-4 py-3">{new Date(row.record!.checkIn).toLocaleTimeString()}</td>
+                        <td className="px-4 py-3">{row.record!.checkOut ? new Date(row.record!.checkOut).toLocaleTimeString() : "â€”"}</td>
                         <td className="px-4 py-3">{hours ? `${hours}h` : "â€”"}</td>
                       </tr>
                     );

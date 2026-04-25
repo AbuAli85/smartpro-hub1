@@ -74,6 +74,31 @@ export function defaultPeriodLockState(companyId: number, year: number, month: n
 }
 
 // ---------------------------------------------------------------------------
+// Write-path guard: assert a period is open for mutation
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a validation error when the period is locked or exported.
+ * Returns { ok: true } when the period is open or reopened (writes allowed).
+ *
+ * Pure — no side effects. Used by the server-side `loadAndAssertPeriodNotLocked`
+ * helper which loads the DB row then calls this.
+ */
+export function validatePeriodIsOpen(state: PeriodLockState): PeriodLockValidation {
+  if (state.status === "locked" || state.status === "exported") {
+    return {
+      ok: false,
+      code: "CONFLICT",
+      message:
+        `Period ${state.year}-${String(state.month).padStart(2, "0")} is ${state.status}. ` +
+        "Reopen the period before making further attendance changes.",
+      reason: ATTENDANCE_PERIOD_ALREADY_LOCKED,
+    };
+  }
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // Transition: open | reopened → locked
 // ---------------------------------------------------------------------------
 

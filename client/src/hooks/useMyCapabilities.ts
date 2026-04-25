@@ -62,6 +62,7 @@ export type Capabilities = {
   canSubmitAttendanceClientApproval: boolean;
   canApproveAttendanceClientApproval: boolean;
   canViewAttendanceClientApproval: boolean;
+  canRepairAttendanceData: boolean;
 };
 
 /** All capabilities default to false — safe while loading or unauthenticated. */
@@ -105,6 +106,7 @@ const EMPTY_CAPS: Capabilities = {
   canSubmitAttendanceClientApproval: false,
   canApproveAttendanceClientApproval: false,
   canViewAttendanceClientApproval: false,
+  canRepairAttendanceData: false,
 };
 
 export function useMyCapabilities() {

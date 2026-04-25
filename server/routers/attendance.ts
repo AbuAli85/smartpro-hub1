@@ -41,6 +41,7 @@ import {
   requireCanApproveManualCheckIns,
   requireCanForceCheckout,
   requireCanExportAttendanceReports,
+  requireCanRepairAttendanceData,
 } from "./attendance/helpers";
 import {
   CheckInEligibilityReasonCode,
@@ -112,6 +113,10 @@ import {
   ATTENDANCE_PERIOD_REOPEN_REASON_REQUIRED,
 } from "@shared/attendanceTrpcReasons";
 import { isWeakAuditReason } from "@shared/attendanceManualValidation";
+import {
+  loadAndAssertPeriodNotLocked,
+  loadAndAssertPeriodNotLockedForInstant,
+} from "../lib/attendancePeriodGuard";
 
 async function requireDb() {
   const db = await getDb();
@@ -882,6 +887,9 @@ export const attendanceRouter = router({
         });
       }
 
+      // Period lock guard: block check-in into a locked/exported month.
+      await loadAndAssertPeriodNotLocked(db, site.companyId, businessDate);
+
       const checkInTime = new Date();
       let record: (typeof attendanceRecords.$inferSelect) | undefined;
       let promoterLinkageHint: PromoterLinkageHint = null;
@@ -1043,6 +1051,9 @@ export const attendanceRouter = router({
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "No active check-in found for today" });
       }
+
+      // Period lock guard: block checkout if the check-in day's period is locked/exported.
+      await loadAndAssertPeriodNotLockedForInstant(db, membership.companyId, new Date(existing.checkIn));
 
       const checkOutTime = new Date();
 
@@ -1336,45 +1347,113 @@ export const attendanceRouter = router({
       const businessDateYmd = input.date ?? muscatCalendarYmdNow();
       const { startUtc: dayStart, endExclusiveUtc: dayEndExclusive } =
         muscatDayUtcRangeExclusiveEnd(businessDateYmd);
+      const dow = muscatCalendarWeekdaySun0(muscatWallDateTimeToUtc(businessDateYmd, "12:00:00"));
 
-      const rows = await db
+      // Load all active + on_leave employees for the company.
+      const empRows = await db
         .select({
-          record: attendanceRecords,
-          employee: {
-            id: employees.id,
-            firstName: employees.firstName,
-            lastName: employees.lastName,
-            position: employees.position,
-            department: employees.department,
-            avatarUrl: employees.avatarUrl,
-          },
+          id: employees.id,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+          position: employees.position,
+          department: employees.department,
+          avatarUrl: employees.avatarUrl,
+          status: employees.status,
+          userId: employees.userId,
         })
+        .from(employees)
+        .where(and(
+          eq(employees.companyId, companyId),
+          inArray(employees.status, ["active", "on_leave"]),
+        ));
+
+      if (empRows.length === 0) return [];
+
+      const empIds = empRows.map((e) => e.id);
+
+      // Load schedules active for today (date-range + DOW match).
+      const scheduleRows = await db
+        .select({
+          id: employeeSchedules.id,
+          employeeUserId: employeeSchedules.employeeUserId,
+          workingDays: employeeSchedules.workingDays,
+        })
+        .from(employeeSchedules)
+        .where(
+          and(
+            eq(employeeSchedules.companyId, companyId),
+            eq(employeeSchedules.isActive, true),
+            lte(employeeSchedules.startDate, businessDateYmd),
+            or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, businessDateYmd)),
+          ),
+        );
+
+      // Build a set of employee user-IDs that are scheduled for today's DOW.
+      const scheduledUserIds = new Set(
+        scheduleRows
+          .filter((s) => s.workingDays.split(",").map(Number).includes(dow))
+          .map((s) => s.employeeUserId)
+          .filter((uid): uid is number => uid != null),
+      );
+
+      // Only include employees who are scheduled today.
+      const scheduledEmps = empRows.filter(
+        (e) => e.userId != null && scheduledUserIds.has(e.userId),
+      );
+      if (scheduledEmps.length === 0) return [];
+      const scheduledEmpIds = scheduledEmps.map((e) => e.id);
+
+      // Load today's attendance records for scheduled employees.
+      const recordRows = await db
+        .select({ record: attendanceRecords })
         .from(attendanceRecords)
-        .innerJoin(employees, eq(attendanceRecords.employeeId, employees.id))
         .where(and(
           eq(attendanceRecords.companyId, companyId),
+          inArray(attendanceRecords.employeeId, scheduledEmpIds),
           gte(attendanceRecords.checkIn, dayStart),
           lt(attendanceRecords.checkIn, dayEndExclusive),
         ))
         .orderBy(desc(attendanceRecords.checkIn));
 
+      // Map employee ID → latest record.
+      const recordByEmpId = new Map<number, typeof recordRows[number]["record"]>();
+      for (const { record } of recordRows) {
+        if (!recordByEmpId.has(record.employeeId)) {
+          recordByEmpId.set(record.employeeId, record);
+        }
+      }
+
       const nowMs = Date.now();
-      return rows.map(({ record, employee }) => {
-        const cin = new Date(record.checkIn).getTime();
-        const cout = record.checkOut ? new Date(record.checkOut).getTime() : null;
-        const endMs = cout ?? nowMs;
-        const durationMinutes = Math.max(0, Math.round((endMs - cin) / 60000));
-        const methodLabel =
-          record.method === "manual" ? "Manual request" : record.method === "admin" ? "Admin" : "QR / app";
-        const hasCheckInGeo = !!(record.checkInLat && record.checkInLng);
-        const hasCheckOutGeo = !!(record.checkOutLat && record.checkOutLng);
+      return scheduledEmps.map((employee) => {
+        const record = recordByEmpId.get(employee.id) ?? null;
+        if (record) {
+          const cin = new Date(record.checkIn).getTime();
+          const cout = record.checkOut ? new Date(record.checkOut).getTime() : null;
+          const endMs = cout ?? nowMs;
+          const durationMinutes = Math.max(0, Math.round((endMs - cin) / 60000));
+          const methodLabel =
+            record.method === "manual" ? "Manual request" : record.method === "admin" ? "Admin" : "QR / app";
+          return {
+            record,
+            employee,
+            durationMinutes,
+            methodLabel,
+            hasCheckInGeo: !!(record.checkInLat && record.checkInLng),
+            hasCheckOutGeo: !!(record.checkOutLat && record.checkOutLng),
+            checkedIn: true,
+            canonicalStatus: record.checkOut ? "checked_out" : "checked_in",
+          };
+        }
+        // Scheduled but no attendance record = not checked in.
         return {
-          record,
+          record: null,
           employee,
-          durationMinutes,
-          methodLabel,
-          hasCheckInGeo,
-          hasCheckOutGeo,
+          durationMinutes: 0,
+          methodLabel: null,
+          hasCheckInGeo: false,
+          hasCheckOutGeo: false,
+          checkedIn: false,
+          canonicalStatus: "not_checked_in",
         };
       });
     }),
@@ -1742,6 +1821,9 @@ export const attendanceRouter = router({
         req.requestedBusinessDate ??
         muscatCalendarYmdFromUtcInstant(req.requestedAt);
 
+      // Period lock guard: block manual check-in approval for locked/exported months.
+      await loadAndAssertPeriodNotLocked(db, membership.company.id, approvedBusinessDate);
+
       let recordIdOut = 0;
       let promoterLinkageHint: PromoterLinkageHint = null;
       await db.transaction(async (tx) => {
@@ -1878,6 +1960,10 @@ export const attendanceRouter = router({
         .from(employees)
         .where(and(eq(employees.companyId, membership.company.id), eq(employees.userId, req.employeeUserId)))
         .limit(1);
+
+      // Period lock guard: block manual check-in rejection for locked/exported months.
+      const rejectBd = req.requestedBusinessDate ?? muscatCalendarYmdFromUtcInstant(req.requestedAt);
+      await loadAndAssertPeriodNotLocked(db, membership.company.id, rejectBd);
 
       await db.transaction(async (tx) => {
         await tx
@@ -2126,6 +2212,9 @@ export const attendanceRouter = router({
         ))
         .limit(1);
       if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found or already reviewed" });
+
+      // Period lock guard: block correction approval for locked/exported months.
+      await loadAndAssertPeriodNotLocked(db, membership.company.id, req.requestedDate);
 
       let beforeArRow: (typeof attendanceRecords.$inferSelect) | null = null;
       if (req.attendanceRecordId) {
@@ -2380,6 +2469,10 @@ export const attendanceRouter = router({
         ))
         .limit(1);
       if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found or already reviewed" });
+
+      // Period lock guard: block correction rejection for locked/exported months.
+      await loadAndAssertPeriodNotLocked(db, membership.company.id, req.requestedDate);
+
       const beforePayload = attendancePayloadJson(req);
       await db.transaction(async (tx) => {
         await tx
@@ -2649,7 +2742,7 @@ export const attendanceRouter = router({
       dryRun: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
+      const membership = await requireCanRepairAttendanceData(ctx.user as User, input.companyId);
       const db = await requireDb();
 
       // Find all (employeeId, scheduleId) pairs that have more than one open session.
@@ -2661,7 +2754,7 @@ export const attendanceRouter = router({
         })
         .from(attendanceRecords)
         .where(and(
-          eq(attendanceRecords.companyId, membership.company.id),
+          eq(attendanceRecords.companyId, membership.companyId),
           isNull(attendanceRecords.checkOut),
         ));
 
@@ -2704,7 +2797,7 @@ export const attendanceRouter = router({
           })
           .from(attendanceRecords)
           .where(and(
-            eq(attendanceRecords.companyId, membership.company.id),
+            eq(attendanceRecords.companyId, membership.companyId),
             eq(attendanceRecords.employeeId, dupePair.employeeId),
             eq(attendanceRecords.scheduleId, dupePair.scheduleId),
             isNull(attendanceRecords.checkOut),
@@ -2725,6 +2818,13 @@ export const attendanceRouter = router({
             : new Date(toClose[i - 1]!.checkIn.getTime() - 60_000);
 
           if (!input.dryRun) {
+            // Period lock guard: skip rows whose check-in period is locked/exported.
+            try {
+              await loadAndAssertPeriodNotLockedForInstant(db, membership.companyId, new Date(staleRow.checkIn));
+            } catch {
+              // Skip this record rather than aborting the entire dedup run.
+              continue;
+            }
             await db
               .update(attendanceRecords)
               .set({
@@ -3127,6 +3227,9 @@ export const attendanceRouter = router({
       if (rec.checkOut != null) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Session already closed" });
       }
+
+      // Period lock guard: block force-checkout if the record's check-in day is locked/exported.
+      await loadAndAssertPeriodNotLockedForInstant(db, membership.companyId, new Date(rec.checkIn));
 
       const checkOutTime = new Date();
       const businessDate = muscatCalendarYmdNow();
@@ -4435,7 +4538,7 @@ export const attendanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAttendanceAdmin(ctx.user as User, input.companyId);
+      const membership = await requireCanRepairAttendanceData(ctx.user as User, input.companyId);
       const db = await requireDb();
       const [rec] = await db
         .select()
@@ -4443,13 +4546,17 @@ export const attendanceRouter = router({
         .where(
           and(
             eq(attendanceRecords.id, input.attendanceRecordId),
-            eq(attendanceRecords.companyId, membership.company.id),
+            eq(attendanceRecords.companyId, membership.companyId),
           ),
         )
         .limit(1);
       if (!rec) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
       }
+
+      // Period lock guard: block session repair if the record's period is locked/exported.
+      await loadAndAssertPeriodNotLockedForInstant(db, membership.companyId, new Date(rec.checkIn));
+
       await db.transaction(async (tx) => {
         await syncAttendanceSessionsFromAttendanceRecordTx(tx as any, rec);
       });

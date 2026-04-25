@@ -1422,7 +1422,7 @@ export const attendanceAudit = mysqlTable(
     beforePayload: json("before_payload"),
     afterPayload: json("after_payload"),
     reason: text("reason"),
-    source: mysqlEnum("aa_source", ["hr_panel", "employee_portal", "admin_panel", "system"])
+    source: mysqlEnum("aa_source", ["hr_panel", "employee_portal", "admin_panel", "system", "client_portal"])
       .notNull()
       .default("hr_panel"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

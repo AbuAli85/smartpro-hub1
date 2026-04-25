@@ -30,6 +30,8 @@ const SubscriptionsPage = lazy(() => import("./pages/SubscriptionsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminSanadIntelligencePage = lazy(() => import("./pages/AdminSanadIntelligencePage"));
 const HRAttendancePage = lazy(() => import("./pages/HRAttendancePage"));
+const AttendancePeriodLockPage = lazy(() => import("./pages/AttendancePeriodLockPage"));
+const EmployeeAttendancePage = lazy(() => import("./pages/EmployeeAttendancePage"));
 const ClientWorkspaceRoutes = lazy(() => import("./pages/client/ClientWorkspaceRoutes"));
 const EngagementsPage = lazy(() => import("./pages/EngagementsPage"));
 const EngagementsOpsPage = lazy(() => import("./pages/EngagementsOpsPage"));
@@ -221,10 +223,11 @@ function AppRoutes() {
         <Route path="/hr/recruitment" component={HRRecruitmentPage} />
         <Route path="/hr/leave" component={HRLeavePage} />
         <Route path="/hr/attendance/setup-health" component={AttendanceSetupHealthPage} />
-        <Route path="/hr/attendance" component={HRAttendancePage} />
+        <Route path="/hr/attendance/:tab?" component={HRAttendancePage} />
         <Route path="/hr/attendance-sites" component={AttendanceSitesPage} />
         <Route path="/hr/attendance-anomalies" component={AttendanceAnomaliesPage} />
         <Route path="/hr/attendance-reconciliation" component={AttendanceReconciliationPage} />
+        <Route path="/hr/attendance-period-lock" component={AttendancePeriodLockPage} />
         <Route path="/hr/employee-requests" component={EmployeeRequestsAdminPage} />
         <Route path="/hr/shift-templates" component={ShiftTemplatesPage} />
         <Route path="/hr/employee-schedules" component={EmployeeSchedulesPage} />
@@ -323,6 +326,7 @@ function AppRoutes() {
         <Route path="/hr/tasks" component={TaskManagerPage} />
         <Route path="/hr/announcements" component={AnnouncementsPage} />
         <Route path="/workspace" component={WorkspacePage} />
+        <Route path="/my-portal/attendance" component={EmployeeAttendancePage} />
         <Route path="/my-portal" component={EmployeePortalPage} />
         <Route path="/company/team-access" component={() => <TeamAccessPage />} />
         <Route path="/company/multi-company-roles" component={MultiCompanyRolesPage} />

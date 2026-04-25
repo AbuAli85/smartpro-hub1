@@ -61,6 +61,8 @@ export const ATTENDANCE_AUDIT_SOURCE = {
   EMPLOYEE_PORTAL: "employee_portal",
   ADMIN_PANEL: "admin_panel",
   SYSTEM: "system",
+  /** External client contact approving/rejecting via a signed JWT link (no system account). */
+  CLIENT_PORTAL: "client_portal",
 } as const;
 
 export type AttendanceAuditSource = (typeof ATTENDANCE_AUDIT_SOURCE)[keyof typeof ATTENDANCE_AUDIT_SOURCE];

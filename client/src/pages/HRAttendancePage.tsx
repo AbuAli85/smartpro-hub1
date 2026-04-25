@@ -547,6 +547,7 @@ export default function HRAttendancePage() {
                 {() => (!capsLoading && caps.canViewAttendanceAudit ? <HRAttendanceAuditPage /> : null)}
               </Route>
               <Route path="/hr/attendance"><Redirect to="/hr/attendance/today" /></Route>
+              <Route><Redirect to="/hr/attendance/today" /></Route>
             </Switch>
           </Suspense>
         </div>

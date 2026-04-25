@@ -63,6 +63,7 @@ import { paymentsRouter } from "./routers/payments";
 import { twoFactorRouter } from "./routers/twoFactor";
 import { collectionsRouter } from "./routers/collections";
 import { capabilitiesRouter } from "./routers/capabilities";
+import { attendanceBillingRouter } from "./routers/attendanceBilling";
 
 export const appRouter = router({
   system: systemRouter,
@@ -174,6 +175,8 @@ export const appRouter = router({
   twoFactor: twoFactorRouter,
   /** Configurable capability + company module management. */
   capabilities: capabilitiesRouter,
+  /** Phase 12C: Attendance billing candidate review (finance/admin). */
+  attendanceBilling: attendanceBillingRouter,
 });
 
 export type AppRouter = typeof appRouter;

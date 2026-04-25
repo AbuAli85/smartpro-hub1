@@ -260,6 +260,9 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("control.financeOverview", "financeOverview", "Finance overview", "/finance/overview", TrendingDown, {
         intent: "insight",
       }),
+      leaf("control.attendanceBilling", "attendanceBilling", "Attendance billing", "/finance/attendance-billing", Receipt, {
+        intent: "workspace",
+      }),
       leaf("overview.complianceCentre", "complianceCentre", "Compliance Centre", "/compliance", CheckCircle2, {
         intent: "overview",
       }),

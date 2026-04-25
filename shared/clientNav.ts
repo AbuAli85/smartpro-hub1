@@ -60,6 +60,18 @@ export const COMPANY_ADMIN_OVERVIEW_HREFS = new Set<string>([
   "/operations",
 ]);
 
+/**
+ * Control Tower nav — visible only to users with canViewCompanyControlTower or
+ * canViewPlatformControlTower.  Self-scope employees (company_member, isManager=false)
+ * are excluded; dept/team managers gain it via MANAGER_SURFACE_HREFS.
+ *
+ * Role map (enforced server-side; nav hides it for unauthorized roles):
+ *   company_admin, hr_admin, finance_admin, reviewer, external_auditor → always visible
+ *   company_member (isManager=true)                                     → visible (scoped)
+ *   company_member (isManager=false), client                             → hidden
+ */
+export const CONTROL_TOWER_HREFS = new Set<string>(["/control-tower"]);
+
 /** Payroll & executive reports — company owner/admin + finance manager (not HR-only). */
 export const COMPANY_LEADERSHIP_HREFS = new Set<string>([
   "/payroll",
@@ -104,14 +116,14 @@ export const FINANCE_ADMIN_HREFS = new Set<string>([
 
 /**
  * Company membership role `company_member` ("Member") — staff shell in the sidebar and route guard.
- * Shown regardless of platform job (e.g. Super Admin) while that membership is the active workspace role.
+ * `/control-tower` is intentionally excluded: self-scope employees have no Control Tower access.
+ * Dept/team managers (isManager=true) gain it via MANAGER_SURFACE_HREFS instead.
  */
 export const FIELD_EMPLOYEE_HREFS = new Set<string>([
   "/workspace",
   "/my-portal",
   "/preferences",
   "/dashboard",
-  "/control-tower",
   "/",
 ]);
 
@@ -485,7 +497,7 @@ export function getRoleDefaultRoute(memberRole?: string | null, isManager?: bool
     case "reviewer": return "/control-tower";
     case "external_auditor": return "/control-tower";
     case "client": return "/client";
-    default: return "/control-tower";
+    default: return "/dashboard";
   }
 }
 
@@ -789,6 +801,27 @@ export function clientNavItemVisible(
     if (navModuleDisabledForPath(path, options.enabledModules)) return false;
   }
 
+  // Control Tower: gated by role — self-scope employees are excluded.
+  // Platform operators, operators (company_admin/hr_admin/finance_admin), reviewer,
+  // external_auditor, and company_member with isManager=true are all permitted.
+  if (CONTROL_TOWER_HREFS.has(normalizeClientPath(href))) {
+    if (shouldUsePortalOnlyShell(navUser, options)) return false;
+    if (shouldUsePreRegistrationShell(navUser, options)) return false;
+    if (seesPlatformOperatorNav(navUser) || canAccessGlobalAdminProcedures(navUser ?? {})) return true;
+    const mr = options?.memberRole;
+    if (!hasResolvedMemberRole(mr)) return false;
+    if (isCustomerPortalMemberRole(mr)) return false;
+    if (isFieldEmployee(mr)) return options?.isManager === true;
+    // operator roles + reviewer + external_auditor
+    return (
+      isCompanyAdminMember(mr) ||
+      readsAsHrManager(mr) ||
+      readsAsFinanceManager(mr) ||
+      isExternalAuditorNav(mr) ||
+      isReviewer(mr)
+    );
+  }
+
   // Staff / "Member" company role — employee shell only, even for Super Admin or other platform jobs
   // while this membership is the active workspace role (see PlatformLayout memberRole from myCompany).
   if (isFieldEmployee(options?.memberRole)) {
@@ -960,6 +993,24 @@ export function clientRouteAccessible(
   if (path === "/finance/overview" || path.startsWith("/finance/overview/")) {
     const perms: string[] = options?.memberPermissions ?? [];
     if (perms.includes("view_executive_summary")) return true;
+  }
+
+  // Control Tower route guard — mirrors clientNavItemVisible gating
+  if (path === "/control-tower" || path.startsWith("/control-tower/")) {
+    if (shouldUsePortalOnlyShell(user, options)) return false;
+    if (shouldUsePreRegistrationShell(user, options)) return false;
+    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return true;
+    const mr = options?.memberRole;
+    if (!hasResolvedMemberRole(mr)) return false;
+    if (isCustomerPortalMemberRole(mr)) return false;
+    if (isFieldEmployee(mr)) return options?.isManager === true;
+    return (
+      isCompanyAdminMember(mr) ||
+      readsAsHrManager(mr) ||
+      readsAsFinanceManager(mr) ||
+      isExternalAuditorNav(mr) ||
+      isReviewer(mr)
+    );
   }
 
   if (isFieldEmployee(options?.memberRole)) {

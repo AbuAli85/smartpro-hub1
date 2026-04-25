@@ -76,6 +76,36 @@ export default function ControlTowerPage() {
   const platformOp = seesPlatformOperatorNav(user);
   const scopeEnabled = activeCompanyId != null && !platformOp;
   const { caps: myCaps, loading: capsLoading } = useMyCapabilities();
+
+  // ── Authority check ─────────────────────────────────────────────────────────
+  // canViewPlatformControlTower is always false from deriveCapabilities for tenant users;
+  // the platform gate is handled by canAccessGlobalAdminProcedures() via platformOp.
+  const canViewCompanyTower = !capsLoading && myCaps.canViewCompanyControlTower;
+  const hasControlTowerAccess = platformOp || canViewCompanyTower;
+
+  // Scope label for dept/team managers who see a narrowed dashboard
+  const scopeType: "company" | "department" | "team" | "self" =
+    // Derived from capabilities: if canViewEmployeeList but NOT canManageControlTowerItems,
+    // caller is likely a dept/team manager or reviewer.
+    !capsLoading && myCaps.canManageControlTowerItems
+      ? "company"
+      : !capsLoading && myCaps.canViewCompanyControlTower && !myCaps.canManageControlTowerItems
+        ? "department"  // conservative label — exact scope comes from server
+        : "self";
+
+  const scopeLabel =
+    scopeType === "department" ? "Department Control Tower"
+    : scopeType === "team" ? "Team Control Tower"
+    : "Control Tower";
+
+  // Read-only: reviewer and external_auditor can see but not mutate.
+  const isReadOnly =
+    !capsLoading &&
+    myCaps.canViewCompanyControlTower &&
+    !myCaps.canManageControlTowerItems &&
+    !myCaps.canResolveControlTowerItems &&
+    !myCaps.canAssignControlTowerItems;
+
   // canViewEmployeeList is true for company_admin, hr_admin, and finance_admin — the same
   // roles that previously had engagementOpsRole access.
   // capsLoading guard prevents the engagement KPI section from flashing before capabilities resolve.
@@ -424,10 +454,51 @@ export default function ControlTowerPage() {
     saveSnapshot(currentSnapshot, activeCompanyId, user?.id ?? null);
   }, [queueScopeActive, actionsLoading, currentSnapshot, activeCompanyId, user?.id]);
 
+  // ── Access guard ────────────────────────────────────────────────────────────
+  // Show during caps load to avoid flash; once loaded, gate hard.
+  if (!capsLoading && !hasControlTowerAccess) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <Card className="max-w-md w-full border-dashed">
+          <CardHeader>
+            <CardTitle className="text-base">Control Tower not available</CardTitle>
+            <CardDescription>
+              Your current role does not include Control Tower access. If you believe this is an
+              error, contact your company administrator.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  // Company selector: user has access capability but no active company selected.
+  if (!platformOp && !capsLoading && canViewCompanyTower && activeCompanyId == null) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle className="text-base">Select a company</CardTitle>
+            <CardDescription>
+              Control Tower requires an active company workspace. Use the company switcher in the
+              sidebar to select a company and load signals.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <ExecutiveHeader
-        subtitle="Monitor blockers, priorities, and operational health in one place."
+        subtitle={
+          isReadOnly
+            ? `${scopeLabel} — Read-only view`
+            : scopeLabel !== "Control Tower"
+              ? scopeLabel
+              : "Monitor blockers, priorities, and operational health in one place."
+        }
         companyName={activeCompany?.name ?? null}
         freshnessLabel={queueUpdatedLabel ?? null}
         escalationSummaryLine={escalationSummaryLine}
@@ -449,6 +520,17 @@ export default function ControlTowerPage() {
               <CardTitle className="text-base">Platform scope</CardTitle>
               <CardDescription>
                 Open a tenant workspace from the company switcher to load tenant-specific signals. Platform tools stay in the sidebar.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
+        {isReadOnly && !platformOp && (
+          <Card className="border-yellow-500/30 bg-yellow-500/5">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm text-yellow-600 dark:text-yellow-400">Read-only access</CardTitle>
+              <CardDescription className="text-xs">
+                Your role ({activeCompany?.role ?? "reviewer"}) has read-only access to Control Tower. Signals are visible but actions are disabled.
               </CardDescription>
             </CardHeader>
           </Card>

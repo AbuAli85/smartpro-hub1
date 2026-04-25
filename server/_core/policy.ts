@@ -156,6 +156,120 @@ export async function requireWorkspaceMemberForRead(
   return requireWorkspaceMembership(user, companyId);
 }
 
+// ─── Control Tower guards ─────────────────────────────────────────────────────
+
+/**
+ * Control Tower read gate.
+ *
+ * Passes for any user who holds canViewCompanyControlTower:
+ *   company_admin, hr_admin, finance_admin, reviewer, external_auditor,
+ *   and company_member with dept/team scope.
+ *
+ * Returns `{ companyId, role, scope }`.  Callers must apply scope filtering so
+ * that dept/team managers only receive items relevant to their scope.
+ */
+export async function requireCanViewCompanyControlTower(
+  user: User,
+  companyId?: number | null,
+): Promise<{ companyId: number; role: CompanyMember["role"] }> {
+  // Platform operators always have access
+  if (canAccessGlobalAdminProcedures(user)) {
+    const cid = await requireActiveCompanyId(user.id, companyId, user);
+    return { companyId: cid, role: "company_admin" };
+  }
+  const m = await requireWorkspaceMembership(user, companyId);
+  // Operator-class roles always pass
+  const ALLOWED: readonly string[] = [
+    "company_admin",
+    "hr_admin",
+    "finance_admin",
+    "reviewer",
+    "external_auditor",
+  ];
+  if (ALLOWED.includes(m.role)) return m;
+  // company_member: pass only when they have managerial scope
+  if (m.role === "company_member") {
+    const { resolveVisibilityScope: resolveScp } = await import("./visibilityScope");
+    const scope = await resolveScp(user, m.companyId);
+    if (scope.type === "department" || scope.type === "team") return m;
+  }
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: "Company Control Tower is not accessible to your current role and scope.",
+  });
+}
+
+/**
+ * Control Tower mutation gate: allows acknowledge, manage, assign, resolve.
+ * Restricted to company_admin, hr_admin, finance_admin.
+ */
+export async function requireCanManageControlTower(
+  user: User,
+  companyId?: number | null,
+): Promise<{ companyId: number; role: CompanyMember["role"] }> {
+  return requireTenantRole(user, ["company_admin", "hr_admin", "finance_admin"], companyId);
+}
+
+export type ControlTowerDomain =
+  | "hr"
+  | "payroll"
+  | "finance"
+  | "compliance"
+  | "operations"
+  | "contracts"
+  | "documents"
+  | "crm"
+  | "client"
+  | "audit";
+
+/**
+ * Domain-scoped signal access gate.
+ *
+ * Checks that the caller both has company Control Tower access AND holds the
+ * domain-specific signal capability.  Throws FORBIDDEN if either check fails.
+ *
+ * Use this inside per-signal query procedures to prevent cross-domain leakage
+ * (e.g. hr_admin cannot call finance signal procedures and vice-versa).
+ */
+export async function requireControlTowerSignalAccess(
+  user: User,
+  domain: ControlTowerDomain,
+  companyId?: number | null,
+): Promise<{ companyId: number; role: CompanyMember["role"] }> {
+  // Resolves membership AND scope in one shot
+  const m = await requireCanViewCompanyControlTower(user, companyId);
+
+  // Platform operators skip domain checks
+  if (canAccessGlobalAdminProcedures(user)) return m;
+
+  const { resolveVisibilityScope: resolveScp } = await import("./visibilityScope");
+  const { deriveCapabilities: deriveCaps } = await import("./capabilities");
+  const scope = await resolveScp(user, m.companyId);
+  const caps = deriveCaps(m.role, scope);
+
+  const domainCapMap: Record<ControlTowerDomain, keyof typeof caps> = {
+    hr: "canViewControlTowerHrSignals",
+    payroll: "canViewControlTowerFinanceSignals",
+    finance: "canViewControlTowerFinanceSignals",
+    compliance: "canViewControlTowerComplianceSignals",
+    operations: "canViewControlTowerOperationsSignals",
+    contracts: "canViewControlTowerOperationsSignals",
+    documents: "canViewControlTowerHrSignals",
+    crm: "canViewControlTowerOperationsSignals",
+    client: "canViewControlTowerOperationsSignals",
+    audit: "canViewControlTowerAuditSignals",
+  };
+
+  const capKey = domainCapMap[domain];
+  if (!caps[capKey]) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `Your role does not permit access to Control Tower ${domain} signals.`,
+    });
+  }
+  return m;
+}
+
 // ─── Payroll guard ────────────────────────────────────────────────────────────
 
 /**

@@ -64,6 +64,7 @@ import { twoFactorRouter } from "./routers/twoFactor";
 import { collectionsRouter } from "./routers/collections";
 import { capabilitiesRouter } from "./routers/capabilities";
 import { attendanceBillingRouter } from "./routers/attendanceBilling";
+import { controlTowerRouter } from "./routers/controlTower";
 
 export const appRouter = router({
   system: systemRouter,
@@ -177,6 +178,8 @@ export const appRouter = router({
   capabilities: capabilitiesRouter,
   /** Phase 12C: Attendance billing candidate review (finance/admin). */
   attendanceBilling: attendanceBillingRouter,
+  /** Control Tower decision surface — capability-gated per role and scope. */
+  controlTower: controlTowerRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -342,6 +342,202 @@ describe("unknown / client role", () => {
   });
 });
 
+// ─── Control Tower capability matrix ─────────────────────────────────────────
+
+describe("Control Tower capability matrix", () => {
+  const SCOPES = [SCOPE_COMPANY, SCOPE_DEPT, SCOPE_TEAM, SCOPE_SELF];
+
+  // canViewPlatformControlTower is always false from deriveCapabilities —
+  // the platform gate is enforced by canAccessGlobalAdminProcedures() separately.
+  it("canViewPlatformControlTower is always false for ALL tenant roles", () => {
+    const roles = [
+      "company_admin",
+      "hr_admin",
+      "finance_admin",
+      "reviewer",
+      "external_auditor",
+      "company_member",
+    ] as const;
+    for (const role of roles) {
+      for (const scope of SCOPES) {
+        expect(
+          deriveCapabilities(role, scope).canViewPlatformControlTower,
+          `${role}@${scope.type} should not have canViewPlatformControlTower`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("company_admin has all Control Tower capabilities (except platform tower)", () => {
+    const caps = deriveCapabilities("company_admin", SCOPE_COMPANY);
+    expect(caps.canViewCompanyControlTower).toBe(true);
+    expect(caps.canManageControlTowerItems).toBe(true);
+    expect(caps.canAssignControlTowerItems).toBe(true);
+    expect(caps.canResolveControlTowerItems).toBe(true);
+    expect(caps.canViewControlTowerFinanceSignals).toBe(true);
+    expect(caps.canViewControlTowerHrSignals).toBe(true);
+    expect(caps.canViewControlTowerComplianceSignals).toBe(true);
+    expect(caps.canViewControlTowerOperationsSignals).toBe(true);
+    expect(caps.canViewControlTowerAuditSignals).toBe(true);
+  });
+
+  it("hr_admin: company tower + HR/compliance/audit/ops signals — NOT finance", () => {
+    const caps = deriveCapabilities("hr_admin", SCOPE_COMPANY);
+    expect(caps.canViewCompanyControlTower).toBe(true);
+    expect(caps.canManageControlTowerItems).toBe(true);
+    expect(caps.canAssignControlTowerItems).toBe(true);
+    expect(caps.canResolveControlTowerItems).toBe(true);
+    expect(caps.canViewControlTowerHrSignals).toBe(true);
+    expect(caps.canViewControlTowerComplianceSignals).toBe(true);
+    expect(caps.canViewControlTowerOperationsSignals).toBe(true);
+    expect(caps.canViewControlTowerAuditSignals).toBe(true);
+    // Finance signals are NOT accessible to HR admin
+    expect(caps.canViewControlTowerFinanceSignals).toBe(false);
+  });
+
+  it("finance_admin: company tower + finance/ops signals — NOT HR or audit", () => {
+    const caps = deriveCapabilities("finance_admin", SCOPE_COMPANY);
+    expect(caps.canViewCompanyControlTower).toBe(true);
+    expect(caps.canManageControlTowerItems).toBe(true);
+    expect(caps.canAssignControlTowerItems).toBe(true);
+    expect(caps.canResolveControlTowerItems).toBe(true);
+    expect(caps.canViewControlTowerFinanceSignals).toBe(true);
+    expect(caps.canViewControlTowerOperationsSignals).toBe(true);
+    // HR, compliance, and audit signals are NOT accessible to finance_admin
+    expect(caps.canViewControlTowerHrSignals).toBe(false);
+    expect(caps.canViewControlTowerComplianceSignals).toBe(false);
+    expect(caps.canViewControlTowerAuditSignals).toBe(false);
+  });
+
+  it("reviewer: company tower (read-only) + compliance + audit — no mutations", () => {
+    const caps = deriveCapabilities("reviewer", SCOPE_COMPANY);
+    expect(caps.canViewCompanyControlTower).toBe(true);
+    expect(caps.canViewControlTowerComplianceSignals).toBe(true);
+    expect(caps.canViewControlTowerAuditSignals).toBe(true);
+    // No mutations
+    expect(caps.canManageControlTowerItems).toBe(false);
+    expect(caps.canAssignControlTowerItems).toBe(false);
+    expect(caps.canResolveControlTowerItems).toBe(false);
+    // No sensitive domain signals
+    expect(caps.canViewControlTowerFinanceSignals).toBe(false);
+    expect(caps.canViewControlTowerHrSignals).toBe(false);
+    expect(caps.canViewControlTowerOperationsSignals).toBe(false);
+  });
+
+  it("external_auditor: company tower (read-only) + compliance + audit — no mutations", () => {
+    const caps = deriveCapabilities("external_auditor", SCOPE_COMPANY);
+    expect(caps.canViewCompanyControlTower).toBe(true);
+    expect(caps.canViewControlTowerComplianceSignals).toBe(true);
+    expect(caps.canViewControlTowerAuditSignals).toBe(true);
+    expect(caps.canManageControlTowerItems).toBe(false);
+    expect(caps.canAssignControlTowerItems).toBe(false);
+    expect(caps.canResolveControlTowerItems).toBe(false);
+    expect(caps.canViewControlTowerFinanceSignals).toBe(false);
+    expect(caps.canViewControlTowerHrSignals).toBe(false);
+    expect(caps.canViewControlTowerOperationsSignals).toBe(false);
+  });
+
+  it("company_member scope=self: NO Control Tower access at all", () => {
+    const caps = deriveCapabilities("company_member", SCOPE_SELF);
+    expect(caps.canViewCompanyControlTower).toBe(false);
+    expect(caps.canManageControlTowerItems).toBe(false);
+    expect(caps.canAssignControlTowerItems).toBe(false);
+    expect(caps.canResolveControlTowerItems).toBe(false);
+    expect(caps.canViewControlTowerFinanceSignals).toBe(false);
+    expect(caps.canViewControlTowerHrSignals).toBe(false);
+    expect(caps.canViewControlTowerComplianceSignals).toBe(false);
+    expect(caps.canViewControlTowerOperationsSignals).toBe(false);
+    expect(caps.canViewControlTowerAuditSignals).toBe(false);
+  });
+
+  it("company_member scope=department: scoped tower + operations signals only", () => {
+    const caps = deriveCapabilities("company_member", SCOPE_DEPT);
+    expect(caps.canViewCompanyControlTower).toBe(true);
+    expect(caps.canViewControlTowerOperationsSignals).toBe(true);
+    // No finance, HR, compliance, or audit signals
+    expect(caps.canViewControlTowerFinanceSignals).toBe(false);
+    expect(caps.canViewControlTowerHrSignals).toBe(false);
+    expect(caps.canViewControlTowerComplianceSignals).toBe(false);
+    expect(caps.canViewControlTowerAuditSignals).toBe(false);
+    // No mutations
+    expect(caps.canManageControlTowerItems).toBe(false);
+    expect(caps.canAssignControlTowerItems).toBe(false);
+    expect(caps.canResolveControlTowerItems).toBe(false);
+  });
+
+  it("company_member scope=team: scoped tower + operations signals only", () => {
+    const caps = deriveCapabilities("company_member", SCOPE_TEAM);
+    expect(caps.canViewCompanyControlTower).toBe(true);
+    expect(caps.canViewControlTowerOperationsSignals).toBe(true);
+    expect(caps.canViewControlTowerFinanceSignals).toBe(false);
+    expect(caps.canViewControlTowerHrSignals).toBe(false);
+    expect(caps.canViewControlTowerComplianceSignals).toBe(false);
+    expect(caps.canViewControlTowerAuditSignals).toBe(false);
+    expect(caps.canManageControlTowerItems).toBe(false);
+    expect(caps.canResolveControlTowerItems).toBe(false);
+  });
+
+  it("only company_admin, hr_admin, finance_admin can manage/assign/resolve CT items", () => {
+    for (const scope of SCOPES) {
+      expect(deriveCapabilities("company_admin", scope).canManageControlTowerItems).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canManageControlTowerItems).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canManageControlTowerItems).toBe(true);
+      expect(deriveCapabilities("reviewer", scope).canManageControlTowerItems).toBe(false);
+      expect(deriveCapabilities("external_auditor", scope).canManageControlTowerItems).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canManageControlTowerItems).toBe(false);
+
+      expect(deriveCapabilities("company_admin", scope).canAssignControlTowerItems).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canAssignControlTowerItems).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canAssignControlTowerItems).toBe(true);
+      expect(deriveCapabilities("reviewer", scope).canAssignControlTowerItems).toBe(false);
+      expect(deriveCapabilities("external_auditor", scope).canAssignControlTowerItems).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canAssignControlTowerItems).toBe(false);
+
+      expect(deriveCapabilities("company_admin", scope).canResolveControlTowerItems).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canResolveControlTowerItems).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canResolveControlTowerItems).toBe(true);
+      expect(deriveCapabilities("reviewer", scope).canResolveControlTowerItems).toBe(false);
+      expect(deriveCapabilities("external_auditor", scope).canResolveControlTowerItems).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canResolveControlTowerItems).toBe(false);
+    }
+  });
+
+  it("finance signals are only visible to company_admin and finance_admin", () => {
+    for (const scope of SCOPES) {
+      expect(deriveCapabilities("company_admin", scope).canViewControlTowerFinanceSignals).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canViewControlTowerFinanceSignals).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canViewControlTowerFinanceSignals).toBe(false);
+      expect(deriveCapabilities("reviewer", scope).canViewControlTowerFinanceSignals).toBe(false);
+      expect(deriveCapabilities("external_auditor", scope).canViewControlTowerFinanceSignals).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canViewControlTowerFinanceSignals).toBe(false);
+    }
+  });
+
+  it("HR signals are only visible to company_admin and hr_admin", () => {
+    for (const scope of SCOPES) {
+      expect(deriveCapabilities("company_admin", scope).canViewControlTowerHrSignals).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canViewControlTowerHrSignals).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canViewControlTowerHrSignals).toBe(false);
+      expect(deriveCapabilities("reviewer", scope).canViewControlTowerHrSignals).toBe(false);
+      expect(deriveCapabilities("external_auditor", scope).canViewControlTowerHrSignals).toBe(false);
+      expect(deriveCapabilities("company_member", scope).canViewControlTowerHrSignals).toBe(false);
+    }
+  });
+
+  it("tenant company-scope control tower is always visible to operator roles", () => {
+    for (const scope of SCOPES) {
+      expect(deriveCapabilities("company_admin", scope).canViewCompanyControlTower).toBe(true);
+      expect(deriveCapabilities("hr_admin", scope).canViewCompanyControlTower).toBe(true);
+      expect(deriveCapabilities("finance_admin", scope).canViewCompanyControlTower).toBe(true);
+      expect(deriveCapabilities("reviewer", scope).canViewCompanyControlTower).toBe(true);
+      expect(deriveCapabilities("external_auditor", scope).canViewCompanyControlTower).toBe(true);
+    }
+    // client role: no access
+    // @ts-expect-error intentionally testing unknown role
+    expect(deriveCapabilities("client", SCOPE_COMPANY).canViewCompanyControlTower).toBe(false);
+  });
+});
+
 // ─── applyEmployeePayloadPolicy ───────────────────────────────────────────────
 
 describe("applyEmployeePayloadPolicy", () => {

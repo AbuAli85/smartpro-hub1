@@ -142,6 +142,33 @@ export interface Capabilities {
   // Attendance data repair (Phase P4)
   /** Run destructive attendance repair mutations: repairSessionFromAttendanceRecord, deduplicateAttendanceRecords. */
   canRepairAttendanceData: boolean;
+
+  // ─── Control Tower access ─────────────────────────────────────────────────
+  /**
+   * Access the Platform Control Tower (cross-tenant operations view).
+   * Only true for platform_admin / super_admin operators — never for tenant users.
+   * In practice always false from deriveCapabilities; callers combine with
+   * canAccessGlobalAdminProcedures() for the full platform gate.
+   */
+  canViewPlatformControlTower: boolean;
+  /** Access the Company Control Tower decision surface. */
+  canViewCompanyControlTower: boolean;
+  /** Acknowledge, update status, or edit Control Tower items. */
+  canManageControlTowerItems: boolean;
+  /** Assign Control Tower items to other users. */
+  canAssignControlTowerItems: boolean;
+  /** Mark Control Tower items as resolved or dismissed. */
+  canResolveControlTowerItems: boolean;
+  /** See finance-domain signals: invoices, WPS, payroll mismatch, margins. */
+  canViewControlTowerFinanceSignals: boolean;
+  /** See HR-domain signals: missing docs, leave conflicts, onboarding gaps. */
+  canViewControlTowerHrSignals: boolean;
+  /** See compliance-domain signals: Omanisation risk, labour compliance, WPS readiness. */
+  canViewControlTowerComplianceSignals: boolean;
+  /** See operations-domain signals: overdue tasks, SLA, stalled engagements. */
+  canViewControlTowerOperationsSignals: boolean;
+  /** See audit-domain signals: attendance audit log, governance trail. */
+  canViewControlTowerAuditSignals: boolean;
 }
 
 // ─── Baseline capability sets ─────────────────────────────────────────────────
@@ -187,6 +214,18 @@ const ALL_CAPS: Capabilities = {
   canApproveAttendanceClientApproval: true,
   canViewAttendanceClientApproval: true,
   canRepairAttendanceData: true,
+  // Control Tower — company_admin gets full company tower; platform tower is gated
+  // separately via canAccessGlobalAdminProcedures() and is always false here.
+  canViewPlatformControlTower: false,
+  canViewCompanyControlTower: true,
+  canManageControlTowerItems: true,
+  canAssignControlTowerItems: true,
+  canResolveControlTowerItems: true,
+  canViewControlTowerFinanceSignals: true,
+  canViewControlTowerHrSignals: true,
+  canViewControlTowerComplianceSignals: true,
+  canViewControlTowerOperationsSignals: true,
+  canViewControlTowerAuditSignals: true,
 };
 
 const NO_CAPS: Capabilities = {
@@ -230,6 +269,16 @@ const NO_CAPS: Capabilities = {
   canApproveAttendanceClientApproval: false,
   canViewAttendanceClientApproval: false,
   canRepairAttendanceData: false,
+  canViewPlatformControlTower: false,
+  canViewCompanyControlTower: false,
+  canManageControlTowerItems: false,
+  canAssignControlTowerItems: false,
+  canResolveControlTowerItems: false,
+  canViewControlTowerFinanceSignals: false,
+  canViewControlTowerHrSignals: false,
+  canViewControlTowerComplianceSignals: false,
+  canViewControlTowerOperationsSignals: false,
+  canViewControlTowerAuditSignals: false,
 };
 
 // ─── Core deriver ─────────────────────────────────────────────────────────────
@@ -290,6 +339,17 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canMarkPayrollPaid: false,
         canEditPayrollLineItem: false,
         canGenerateWpsFile: false,
+        // Control Tower — HR gets company tower, HR + compliance + audit + ops signals
+        canViewPlatformControlTower: false,
+        canViewCompanyControlTower: true,
+        canManageControlTowerItems: true,
+        canAssignControlTowerItems: true,
+        canResolveControlTowerItems: true,
+        canViewControlTowerFinanceSignals: false,
+        canViewControlTowerHrSignals: true,
+        canViewControlTowerComplianceSignals: true,
+        canViewControlTowerOperationsSignals: true,
+        canViewControlTowerAuditSignals: true,
       };
 
     case "finance_admin":
@@ -333,6 +393,17 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canManageShiftTemplates: false,
         canManageAttendanceSites: false,
         canManageEmployeeSchedules: false,
+        // Control Tower — Finance gets company tower, finance signals + ops signals
+        canViewPlatformControlTower: false,
+        canViewCompanyControlTower: true,
+        canManageControlTowerItems: true,
+        canAssignControlTowerItems: true,
+        canResolveControlTowerItems: true,
+        canViewControlTowerFinanceSignals: true,
+        canViewControlTowerHrSignals: false,
+        canViewControlTowerComplianceSignals: false,
+        canViewControlTowerOperationsSignals: true,
+        canViewControlTowerAuditSignals: false,
       };
 
     case "reviewer":
@@ -345,6 +416,10 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewComplianceMatrix: true,
         canViewEmployeeDocuments: true,   // reviewers may inspect documents
         // read-only structural view — no payroll, no mutations, no personal fields
+        // Control Tower — read-only: audit and compliance signals only
+        canViewCompanyControlTower: true,
+        canViewControlTowerComplianceSignals: true,
+        canViewControlTowerAuditSignals: true,
       };
 
     case "external_auditor":
@@ -359,6 +434,10 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewAttendanceAudit: true,  // auditors may read the attendance audit log
         // no salary, banking, identity, payroll inputs, HR notes, or payroll actions
         canUploadDocument: false,
+        // Control Tower — read-only: audit and compliance signals only
+        canViewCompanyControlTower: true,
+        canViewControlTowerComplianceSignals: true,
+        canViewControlTowerAuditSignals: true,
       };
 
     case "company_member": {
@@ -377,6 +456,10 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canApproveTask: hasAuthority,
         canViewComplianceMatrix: hasAuthority,
         // members never access salary, banking, identity, payroll, compliance reports, or HR notes
+        // Control Tower: only dept/team managers get a scoped dashboard (operations signals only).
+        // Self-scope employees have no Control Tower access whatsoever.
+        canViewCompanyControlTower: hasAuthority,
+        canViewControlTowerOperationsSignals: hasAuthority,
       };
     }
 

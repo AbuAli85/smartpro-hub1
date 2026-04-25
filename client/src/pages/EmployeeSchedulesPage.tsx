@@ -44,6 +44,7 @@ import {
   MapPin,
   Clock,
   ArrowLeftRight,
+  ArrowLeft,
   Check,
   X,
   ChevronDown,
@@ -53,7 +54,9 @@ import {
   GripVertical,
   AlertCircle,
   Layers,
+  Users,
 } from "lucide-react";
+import { Link } from "wouter";
 import { Textarea } from "@/components/ui/textarea";
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import { DateInput } from "@/components/ui/date-input";
@@ -679,6 +682,9 @@ export default function EmployeeSchedulesPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <Link href="/hr/attendance-setup" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <ArrowLeft size={13} /> Setup Overview
+      </Link>
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
@@ -694,6 +700,14 @@ export default function EmployeeSchedulesPage() {
           <Plus size={16} /> Assign Schedule
         </Button>
       </div>
+
+      {/* ── Readiness summary strip ── */}
+      {!isLoading && (
+        <ScheduleReadinessSummary
+          employees={employees as any[]}
+          groups={groups}
+        />
+      )}
 
       {/* ── Schedule list ── */}
       {isLoading ? (
@@ -1056,6 +1070,13 @@ export default function EmployeeSchedulesPage() {
               />
             </div>
           </div>
+
+          <ScheduleAssignPreview
+            form={form}
+            employees={employees as any[]}
+            sites={sites as any[]}
+            shifts={shifts}
+          />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
@@ -1491,6 +1512,141 @@ function RequestsCalendar({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── ScheduleReadinessSummary ─────────────────────────────────────────────────
+
+function ScheduleReadinessSummary({
+  employees,
+  groups,
+}: {
+  employees: Array<{ userId?: number | null; status?: string }>;
+  groups: ScheduleGroupEntry[];
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  const scheduledUserIds = new Set(groups.map((g) => g.employeeUserId));
+  const activeEmployees = employees.filter((e) => !e.status || e.status === "active");
+  const scheduledCount = activeEmployees.filter(
+    (e) => e.userId != null && scheduledUserIds.has(e.userId as number),
+  ).length;
+  const unscheduledCount = Math.max(0, activeEmployees.length - scheduledCount);
+
+  const startingSoon = groups.filter(
+    (g) => g.startDate > today && g.startDate <= sevenDaysLater,
+  ).length;
+  const endingSoon = groups.filter(
+    (g) => g.endDate != null && g.endDate >= today && g.endDate <= sevenDaysLater,
+  ).length;
+
+  if (activeEmployees.length === 0 && groups.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <SummaryTileSmall
+        label="Scheduled"
+        value={scheduledCount}
+        accent={scheduledCount > 0 ? "text-emerald-600" : "text-muted-foreground"}
+      />
+      <SummaryTileSmall
+        label="Unscheduled"
+        value={unscheduledCount}
+        accent={unscheduledCount > 0 ? "text-amber-600" : "text-emerald-600"}
+      />
+      <SummaryTileSmall
+        label="Starting soon"
+        value={startingSoon}
+        accent={startingSoon > 0 ? "text-primary" : "text-muted-foreground"}
+        hint="Next 7 days"
+      />
+      <SummaryTileSmall
+        label="Ending soon"
+        value={endingSoon}
+        accent={endingSoon > 0 ? "text-amber-600" : "text-muted-foreground"}
+        hint="Next 7 days"
+      />
+    </div>
+  );
+}
+
+function SummaryTileSmall({
+  label,
+  value,
+  accent,
+  hint,
+}: {
+  label: string;
+  value: number;
+  accent: string;
+  hint?: string;
+}) {
+  return (
+    <div className="rounded-xl border bg-card px-3 py-2.5">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium leading-tight">
+        {label}
+      </p>
+      <p className={`text-xl font-bold tabular-nums mt-0.5 ${accent}`}>{value}</p>
+      {hint && <p className="text-[10px] text-muted-foreground mt-0.5">{hint}</p>}
+    </div>
+  );
+}
+
+// ─── ScheduleAssignPreview ────────────────────────────────────────────────────
+
+function ScheduleAssignPreview({
+  form,
+  employees,
+  sites,
+  shifts,
+}: {
+  form: GroupForm;
+  employees: Array<{ userId?: number | null; id: number; firstName: string; lastName: string }>;
+  sites: Array<{ id: number; name: string }>;
+  shifts: ShiftTemplate[];
+}) {
+  const employee = employees.find(
+    (e) => String(e.userId ?? e.id) === form.employeeUserId,
+  );
+  const site = sites.find((s) => String(s.id) === form.siteId);
+  const resolvedShifts = form.shiftSegments
+    .map((seg) => shifts.find((s) => String(s.id) === seg.shiftTemplateId))
+    .filter((s): s is ShiftTemplate => s != null);
+
+  if (!employee || !site || resolvedShifts.length === 0) return null;
+
+  const dayLabels = form.workingDays
+    .sort((a, b) => a - b)
+    .map((d) => DAYS.find((x) => x.value === d)?.label ?? d)
+    .join(", ");
+
+  return (
+    <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 space-y-2 text-sm">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wide">Schedule preview</p>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        <span className="text-muted-foreground">Employee</span>
+        <span className="font-medium">
+          {employee.firstName} {employee.lastName}
+        </span>
+        <span className="text-muted-foreground">Site</span>
+        <span className="font-medium">{site.name}</span>
+        <span className="text-muted-foreground">
+          {resolvedShifts.length === 1 ? "Shift" : "Shifts"}
+        </span>
+        <span className="font-medium">
+          {resolvedShifts.map((s) => `${s.name} (${s.startTime}–${s.endTime})`).join(", ")}
+        </span>
+        <span className="text-muted-foreground">Working days</span>
+        <span className="font-medium">{dayLabels || "—"}</span>
+        <span className="text-muted-foreground">Start date</span>
+        <span className="font-medium">{form.startDate || "—"}</span>
+        <span className="text-muted-foreground">End date</span>
+        <span className="font-medium">{form.endDate || "Open-ended"}</span>
+      </div>
     </div>
   );
 }

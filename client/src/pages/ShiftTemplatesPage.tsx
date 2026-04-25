@@ -24,8 +24,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Clock, CalendarDays } from "lucide-react";
+import { Plus, Pencil, Trash2, Clock, CalendarDays, ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 
 const PRESET_COLORS = [
   "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
@@ -57,6 +58,7 @@ export default function ShiftTemplatesPage() {
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteActiveCount, setDeleteActiveCount] = useState(0);
   const [form, setForm] = useState<ShiftForm>(defaultForm);
 
   const { data: shifts = [], isLoading } = trpc.scheduling.listShiftTemplates.useQuery(
@@ -131,6 +133,9 @@ export default function ShiftTemplatesPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <Link href="/hr/attendance-setup" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <ArrowLeft size={13} /> Setup Overview
+      </Link>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -190,13 +195,14 @@ export default function ShiftTemplatesPage() {
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => setDeleteId(s.id)}
+                      onClick={() => { setDeleteId(s.id); setDeleteActiveCount(s.activeScheduleAssignmentCount ?? 0); }}
                     >
                       <Trash2 size={13} />
                     </Button>
                   </div>
                 </div>
               </CardHeader>
+
               <CardContent className="space-y-2">
                 <div className="flex items-center gap-2 text-sm">
                   <Clock size={14} className="text-muted-foreground" />
@@ -220,10 +226,17 @@ export default function ShiftTemplatesPage() {
                   <p className="text-[11px] leading-snug">
                     Employees are marked early checkout if they work less than 80% of the shift.
                   </p>
-                  <Badge variant="outline" className="text-[10px] font-normal">
-                    {s.activeScheduleAssignmentCount ?? 0} active schedule
-                    {(s.activeScheduleAssignmentCount ?? 0) === 1 ? " link" : " links"}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    {(s.activeScheduleAssignmentCount ?? 0) === 0 ? (
+                      <Badge variant="outline" className="text-[10px] font-normal border-amber-400 text-amber-700 dark:text-amber-400">
+                        Not used yet
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] font-normal border-emerald-400 text-emerald-700 dark:text-emerald-400">
+                        In use · {s.activeScheduleAssignmentCount} schedule{(s.activeScheduleAssignmentCount ?? 0) === 1 ? "" : "s"}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -322,12 +335,23 @@ export default function ShiftTemplatesPage() {
       </Dialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) { setDeleteId(null); setDeleteActiveCount(0); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Shift Template?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will deactivate the shift template. Existing schedules using it will not be affected.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>This will mark the shift template as inactive.</p>
+                {deleteActiveCount > 0 ? (
+                  <p className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 px-3 py-2 text-amber-800 dark:text-amber-200">
+                    ⚠ This shift is linked to{" "}
+                    <strong>{deleteActiveCount} active schedule{deleteActiveCount === 1 ? "" : "s"}</strong>.
+                    Those schedules may stop resolving shift hours until reassigned to an active template.
+                  </p>
+                ) : (
+                  <p>No active schedules are using this shift — safe to delete.</p>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -336,7 +360,7 @@ export default function ShiftTemplatesPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteId && deleteMut.mutate({ id: deleteId, companyId: activeCompanyId ?? undefined })}
             >
-              Delete
+              {deleteActiveCount > 0 ? "Delete anyway" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

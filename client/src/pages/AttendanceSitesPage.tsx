@@ -49,8 +49,9 @@ import {
   MapPin, Plus, QrCode, Users, Clock, Building2,
   ShieldCheck, Copy, Edit2, ToggleLeft, ToggleRight,
   Navigation, Crosshair, CheckCircle2, XCircle, Calendar,
-  FileText, AlertTriangle, ThumbsUp, ThumbsDown,
+  FileText, AlertTriangle, ThumbsUp, ThumbsDown, ArrowLeft,
 } from "lucide-react";
+import { Link } from "wouter";
 import { DateInput } from "@/components/ui/date-input";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useTranslation } from "react-i18next";
@@ -584,6 +585,9 @@ export default function AttendanceSitesPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
+      <Link href="/hr/attendance-setup" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <ArrowLeft size={13} /> Setup Overview
+      </Link>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t("attendance.sites.pageTitle")}</h1>
@@ -737,6 +741,25 @@ export default function AttendanceSitesPage() {
                           {site.enforceHours && <ShieldCheck className="h-3 w-3 text-amber-600 ml-0.5" />}
                         </span>
                       )}
+                    </div>
+
+                    {/* Readiness badges */}
+                    <div className="flex flex-wrap gap-1">
+                      {site.lat == null ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:border-amber-700 dark:text-amber-300">
+                          No location set
+                        </span>
+                      ) : null}
+                      {site.lat != null && !site.enforceGeofence ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground">
+                          Geo-fence off
+                        </span>
+                      ) : null}
+                      {Number(site.dailyRateOmr ?? 0) > 0 && site.billingCustomerId == null ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:border-amber-700 dark:text-amber-300">
+                          No billing customer
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="flex items-center gap-2 pt-1 border-t">

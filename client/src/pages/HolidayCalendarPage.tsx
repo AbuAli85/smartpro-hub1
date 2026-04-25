@@ -35,7 +35,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Plus, Trash2, CalendarDays, Globe, Building2, Star, Sparkles } from "lucide-react";
+import { Plus, Trash2, CalendarDays, Globe, Building2, Star, Sparkles, ArrowLeft } from "lucide-react";
+import { Link } from "wouter";
 import { DateInput } from "@/components/ui/date-input";
 
 const HOLIDAY_TYPE_ICONS = {
@@ -133,6 +134,9 @@ export default function HolidayCalendarPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <Link href="/hr/attendance-setup" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <ArrowLeft size={13} /> Setup Overview
+      </Link>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">

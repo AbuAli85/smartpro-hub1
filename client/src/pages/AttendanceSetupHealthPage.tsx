@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import {
-  Activity, Users, Calendar, AlertTriangle, CheckCircle2,
+  Activity, ArrowLeft, Users, Calendar, AlertTriangle, CheckCircle2,
   MapPin, Clock, ShieldAlert,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -155,6 +155,9 @@ export default function AttendanceSetupHealthPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
+      <Link href="/hr/attendance-setup" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <ArrowLeft size={13} /> Setup Overview
+      </Link>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <Activity size={24} className="text-[var(--smartpro-orange)]" />

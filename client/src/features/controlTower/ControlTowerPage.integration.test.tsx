@@ -96,7 +96,26 @@ vi.mock("@/lib/trpc", () => ({
       engagements: {
         getOpsSummary: { invalidate: engagementOpsSummaryInvalidate },
       },
+      controlTower: {
+        items: { invalidate: vi.fn() },
+      },
     }),
+    controlTower: {
+      summary: {
+        useQuery: trpcQuery({
+          totalOpen: 0,
+          bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
+          byDomain: {},
+          visibleDomains: [],
+        }),
+      },
+      items: {
+        useQuery: trpcQuery({ items: [], total: 0 }),
+      },
+      acknowledgeItem: {
+        useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+      },
+    },
     engagements: {
       getOpsSummary: { useQuery: trpcQuery({}) },
       refreshRollups: {

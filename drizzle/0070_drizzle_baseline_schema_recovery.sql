@@ -3139,3 +3139,21 @@ CREATE TABLE IF NOT EXISTS `workforce_health_snapshots` (
 	`created_at` timestamp NOT NULL DEFAULT (now()),
 	CONSTRAINT `workforce_health_snapshots_id` PRIMARY KEY(`id`)
 );
+CREATE TABLE IF NOT EXISTS `attendance_billing_candidates` (
+`id` int AUTO_INCREMENT NOT NULL,
+`batch_id` int NOT NULL,
+`company_id` int NOT NULL,
+`client_company_id` int,
+`period_start` varchar(10) NOT NULL,
+`period_end` varchar(10) NOT NULL,
+`source` varchar(32) NOT NULL,
+`status` enum('draft','review_ready','cancelled') NOT NULL DEFAULT 'draft',
+`approved_item_count` int NOT NULL DEFAULT 0,
+`snapshot_missing_count` int NOT NULL DEFAULT 0,
+`total_duration_minutes` int,
+`billing_lines_json` json NOT NULL,
+`created_at` timestamp NOT NULL DEFAULT (now()),
+`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+CONSTRAINT `attendance_billing_candidates_id` PRIMARY KEY(`id`),
+CONSTRAINT `uq_abc_batch_id` UNIQUE(`batch_id`)
+);

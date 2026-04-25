@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useTranslation } from "react-i18next";
+import { datesOverlap, findOverlappingSchedule } from "@/lib/scheduleConflict";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +103,10 @@ interface GroupFormErrors {
   segments?: Record<string, string>;
   /** Cross-segment errors (overlap, duplicate) */
   segmentsGlobal?: string;
+  /** Start date missing or unparseable */
+  startDate?: string;
+  /** End date is before start date */
+  dateRange?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -362,6 +367,9 @@ export default function EmployeeSchedulesPage() {
   /** "group:{id}" | "legacy:{id}" */
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
+  // ── Overlap confirmation state ──
+  const [overlapWarning, setOverlapWarning] = useState<ScheduleGroupEntry | null>(null);
+
   // ── Requests panel ──
   const [shiftReqFilter, setShiftReqFilter] = useState<string>("pending");
   const [adminNoteId, setAdminNoteId] = useState<number | null>(null);
@@ -568,6 +576,10 @@ export default function EmployeeSchedulesPage() {
     if (!form.employeeUserId) err.employeeUserId = "Select an employee.";
     if (!form.siteId) err.siteId = "Select an attendance site.";
     if (form.workingDays.length === 0) err.workingDays = "Select at least one working day.";
+    if (!form.startDate) err.startDate = "Start date is required.";
+    if (form.startDate && form.endDate && form.endDate < form.startDate) {
+      err.dateRange = "End date must be on or after the start date.";
+    }
 
     const segErrors: Record<string, string> = {};
     const seenIds = new Set<string>();
@@ -586,7 +598,6 @@ export default function EmployeeSchedulesPage() {
     if (Object.keys(segErrors).length > 0) {
       err.segments = segErrors;
     } else if (form.shiftSegments.length > 1) {
-      // Client-side overlap check
       const shiftMap = new Map(shifts.map((s) => [String(s.id), s]));
       const resolved = form.shiftSegments
         .map((s) => shiftMap.get(s.shiftTemplateId))
@@ -610,10 +621,10 @@ export default function EmployeeSchedulesPage() {
     return true;
   }
 
-  // ── Submit ──
-  function handleSubmit() {
-    if (!validateForm()) return;
-    if (!activeCompanyId) { toast.error("No active company"); return; }
+  // ── Actual mutation dispatch (called after all gates pass) ──
+  function doSubmit() {
+    if (!activeCompanyId) return;
+    setOverlapWarning(null);
 
     const shiftTemplateIds = form.shiftSegments.map((s) => Number(s.shiftTemplateId));
     const workingDays = form.workingDays;
@@ -628,13 +639,10 @@ export default function EmployeeSchedulesPage() {
     };
 
     if (editTarget === null) {
-      // Create new group
       assignGroupMut.mutate({ ...commonPayload, shiftTemplateIds });
     } else if (typeof editTarget === "number") {
-      // Update existing group
       updateGroupMut.mutate({ groupId: editTarget, ...commonPayload, shiftTemplateIds });
     } else if (typeof editTarget === "string" && editTarget.startsWith("legacy:")) {
-      // Update legacy single-row via old procedure
       const id = Number(editTarget.replace("legacy:", ""));
       updateLegacyMut.mutate({
         id,
@@ -647,6 +655,43 @@ export default function EmployeeSchedulesPage() {
         notes: form.notes || undefined,
       });
     }
+  }
+
+  // ── Submit — validate → check overlap → dispatch ──
+  function handleSubmit() {
+    if (!validateForm()) return;
+    if (!activeCompanyId) { toast.error("No active company"); return; }
+
+    const excludeGroupId = typeof editTarget === "number" ? editTarget : null;
+    const excludeLegacyId =
+      typeof editTarget === "string" && editTarget.startsWith("legacy:")
+        ? Number(editTarget.replace("legacy:", ""))
+        : null;
+
+    const conflict = findOverlappingSchedule(
+      groups,
+      Number(form.employeeUserId),
+      form.startDate,
+      form.endDate || null,
+      (entry) => {
+        if (excludeGroupId != null && entry.type === "group" && entry.groupId === excludeGroupId)
+          return true;
+        if (
+          excludeLegacyId != null &&
+          entry.type === "legacy" &&
+          (entry as { scheduleId?: number }).scheduleId === excludeLegacyId
+        )
+          return true;
+        return false;
+      },
+    );
+
+    if (conflict != null) {
+      setOverlapWarning(conflict);
+      return;
+    }
+
+    doSubmit();
   }
 
   function handleDelete() {
@@ -917,34 +962,57 @@ export default function EmployeeSchedulesPage() {
             </div>
 
             {/* Site */}
-            <div className="space-y-1.5">
-              <Label htmlFor="sched-site">Attendance Site *</Label>
-              <Select
-                value={form.siteId}
-                onValueChange={(v) => {
-                  setFieldErrors((e) => ({ ...e, siteId: undefined }));
-                  setForm((f) => ({ ...f, siteId: v }));
-                }}
-                disabled={sites.length === 0}
-              >
-                <SelectTrigger
-                  id="sched-site"
-                  className={cn("w-full", fieldErrors.siteId && "border-destructive")}
-                >
-                  <SelectValue placeholder={sites.length === 0 ? "No sites — create under Attendance Sites" : "Select site…"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {sites.map((s: any) => (
-                    <SelectItem key={s.id} value={String(s.id)}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {fieldErrors.siteId && (
-                <p className="text-xs text-destructive">{fieldErrors.siteId}</p>
-              )}
-            </div>
+            {(() => {
+              const activeSites = sites.filter((s: any) => s.isActive !== false);
+              const selectedSite = form.siteId
+                ? (sites as any[]).find((s) => String(s.id) === form.siteId)
+                : null;
+              const selectedSiteInactive = selectedSite != null && selectedSite.isActive === false;
+              return (
+                <div className="space-y-1.5">
+                  <Label htmlFor="sched-site">Attendance Site *</Label>
+                  <Select
+                    value={form.siteId}
+                    onValueChange={(v) => {
+                      setFieldErrors((e) => ({ ...e, siteId: undefined }));
+                      setForm((f) => ({ ...f, siteId: v }));
+                    }}
+                    disabled={activeSites.length === 0}
+                  >
+                    <SelectTrigger
+                      id="sched-site"
+                      className={cn("w-full", fieldErrors.siteId && "border-destructive")}
+                    >
+                      <SelectValue
+                        placeholder={
+                          activeSites.length === 0
+                            ? "No active sites — create under Attendance Sites"
+                            : "Select site…"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeSites.map((s: any) => (
+                        <SelectItem key={s.id} value={String(s.id)}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {fieldErrors.siteId && (
+                    <p className="text-xs text-destructive">{fieldErrors.siteId}</p>
+                  )}
+                  {selectedSiteInactive && (
+                    <div className="flex items-start gap-1.5 p-2 rounded-lg bg-amber-50 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-700">
+                      <AlertCircle size={13} className="text-amber-600 shrink-0 mt-0.5" />
+                      <p className="text-xs text-amber-800 dark:text-amber-200">
+                        This site is currently inactive. Employees may not be able to check in.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Shift pattern</p>
             {/* Shift segments builder */}
@@ -1046,17 +1114,31 @@ export default function EmployeeSchedulesPage() {
                 <Label>Start Date *</Label>
                 <DateInput
                   value={form.startDate}
-                  onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+                  onChange={(e) => {
+                    setFieldErrors((fe) => ({ ...fe, startDate: undefined, dateRange: undefined }));
+                    setForm((f) => ({ ...f, startDate: e.target.value }));
+                  }}
                 />
-                <p className="text-xs text-muted-foreground">Example: 25/04/2026</p>
+                {fieldErrors.startDate ? (
+                  <p className="text-xs text-destructive">{fieldErrors.startDate}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Example: 25/04/2026</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>End Date (optional)</Label>
                 <DateInput
                   value={form.endDate}
-                  onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+                  onChange={(e) => {
+                    setFieldErrors((fe) => ({ ...fe, dateRange: undefined }));
+                    setForm((f) => ({ ...f, endDate: e.target.value }));
+                  }}
                 />
-                <p className="text-xs text-muted-foreground">Leave blank for open-ended</p>
+                {fieldErrors.dateRange ? (
+                  <p className="text-xs text-destructive">{fieldErrors.dateRange}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Leave blank for open-ended</p>
+                )}
               </div>
             </div>
 
@@ -1076,16 +1158,73 @@ export default function EmployeeSchedulesPage() {
             employees={employees as any[]}
             sites={sites as any[]}
             shifts={shifts}
+            existingGroups={groups}
+            editTarget={editTarget}
           />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={isPending}>
+            <Button
+              onClick={handleSubmit}
+              disabled={
+                isPending ||
+                !form.employeeUserId ||
+                !form.siteId ||
+                form.workingDays.length === 0 ||
+                form.shiftSegments.some((s) => !s.shiftTemplateId) ||
+                !form.startDate ||
+                (!!form.startDate && !!form.endDate && form.endDate < form.startDate) ||
+                !!fieldErrors.segmentsGlobal
+              }
+            >
               {isEditing ? "Save Changes" : "Assign Schedule"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ══ Overlap Warning Confirmation ════════════════════════════════════════ */}
+      <AlertDialog
+        open={overlapWarning != null}
+        onOpenChange={(o) => { if (!o) setOverlapWarning(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Overlapping schedule detected</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  This employee already has an active schedule during the selected period:
+                </p>
+                {overlapWarning && (
+                  <p className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 px-3 py-2 text-amber-800 dark:text-amber-200 text-xs">
+                    <strong>
+                      {overlapWarning.site?.name ?? "Unknown site"}
+                    </strong>{" "}
+                    · From {overlapWarning.startDate}
+                    {overlapWarning.endDate ? ` to ${overlapWarning.endDate}` : " (ongoing)"}
+                  </p>
+                )}
+                <p>
+                  Overlapping schedules are allowed but may cause duplicate attendance records.
+                  Continue only if this is intentional.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setOverlapWarning(null)}>
+              Go back and fix
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={doSubmit}
+            >
+              Continue anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ══ Delete Confirmation ══════════════════════════════════════════════════ */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
@@ -1603,11 +1742,15 @@ function ScheduleAssignPreview({
   employees,
   sites,
   shifts,
+  existingGroups,
+  editTarget,
 }: {
   form: GroupForm;
   employees: Array<{ userId?: number | null; id: number; firstName: string; lastName: string }>;
-  sites: Array<{ id: number; name: string }>;
+  sites: Array<{ id: number; name: string; isActive?: boolean }>;
   shifts: ShiftTemplate[];
+  existingGroups: ScheduleGroupEntry[];
+  editTarget: null | number | string;
 }) {
   const employee = employees.find(
     (e) => String(e.userId ?? e.id) === form.employeeUserId,
@@ -1623,6 +1766,49 @@ function ScheduleAssignPreview({
     .sort((a, b) => a - b)
     .map((d) => DAYS.find((x) => x.value === d)?.label ?? d)
     .join(", ");
+
+  // Inline warnings visible in the preview
+  const warnings: string[] = [];
+
+  if (form.workingDays.length === 0) {
+    warnings.push("No working days selected — schedule will never activate.");
+  }
+  if (form.startDate && form.endDate && form.endDate < form.startDate) {
+    warnings.push("End date is before start date.");
+  }
+  if (site.isActive === false) {
+    warnings.push("Selected site is inactive — employees may not be able to check in.");
+  }
+
+  const excludeGroupId = typeof editTarget === "number" ? editTarget : null;
+  const excludeLegacyId =
+    typeof editTarget === "string" && editTarget.startsWith("legacy:")
+      ? Number(editTarget.replace("legacy:", ""))
+      : null;
+
+  const conflict = findOverlappingSchedule(
+    existingGroups,
+    Number(form.employeeUserId),
+    form.startDate,
+    form.endDate || null,
+    (entry) => {
+      if (excludeGroupId != null && entry.type === "group" && entry.groupId === excludeGroupId)
+        return true;
+      if (
+        excludeLegacyId != null &&
+        entry.type === "legacy" &&
+        (entry as { scheduleId?: number }).scheduleId === excludeLegacyId
+      )
+        return true;
+      return false;
+    },
+  );
+
+  if (conflict != null) {
+    warnings.push(
+      `This employee already has an active schedule at "${conflict.site?.name ?? "another site"}" during this period.`,
+    );
+  }
 
   return (
     <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 space-y-2 text-sm">
@@ -1647,6 +1833,16 @@ function ScheduleAssignPreview({
         <span className="text-muted-foreground">End date</span>
         <span className="font-medium">{form.endDate || "Open-ended"}</span>
       </div>
+      {warnings.length > 0 && (
+        <div className="space-y-1 pt-1 border-t border-amber-300/40">
+          {warnings.map((w) => (
+            <div key={w} className="flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-300">
+              <AlertCircle size={12} className="shrink-0 mt-0.5" />
+              <span>{w}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

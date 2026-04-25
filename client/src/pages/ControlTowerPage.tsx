@@ -69,6 +69,7 @@ export default function ControlTowerPage() {
   const [reviewMode, setReviewMode] = useState(false);
   const [viewMode, setViewMode] = useState<ControlTowerViewMode>("operate");
   const [briefVariant, setBriefVariant] = useState<OperatingBriefVariant>(DEFAULT_BRIEF_VARIANT);
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const { user } = useAuth();
   const { activeCompanyId, activeCompany } = useActiveCompany();
   useSmartRoleHomeRedirect();
@@ -116,6 +117,27 @@ export default function ControlTowerPage() {
     { companyId: activeCompanyId ?? undefined },
     { enabled: scopeEnabled && engagementOpsRole, staleTime: 60_000 },
   );
+
+  // ── Server-authoritative signal summary + ranked queue ──────────────────────
+  const ctEnabled = (platformOp || canViewCompanyTower) && activeCompanyId != null;
+  const { data: ctSummary, isLoading: ctSummaryLoading } =
+    trpc.controlTower.summary.useQuery(
+      { companyId: activeCompanyId ?? undefined },
+      { enabled: ctEnabled, staleTime: 60_000 },
+    );
+  const { data: ctItems, isLoading: ctItemsLoading } =
+    trpc.controlTower.items.useQuery(
+      {
+        companyId: activeCompanyId ?? undefined,
+        domain: selectedDomain ?? undefined,
+        limit: 15,
+      },
+      { enabled: ctEnabled, staleTime: 60_000 },
+    );
+  const acknowledgeItem = trpc.controlTower.acknowledgeItem.useMutation({
+    onSuccess: () => void utils.controlTower.items.invalidate(),
+    onError: (e) => toast.error(e.message),
+  });
 
   const engagementRollupsRefresh = trpc.engagements.refreshRollups.useMutation({
     onSuccess: (r) => {
@@ -533,6 +555,122 @@ export default function ControlTowerPage() {
                 Your role ({activeCompany?.role ?? "reviewer"}) has read-only access to Control Tower. Signals are visible but actions are disabled.
               </CardDescription>
             </CardHeader>
+          </Card>
+        )}
+
+        {/* ── Server-authoritative signal queue ─────────────────────────────── */}
+        {ctEnabled && (ctSummaryLoading || ctItemsLoading || ctSummary != null) && (
+          <Card className="border-border/80">
+            <CardHeader className="py-3 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-sm">Open signals</CardTitle>
+                {ctSummary != null && (
+                  <div className="flex flex-wrap gap-2 text-xs tabular-nums">
+                    {ctSummary.bySeverity.critical > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-semibold">
+                        {ctSummary.bySeverity.critical} critical
+                      </span>
+                    )}
+                    {ctSummary.bySeverity.high > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 font-semibold">
+                        {ctSummary.bySeverity.high} high
+                      </span>
+                    )}
+                    {ctSummary.bySeverity.medium > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 font-semibold">
+                        {ctSummary.bySeverity.medium} medium
+                      </span>
+                    )}
+                    {ctSummary.totalOpen === 0 && (
+                      <span className="text-muted-foreground">All clear</span>
+                    )}
+                  </div>
+                )}
+              </div>
+              {ctSummary != null && ctSummary.visibleDomains.length > 1 && (
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDomain(null)}
+                    className={cn(
+                      "px-2.5 py-0.5 rounded-full border transition-colors",
+                      selectedDomain == null
+                        ? "border-primary bg-primary/10 text-primary font-medium"
+                        : "border-border text-muted-foreground hover:border-primary/50",
+                    )}
+                  >
+                    All ({ctSummary.totalOpen})
+                  </button>
+                  {ctSummary.visibleDomains.map((d) =>
+                    (ctSummary.byDomain[d] ?? 0) > 0 ? (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setSelectedDomain(d === selectedDomain ? null : d)}
+                        className={cn(
+                          "px-2.5 py-0.5 rounded-full border capitalize transition-colors",
+                          selectedDomain === d
+                            ? "border-primary bg-primary/10 text-primary font-medium"
+                            : "border-border text-muted-foreground hover:border-primary/50",
+                        )}
+                      >
+                        {d} ({ctSummary.byDomain[d]})
+                      </button>
+                    ) : null,
+                  )}
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="pt-0 space-y-2">
+              {(ctSummaryLoading || ctItemsLoading) && (
+                <p className="text-xs text-muted-foreground py-2">Loading signals…</p>
+              )}
+              {!ctItemsLoading && ctItems?.items.length === 0 && (
+                <p className="text-xs text-muted-foreground py-2">No open signals for this domain.</p>
+              )}
+              {ctItems?.items.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-start gap-3 rounded-lg border bg-muted/20 px-3 py-2.5"
+                >
+                  <span
+                    className={cn(
+                      "mt-0.5 h-2 w-2 shrink-0 rounded-full",
+                      item.severity === "critical" && "bg-destructive",
+                      item.severity === "high" && "bg-orange-500",
+                      item.severity === "medium" && "bg-yellow-500",
+                      item.severity === "low" && "bg-muted-foreground",
+                    )}
+                  />
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <p className="text-xs font-medium leading-snug">{item.title}</p>
+                    <p className="text-[11px] text-muted-foreground leading-snug">{item.description}</p>
+                  </div>
+                  {!isReadOnly && item.allowedActions.includes("acknowledge") && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 text-xs h-7 px-2"
+                      disabled={acknowledgeItem.isPending}
+                      onClick={() =>
+                        acknowledgeItem.mutate({
+                          companyId: activeCompanyId ?? undefined,
+                          itemId: item.id,
+                        })
+                      }
+                    >
+                      Ack
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {ctItems != null && ctItems.total > 15 && (
+                <p className="text-[11px] text-muted-foreground text-right pt-1">
+                  Showing 15 of {ctItems.total} signals
+                </p>
+              )}
+            </CardContent>
           </Card>
         )}
 

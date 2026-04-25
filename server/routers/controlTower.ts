@@ -35,6 +35,17 @@ import {
   buildAttendanceSignalSnapshot,
   buildAgedReceivablesSnapshot,
 } from "../controlTower";
+import {
+  buildAllVisibleSignals,
+  buildPayrollSignals,
+  buildHrSignals,
+  buildComplianceSignals,
+  buildOperationsSignals,
+  buildFinanceSignals,
+  buildDocumentSignals,
+  buildContractSignals,
+} from "../controlTower/signalBuilders";
+import { rankItems, topRankedItems } from "../controlTower/rankItems";
 import { getDb } from "../db";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type {
@@ -160,12 +171,23 @@ export const controlTowerRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const [decisionsQueue, riskCompliance] = await Promise.all([
-        buildDecisionsQueueSnapshot(db, m.companyId),
-        buildRiskComplianceSnapshot(db, m.companyId),
-      ]);
+      const now = new Date();
+      const isReadOnly =
+        !caps.canManageControlTowerItems &&
+        !caps.canResolveControlTowerItems &&
+        !caps.canAssignControlTowerItems;
+      const allowed = computeAllowedActions(caps, isReadOnly);
 
-      // Map snapshot counts to severity buckets per visible domain
+      // Use builders so summary counts are always consistent with the items list
+      const allItems = await buildAllVisibleSignals(
+        db,
+        m.companyId,
+        scope,
+        new Set(domains),
+        allowed,
+        now,
+      );
+
       const bySeverity: Record<ControlTowerSeverity, number> = {
         critical: 0,
         high: 0,
@@ -174,78 +196,60 @@ export const controlTowerRouter = router({
       };
       const byDomain: Partial<Record<ControlTowerDomain, number>> = {};
 
-      // Finance / payroll signals (visible to finance_admin + company_admin)
-      if (domains.includes("finance") || domains.includes("payroll")) {
-        const payrollItems = decisionsQueue.items.filter(
-          (i) => i.key === "payroll_draft" || i.key === "payroll_payment" || i.key === "expense",
-        );
-        const count = payrollItems.reduce((s, i) => s + i.count, 0);
-        if (count > 0) {
-          byDomain["payroll"] = (byDomain["payroll"] ?? 0) + count;
-          bySeverity["high"] += payrollItems
-            .filter((i) => i.severity === "high")
-            .reduce((s, i) => s + i.count, 0);
-          bySeverity["medium"] += payrollItems
-            .filter((i) => i.severity === "medium")
-            .reduce((s, i) => s + i.count, 0);
-        }
+      for (const it of allItems) {
+        bySeverity[it.severity] += 1;
+        byDomain[it.domain] = (byDomain[it.domain] ?? 0) + 1;
       }
 
-      // HR signals (visible to hr_admin + company_admin)
-      if (domains.includes("hr")) {
-        const hrItems = decisionsQueue.items.filter(
-          (i) => i.key === "leave" || i.key === "employee_requests",
-        );
-        const count = hrItems.reduce((s, i) => s + i.count, 0);
-        if (count > 0) {
-          byDomain["hr"] = (byDomain["hr"] ?? 0) + count;
-          bySeverity["medium"] += count;
-        }
-      }
+      return {
+        totalOpen: allItems.length,
+        bySeverity,
+        byDomain,
+        visibleDomains: domains,
+      };
+    }),
 
-      // Operations signals
-      if (domains.includes("operations")) {
-        const opsCount = riskCompliance.slaOpenBreaches;
-        if (opsCount > 0) {
-          byDomain["operations"] = (byDomain["operations"] ?? 0) + opsCount;
-          bySeverity["critical"] += opsCount;
-        }
-      }
+  /**
+   * Ranked list of all open Control Tower items visible to the caller.
+   * Builders are run only for domains the caller can see; results are
+   * ranked by the deterministic priority engine (severity → overdue → due-soon → status → age).
+   */
+  items: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        domain: z.string().optional(),
+        limit: z.number().min(1).max(200).default(50),
+        offset: z.number().min(0).default(0),
+      }),
+    )
+    .query(async ({ ctx, input }): Promise<{ items: ControlTowerItem[]; total: number }> => {
+      const user = ctx.user as User;
+      const m = await requireCanViewCompanyControlTower(user, input.companyId);
+      const scope = await resolveVisibilityScope(user, m.companyId);
+      const caps = deriveCapabilities(m.role, scope);
+      const domains = visibleDomains(caps);
 
-      // Contracts signals
-      if (domains.includes("contracts")) {
-        const contractCount =
-          riskCompliance.contractsPendingSignature + riskCompliance.contractsExpiringNext30Days;
-        if (contractCount > 0) {
-          byDomain["contracts"] = (byDomain["contracts"] ?? 0) + contractCount;
-          bySeverity["high"] += contractCount;
-        }
-      }
+      const isReadOnly =
+        !caps.canManageControlTowerItems &&
+        !caps.canResolveControlTowerItems &&
+        !caps.canAssignControlTowerItems;
+      const allowed = computeAllowedActions(caps, isReadOnly);
 
-      // Compliance signals
-      if (domains.includes("compliance")) {
-        const compCount =
-          riskCompliance.renewalWorkflowsFailed + riskCompliance.workPermitsExpiring7Days;
-        if (compCount > 0) {
-          byDomain["compliance"] = (byDomain["compliance"] ?? 0) + compCount;
-          bySeverity["high"] += riskCompliance.renewalWorkflowsFailed;
-          bySeverity["medium"] += riskCompliance.workPermitsExpiring7Days;
-        }
-      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // Documents signals
-      if (domains.includes("documents")) {
-        const docCount =
-          riskCompliance.employeeDocsExpiring7Days + riskCompliance.companyDocsExpiring30Days;
-        if (docCount > 0) {
-          byDomain["documents"] = (byDomain["documents"] ?? 0) + docCount;
-          bySeverity["medium"] += docCount;
-        }
-      }
+      const now = new Date();
+      const domainSet = new Set(
+        input.domain ? [input.domain] : domains,
+      );
 
-      const totalOpen = Object.values(byDomain).reduce((s, v) => s + (v ?? 0), 0);
+      const allItems = await buildAllVisibleSignals(db, m.companyId, scope, domainSet, allowed, now);
+      const ranked = rankItems(allItems, now);
+      const total = ranked.length;
+      const page = ranked.slice(input.offset, input.offset + input.limit);
 
-      return { totalOpen, bySeverity, byDomain, visibleDomains: domains };
+      return { items: page, total };
     }),
 
   /**

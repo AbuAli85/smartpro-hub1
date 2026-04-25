@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -48,12 +49,16 @@ import {
   Send,
   Download,
   Ban,
+  DollarSign,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type InvoiceStatus = "draft" | "review_ready" | "issued" | "sent" | "paid" | "cancelled";
+
+type PaymentMethod = "bank" | "cash" | "card" | "other";
 
 type BillingLine = {
   itemId: number;
@@ -64,6 +69,43 @@ type BillingLine = {
   checkOutAt: string | null;
   durationMinutes: number | null;
   snapshotMissing?: boolean;
+};
+
+type PaymentRecord = {
+  id: number;
+  amountOmr: string;
+  paidAt: string;
+  paymentMethod: PaymentMethod;
+  reference?: string | null;
+  notes?: string | null;
+  createdAt: string;
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function todayYmd(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function fmtOmr(v: string | null | undefined): string {
+  if (v == null) return "0.000";
+  return parseFloat(v).toFixed(3);
+}
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  bank: "Bank transfer",
+  cash: "Cash",
+  card: "Card",
+  other: "Other",
 };
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -182,6 +224,169 @@ function VoidInvoiceDialog({
   );
 }
 
+// ─── Record Payment modal ─────────────────────────────────────────────────────
+
+function RecordPaymentModal({
+  open,
+  invoiceId,
+  outstandingOmr,
+  onClose,
+  onSuccess,
+}: {
+  open: boolean;
+  invoiceId: number;
+  outstandingOmr: number;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("bank");
+  const [reference, setReference] = useState("");
+  const [notes, setNotes] = useState("");
+  const [paidAt, setPaidAt] = useState(todayYmd);
+
+  const recordPayment = trpc.attendanceBilling.recordAttendanceInvoicePayment.useMutation({
+    onSuccess: () => {
+      toast.success("Payment recorded");
+      resetForm();
+      onSuccess();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function resetForm() {
+    setAmount("");
+    setPaymentMethod("bank");
+    setReference("");
+    setNotes("");
+    setPaidAt(todayYmd());
+  }
+
+  function handleClose() {
+    resetForm();
+    onClose();
+  }
+
+  const parsedAmount = parseFloat(amount);
+  const amountValid = !isNaN(parsedAmount) && parsedAmount > 0;
+  const amountExceeds = amountValid && parsedAmount > outstandingOmr + 0.001;
+  const canSubmit = amountValid && !amountExceeds && !recordPayment.isPending;
+
+  function handleSubmit() {
+    if (!canSubmit) return;
+    if (amountExceeds) {
+      toast.error(`Amount exceeds outstanding balance of ${outstandingOmr.toFixed(3)} OMR.`);
+      return;
+    }
+    recordPayment.mutate({
+      invoiceId,
+      amountOmr: parsedAmount,
+      paymentMethod,
+      reference: reference.trim() || undefined,
+      notes: notes.trim() || undefined,
+      paidAt,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Record payment — Invoice #{invoiceId}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* Outstanding balance callout */}
+          <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-800">
+            Outstanding balance: <span className="font-semibold">{outstandingOmr.toFixed(3)} OMR</span>
+          </div>
+
+          {/* Amount */}
+          <div className="space-y-1.5">
+            <Label htmlFor="pay-amount">Amount (OMR)</Label>
+            <Input
+              id="pay-amount"
+              type="number"
+              step="0.001"
+              min="0.001"
+              placeholder="0.000"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className={amountExceeds ? "border-red-400" : undefined}
+            />
+            {amountExceeds && (
+              <p className="text-xs text-red-600">
+                Exceeds outstanding balance of {outstandingOmr.toFixed(3)} OMR.
+              </p>
+            )}
+          </div>
+
+          {/* Payment method */}
+          <div className="space-y-1.5">
+            <Label htmlFor="pay-method">Payment method</Label>
+            <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
+              <SelectTrigger id="pay-method">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bank">Bank transfer</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="card">Card</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Paid date */}
+          <div className="space-y-1.5">
+            <Label htmlFor="pay-date">Payment date</Label>
+            <Input
+              id="pay-date"
+              type="date"
+              value={paidAt}
+              onChange={(e) => setPaidAt(e.target.value)}
+            />
+          </div>
+
+          {/* Reference */}
+          <div className="space-y-1.5">
+            <Label htmlFor="pay-ref">Reference (optional)</Label>
+            <Input
+              id="pay-ref"
+              placeholder="Cheque / transfer number…"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              maxLength={255}
+            />
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-1.5">
+            <Label htmlFor="pay-notes">Notes (optional)</Label>
+            <Textarea
+              id="pay-notes"
+              rows={2}
+              placeholder="Any additional notes…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose} disabled={recordPayment.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={!canSubmit}>
+            {recordPayment.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+            Record payment
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Invoice detail sheet ─────────────────────────────────────────────────────
 
 function InvoiceDetailSheet({
@@ -195,10 +400,16 @@ function InvoiceDetailSheet({
 }) {
   const utils = trpc.useUtils();
   const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   const { data: invoice, isLoading } = trpc.attendanceBilling.getAttendanceInvoice.useQuery(
     { invoiceId: invoiceId! },
     { enabled: open && invoiceId != null },
+  );
+
+  const { data: payments } = trpc.attendanceBilling.listAttendanceInvoicePayments.useQuery(
+    { invoiceId: invoiceId! },
+    { enabled: open && invoiceId != null && (invoice?.status === "issued" || invoice?.status === "sent" || invoice?.status === "paid") },
   );
 
   const cancelInvoice = trpc.attendanceBilling.cancelAttendanceInvoice.useMutation({
@@ -225,6 +436,21 @@ function InvoiceDetailSheet({
     onError: (e) => toast.error(e.message),
   });
 
+  const markSent = trpc.attendanceBilling.markAttendanceInvoiceSent.useMutation({
+    onSuccess: () => {
+      toast.success("Invoice marked as sent.");
+      utils.attendanceBilling.listAttendanceInvoices.invalidate();
+      utils.attendanceBilling.getAttendanceInvoice.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function invalidateAfterPayment() {
+    utils.attendanceBilling.listAttendanceInvoices.invalidate();
+    utils.attendanceBilling.getAttendanceInvoice.invalidate();
+    utils.attendanceBilling.listAttendanceInvoicePayments.invalidate();
+  }
+
   function formatTime(iso: string | null) {
     if (!iso) return "—";
     return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
@@ -234,10 +460,30 @@ function InvoiceDetailSheet({
   const status = invoice?.status as InvoiceStatus | undefined;
   const canCancel = status === "draft" || status === "review_ready";
   const canIssue = status === "draft" || status === "review_ready";
+  const canMarkSent = status === "issued";
+  const canRecordPayment = status === "issued" || status === "sent";
   const canVoid = status === "issued" || status === "sent";
+
   const artifactUrl = invoice && "htmlArtifactUrl" in invoice
     ? (invoice as { htmlArtifactUrl?: string | null }).htmlArtifactUrl
     : null;
+
+  const sentAt = invoice && "sentAt" in invoice
+    ? (invoice as { sentAt?: string | null }).sentAt
+    : null;
+
+  const amountPaidOmr = invoice && "amountPaidOmr" in invoice
+    ? (invoice as { amountPaidOmr?: string | null }).amountPaidOmr
+    : null;
+
+  const balanceOmr = invoice && "balanceOmr" in invoice
+    ? (invoice as { balanceOmr?: string | null }).balanceOmr
+    : null;
+
+  const outstandingNum = balanceOmr != null ? parseFloat(balanceOmr) : 0;
+  const showPaymentProgress = status === "issued" || status === "sent" || status === "paid";
+
+  const paymentRows = (payments ?? []) as PaymentRecord[];
 
   return (
     <>
@@ -289,6 +535,12 @@ function InvoiceDetailSheet({
                     <div className="mt-1 font-medium">{invoice.dueDateYmd}</div>
                   </div>
                 )}
+                {sentAt && (
+                  <div>
+                    <span className="text-muted-foreground">Sent to client</span>
+                    <div className="mt-1 font-medium">{fmtDate(sentAt)}</div>
+                  </div>
+                )}
                 <div>
                   <span className="text-muted-foreground">Source candidate</span>
                   <div className="mt-1">
@@ -317,6 +569,18 @@ function InvoiceDetailSheet({
                   <span>Total</span>
                   <span>{invoice.totalOmr} OMR</span>
                 </div>
+                {showPaymentProgress && amountPaidOmr != null && (
+                  <>
+                    <div className="flex justify-between text-emerald-700 border-t pt-1 mt-1">
+                      <span>Paid</span>
+                      <span>{fmtOmr(amountPaidOmr)} OMR</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-orange-700">
+                      <span>Outstanding</span>
+                      <span>{fmtOmr(balanceOmr)} OMR</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* HTML artifact download */}
@@ -394,6 +658,41 @@ function InvoiceDetailSheet({
                 )}
               </div>
 
+              {/* Payment history */}
+              {showPaymentProgress && (
+                <div>
+                  <h3 className="text-sm font-semibold mb-2">Payment history</h3>
+                  {paymentRows.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
+                  ) : (
+                    <div className="border rounded-md overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead>Method</TableHead>
+                            <TableHead>Reference</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paymentRows.map((p) => (
+                            <TableRow key={p.id}>
+                              <TableCell>{fmtDate(p.paidAt)}</TableCell>
+                              <TableCell className="font-medium">{fmtOmr(p.amountOmr)} OMR</TableCell>
+                              <TableCell>{PAYMENT_METHOD_LABELS[p.paymentMethod]}</TableCell>
+                              <TableCell className="text-muted-foreground text-xs">
+                                {p.reference ?? "—"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Actions */}
               <div className="flex flex-wrap gap-2 pt-2">
                 {canIssue && (
@@ -408,6 +707,35 @@ function InvoiceDetailSheet({
                       <Send className="w-4 h-4 mr-1" />
                     )}
                     Issue invoice
+                  </Button>
+                )}
+
+                {canMarkSent && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-teal-700 border-teal-200 hover:bg-teal-50"
+                    onClick={() => markSent.mutate({ invoiceId: invoice.id })}
+                    disabled={markSent.isPending}
+                  >
+                    {markSent.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4 mr-1" />
+                    )}
+                    Mark as sent
+                  </Button>
+                )}
+
+                {canRecordPayment && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                    onClick={() => setPaymentModalOpen(true)}
+                  >
+                    <DollarSign className="w-4 h-4 mr-1" />
+                    Record payment
                   </Button>
                 )}
 
@@ -446,17 +774,29 @@ function InvoiceDetailSheet({
       </Sheet>
 
       {invoiceId != null && (
-        <VoidInvoiceDialog
-          open={voidDialogOpen}
-          invoiceId={invoiceId}
-          onClose={() => setVoidDialogOpen(false)}
-          onVoided={() => {
-            setVoidDialogOpen(false);
-            utils.attendanceBilling.listAttendanceInvoices.invalidate();
-            utils.attendanceBilling.getAttendanceInvoice.invalidate();
-            onClose();
-          }}
-        />
+        <>
+          <VoidInvoiceDialog
+            open={voidDialogOpen}
+            invoiceId={invoiceId}
+            onClose={() => setVoidDialogOpen(false)}
+            onVoided={() => {
+              setVoidDialogOpen(false);
+              utils.attendanceBilling.listAttendanceInvoices.invalidate();
+              utils.attendanceBilling.getAttendanceInvoice.invalidate();
+              onClose();
+            }}
+          />
+          <RecordPaymentModal
+            open={paymentModalOpen}
+            invoiceId={invoiceId}
+            outstandingOmr={outstandingNum}
+            onClose={() => setPaymentModalOpen(false)}
+            onSuccess={() => {
+              setPaymentModalOpen(false);
+              invalidateAfterPayment();
+            }}
+          />
+        </>
       )}
     </>
   );
@@ -541,47 +881,81 @@ export default function AttendanceInvoicesPage() {
 
       {!isLoading && rows.length > 0 && (
         <div className="space-y-3">
-          {rows.map((inv) => (
-            <Card
-              key={inv.id}
-              className="cursor-pointer hover:shadow-sm transition-shadow"
-              onClick={() => setSelectedId(inv.id)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-semibold text-muted-foreground">
-                        {inv.invoiceNumber}
-                      </span>
-                      <InvoiceStatusBadge status={inv.status as InvoiceStatus} />
-                      {inv.htmlArtifactUrl && (
-                        <span className="inline-flex items-center gap-0.5 text-xs text-emerald-600">
-                          <Download className="w-3 h-3" />
-                          HTML
+          {rows.map((inv) => {
+            const invStatus = inv.status as InvoiceStatus;
+            const showProgress = invStatus === "issued" || invStatus === "sent" || invStatus === "paid";
+            const invAmountPaid = "amountPaidOmr" in inv ? (inv as { amountPaidOmr?: string | null }).amountPaidOmr : null;
+            const invSentAt = "sentAt" in inv ? (inv as { sentAt?: string | null }).sentAt : null;
+            const totalNum = parseFloat(inv.totalOmr);
+            const paidNum = invAmountPaid != null ? parseFloat(invAmountPaid) : 0;
+            const progressPct = totalNum > 0 ? Math.min(100, (paidNum / totalNum) * 100) : 0;
+
+            return (
+              <Card
+                key={inv.id}
+                className="cursor-pointer hover:shadow-sm transition-shadow"
+                onClick={() => setSelectedId(inv.id)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-semibold text-muted-foreground">
+                          {inv.invoiceNumber}
                         </span>
+                        <InvoiceStatusBadge status={invStatus} />
+                        {inv.htmlArtifactUrl && (
+                          <span className="inline-flex items-center gap-0.5 text-xs text-emerald-600">
+                            <Download className="w-3 h-3" />
+                            HTML
+                          </span>
+                        )}
+                        {invSentAt && (
+                          <span className="text-xs text-teal-600">
+                            Sent {fmtDate(invSentAt)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-medium truncate">{inv.clientDisplayName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Period: {inv.periodStart} → {inv.periodEnd}
+                      </p>
+                      {inv.dueDateYmd && (
+                        <p className="text-xs text-muted-foreground">Due: {inv.dueDateYmd}</p>
+                      )}
+                      {showProgress && invAmountPaid != null && (
+                        <div className="mt-2 space-y-1">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <CreditCard className="w-3 h-3" />
+                              Paid {fmtOmr(invAmountPaid)} / {fmtOmr(inv.totalOmr)} OMR
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all",
+                                invStatus === "paid" ? "bg-green-500" : "bg-emerald-400",
+                              )}
+                              style={{ width: `${progressPct}%` }}
+                            />
+                          </div>
+                        </div>
                       )}
                     </div>
-                    <p className="text-sm font-medium truncate">{inv.clientDisplayName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Period: {inv.periodStart} → {inv.periodEnd}
-                    </p>
-                    {inv.dueDateYmd && (
-                      <p className="text-xs text-muted-foreground">Due: {inv.dueDateYmd}</p>
-                    )}
+                    <div className="text-right shrink-0 space-y-1">
+                      <p className="text-sm font-semibold">{inv.totalOmr} OMR</p>
+                      <p className="text-xs text-muted-foreground">
+                        {inv.totalDurationMinutes != null
+                          ? `${Math.round((inv.totalDurationMinutes / 60) * 10) / 10}h`
+                          : "—"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0 space-y-1">
-                    <p className="text-sm font-semibold">{inv.totalOmr} OMR</p>
-                    <p className="text-xs text-muted-foreground">
-                      {inv.totalDurationMinutes != null
-                        ? `${Math.round((inv.totalDurationMinutes / 60) * 10) / 10}h`
-                        : "—"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 

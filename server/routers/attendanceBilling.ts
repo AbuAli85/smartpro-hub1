@@ -1,5 +1,5 @@
 /**
- * Attendance Billing router (Phase 12C + 12D + 12E).
+ * Attendance Billing router (Phase 12C + 12D + 12E + 12F).
  *
  * Phase 12C — Candidate review surface (finance/admin):
  *   listAttendanceBillingCandidates    — paginated list with filters
@@ -17,22 +17,29 @@
  * Phase 12E — Invoice issuance and HTML artifact (finance/admin):
  *   issueAttendanceInvoice             — draft/review_ready → issued + HTML artifact stored
  *   voidAttendanceInvoice              — issued/sent → cancelled with mandatory reason
+ *                                        (blocked if payment records exist)
+ *
+ * Phase 12F — Sending and manual payment tracking (finance/admin):
+ *   markAttendanceInvoiceSent          — issued → sent (manual, no email)
+ *   recordAttendanceInvoicePayment     — record manual payment; marks paid when balance covered
+ *   listAttendanceInvoicePayments      — payment history for an invoice
  *
  * Access: company_admin and finance_admin only (requireFinanceOrAdmin).
- * hr_admin is excluded — Phase 12C/12D/12E policy.
+ * hr_admin is excluded — Phase 12 policy.
  *
- * No PDF, no email, no payment records in this phase.
+ * No PDF, no email, no gateway integration in this phase.
  */
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireDb } from "../db.client";
 import { requireFinanceOrAdmin } from "../_core/policy";
 import {
   attendanceBillingCandidates,
   attendanceInvoices,
+  attendanceInvoicePaymentRecords,
   companies,
   type AttendanceBillingLineItem,
   type User,
@@ -40,9 +47,11 @@ import {
 import {
   canCancelAttendanceInvoice,
   canVoidAttendanceInvoice,
+  assertAttendanceInvoiceTransition,
   type AttendanceInvoiceStatus,
 } from "../../shared/attendanceInvoiceStateMachine";
 import { issueAttendanceInvoice } from "../services/attendanceBillingExecution.service";
+import { recordAttendanceInvoicePayment } from "../services/attendanceBillingPayment.service";
 
 // ─── Shared input schemas ─────────────────────────────────────────────────────
 
@@ -495,8 +504,10 @@ export const attendanceBillingRouter = router({
           subtotalOmr: attendanceInvoices.subtotalOmr,
           vatOmr: attendanceInvoices.vatOmr,
           totalOmr: attendanceInvoices.totalOmr,
+          amountPaidOmr: attendanceInvoices.amountPaidOmr,
           status: attendanceInvoices.status,
           dueDateYmd: attendanceInvoices.dueDateYmd,
+          sentAt: attendanceInvoices.sentAt,
           htmlArtifactUrl: attendanceInvoices.htmlArtifactUrl,
           createdAt: attendanceInvoices.createdAt,
           updatedAt: attendanceInvoices.updatedAt,
@@ -540,6 +551,10 @@ export const attendanceBillingRouter = router({
         lines = invoice.billingLinesJson as AttendanceBillingLineItem[];
       }
 
+      const totalOmr = parseFloat(invoice.totalOmr);
+      const amountPaidOmr = parseFloat(invoice.amountPaidOmr);
+      const balanceOmr = Math.max(totalOmr - amountPaidOmr, 0);
+
       return {
         ...invoice,
         billingLinesJson: lines,
@@ -547,6 +562,7 @@ export const attendanceBillingRouter = router({
           invoice.totalDurationMinutes != null
             ? Math.round((invoice.totalDurationMinutes / 60) * 10) / 10
             : null,
+        balanceOmr: (Math.round(balanceOmr * 1000) / 1000).toFixed(3),
       };
     }),
 
@@ -595,6 +611,7 @@ export const attendanceBillingRouter = router({
   /**
    * Void an issued or sent attendance invoice with a mandatory reason.
    * Sets status = "cancelled" and appends the void reason to the notes field.
+   * Blocked if payment records exist for the invoice.
    * Draft/review_ready invoices must use cancelAttendanceInvoice instead.
    * Paid invoices cannot be voided.
    */
@@ -654,6 +671,21 @@ export const attendanceBillingRouter = router({
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `Cannot void invoice with status '${status}'.`,
+        });
+      }
+
+      // Phase 12F: block void if payment records exist
+      const paymentRows = await db
+        .select({ id: attendanceInvoicePaymentRecords.id })
+        .from(attendanceInvoicePaymentRecords)
+        .where(eq(attendanceInvoicePaymentRecords.attendanceInvoiceId, input.invoiceId))
+        .limit(1);
+
+      if (paymentRows.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "This invoice has payment records and cannot be voided. Create a reversal or credit workflow in a future phase.",
         });
       }
 
@@ -738,5 +770,147 @@ export const attendanceBillingRouter = router({
       );
 
       return { invoiceId: input.invoiceId, status: "cancelled" as const };
+    }),
+
+  // ─── Phase 12F: Sending + manual payment ────────────────────────────────────
+
+  /**
+   * Mark an issued attendance invoice as sent.
+   * Transitions issued → sent using the state machine.
+   * Records sentAt and sentByUserId.
+   * Does not send any email.
+   */
+  markAttendanceInvoiceSent: protectedProcedure
+    .input(invoiceIdInput)
+    .mutation(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User);
+      const db = await requireDb();
+
+      const rows = await db
+        .select({ id: attendanceInvoices.id, status: attendanceInvoices.status })
+        .from(attendanceInvoices)
+        .where(
+          and(
+            eq(attendanceInvoices.id, input.invoiceId),
+            eq(attendanceInvoices.companyId, companyId),
+          ),
+        )
+        .limit(1);
+
+      const invoice = rows[0];
+      if (!invoice) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Attendance invoice not found." });
+      }
+
+      const status = invoice.status as AttendanceInvoiceStatus;
+
+      // assertAttendanceInvoiceTransition throws a descriptive Error on invalid transition
+      try {
+        assertAttendanceInvoiceTransition(status, "sent");
+      } catch {
+        if (status === "sent") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Invoice is already marked as sent.",
+          });
+        }
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot mark as sent: invoice is '${status}'. Only issued invoices can be marked sent.`,
+        });
+      }
+
+      const sentAt = new Date();
+
+      await db
+        .update(attendanceInvoices)
+        .set({ status: "sent", sentAt, sentByUserId: ctx.user.id })
+        .where(eq(attendanceInvoices.id, input.invoiceId));
+
+      console.log(
+        `[billing] invoice ${input.invoiceId} marked sent userId=${ctx.user.id} companyId=${companyId}`,
+      );
+
+      return { invoiceId: input.invoiceId, status: "sent" as const, sentAt };
+    }),
+
+  /**
+   * Record a manual payment against an issued or sent attendance invoice.
+   * Inserts into attendance_invoice_payment_records.
+   * Updates attendance_invoices.amountPaidOmr.
+   * Transitions status to "paid" when balance is fully covered.
+   */
+  recordAttendanceInvoicePayment: protectedProcedure
+    .input(
+      invoiceIdInput.merge(
+        z.object({
+          amountOmr: z.number().positive({ message: "Payment amount must be greater than 0." }),
+          paymentMethod: z.enum(["bank", "cash", "card", "other"]).default("bank"),
+          reference: z.string().max(255).optional(),
+          notes: z.string().max(2000).optional(),
+          paidAt: z.string().regex(DATE_RE).optional(),
+        }),
+      ),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User);
+      const db = await requireDb();
+
+      const paidAt = input.paidAt ? new Date(input.paidAt + "T00:00:00Z") : new Date();
+
+      return recordAttendanceInvoicePayment(db, {
+        companyId,
+        invoiceId: input.invoiceId,
+        userId: ctx.user.id,
+        amountOmr: input.amountOmr,
+        paymentMethod: input.paymentMethod,
+        reference: input.reference ?? null,
+        notes: input.notes ?? null,
+        paidAt,
+      });
+    }),
+
+  /**
+   * List payment records for a single attendance invoice.
+   * Verifies the invoice belongs to the active company.
+   * Returns records ordered by paidAt ASC, createdAt ASC.
+   */
+  listAttendanceInvoicePayments: protectedProcedure
+    .input(invoiceIdInput)
+    .query(async ({ ctx, input }) => {
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User);
+      const db = await requireDb();
+
+      // Verify invoice belongs to this company
+      const invRows = await db
+        .select({ id: attendanceInvoices.id })
+        .from(attendanceInvoices)
+        .where(
+          and(
+            eq(attendanceInvoices.id, input.invoiceId),
+            eq(attendanceInvoices.companyId, companyId),
+          ),
+        )
+        .limit(1);
+
+      if (!invRows[0]) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Attendance invoice not found." });
+      }
+
+      const payments = await db
+        .select()
+        .from(attendanceInvoicePaymentRecords)
+        .where(
+          and(
+            eq(attendanceInvoicePaymentRecords.attendanceInvoiceId, input.invoiceId),
+            eq(attendanceInvoicePaymentRecords.companyId, companyId),
+          ),
+        )
+        .orderBy(
+          asc(attendanceInvoicePaymentRecords.paidAt),
+          asc(attendanceInvoicePaymentRecords.createdAt),
+        );
+
+      return payments;
     }),
 });

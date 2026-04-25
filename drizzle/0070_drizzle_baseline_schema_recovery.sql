@@ -3186,3 +3186,17 @@ CREATE TABLE IF NOT EXISTS `attendance_invoices` (
 `updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 CONSTRAINT `attendance_invoices_id` PRIMARY KEY(`id`)
 );
+
+CREATE TABLE IF NOT EXISTS `attendance_invoice_payment_records` (
+`id` int AUTO_INCREMENT NOT NULL,
+`attendance_invoice_id` int NOT NULL,
+`company_id` int NOT NULL,
+`amount_omr` decimal(14,3) NOT NULL,
+`paid_at` timestamp NOT NULL,
+`payment_method` enum('bank','cash','card','other') NOT NULL DEFAULT 'bank',
+`reference` varchar(255),
+`notes` text,
+`created_by_user_id` int NOT NULL,
+`created_at` timestamp NOT NULL DEFAULT (now()),
+CONSTRAINT `attendance_invoice_payment_records_id` PRIMARY KEY(`id`)
+);

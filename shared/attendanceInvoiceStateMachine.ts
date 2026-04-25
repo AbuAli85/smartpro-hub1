@@ -1,10 +1,11 @@
 /**
- * Phase 12E — centralized transition rules for attendance invoices.
+ * Phase 12E/12F — centralized transition rules for attendance invoices.
  *
  * Policy:
  *  - cancel  = draft/review_ready → cancelled   (no reason required)
  *  - void    = issued/sent → cancelled           (mandatory reason, handled by router)
  *  - paid is terminal; no further transitions allowed
+ *  - issued → paid allowed directly (client pays on receipt, no sent step required)
  */
 
 export type AttendanceInvoiceStatus =
@@ -18,7 +19,7 @@ export type AttendanceInvoiceStatus =
 const ATTENDANCE_INVOICE_EDGES: Record<AttendanceInvoiceStatus, AttendanceInvoiceStatus[]> = {
   draft:        ["review_ready", "issued", "cancelled"],
   review_ready: ["issued", "cancelled"],
-  issued:       ["sent", "cancelled"],
+  issued:       ["sent", "paid", "cancelled"],
   sent:         ["paid", "cancelled"],
   paid:         [],
   cancelled:    [],
@@ -54,5 +55,10 @@ export function canCancelAttendanceInvoice(status: AttendanceInvoiceStatus): boo
 
 /** Returns true when the invoice may be voided (post-issue; requires a reason). */
 export function canVoidAttendanceInvoice(status: AttendanceInvoiceStatus): boolean {
+  return status === "issued" || status === "sent";
+}
+
+/** Returns true when a manual payment may be recorded against the invoice. */
+export function canRecordAttendanceInvoicePayment(status: AttendanceInvoiceStatus): boolean {
   return status === "issued" || status === "sent";
 }

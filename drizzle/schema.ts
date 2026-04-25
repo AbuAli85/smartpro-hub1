@@ -5296,6 +5296,11 @@ export const attendanceInvoices = mysqlTable(
     htmlArtifactKey: varchar("html_artifact_key", { length: 500 }),
     /** Proxy-issued URL for the issued HTML artifact; set when issueAttendanceInvoice runs. */
     htmlArtifactUrl: varchar("html_artifact_url", { length: 1000 }),
+    /** Set when markAttendanceInvoiceSent runs (issued → sent). */
+    sentAt: timestamp("sent_at"),
+    sentByUserId: int("sent_by_user_id"),
+    /** Running sum of recorded manual payments; updated by recordAttendanceInvoicePayment. */
+    amountPaidOmr: decimal("amount_paid_omr", { precision: 14, scale: 3 }).notNull().default("0"),
     createdByUserId: int("created_by_user_id").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
@@ -5310,5 +5315,31 @@ export const attendanceInvoices = mysqlTable(
 );
 export type AttendanceInvoice = typeof attendanceInvoices.$inferSelect;
 export type InsertAttendanceInvoice = typeof attendanceInvoices.$inferInsert;
+
+/** Manual payment records for attendance invoices (Phase 12F). One row per payment entry. */
+export const attendanceInvoicePaymentRecords = mysqlTable(
+  "attendance_invoice_payment_records",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** FK to attendance_invoices.id — RESTRICT delete to protect financial audit trail. */
+    attendanceInvoiceId: int("attendance_invoice_id").notNull(),
+    companyId: int("company_id").notNull(),
+    amountOmr: decimal("amount_omr", { precision: 14, scale: 3 }).notNull(),
+    paidAt: timestamp("paid_at").notNull(),
+    paymentMethod: mysqlEnum("payment_method", ["bank", "cash", "card", "other"] as const)
+      .notNull()
+      .default("bank"),
+    reference: varchar("reference", { length: 255 }),
+    notes: text("notes"),
+    createdByUserId: int("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_aipr_invoice").on(t.attendanceInvoiceId),
+    index("idx_aipr_company").on(t.companyId),
+  ],
+);
+export type AttendanceInvoicePaymentRecord = typeof attendanceInvoicePaymentRecords.$inferSelect;
+export type InsertAttendanceInvoicePaymentRecord = typeof attendanceInvoicePaymentRecords.$inferInsert;
 
 export type EngagementPaymentTransfer = typeof engagementPaymentTransfers.$inferSelect;

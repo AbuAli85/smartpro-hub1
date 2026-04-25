@@ -414,10 +414,10 @@ describe("9. clientApproveByToken: submitted batch → approved + audit written"
   });
 });
 
-// ─── 10. clientApproveByToken: already approved → BAD_REQUEST ────────────────
+// ─── 10. clientApproveByToken: already approved → idempotent success ────────────────
 
-describe("10. clientApproveByToken: already approved batch → BAD_REQUEST", () => {
-  it("throws BAD_REQUEST when batch is already approved", async () => {
+describe("10. clientApproveByToken: already approved batch → idempotent success", () => {
+  it("returns approved status without re-triggering hooks when batch is already approved", async () => {
     vi.mocked(tokenModule.verifyClientApprovalToken).mockResolvedValue({
       batchId: BATCH_ID,
       companyId: COMPANY_ID,
@@ -426,9 +426,9 @@ describe("10. clientApproveByToken: already approved batch → BAD_REQUEST", () 
     await setMockDb(db);
 
     const caller = attendanceRouter.createCaller(makePublicCtx());
-    await expect(
-      caller.clientApproveByToken({ token: FAKE_TOKEN })
-    ).rejects.toThrow(/Cannot approve/);
+    const result = await caller.clientApproveByToken({ token: FAKE_TOKEN });
+    expect(result.status).toBe("approved");
+    expect(result.batchId).toBe(BATCH_ID);
   });
 });
 

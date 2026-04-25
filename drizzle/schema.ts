@@ -5195,4 +5195,62 @@ export const attendanceClientApprovalItems = mysqlTable(
 );
 export type AttendanceClientApprovalItem = typeof attendanceClientApprovalItems.$inferSelect;
 export type InsertAttendanceClientApprovalItem = typeof attendanceClientApprovalItems.$inferInsert;
+
+// ─── ATTENDANCE BILLING CANDIDATES (Phase 12B) ────────────────────────────────
+// Lightweight draft billing artifacts created on client approval batch approval.
+// One row per approved batch. Finance reviews and manually issues final invoices.
+// Replaces nothing: promoter_invoices/lines handle the separate monthly staffing flow.
+
+/** A single billing line item derived from an approval item's dailyStateJson snapshot. */
+export interface AttendanceBillingLineItem {
+  itemId: number;
+  employeeId: number;
+  attendanceDate: string;
+  attendanceSessionId: number | null;
+  attendanceRecordId: number | null;
+  employeeDisplayName: string | null;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  durationMinutes: number | null;
+  sessionStatus: string | null;
+  siteId: number | null;
+  snapshotMissing?: boolean;
+  snapshotWarning?: string;
+}
+
+export const attendanceBillingCandidates = mysqlTable(
+  "attendance_billing_candidates",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** FK to attendanceClientApprovalBatches.id — UNIQUE: one candidate per batch. */
+    batchId: int("batch_id").notNull(),
+    companyId: int("company_id").notNull(),
+    clientCompanyId: int("client_company_id"),
+    periodStart: varchar("period_start", { length: 10 }).notNull(),
+    periodEnd: varchar("period_end", { length: 10 }).notNull(),
+    /** Approval source that triggered creation ("internal" | "client_portal_token"). */
+    source: varchar("source", { length: 32 }).notNull(),
+    status: mysqlEnum("status", ["draft", "review_ready", "cancelled"] as const)
+      .notNull()
+      .default("draft"),
+    approvedItemCount: int("approved_item_count").notNull().default(0),
+    /** Count of items where dailyStateJson was null at candidate creation; finance must review. */
+    snapshotMissingCount: int("snapshot_missing_count").notNull().default(0),
+    totalDurationMinutes: int("total_duration_minutes"),
+    /** Immutable billing lines sourced from approval item dailyStateJson snapshots. */
+    billingLinesJson: json("billing_lines_json")
+      .$type<AttendanceBillingLineItem[]>()
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_abc_batch_id").on(t.batchId),
+    index("idx_abc_company").on(t.companyId),
+    index("idx_abc_status").on(t.companyId, t.status),
+  ],
+);
+export type AttendanceBillingCandidate = typeof attendanceBillingCandidates.$inferSelect;
+export type InsertAttendanceBillingCandidate = typeof attendanceBillingCandidates.$inferInsert;
+
 export type EngagementPaymentTransfer = typeof engagementPaymentTransfers.$inferSelect;

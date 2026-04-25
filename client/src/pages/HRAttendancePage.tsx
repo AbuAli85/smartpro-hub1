@@ -233,9 +233,15 @@ function HrAttendanceExceptionStrip({
           </div>
         ))}
       </div>
-      <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
-        {t("attendance.signals.openCheckoutsNote")}
-      </p>
+      {(criticalExceptions ?? 0) > 0 || (needsAttention ?? 0) > 0 || overdueCheckoutCount > 0 ? (
+        <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2 leading-snug font-medium">
+          Action needed &mdash; review the queue below and the Today tab for details.
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
+          Counts update every 60 seconds. Open the Today tab for per-employee details.
+        </p>
+      )}
     </div>
   );
 }

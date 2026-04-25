@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { CheckCircle, XCircle, RefreshCw, ClipboardList } from "lucide-react";
 import { OperationalIssueMetaStrip } from "@/components/attendance/OperationalIssueMetaStrip";
 import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
 import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
@@ -102,9 +102,20 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
                       : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">{t("filters.rejected")}</Badge>}
                   </div>
                   <div className="mt-1.5 text-sm text-muted-foreground space-y-0.5">
+                    {req.requestedBusinessDate && (
+                      <div>
+                        <span className="font-medium text-foreground">Attendance date:</span>{" "}
+                        <span className="font-semibold text-foreground">{req.requestedBusinessDate}</span>
+                      </div>
+                    )}
                     <div><span className="font-medium text-foreground">{t("attendance.manualCheckins.justificationLabel")}</span> {req.justification}</div>
                     {req.adminNote && <div><span className="font-medium text-foreground">{t("attendance.manualCheckins.adminNoteLabel")}</span> {req.adminNote}</div>}
-                    <div className="text-xs">{req.requestedAt ? new Date(req.requestedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}</div>
+                    <div className="text-xs text-muted-foreground/70">
+                      Submitted:{" "}
+                      {req.requestedAt
+                        ? new Date(req.requestedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                        : "—"}
+                    </div>
                   </div>
                   <OperationalIssueMetaStrip
                     operationalIssue={operationalIssue}
@@ -126,7 +137,16 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
               </div>
             </CardContent></Card>
           ))}
-          {(data ?? []).length === 0 && <div className="py-12 text-center text-muted-foreground">{statusFilter === "all" ? t("attendance.manualCheckins.noRequestsAll") : t("attendance.manualCheckins.noRequests", { status: t("attendance.manualCheckins." + statusFilter) })}</div>}
+          {(data ?? []).length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground border border-dashed rounded-lg">
+              <ClipboardList className="h-8 w-8 opacity-30" />
+              <p className="text-sm font-medium">
+                {statusFilter === "all"
+                  ? t("attendance.manualCheckins.noRequestsAll")
+                  : t("attendance.manualCheckins.noRequests", { status: t("attendance.manualCheckins." + statusFilter) })}
+              </p>
+            </div>
+          )}
         </div>
       )}
       <Dialog open={!!reviewTarget} onOpenChange={() => setReviewTarget(null)}>

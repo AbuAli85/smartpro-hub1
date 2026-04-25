@@ -8,6 +8,35 @@ import { RefreshCw } from "lucide-react";
 import { fmtTime } from "@/lib/dateUtils";
 import { getAdminBoardRowStatusPresentation } from "@/lib/adminBoardRowStatus";
 
+const RISK_BADGE: Record<string, string> = {
+  critical: "text-[10px] border-red-300 bg-red-50 text-red-800",
+  warning:  "text-[10px] border-amber-300 bg-amber-50 text-amber-900",
+  high:     "text-[10px] border-orange-300 bg-orange-50 text-orange-800",
+  medium:   "text-[10px] border-amber-300 bg-amber-50 text-amber-900",
+  low:      "text-[10px] border-slate-300 text-slate-700",
+  normal:   "text-[10px] border-border text-muted-foreground",
+  none:     "text-[10px] border-border text-muted-foreground",
+};
+
+const RISK_LABEL: Record<string, string> = {
+  critical: "Critical",
+  warning:  "Needs attention",
+  high:     "High",
+  medium:   "Moderate",
+  low:      "Low",
+  normal:   "OK",
+  none:     "—",
+};
+
+const PAYROLL_IMPACT_LABEL: Record<string, string> = {
+  no_impact:      "No impact",
+  pending_review: "Pending review",
+  at_risk:        "At risk",
+  blocked:        "Blocked",
+  approved:       "Approved",
+  requires_correction: "Needs correction",
+};
+
 function boardStatusBadge(status: string) {
   const m = getAdminBoardRowStatusPresentation(status);
   return <Badge variant="outline" className={m.className}>{m.label}</Badge>;
@@ -210,24 +239,18 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
                 </td>
                 <td className="px-3 py-2.5 text-xs text-muted-foreground">{row.methodLabel ?? "—"}</td>
                 <td className="px-3 py-2.5">
-                  {row.riskLevel ? (
+                  {row.riskLevel && row.riskLevel !== "none" ? (
                     <Badge
                       variant="outline"
-                      className={
-                        row.riskLevel === "critical"
-                          ? "text-[10px] border-red-300 bg-red-50 text-red-800"
-                          : row.riskLevel === "warning"
-                            ? "text-[10px] border-amber-300 bg-amber-50 text-amber-900"
-                            : "text-[10px]"
-                      }
+                      className={RISK_BADGE[row.riskLevel] ?? "text-[10px]"}
                     >
-                      {row.riskLevel}
+                      {RISK_LABEL[row.riskLevel] ?? row.riskLevel}
                     </Badge>
                   ) : "—"}
                 </td>
-                <td className="px-3 py-2.5 text-[11px] text-muted-foreground capitalize">
+                <td className="px-3 py-2.5 text-[11px] text-muted-foreground">
                   {row.payrollHints?.payrollImpact
-                    ? String(row.payrollHints.payrollImpact).replace(/_/g, " ")
+                    ? (PAYROLL_IMPACT_LABEL[String(row.payrollHints.payrollImpact)] ?? String(row.payrollHints.payrollImpact).replace(/_/g, " "))
                     : "—"}
                 </td>
                 <td className="px-3 py-2.5">{boardStatusBadge(row.status)}</td>

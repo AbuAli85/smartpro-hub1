@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { CheckCircle, XCircle, RefreshCw, ClipboardList } from "lucide-react";
 import { OperationalIssueMetaStrip } from "@/components/attendance/OperationalIssueMetaStrip";
 import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
 import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
@@ -121,7 +121,16 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
               </div>
             </CardContent></Card>
           ))}
-          {(data ?? []).length === 0 && <div className="py-12 text-center text-muted-foreground">{statusFilter === "all" ? t("attendance.corrections.noCorrectionRequestsAll") : t("attendance.corrections.noCorrectionRequests", { status: t("attendance.corrections." + statusFilter) })}</div>}
+          {(data ?? []).length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground border border-dashed rounded-lg">
+              <ClipboardList className="h-8 w-8 opacity-30" />
+              <p className="text-sm font-medium">
+                {statusFilter === "all"
+                  ? t("attendance.corrections.noCorrectionRequestsAll")
+                  : t("attendance.corrections.noCorrectionRequests", { status: t("attendance.corrections." + statusFilter) })}
+              </p>
+            </div>
+          )}
         </div>
       )}
       <Dialog open={!!reviewTarget} onOpenChange={() => setReviewTarget(null)}>

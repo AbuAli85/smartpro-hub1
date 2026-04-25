@@ -29,6 +29,13 @@ const RISK_BADGE: Record<string, string> = {
   high: "border-orange-300 bg-orange-50 text-orange-800 dark:bg-orange-950/25 dark:text-orange-200",
 };
 
+// Maps legacy 3-level codes to i18n keys used for canonical 5-level
+const LEGACY_RISK_TO_I18N: Record<string, string> = {
+  critical: "critical",
+  warning: "medium",
+  normal: "low",
+};
+
 const RES_STATUS_BADGE: Record<string, string> = {
   open: "border-slate-300 bg-slate-50 text-slate-800",
   acknowledged: "border-blue-300 bg-blue-50 text-blue-900",
@@ -81,15 +88,20 @@ export function AttendanceActionQueue({
     <Card className={cn("border-primary/20", className)}>
       <CardHeader className="pb-2 space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <ListTodo className="h-4 w-4 text-primary" />
-            {t("attendance.actionQueue.title")}
-            {totalCount > 0 ? (
-              <Badge variant="secondary" className="text-[10px] font-semibold">
-                {totalCount}
-              </Badge>
-            ) : null}
-          </CardTitle>
+          <div>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <ListTodo className="h-4 w-4 text-primary" />
+              {t("attendance.actionQueue.title")}
+              {totalCount > 0 ? (
+                <Badge variant="secondary" className="text-[10px] font-semibold">
+                  {totalCount}
+                </Badge>
+              ) : null}
+            </CardTitle>
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+              Triage, assign, and resolve exceptions. Use the Today tab for force-checkout and reminders.
+            </p>
+          </div>
           {onFilterChange ? (
             <div className="flex flex-col gap-1 min-w-[10rem]">
               <Label className="text-[10px] text-muted-foreground">
@@ -138,9 +150,11 @@ export function AttendanceActionQueue({
                       <div className="min-w-0 space-y-0.5 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-sm font-medium leading-tight">{item.title}</span>
-                          <Badge variant="outline" className={cn("text-[10px] font-normal", RISK_BADGE[item.riskLevel])}>
-                            {item.riskLevel}
-                          </Badge>
+                          {item.riskLevel !== "normal" && (
+                            <Badge variant="outline" className={cn("text-[10px] font-normal", RISK_BADGE[item.riskLevel])}>
+                              {t(`attendance.riskLevel.${LEGACY_RISK_TO_I18N[item.riskLevel] ?? item.riskLevel}`, { defaultValue: item.riskLevel })}
+                            </Badge>
+                          )}
                           {item.issueResolutionStatus ? (
                             <Badge
                               variant="outline"

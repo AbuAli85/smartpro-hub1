@@ -63,6 +63,17 @@ export type Capabilities = {
   canApproveAttendanceClientApproval: boolean;
   canViewAttendanceClientApproval: boolean;
   canRepairAttendanceData: boolean;
+  // Control Tower
+  canViewPlatformControlTower: boolean;
+  canViewCompanyControlTower: boolean;
+  canManageControlTowerItems: boolean;
+  canAssignControlTowerItems: boolean;
+  canResolveControlTowerItems: boolean;
+  canViewControlTowerFinanceSignals: boolean;
+  canViewControlTowerHrSignals: boolean;
+  canViewControlTowerComplianceSignals: boolean;
+  canViewControlTowerOperationsSignals: boolean;
+  canViewControlTowerAuditSignals: boolean;
 };
 
 /** All capabilities default to false — safe while loading or unauthenticated. */
@@ -107,6 +118,16 @@ const EMPTY_CAPS: Capabilities = {
   canApproveAttendanceClientApproval: false,
   canViewAttendanceClientApproval: false,
   canRepairAttendanceData: false,
+  canViewPlatformControlTower: false,
+  canViewCompanyControlTower: false,
+  canManageControlTowerItems: false,
+  canAssignControlTowerItems: false,
+  canResolveControlTowerItems: false,
+  canViewControlTowerFinanceSignals: false,
+  canViewControlTowerHrSignals: false,
+  canViewControlTowerComplianceSignals: false,
+  canViewControlTowerOperationsSignals: false,
+  canViewControlTowerAuditSignals: false,
 };
 
 export function useMyCapabilities() {

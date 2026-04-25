@@ -84,14 +84,14 @@ export default function ControlTowerPage() {
   const hasControlTowerAccess = platformOp || canViewCompanyTower;
 
   // Scope label for dept/team managers who see a narrowed dashboard
-  const scopeType: "company" | "department" | "team" | "self" =
-    // Derived from capabilities: if canViewEmployeeList but NOT canManageControlTowerItems,
-    // caller is likely a dept/team manager or reviewer.
-    !capsLoading && myCaps.canManageControlTowerItems
-      ? "company"
-      : !capsLoading && myCaps.canViewCompanyControlTower && !myCaps.canManageControlTowerItems
-        ? "department"  // conservative label — exact scope comes from server
-        : "self";
+  const scopeType = ((): "company" | "department" | "team" | "self" => {
+    if (!capsLoading && myCaps.canManageControlTowerItems) return "company";
+    if (!capsLoading && myCaps.canViewCompanyControlTower && !myCaps.canManageControlTowerItems) {
+      // Conservative label — exact scope comes from server myAccess query
+      return "department";
+    }
+    return "self";
+  })();
 
   const scopeLabel =
     scopeType === "department" ? "Department Control Tower"

@@ -361,13 +361,13 @@ describe("ClientApprovalsPage", () => {
   });
 
   // 3. Empty state links to Client Attendance Sheet
-  it("empty state shows CTA linking to /hr/client-sheet", () => {
+  it("empty state shows CTA linking to /hr/reports/client-attendance", () => {
     mockListBatches.mockReturnValue({ data: [], isLoading: false });
     render(<ClientApprovalsPage />);
     const cta = screen.getByTestId("empty-state-cta");
     expect(cta).toBeInTheDocument();
     const link = cta.closest("a");
-    expect(link).toHaveAttribute("href", "/hr/client-sheet");
+    expect(link).toHaveAttribute("href", "/hr/reports/client-attendance");
   });
 
   // 4. Detail panel opens and shows item rows

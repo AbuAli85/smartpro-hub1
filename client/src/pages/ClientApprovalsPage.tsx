@@ -302,7 +302,7 @@ export default function ClientApprovalsPage() {
     if (detail?.periodEnd) params.set("to", detail.periodEnd);
     if (detail?.siteId) params.set("siteId", String(detail.siteId));
     const qs = params.toString();
-    return qs ? `/hr/client-sheet?${qs}` : "/hr/client-sheet";
+    return qs ? `/hr/reports/client-attendance?${qs}` : "/hr/reports/client-attendance";
   })();
 
   return (
@@ -319,7 +319,7 @@ export default function ClientApprovalsPage() {
           </div>
         </div>
         {caps.canCreateAttendanceClientApproval && (
-          <Link href="/hr/client-sheet">
+          <Link href="/hr/reports/client-attendance">
             <Button variant="outline" size="sm" className="gap-2">
               <FileText size={15} />
               {t("attendance.clientApprovalsPage.createCta")}
@@ -653,7 +653,7 @@ function EmptyState({ t }: { t: (k: string) => string }) {
       <p className="text-xs text-muted-foreground max-w-xs mx-auto">
         {t("attendance.clientApprovalsPage.emptyStateHint")}
       </p>
-      <Link href="/hr/client-sheet">
+      <Link href="/hr/reports/client-attendance">
         <Button variant="outline" size="sm" className="gap-2" data-testid="empty-state-cta">
           <FileText size={14} />
           {t("attendance.clientApprovalsPage.createCta")}

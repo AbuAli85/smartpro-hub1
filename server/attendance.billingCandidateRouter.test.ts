@@ -144,19 +144,30 @@ const DRAFT_CANDIDATE = {
 const REVIEW_READY_CANDIDATE = { ...DRAFT_CANDIDATE, id: 2, status: "review_ready" };
 const CANCELLED_CANDIDATE = { ...DRAFT_CANDIDATE, id: 3, status: "cancelled" };
 
-function makeDb(selectRows: object[], updateOk = true) {
+/**
+ * Build a mock DB.
+ * - First select() call returns `selectRows`.
+ * - Subsequent calls (e.g. Phase 12D invoice lookups) return `secondaryRows` (default []).
+ * - The orderBy chain (list queries) always returns `selectRows`.
+ */
+function makeDb(selectRows: object[], updateOk = true, secondaryRows: object[] = []) {
+  let callCount = 0;
   const db = {
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue(selectRows),
-          orderBy: vi.fn().mockReturnValue({
-            limit: vi.fn().mockReturnValue({
-              offset: vi.fn().mockResolvedValue(selectRows),
+    select: vi.fn().mockImplementation(() => {
+      const rows = callCount === 0 ? selectRows : secondaryRows;
+      callCount++;
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue(rows),
+            orderBy: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                offset: vi.fn().mockResolvedValue(selectRows),
+              }),
             }),
           }),
         }),
-      }),
+      };
     }),
     update: vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({

@@ -5253,4 +5253,58 @@ export const attendanceBillingCandidates = mysqlTable(
 export type AttendanceBillingCandidate = typeof attendanceBillingCandidates.$inferSelect;
 export type InsertAttendanceBillingCandidate = typeof attendanceBillingCandidates.$inferInsert;
 
+// ─── Phase 12D: Attendance Invoices ───────────────────────────────────────────
+
+/** Draft invoice created by finance from a review_ready attendance billing candidate. */
+export const attendanceInvoices = mysqlTable(
+  "attendance_invoices",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** FK to attendanceBillingCandidates.id — UNIQUE: one invoice per candidate. */
+    candidateId: int("candidate_id").notNull(),
+    companyId: int("company_id").notNull(),
+    /** NOT NULL: conversion is blocked when the candidate has no client company. */
+    clientCompanyId: int("client_company_id").notNull(),
+    /** Fetched from companies table at conversion time and stored for immutability. */
+    clientDisplayName: varchar("client_display_name", { length: 255 }).notNull(),
+    /** Format: ABIN-{companyId}-{clientCompanyId}-{YYYYMMDD}-{candidateId} */
+    invoiceNumber: varchar("invoice_number", { length: 64 }).notNull(),
+    periodStart: varchar("period_start", { length: 10 }).notNull(),
+    periodEnd: varchar("period_end", { length: 10 }).notNull(),
+    currencyCode: varchar("currency_code", { length: 3 }).notNull().default("OMR"),
+    /** Rate entered by finance at conversion time; persisted for reproducibility. */
+    ratePerHourOmr: decimal("rate_per_hour_omr", { precision: 14, scale: 3 }).notNull(),
+    totalDurationMinutes: int("total_duration_minutes"),
+    subtotalOmr: decimal("subtotal_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    vatRatePct: decimal("vat_rate_pct", { precision: 5, scale: 2 }).notNull().default("0.00"),
+    vatOmr: decimal("vat_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    totalOmr: decimal("total_omr", { precision: 14, scale: 3 }).notNull().default("0"),
+    /** Immutable copy of candidate.billingLinesJson at conversion time. */
+    billingLinesJson: json("billing_lines_json")
+      .$type<AttendanceBillingLineItem[]>()
+      .notNull(),
+    status: mysqlEnum("status", ["draft", "review_ready", "issued", "sent", "paid", "cancelled"] as const)
+      .notNull()
+      .default("draft"),
+    dueDateYmd: varchar("due_date_ymd", { length: 10 }),
+    notes: text("notes"),
+    /** Required when candidate.snapshotMissingCount > 0 to acknowledge the risk. */
+    snapshotWarningOverrideReason: text("snapshot_warning_override_reason"),
+    issuedAt: timestamp("issued_at"),
+    issuedByUserId: int("issued_by_user_id"),
+    createdByUserId: int("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_ai_candidate").on(t.candidateId),
+    unique("uq_ai_inv_number").on(t.invoiceNumber),
+    index("idx_ai_company").on(t.companyId),
+    index("idx_ai_status").on(t.companyId, t.status),
+    index("idx_ai_client").on(t.companyId, t.clientCompanyId),
+  ],
+);
+export type AttendanceInvoice = typeof attendanceInvoices.$inferSelect;
+export type InsertAttendanceInvoice = typeof attendanceInvoices.$inferInsert;
+
 export type EngagementPaymentTransfer = typeof engagementPaymentTransfers.$inferSelect;

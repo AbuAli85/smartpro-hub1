@@ -105,6 +105,7 @@ const HRAccountabilityPage = lazy(() => import("./pages/HRAccountabilityPage"));
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage"));
 const FinanceOverviewPage = lazy(() => import("./pages/FinanceOverviewPage"));
 const AttendanceBillingCandidatesPage = lazy(() => import("./pages/AttendanceBillingCandidatesPage"));
+const AttendanceInvoicesPage = lazy(() => import("./pages/AttendanceInvoicesPage"));
 const LeaveBalancePage = lazy(() => import("./pages/LeaveBalancePage"));
 const EmployeeCompletenessPage = lazy(() => import("./pages/EmployeeCompletenessPage"));
 const OrgStructurePage = lazy(() => import("./pages/OrgStructurePage"));
@@ -286,6 +287,7 @@ function AppRoutes() {
         <Route path="/nav-integrity" component={NavIntegrityPage} />
         <Route path="/finance/overview" component={FinanceOverviewPage} />
         <Route path="/finance/attendance-billing" component={AttendanceBillingCandidatesPage} />
+        <Route path="/finance/attendance-invoices" component={AttendanceInvoicesPage} />
         <Route path="/payroll" component={PayrollEnginePage} />
         <Route path="/payroll/process" component={PayrollProcessingPage} />
         <Route path="/sanad/ratings-moderation" component={SanadRatingsModerationPage} />

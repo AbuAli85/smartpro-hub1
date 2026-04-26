@@ -189,17 +189,14 @@ export default function Dashboard() {
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
   );
-  const { data: opsSnapshot } = trpc.operations.getDailySnapshot.useQuery(
-    { companyId: activeCompanyId ?? undefined },
-    { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
-  );
   const { data: omanisation } = trpc.compliance.getOmanisationStats.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user) },
   );
+  const activeMemberRole = myCompany?.member?.role ?? activeCompany?.role ?? null;
   const { data: auditFeed } = trpc.analytics.auditLogs.useQuery(
     { limit: 8, companyId: activeCompanyId ?? undefined },
-    { enabled: activeCompanyId != null },
+    { enabled: activeCompanyId != null && activeMemberRole !== "company_member" && activeMemberRole !== "client" },
   );
   const { data: businessPulse } = trpc.operations.getOwnerBusinessPulse.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -637,14 +634,14 @@ export default function Dashboard() {
         </div>
       )}
 
-      {!showPlatformOverview && activeCompanyId && (
+      {!showPlatformOverview && activeCompanyId && showHref("/finance/overview") && (
         <FinancialSummaryCard
           companyId={activeCompanyId}
-          canOpenFinanceOverview={showHref("/finance/overview")}
+          canOpenFinanceOverview={true}
         />
       )}
 
-      {!showPlatformOverview && activeCompanyId != null && !seesPlatformOperatorNav(user) && (
+      {!showPlatformOverview && activeCompanyId != null && !seesPlatformOperatorNav(user) && showHref("/engagements") && (
         <EngagementsDashboardStrip companyId={activeCompanyId} />
       )}
 
@@ -1362,20 +1359,19 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Recent Activity ── */}
+      {/* ── Recent Activity — management-scoped; audit-log access required ── */}
+      {showHref("/audit-log") && (
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Activity size={14} className="text-blue-500" /> {t("dashboard:recentActivity", "Recent Activity")}
             </CardTitle>
-            {showHref("/audit-log") && (
-              <Link href="/audit-log">
-                <Button variant="ghost" size="sm" className="text-xs gap-1 h-6">
-                  {t("common:all", "All")} <ArrowUpRight size={10} />
-                </Button>
-              </Link>
-            )}
+            <Link href="/audit-log">
+              <Button variant="ghost" size="sm" className="text-xs gap-1 h-6">
+                {t("common:all", "All")} <ArrowUpRight size={10} />
+              </Button>
+            </Link>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -1405,6 +1401,7 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

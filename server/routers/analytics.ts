@@ -199,6 +199,8 @@ export const analyticsRouter = router({
         });
       }
       const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      // Field employees and portal clients have no audit visibility — audit log is a management tool.
+      if (m.role === "company_member" || m.role === "client") return [];
       return loadUnifiedAuditTimeline(ctx, input.limit, {
         companyId: m.companyId,
         memberRole: m.role ?? null,

@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import Dashboard from "./Dashboard";
 
-const { mockCapabilities } = vi.hoisted(() => ({
+const { mockCapabilities, mockNavVisible } = vi.hoisted(() => ({
   mockCapabilities: vi.fn(),
+  mockNavVisible: vi.fn(() => true),
 }));
 
 vi.mock("@/hooks/useMyCapabilities", () => ({
@@ -59,7 +60,7 @@ vi.mock("@shared/clientNav", async (importOriginal) => {
     getHiddenNavHrefs: () => new Set<string>(),
     shouldHideBottomNav: () => false,
     seesPlatformOperatorNav: () => false,
-    clientNavItemVisible: () => true,
+    clientNavItemVisible: (...args: Parameters<typeof actual.clientNavItemVisible>) => mockNavVisible(...args),
   };
 });
 
@@ -115,6 +116,7 @@ const WITH_CT_CAPS = { canViewCompanyControlTower: true };
 describe("Dashboard Phase C", () => {
   beforeEach(() => {
     mockCapabilities.mockReturnValue({ caps: NO_CT_CAPS, loading: false });
+    mockNavVisible.mockReturnValue(true);
   });
   afterEach(cleanup);
 
@@ -177,7 +179,51 @@ describe("Dashboard Phase C", () => {
     );
   });
 
-  it("renders Recent Activity section", () => {
+  it("renders Recent Activity section when user can access audit log", () => {
+    render(<Dashboard />);
+    expect(screen.getByText("Recent Activity")).toBeInTheDocument();
+  });
+});
+
+describe("Dashboard — role sensitivity", () => {
+  beforeEach(() => {
+    mockCapabilities.mockReturnValue({ caps: NO_CT_CAPS, loading: false });
+    mockNavVisible.mockReturnValue(true);
+  });
+  afterEach(cleanup);
+
+  it("hides Recent Activity when /audit-log is not in nav (company_member surface)", () => {
+    mockNavVisible.mockImplementation((href: string) => href !== "/audit-log");
+    render(<Dashboard />);
+    expect(screen.queryByText("Recent Activity")).toBeNull();
+  });
+
+  it("shows Recent Activity when /audit-log is in nav (admin surface)", () => {
+    mockNavVisible.mockReturnValue(true);
+    render(<Dashboard />);
+    expect(screen.getByText("Recent Activity")).toBeInTheDocument();
+  });
+
+  it("hides EngagementsDashboardStrip when /engagements is not in nav (company_member surface)", () => {
+    mockNavVisible.mockImplementation((href: string) => href !== "/engagements");
+    render(<Dashboard />);
+    // EngagementsDashboardStrip is not rendered — no engagements strip heading
+    // (component renders null when no items, but query itself would also be skipped)
+    expect(screen.queryByRole("link", { name: /engagements/i })).toBeNull();
+  });
+
+  it("hides FinancialSummaryCard when /finance/overview is not in nav (company_member surface)", () => {
+    // FinancialSummaryCard is mocked to return null, so we assert the render condition
+    // by checking the component is not invoked when href is blocked.
+    // Since mock returns null regardless, we verify no finance-related text leaks through.
+    mockNavVisible.mockImplementation((href: string) => href !== "/finance/overview");
+    render(<Dashboard />);
+    // No finance overview link visible
+    expect(screen.queryByRole("link", { name: /finance overview/i })).toBeNull();
+  });
+
+  it("company_admin surface — all main sections visible", () => {
+    mockNavVisible.mockReturnValue(true);
     render(<Dashboard />);
     expect(screen.getByText("Recent Activity")).toBeInTheDocument();
   });

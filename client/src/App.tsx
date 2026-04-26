@@ -25,6 +25,8 @@ const HrEmployeeDetailRedirect = lazy(() => import("./pages/HrEmployeeDetailRedi
 const HRRecruitmentPage = lazy(() => import("./pages/HRRecruitmentPage"));
 const HRLeavePage = lazy(() => import("./pages/HRLeavePage"));
 const CRMPage = lazy(() => import("./pages/CRMPage"));
+const CRMCompaniesPage = lazy(() => import("./pages/CRMCompaniesPage"));
+const CRMCompanyDetailPage = lazy(() => import("./pages/CRMCompanyDetailPage"));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const SubscriptionsPage = lazy(() => import("./pages/SubscriptionsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
@@ -246,6 +248,8 @@ function AppRoutes() {
         <Route path="/engagements/:id" component={EngagementDetailPage} />
         <Route path="/engagements" component={EngagementsPage} />
         <Route path="/onboarding" component={OnboardingPage} />
+        <Route path="/crm/companies/:id" component={CRMCompanyDetailPage} />
+        <Route path="/crm/companies" component={CRMCompaniesPage} />
         <Route path="/crm" component={CRMPage} />
         <Route path="/analytics" component={AnalyticsPage} />
         <Route path="/subscriptions" component={SubscriptionsPage} />

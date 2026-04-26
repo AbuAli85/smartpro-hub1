@@ -848,6 +848,22 @@ CREATE TABLE IF NOT EXISTS `crm_deals` (
 	CONSTRAINT `crm_deals_id` PRIMARY KEY(`id`)
 );
 
+CREATE TABLE IF NOT EXISTS `client_companies` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`company_id` int NOT NULL,
+	`name` varchar(255) NOT NULL,
+	`industry` varchar(100),
+	`cr_number` varchar(100),
+	`billing_address` text,
+	`primary_contact_id` int,
+	`account_manager_id` int,
+	`status` enum('lead','active','inactive','archived') NOT NULL DEFAULT 'lead',
+	`notes` text,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `client_companies_id` PRIMARY KEY(`id`)
+);
+
 CREATE TABLE IF NOT EXISTS `customer_account_members` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`customer_account_id` int NOT NULL,

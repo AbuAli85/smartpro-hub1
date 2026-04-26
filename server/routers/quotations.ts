@@ -2,7 +2,14 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
-import { serviceQuotations, quotationLineItems, crmDeals, crmContacts } from "../../drizzle/schema";
+import {
+  serviceQuotations,
+  quotationLineItems,
+  crmDeals,
+  crmContacts,
+  customerDeployments,
+  billingCustomers,
+} from "../../drizzle/schema";
 import { eq, and, desc, sql, or, isNull } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { storagePut } from "../storage";
@@ -463,6 +470,179 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
       await db.delete(serviceQuotations).where(eq(serviceQuotations.id, input.id));
 
       return { success: true };
+    }),
+
+  // ── Workforce quotation (WaaS flow) ─────────────────────────────────────────
+  // Creates a workforce-billing style quotation linked to a CRM deal.
+  createFromDeal: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        dealId: z.number().int().positive(),
+        clientName: z.string().min(1),
+        clientEmail: z.string().email().optional(),
+        clientPhone: z.string().optional(),
+        clientCompanyId: z.number().int().positive().optional().nullable(),
+        workersCount: z.number().int().positive().optional(),
+        durationDays: z.number().int().positive().optional().nullable(),
+        durationMonths: z.number().int().positive().optional().nullable(),
+        ratePerDayOmr: z.number().min(0).optional().nullable(),
+        ratePerMonthOmr: z.number().min(0).optional().nullable(),
+        fixedAmountOmr: z.number().min(0).optional().nullable(),
+        validUntil: z.string().optional().nullable(),
+        notes: z.string().optional(),
+        terms: z.string().optional(),
+        lineItems: z.array(
+          z.object({
+            serviceName: z.string().min(1),
+            description: z.string().optional(),
+            qty: z.number().min(1).default(1),
+            unitPriceOmr: z.number().min(0),
+            discountPct: z.number().min(0).max(100).default(0),
+          }),
+        ).min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const companyId = canAccessGlobalAdminProcedures(ctx.user)
+        ? input.companyId ?? null
+        : await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // Validate deal ownership
+      const [deal] = await db.select().from(crmDeals).where(eq(crmDeals.id, input.dealId)).limit(1);
+      if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+      if (companyId != null && deal.companyId !== companyId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+      }
+
+      const { crmDealId, crmContactId } = await resolveQuotationCrmLinks(db, companyId, {
+        crmDealId: input.dealId,
+        crmContactId: deal.contactId ?? null,
+      });
+
+      const lines = calcLineTotals(input.lineItems);
+      const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
+      const vat = subtotal * 0.05;
+      const total = subtotal + vat;
+      const refNumber = generateRefNumber();
+
+      const [quotation] = await db
+        .insert(serviceQuotations)
+        .values({
+          companyId,
+          referenceNumber: refNumber,
+          clientName: input.clientName,
+          clientEmail: input.clientEmail ?? null,
+          clientPhone: input.clientPhone ?? null,
+          clientCompanyId: input.clientCompanyId ?? deal.clientCompanyId ?? null,
+          subtotalOmr: subtotal.toFixed(3),
+          vatOmr: vat.toFixed(3),
+          totalOmr: total.toFixed(3),
+          validityDays: 30,
+          validUntil: input.validUntil ?? null,
+          notes: input.notes ?? null,
+          terms: input.terms ?? null,
+          status: "draft",
+          crmDealId,
+          crmContactId,
+          workersCount: input.workersCount ?? null,
+          durationDays: input.durationDays ?? null,
+          durationMonths: input.durationMonths ?? null,
+          ratePerDayOmr: input.ratePerDayOmr != null ? String(input.ratePerDayOmr) : null,
+          ratePerMonthOmr: input.ratePerMonthOmr != null ? String(input.ratePerMonthOmr) : null,
+          fixedAmountOmr: input.fixedAmountOmr != null ? String(input.fixedAmountOmr) : null,
+          createdBy: ctx.user.id,
+        })
+        .$returningId();
+
+      await db.insert(quotationLineItems).values(
+        lines.map((l) => ({
+          quotationId: quotation.id,
+          serviceName: l.serviceName,
+          description: l.description ?? null,
+          qty: l.qty,
+          unitPriceOmr: l.unitPriceOmr.toFixed(3),
+          discountPct: l.discountPct.toFixed(2),
+          lineTotalOmr: l.lineTotal.toFixed(3),
+          sortOrder: l.sortOrder,
+        })),
+      );
+
+      // Move deal to quotation_sent stage
+      await db
+        .update(crmDeals)
+        .set({ stage: "quotation_sent", updatedAt: new Date() })
+        .where(eq(crmDeals.id, input.dealId));
+
+      return { id: quotation.id, referenceNumber: refNumber };
+    }),
+
+  // ── Convert accepted quotation → deployment draft ────────────────────────────
+  convertToDeployment: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        quotationId: z.number().int().positive(),
+        billingCustomerId: z.number().int().positive(),
+        effectiveFrom: z.string(),
+        effectiveTo: z.string(),
+        primaryAttendanceSiteId: z.number().int().positive().optional().nullable(),
+        notes: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const companyId = canAccessGlobalAdminProcedures(ctx.user)
+        ? input.companyId ?? null
+        : await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      if (!companyId) throw new TRPCError({ code: "BAD_REQUEST", message: "companyId required" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [quotation] = await db
+        .select()
+        .from(serviceQuotations)
+        .where(eq(serviceQuotations.id, input.quotationId))
+        .limit(1);
+      if (!quotation) throw new TRPCError({ code: "NOT_FOUND", message: "Quotation not found" });
+      await assertQuotationTenantAccess(ctx.user, { companyId: quotation.companyId, createdBy: quotation.createdBy });
+      if (quotation.status !== "accepted") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only accepted quotations can be converted to deployments" });
+      }
+
+      const [bcRow] = await db
+        .select({ id: billingCustomers.id })
+        .from(billingCustomers)
+        .where(and(eq(billingCustomers.id, input.billingCustomerId), eq(billingCustomers.companyId, companyId)))
+        .limit(1);
+      if (!bcRow) throw new TRPCError({ code: "NOT_FOUND", message: "Billing customer not found" });
+
+      const [deployment] = await db
+        .insert(customerDeployments)
+        .values({
+          companyId,
+          billingCustomerId: input.billingCustomerId,
+          clientCompanyId: quotation.clientCompanyId ?? null,
+          dealId: quotation.crmDealId ?? null,
+          quotationId: input.quotationId,
+          effectiveFrom: input.effectiveFrom,
+          effectiveTo: input.effectiveTo,
+          primaryAttendanceSiteId: input.primaryAttendanceSiteId ?? null,
+          status: "draft",
+          notes: input.notes ?? null,
+        })
+        .$returningId();
+
+      // If deal is linked, move stage to won
+      if (quotation.crmDealId) {
+        await db
+          .update(crmDeals)
+          .set({ stage: "won", closedAt: new Date(), updatedAt: new Date() })
+          .where(eq(crmDeals.id, quotation.crmDealId));
+      }
+
+      return { deploymentId: deployment.id, success: true };
     }),
 
   // ── Summary stats ────────────────────────────────────────────────────────────

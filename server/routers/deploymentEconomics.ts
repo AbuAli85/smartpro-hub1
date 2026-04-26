@@ -591,5 +591,44 @@ export const deploymentEconomicsRouter = router({
           )
           .orderBy(desc(customerDeploymentAssignments.startDate));
       }),
+
+    /** Assign multiple employees to a deployment in one call */
+    bulkAssign: protectedProcedure
+      .input(z.object({
+        companyId: z.number().optional(),
+        customerDeploymentId: z.number(),
+        workers: z.array(z.object({
+          employeeId: z.number(),
+          role: z.string().max(64).optional(),
+          startDate: z.string(),
+          endDate: z.string(),
+        })).min(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        const [dep] = await db
+          .select({ id: customerDeployments.id })
+          .from(customerDeployments)
+          .where(and(eq(customerDeployments.id, input.customerDeploymentId), eq(customerDeployments.companyId, m.companyId)))
+          .limit(1);
+        if (!dep) throw new TRPCError({ code: "NOT_FOUND", message: "Customer deployment not found" });
+        for (const w of input.workers) {
+          await assertEmployeeOwned(db, m.companyId, w.employeeId);
+        }
+        await db.insert(customerDeploymentAssignments).values(
+          input.workers.map((w) => ({
+            companyId: m.companyId,
+            customerDeploymentId: input.customerDeploymentId,
+            employeeId: w.employeeId,
+            role: w.role ?? null,
+            startDate: w.startDate,
+            endDate: w.endDate,
+            status: "active",
+          })),
+        );
+        return { assigned: input.workers.length };
+      }),
   }),
 });

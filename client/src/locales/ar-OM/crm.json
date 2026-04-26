@@ -1,0 +1,143 @@
+{
+  "title": "إدارة علاقات العملاء والمبيعات",
+  "contacts": "جهات الاتصال",
+  "deals": "الصفقات",
+  "companies": "شركات العملاء",
+  "quotations": "عروض الأسعار",
+  "deployments": "التوزيعات",
+  "invoices": "الفواتير",
+
+  "addContact": "إضافة جهة اتصال",
+  "newDeal": "صفقة جديدة",
+  "addCompany": "إضافة شركة",
+
+  "contactFields": {
+    "firstName": "الاسم الأول",
+    "lastName": "اسم العائلة",
+    "email": "البريد الإلكتروني",
+    "phone": "الهاتف",
+    "clientCompany": "شركة العميل",
+    "position": "المنصب",
+    "roleType": "نوع الدور",
+    "status": "الحالة",
+    "notes": "ملاحظات"
+  },
+
+  "roleType": {
+    "decision_maker": "صانع القرار",
+    "influencer": "مؤثر",
+    "finance": "مالية",
+    "operations": "عمليات",
+    "other": "أخرى"
+  },
+
+  "contactStatus": {
+    "lead": "عميل محتمل",
+    "prospect": "فرصة",
+    "customer": "عميل",
+    "inactive": "غير نشط"
+  },
+
+  "dealFields": {
+    "title": "عنوان الصفقة",
+    "clientCompany": "شركة العميل",
+    "serviceType": "نوع الخدمة",
+    "value": "القيمة",
+    "stage": "المرحلة",
+    "probability": "احتمالية الفوز",
+    "expectedStart": "تاريخ البدء المتوقع",
+    "expectedClose": "تاريخ الإغلاق المتوقع",
+    "notes": "ملاحظات"
+  },
+
+  "serviceType": {
+    "manpower": "توفير عمالة",
+    "promoter": "مروّج",
+    "pro_service": "خدمة PRO",
+    "project": "مشروع",
+    "other": "أخرى"
+  },
+
+  "dealStage": {
+    "lead": "عميل محتمل",
+    "qualified": "مؤهّل",
+    "proposal": "عرض",
+    "quotation_sent": "تم إرسال عرض السعر",
+    "negotiation": "تفاوض",
+    "won": "رُبح",
+    "lost": "خُسر",
+    "closed_won": "رُبح",
+    "closed_lost": "خُسر"
+  },
+
+  "companyFields": {
+    "name": "اسم الشركة",
+    "industry": "القطاع",
+    "crNumber": "رقم السجل التجاري",
+    "billingAddress": "عنوان الفوترة",
+    "status": "الحالة",
+    "notes": "ملاحظات",
+    "accountManager": "مدير الحساب",
+    "primaryContact": "جهة الاتصال الرئيسية"
+  },
+
+  "companyStatus": {
+    "lead": "عميل محتمل",
+    "active": "نشط",
+    "inactive": "غير نشط",
+    "archived": "مؤرشف"
+  },
+
+  "quotationFields": {
+    "workersCount": "عدد العمال",
+    "durationDays": "المدة (بالأيام)",
+    "durationMonths": "المدة (بالأشهر)",
+    "ratePerDay": "السعر اليومي (ريال عماني)",
+    "ratePerMonth": "السعر الشهري (ريال عماني)",
+    "fixedAmount": "المبلغ الثابت (ريال عماني)",
+    "validUntil": "صالح حتى",
+    "status": "الحالة"
+  },
+
+  "quotationStatus": {
+    "draft": "مسودة",
+    "sent": "تم الإرسال",
+    "accepted": "مقبول",
+    "declined": "مرفوض",
+    "expired": "منتهي الصلاحية"
+  },
+
+  "pipelineStats": {
+    "totalClients": "إجمالي العملاء",
+    "activeClients": "العملاء النشطون",
+    "openDeals": "الصفقات المفتوحة",
+    "quotationsSent": "عروض الأسعار المرسلة",
+    "wonDeals": "الصفقات المُحقَّقة",
+    "expectedRevenue": "الإيرادات المتوقعة (ريال عماني)"
+  },
+
+  "actions": {
+    "createQuotation": "إنشاء عرض سعر",
+    "convertToDeployment": "تحويل إلى توزيع",
+    "acceptQuotation": "قبول عرض السعر",
+    "declineQuotation": "رفض عرض السعر",
+    "assignWorkers": "تعيين عمال",
+    "generateInvoice": "إنشاء فاتورة",
+    "inviteToPortal": "دعوة إلى البوابة"
+  },
+
+  "messages": {
+    "companyCreated": "تم إنشاء شركة العميل",
+    "companyUpdated": "تم تحديث شركة العميل",
+    "contactCreated": "تمت إضافة جهة الاتصال",
+    "dealCreated": "تم إنشاء الصفقة",
+    "quotationCreated": "تم إنشاء عرض السعر",
+    "quotationAccepted": "تم قبول عرض السعر",
+    "deploymentCreated": "تم إنشاء مسودة التوزيع",
+    "noCompanies": "لا توجد شركات عملاء بعد",
+    "noCompaniesHint": "أضف أول شركة عميل لبدء مسار الخدمة",
+    "selectCompany": "اختر شركة...",
+    "noCompanyOption": "— بدون شركة —",
+    "newCompanyLink": "+ شركة جديدة"
+  }
+}

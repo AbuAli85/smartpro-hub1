@@ -1243,7 +1243,11 @@ export const crmContacts = mysqlTable(
     email: varchar("email", { length: 320 }),
     phone: varchar("phone", { length: 32 }),
     company: varchar("company", { length: 255 }),
+    /** FK to client_companies.id — replaces free-text company field logically */
+    clientCompanyId: int("client_company_id"),
     position: varchar("position", { length: 100 }),
+    /** Role this contact plays at the client company */
+    roleType: mysqlEnum("role_type", ["decision_maker", "influencer", "finance", "operations", "other"]),
     country: varchar("country", { length: 10 }),
     city: varchar("city", { length: 100 }),
     source: varchar("source", { length: 100 }),
@@ -1257,6 +1261,7 @@ export const crmContacts = mysqlTable(
   (t) => [
     index("idx_crm_company").on(t.companyId),
     index("idx_crm_status").on(t.status),
+    index("idx_crmc_client_company").on(t.clientCompanyId),
   ]
 );
 
@@ -1269,23 +1274,31 @@ export const crmDeals = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     companyId: int("companyId").notNull(),
+    /** FK to client_companies.id — the B2B client this deal is with */
+    clientCompanyId: int("client_company_id"),
     contactId: int("contactId"),
     ownerId: int("ownerId"),
     title: varchar("title", { length: 255 }).notNull(),
+    /** WaaS service type for this deal */
+    serviceType: mysqlEnum("deal_service_type", ["manpower", "promoter", "pro_service", "project", "other"]),
     value: decimal("value", { precision: 15, scale: 2 }),
     currency: varchar("currency", { length: 10 }).default("OMR"),
     stage: mysqlEnum("stage", [
       "lead",
       "qualified",
       "proposal",
+      "quotation_sent",
       "negotiation",
       "closed_won",
       "closed_lost",
+      "won",
+      "lost",
     ])
       .default("lead")
       .notNull(),
     probability: int("probability").default(0),
     expectedCloseDate: timestamp("expectedCloseDate"),
+    expectedStartDate: date("expected_start_date", { mode: "string" }),
     closedAt: timestamp("closedAt"),
     source: varchar("source", { length: 100 }),
     notes: text("notes"),
@@ -1295,6 +1308,7 @@ export const crmDeals = mysqlTable(
   (t) => [
     index("idx_deal_company").on(t.companyId),
     index("idx_deal_stage").on(t.stage),
+    index("idx_crmd_client_company").on(t.clientCompanyId),
   ]
 );
 
@@ -1324,6 +1338,40 @@ export const crmCommunications = mysqlTable(
     index("idx_comm_contact").on(t.contactId),
   ]
 );
+
+// ─── CRM: CLIENT COMPANIES ───────────────────────────────────────────────────
+// Central B2B entity. Contacts, deals, quotations, deployments, and invoices
+// all link back here so the full WaaS flow is traceable per client.
+
+export const clientCompanies = mysqlTable(
+  "client_companies",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** Tenant (provider) company that manages this client */
+    companyId: int("company_id").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    industry: varchar("industry", { length: 100 }),
+    crNumber: varchar("cr_number", { length: 100 }),
+    billingAddress: text("billing_address"),
+    /** FK to crm_contacts.id — set once the primary contact is created */
+    primaryContactId: int("primary_contact_id"),
+    /** FK to users.id — internal account manager */
+    accountManagerId: int("account_manager_id"),
+    status: mysqlEnum("client_company_status", ["lead", "active", "inactive", "archived"])
+      .notNull()
+      .default("lead"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_cc_company").on(t.companyId),
+    index("idx_cc_status").on(t.status),
+  ]
+);
+
+export type ClientCompany = typeof clientCompanies.$inferSelect;
+export type InsertClientCompany = typeof clientCompanies.$inferInsert;
 
 // ─── ANALYTICS: REPORTS ───────────────────────────────────────────────────────
 
@@ -2329,6 +2377,12 @@ export const clientServiceInvoices = mysqlTable(
     companyId: int("company_id").notNull(),
     clientKey: varchar("client_key", { length: 255 }).notNull(),
     clientDisplayName: varchar("client_display_name", { length: 255 }).notNull(),
+    /** FK to client_companies.id — links invoice to the CRM B2B client */
+    clientCompanyId: int("client_company_id"),
+    /** FK to customer_deployments.id — deployment this invoice covers */
+    customerDeploymentId: int("customer_deployment_id"),
+    /** FK to service_quotations.id — quotation this invoice was generated from */
+    quotationId: int("quotation_id"),
     invoiceNumber: varchar("invoice_number", { length: 64 }).notNull().unique(),
     periodYear: int("period_year").notNull(),
     periodMonth: int("period_month").notNull(),
@@ -2350,6 +2404,9 @@ export const clientServiceInvoices = mysqlTable(
     unique("uq_client_invoice_period").on(t.companyId, t.clientKey, t.periodYear, t.periodMonth),
     index("idx_csi_company_status").on(t.companyId, t.status),
     index("idx_csi_company_due").on(t.companyId, t.dueDate),
+    index("idx_csi_client_company").on(t.clientCompanyId),
+    index("idx_csi_deployment").on(t.customerDeploymentId),
+    index("idx_csi_quotation").on(t.quotationId),
   ]
 );
 export type ClientServiceInvoice = typeof clientServiceInvoices.$inferSelect;
@@ -2614,6 +2671,22 @@ export const serviceQuotations = mysqlTable("service_quotations", {
   crmDealId: int("crm_deal_id"),
   /** Optional CRM contact — explicit customer record (may also be implied via deal). */
   crmContactId: int("crm_contact_id"),
+  /** FK to client_companies.id — links quotation into the B2B client pipeline. */
+  clientCompanyId: int("client_company_id"),
+  /** Workforce: number of workers to deploy */
+  workersCount: int("workers_count"),
+  /** Workforce: deployment duration in days (mutually exclusive with duration_months for simple rates) */
+  durationDays: int("duration_days"),
+  /** Workforce: deployment duration in months */
+  durationMonths: int("duration_months"),
+  /** Workforce: per-worker daily billing rate */
+  ratePerDayOmr: decimal("rate_per_day_omr", { precision: 10, scale: 3 }),
+  /** Workforce: per-worker monthly billing rate */
+  ratePerMonthOmr: decimal("rate_per_month_omr", { precision: 10, scale: 3 }),
+  /** Workforce: flat fixed amount (used when not billing per-worker/day) */
+  fixedAmountOmr: decimal("fixed_amount_omr", { precision: 10, scale: 3 }),
+  /** Absolute expiry date for the quotation (complements validity_days) */
+  validUntil: date("valid_until", { mode: "string" }),
   createdBy: int("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -2621,6 +2694,7 @@ export const serviceQuotations = mysqlTable("service_quotations", {
   index("idx_sq_company").on(t.companyId),
   index("idx_sq_crm_deal").on(t.crmDealId),
   index("idx_sq_crm_contact").on(t.crmContactId),
+  index("idx_sq_client_company").on(t.clientCompanyId),
 ]);
 export type ServiceQuotation = typeof serviceQuotations.$inferSelect;
 export type InsertServiceQuotation = typeof serviceQuotations.$inferInsert;
@@ -2948,6 +3022,8 @@ export const attendanceRecords = mysqlTable(
     siteId: int("site_id"),
     /** Phase 2: resolved promoter assignment for this clock row (nullable). */
     promoterAssignmentId: char("promoter_assignment_id", { length: 36 }),
+    /** FK to customer_deployments.id — links attendance to a WaaS deployment (nullable). */
+    customerDeploymentId: int("customer_deployment_id"),
     siteName: varchar("site_name", { length: 128 }),
     checkIn: timestamp("check_in").notNull(),
     checkOut: timestamp("check_out"),
@@ -2964,6 +3040,7 @@ export const attendanceRecords = mysqlTable(
     index("idx_att_rec_company_checkin").on(t.companyId, t.checkIn),
     index("idx_att_rec_employee_checkin").on(t.employeeId, t.checkIn),
     index("idx_att_rec_promoter_assignment").on(t.promoterAssignmentId),
+    index("idx_att_rec_deployment").on(t.customerDeploymentId),
   ]
 );
 export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
@@ -4097,6 +4174,12 @@ export const customerDeployments = mysqlTable(
     customerContractId: int("customer_contract_id").references(() => customerContracts.id),
     primaryAttendanceSiteId: int("primary_attendance_site_id").references(() => attendanceSites.id),
     outsourcingContractId: char("outsourcing_contract_id", { length: 36 }).references(() => outsourcingContracts.id),
+    /** FK to client_companies.id — links deployment to the CRM B2B client */
+    clientCompanyId: int("client_company_id"),
+    /** FK to crm_deals.id — the originating deal */
+    dealId: int("deal_id"),
+    /** FK to service_quotations.id — the accepted quotation that created this deployment */
+    quotationId: int("quotation_id"),
     effectiveFrom: date("effective_from", { mode: "string" }).notNull(),
     effectiveTo: date("effective_to", { mode: "string" }).notNull(),
     status: varchar("status", { length: 32 }).notNull().default("draft"),
@@ -4110,6 +4193,9 @@ export const customerDeployments = mysqlTable(
     index("idx_cdep_contract").on(t.customerContractId),
     index("idx_cdep_site").on(t.primaryAttendanceSiteId),
     index("idx_cdep_outsourcing").on(t.outsourcingContractId),
+    index("idx_cdep_client_company").on(t.clientCompanyId),
+    index("idx_cdep_deal").on(t.dealId),
+    index("idx_cdep_quotation").on(t.quotationId),
   ]
 );
 export type CustomerDeployment = typeof customerDeployments.$inferSelect;

@@ -12,7 +12,16 @@ import {
   getContactLastActivityAt,
 } from "../accountHealth";
 import { and, count, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
-import { contracts, crmDeals, proBillingCycles, proServices, serviceQuotations } from "../../drizzle/schema";
+import {
+  clientCompanies,
+  contracts,
+  crmContacts,
+  crmDeals,
+  customerDeployments,
+  proBillingCycles,
+  proServices,
+  serviceQuotations,
+} from "../../drizzle/schema";
 import { buildContactRevenueRealizationHints, buildRevenueRealizationSnapshot } from "../revenueRealization";
 import { resolvePrimaryAccountAction } from "../ownerResolution";
 import { getWorkflowTrackingForContact, RESOLUTION_WORKFLOW_BASIS } from "../resolutionWorkflow";
@@ -20,11 +29,15 @@ import {
   createCrmCommunication,
   createCrmContact,
   createCrmDeal,
+  createClientCompany,
   getCrmCommunications,
   getCrmContactById,
   getCrmContacts,
   getCrmDealById,
   getCrmDeals,
+  getClientCompanies,
+  getClientCompanyById,
+  updateClientCompany,
   getDb,
   updateCrmContact,
   updateCrmDeal,
@@ -82,8 +95,12 @@ export const crmRouter = router({
         lastName: z.string().min(1),
         email: z.string().email().optional(),
         phone: z.string().optional(),
+        /** Legacy free-text company (kept for backward compat); prefer clientCompanyId */
         company: z.string().optional(),
+        /** FK to client_companies.id */
+        clientCompanyId: z.number().int().positive().optional().nullable(),
         position: z.string().optional(),
+        roleType: z.enum(["decision_maker", "influencer", "finance", "operations", "other"]).optional(),
         country: z.string().optional(),
         city: z.string().optional(),
         source: z.string().optional(),
@@ -94,6 +111,13 @@ export const crmRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const companyId = await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
+      // Validate clientCompanyId belongs to same tenant
+      if (input.clientCompanyId != null) {
+        const cc = await getClientCompanyById(input.clientCompanyId);
+        if (!cc || cc.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Client company not found" });
+        }
+      }
       const { companyId: _omit, ...rest } = input;
       await createCrmContact({ ...rest, companyId, ownerId: ctx.user.id });
       return { success: true };
@@ -109,17 +133,25 @@ export const crmRouter = router({
         email: z.string().email().optional(),
         phone: z.string().optional(),
         company: z.string().optional(),
+        clientCompanyId: z.number().int().positive().optional().nullable(),
         position: z.string().optional(),
+        roleType: z.enum(["decision_maker", "influencer", "finance", "operations", "other"]).optional().nullable(),
         status: z.enum(["lead", "prospect", "customer", "inactive"]).optional(),
         notes: z.string().optional(),
         tags: z.array(z.string()).optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
+      const companyId = await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
       const row = await getCrmContactById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
       await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Contact", input.companyId);
+      if (input.clientCompanyId != null) {
+        const cc = await getClientCompanyById(input.clientCompanyId);
+        if (!cc || cc.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Client company not found" });
+        }
+      }
       const { id, companyId: _c, ...data } = input;
       await updateCrmContact(id, data);
       return { success: true };
@@ -142,12 +174,18 @@ export const crmRouter = router({
       z.object({
         companyId: z.number().optional(),
         title: z.string().min(2),
+        clientCompanyId: z.number().int().positive().optional().nullable(),
         contactId: z.number().optional(),
+        serviceType: z.enum(["manpower", "promoter", "pro_service", "project", "other"]).optional(),
         value: z.number().optional(),
         currency: z.string().default("OMR"),
-        stage: z.enum(["lead", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"]).default("lead"),
+        stage: z.enum([
+          "lead", "qualified", "proposal", "quotation_sent",
+          "negotiation", "closed_won", "closed_lost", "won", "lost",
+        ]).default("lead"),
         probability: z.number().min(0).max(100).default(0),
         expectedCloseDate: z.string().optional(),
+        expectedStartDate: z.string().optional(),
         source: z.string().optional(),
         notes: z.string().optional(),
       })
@@ -161,6 +199,12 @@ export const crmRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
         }
       }
+      if (input.clientCompanyId != null) {
+        const cc = await getClientCompanyById(input.clientCompanyId);
+        if (!cc || cc.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Client company not found" });
+        }
+      }
       const { companyId: _omit, ...rest } = input;
       await createCrmDeal({
         ...rest,
@@ -168,6 +212,7 @@ export const crmRouter = router({
         ownerId: ctx.user.id,
         value: input.value ? String(input.value) : undefined,
         expectedCloseDate: input.expectedCloseDate ? new Date(input.expectedCloseDate) : undefined,
+        expectedStartDate: input.expectedStartDate ?? null,
       });
       return { success: true };
     }),
@@ -178,23 +223,37 @@ export const crmRouter = router({
         id: z.number(),
         companyId: z.number().optional(),
         title: z.string().optional(),
-        stage: z.enum(["lead", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"]).optional(),
+        clientCompanyId: z.number().int().positive().optional().nullable(),
+        serviceType: z.enum(["manpower", "promoter", "pro_service", "project", "other"]).optional().nullable(),
+        stage: z.enum([
+          "lead", "qualified", "proposal", "quotation_sent",
+          "negotiation", "closed_won", "closed_lost", "won", "lost",
+        ]).optional(),
         value: z.number().optional(),
         probability: z.number().min(0).max(100).optional(),
         notes: z.string().optional(),
         expectedCloseDate: z.string().optional(),
+        expectedStartDate: z.string().optional().nullable(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
+      const companyId = await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
       const row = await getCrmDealById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
       await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Deal", input.companyId ?? row.companyId);
+      if (input.clientCompanyId != null) {
+        const cc = await getClientCompanyById(input.clientCompanyId);
+        if (!cc || cc.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Client company not found" });
+        }
+      }
       const { id, companyId: _c, ...data } = input;
       const updateData: Record<string, unknown> = { ...data };
       if (data.value !== undefined) updateData.value = String(data.value);
       if (data.expectedCloseDate) updateData.expectedCloseDate = new Date(data.expectedCloseDate);
-      if (data.stage === "closed_won" || data.stage === "closed_lost") updateData.closedAt = new Date();
+      if (data.stage === "closed_won" || data.stage === "closed_lost" || data.stage === "won" || data.stage === "lost") {
+        updateData.closedAt = new Date();
+      }
       await updateCrmDeal(id, updateData as any);
       return { success: true };
     }),
@@ -581,11 +640,131 @@ export const crmRouter = router({
     } catch {
       return null;
     }
-    const stages = ["lead", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"] as const;
+    const stages = ["lead", "qualified", "proposal", "quotation_sent", "negotiation", "closed_won", "closed_lost", "won", "lost"] as const;
     return stages.map((stage) => {
       const stageDeals = deals.filter((d) => d.stage === stage);
       const totalValue = stageDeals.reduce((sum, d) => sum + Number(d.value ?? 0), 0);
       return { stage, count: stageDeals.length, totalValue };
     });
+  }),
+
+  /** Comprehensive deal view: deal + quotations + deployments + contact */
+  getDealDetail: protectedProcedure
+    .input(z.object({ dealId: z.number(), companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const deal = await getCrmDealById(input.dealId);
+      if (!deal || deal.companyId !== companyId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+      }
+
+      const [contact, quotations, deployments, clientCompany] = await Promise.all([
+        deal.contactId
+          ? db.select().from(crmContacts).where(eq(crmContacts.id, deal.contactId)).limit(1).then(r => r[0] ?? null)
+          : Promise.resolve(null),
+        db.select().from(serviceQuotations)
+          .where(and(eq(serviceQuotations.companyId, companyId), eq(serviceQuotations.crmDealId, deal.id)))
+          .orderBy(desc(serviceQuotations.createdAt)),
+        db.select().from(customerDeployments)
+          .where(and(eq(customerDeployments.companyId, companyId), eq(customerDeployments.dealId, deal.id)))
+          .orderBy(desc(customerDeployments.createdAt)),
+        deal.clientCompanyId
+          ? db.select().from(clientCompanies).where(eq(clientCompanies.id, deal.clientCompanyId)).limit(1).then(r => r[0] ?? null)
+          : Promise.resolve(null),
+      ]);
+
+      return { deal, contact, quotations, deployments, clientCompany };
+    }),
+
+  // ─── Client Companies sub-router ─────────────────────────────────────────────
+  clientCompanies: router({
+    list: protectedProcedure
+      .input(z.object({
+        companyId: z.number().optional(),
+        status: z.enum(["lead", "active", "inactive", "archived"]).optional(),
+        search: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        try {
+          const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+          return getClientCompanies(companyId, { status: input.status, search: input.search });
+        } catch {
+          return [];
+        }
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number(), companyId: z.number().optional() }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+        const cc = await getClientCompanyById(input.id);
+        if (!cc || cc.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Client company not found" });
+        }
+        const db = await getDb();
+        if (!db) return { ...cc, contacts: [], deals: [], recentQuotations: [] };
+
+        // Load related records for the detail view
+        const [contacts, deals, recentQuotations] = await Promise.all([
+          db.select().from(crmContacts)
+            .where(and(eq(crmContacts.companyId, companyId), eq(crmContacts.clientCompanyId, cc.id)))
+            .orderBy(desc(crmContacts.createdAt)),
+          db.select().from(crmDeals)
+            .where(and(eq(crmDeals.companyId, companyId), eq(crmDeals.clientCompanyId, cc.id)))
+            .orderBy(desc(crmDeals.updatedAt)),
+          db.select().from(serviceQuotations)
+            .where(and(eq(serviceQuotations.companyId, companyId), eq(serviceQuotations.clientCompanyId, cc.id)))
+            .orderBy(desc(serviceQuotations.createdAt))
+            .limit(10),
+        ]);
+
+        return { ...cc, contacts, deals, recentQuotations };
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        companyId: z.number().optional(),
+        name: z.string().min(1).max(255),
+        industry: z.string().max(100).optional(),
+        crNumber: z.string().max(100).optional(),
+        billingAddress: z.string().optional(),
+        primaryContactId: z.number().int().positive().optional().nullable(),
+        accountManagerId: z.number().int().positive().optional().nullable(),
+        status: z.enum(["lead", "active", "inactive", "archived"]).default("lead"),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
+        const { companyId: _omit, ...rest } = input;
+        const result = await createClientCompany({ ...rest, companyId });
+        return { id: result.id, success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        companyId: z.number().optional(),
+        name: z.string().min(1).max(255).optional(),
+        industry: z.string().max(100).optional().nullable(),
+        crNumber: z.string().max(100).optional().nullable(),
+        billingAddress: z.string().optional().nullable(),
+        primaryContactId: z.number().int().positive().optional().nullable(),
+        accountManagerId: z.number().int().positive().optional().nullable(),
+        status: z.enum(["lead", "active", "inactive", "archived"]).optional(),
+        notes: z.string().optional().nullable(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
+        const cc = await getClientCompanyById(input.id);
+        if (!cc || cc.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Client company not found" });
+        }
+        const { id, companyId: _c, ...data } = input;
+        await updateClientCompany(id, data);
+        return { success: true };
+      }),
   }),
 });

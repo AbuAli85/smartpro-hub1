@@ -1,0 +1,143 @@
+{
+  "title": "CRM & Pipeline",
+  "contacts": "Contacts",
+  "deals": "Deals",
+  "companies": "Client Companies",
+  "quotations": "Quotations",
+  "deployments": "Deployments",
+  "invoices": "Invoices",
+
+  "addContact": "Add Contact",
+  "newDeal": "New Deal",
+  "addCompany": "Add Company",
+
+  "contactFields": {
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "email": "Email",
+    "phone": "Phone",
+    "clientCompany": "Client Company",
+    "position": "Position",
+    "roleType": "Role Type",
+    "status": "Status",
+    "notes": "Notes"
+  },
+
+  "roleType": {
+    "decision_maker": "Decision Maker",
+    "influencer": "Influencer",
+    "finance": "Finance",
+    "operations": "Operations",
+    "other": "Other"
+  },
+
+  "contactStatus": {
+    "lead": "Lead",
+    "prospect": "Prospect",
+    "customer": "Customer",
+    "inactive": "Inactive"
+  },
+
+  "dealFields": {
+    "title": "Deal Title",
+    "clientCompany": "Client Company",
+    "serviceType": "Service Type",
+    "value": "Value",
+    "stage": "Stage",
+    "probability": "Win Probability",
+    "expectedStart": "Expected Start",
+    "expectedClose": "Expected Close",
+    "notes": "Notes"
+  },
+
+  "serviceType": {
+    "manpower": "Manpower Supply",
+    "promoter": "Promoter",
+    "pro_service": "PRO Service",
+    "project": "Project",
+    "other": "Other"
+  },
+
+  "dealStage": {
+    "lead": "Lead",
+    "qualified": "Qualified",
+    "proposal": "Proposal",
+    "quotation_sent": "Quotation Sent",
+    "negotiation": "Negotiation",
+    "won": "Won",
+    "lost": "Lost",
+    "closed_won": "Won",
+    "closed_lost": "Lost"
+  },
+
+  "companyFields": {
+    "name": "Company Name",
+    "industry": "Industry",
+    "crNumber": "CR Number",
+    "billingAddress": "Billing Address",
+    "status": "Status",
+    "notes": "Notes",
+    "accountManager": "Account Manager",
+    "primaryContact": "Primary Contact"
+  },
+
+  "companyStatus": {
+    "lead": "Lead",
+    "active": "Active",
+    "inactive": "Inactive",
+    "archived": "Archived"
+  },
+
+  "quotationFields": {
+    "workersCount": "Workers Count",
+    "durationDays": "Duration (days)",
+    "durationMonths": "Duration (months)",
+    "ratePerDay": "Rate per Day (OMR)",
+    "ratePerMonth": "Rate per Month (OMR)",
+    "fixedAmount": "Fixed Amount (OMR)",
+    "validUntil": "Valid Until",
+    "status": "Status"
+  },
+
+  "quotationStatus": {
+    "draft": "Draft",
+    "sent": "Sent",
+    "accepted": "Accepted",
+    "declined": "Declined",
+    "expired": "Expired"
+  },
+
+  "pipelineStats": {
+    "totalClients": "Total Clients",
+    "activeClients": "Active Clients",
+    "openDeals": "Open Deals",
+    "quotationsSent": "Quotations Sent",
+    "wonDeals": "Won Deals",
+    "expectedRevenue": "Expected Revenue (OMR)"
+  },
+
+  "actions": {
+    "createQuotation": "Create Quotation",
+    "convertToDeployment": "Convert to Deployment",
+    "acceptQuotation": "Accept Quotation",
+    "declineQuotation": "Decline Quotation",
+    "assignWorkers": "Assign Workers",
+    "generateInvoice": "Generate Invoice",
+    "inviteToPortal": "Invite to Portal"
+  },
+
+  "messages": {
+    "companyCreated": "Client company created",
+    "companyUpdated": "Client company updated",
+    "contactCreated": "Contact added",
+    "dealCreated": "Deal created",
+    "quotationCreated": "Quotation created",
+    "quotationAccepted": "Quotation accepted",
+    "deploymentCreated": "Deployment draft created",
+    "noCompanies": "No client companies yet",
+    "noCompaniesHint": "Add your first client company to start the WaaS pipeline",
+    "selectCompany": "Select company…",
+    "noCompanyOption": "— No company —",
+    "newCompanyLink": "+ New company"
+  }
+}

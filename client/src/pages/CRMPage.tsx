@@ -23,12 +23,15 @@ import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { DateInput } from "@/components/ui/date-input";
 
 const DEAL_STAGE_META: Record<string, { label: string; color: string; icon: any }> = {
-  lead:        { label: "Lead",         color: "bg-gray-100 text-gray-700 border-gray-200",       icon: Target },
-  qualified:   { label: "Qualified",    color: "bg-blue-100 text-blue-700 border-blue-200",       icon: CheckCircle2 },
-  proposal:    { label: "Proposal",     color: "bg-purple-100 text-purple-700 border-purple-200", icon: Send },
-  negotiation: { label: "Negotiation",  color: "bg-amber-100 text-amber-700 border-amber-200",    icon: Handshake },
-  closed_won:  { label: "Closed Won",   color: "bg-green-100 text-green-700 border-green-200",    icon: Star },
-  closed_lost: { label: "Closed Lost",  color: "bg-red-100 text-red-700 border-red-200",          icon: X },
+  lead:           { label: "Lead",           color: "bg-gray-100 text-gray-700 border-gray-200",       icon: Target },
+  qualified:      { label: "Qualified",      color: "bg-blue-100 text-blue-700 border-blue-200",       icon: CheckCircle2 },
+  proposal:       { label: "Proposal",       color: "bg-purple-100 text-purple-700 border-purple-200", icon: Send },
+  quotation_sent: { label: "Quotation Sent", color: "bg-indigo-100 text-indigo-700 border-indigo-200", icon: FileText },
+  negotiation:    { label: "Negotiation",    color: "bg-amber-100 text-amber-700 border-amber-200",    icon: Handshake },
+  won:            { label: "Won",            color: "bg-green-100 text-green-700 border-green-200",    icon: Star },
+  closed_won:     { label: "Won",            color: "bg-green-100 text-green-700 border-green-200",    icon: Star },
+  lost:           { label: "Lost",           color: "bg-red-100 text-red-700 border-red-200",          icon: X },
+  closed_lost:    { label: "Lost",           color: "bg-red-100 text-red-700 border-red-200",          icon: X },
 };
 
 const CONTACT_STATUS_META: Record<string, { label: string; color: string }> = {
@@ -44,11 +47,28 @@ function getInitials(first?: string | null, last?: string | null) {
 
 function NewContactDialog({ onSuccess, companyId }: { onSuccess: () => void; companyId: number | null }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", company: "", position: "", status: "lead" as const, notes: "" });
+  const [form, setForm] = useState({
+    firstName: "", lastName: "", email: "", phone: "",
+    clientCompanyId: "" as string, position: "",
+    roleType: "" as string, status: "lead" as const, notes: "",
+  });
+
+  // Load client companies for the dropdown
+  const { data: clientCompanies = [] } = trpc.crm.clientCompanies.list.useQuery(
+    { companyId: companyId ?? undefined },
+    { enabled: open && companyId != null },
+  );
+
   const createMutation = trpc.crm.createContact.useMutation({
-    onSuccess: () => { toast.success("Contact added"); setOpen(false); setForm({ firstName: "", lastName: "", email: "", phone: "", company: "", position: "", status: "lead", notes: "" }); onSuccess(); },
+    onSuccess: () => {
+      toast.success("Contact added");
+      setOpen(false);
+      setForm({ firstName: "", lastName: "", email: "", phone: "", clientCompanyId: "", position: "", roleType: "", status: "lead", notes: "" });
+      onSuccess();
+    },
     onError: (e) => toast.error(e.message),
   });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -65,9 +85,38 @@ function NewContactDialog({ onSuccess, companyId }: { onSuccess: () => void; com
             <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
           </div>
+          {/* Client Company dropdown (replaces free-text company field) */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Client Company</Label>
+              <a href="/crm/companies" className="text-xs text-[var(--smartpro-orange)] hover:underline">+ New company</a>
+            </div>
+            <Select value={form.clientCompanyId} onValueChange={(v) => setForm({ ...form, clientCompanyId: v })}>
+              <SelectTrigger><SelectValue placeholder="Select company…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">— No company —</SelectItem>
+                {clientCompanies.map((cc) => (
+                  <SelectItem key={cc.id} value={String(cc.id)}>{cc.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5"><Label>Company</Label><Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>Position</Label><Input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} /></div>
+            <div className="space-y-1.5">
+              <Label>Role Type</Label>
+              <Select value={form.roleType} onValueChange={(v) => setForm({ ...form, roleType: v })}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— None —</SelectItem>
+                  <SelectItem value="decision_maker">Decision Maker</SelectItem>
+                  <SelectItem value="influencer">Influencer</SelectItem>
+                  <SelectItem value="finance">Finance</SelectItem>
+                  <SelectItem value="operations">Operations</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label>Status</Label>
@@ -81,8 +130,25 @@ function NewContactDialog({ onSuccess, companyId }: { onSuccess: () => void; com
             </Select>
           </div>
           <div className="space-y-1.5"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
-          <Button className="w-full bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white" disabled={!form.firstName || createMutation.isPending || companyId == null}
-            onClick={() => companyId != null && createMutation.mutate({ companyId, firstName: form.firstName, lastName: form.lastName || "", email: form.email || undefined, phone: form.phone || undefined, company: form.company || undefined, position: form.position || undefined, status: form.status as any, notes: form.notes || undefined })}>
+          <Button
+            className="w-full bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white"
+            disabled={!form.firstName || createMutation.isPending || companyId == null}
+            onClick={() => {
+              if (companyId == null) return;
+              createMutation.mutate({
+                companyId,
+                firstName: form.firstName,
+                lastName: form.lastName || "",
+                email: form.email || undefined,
+                phone: form.phone || undefined,
+                clientCompanyId: form.clientCompanyId ? Number(form.clientCompanyId) : undefined,
+                position: form.position || undefined,
+                roleType: form.roleType as any || undefined,
+                status: form.status as any,
+                notes: form.notes || undefined,
+              });
+            }}
+          >
             {createMutation.isPending ? "Adding..." : "Add Contact"}
           </Button>
         </div>
@@ -93,11 +159,28 @@ function NewContactDialog({ onSuccess, companyId }: { onSuccess: () => void; com
 
 function NewDealDialog({ onSuccess, companyId }: { onSuccess: () => void; companyId: number | null }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", value: "", currency: "OMR", stage: "lead" as const, probability: "50", expectedCloseDate: "", notes: "" });
+  const [form, setForm] = useState({
+    title: "", clientCompanyId: "" as string, serviceType: "" as string,
+    value: "", currency: "OMR",
+    stage: "lead" as const, probability: "50",
+    expectedCloseDate: "", expectedStartDate: "", notes: "",
+  });
+
+  const { data: clientCompanies = [] } = trpc.crm.clientCompanies.list.useQuery(
+    { companyId: companyId ?? undefined },
+    { enabled: open && companyId != null },
+  );
+
   const createMutation = trpc.crm.createDeal.useMutation({
-    onSuccess: () => { toast.success("Deal created"); setOpen(false); setForm({ title: "", value: "", currency: "OMR", stage: "lead", probability: "50", expectedCloseDate: "", notes: "" }); onSuccess(); },
+    onSuccess: () => {
+      toast.success("Deal created");
+      setOpen(false);
+      setForm({ title: "", clientCompanyId: "", serviceType: "", value: "", currency: "OMR", stage: "lead", probability: "50", expectedCloseDate: "", expectedStartDate: "", notes: "" });
+      onSuccess();
+    },
     onError: (e) => toast.error(e.message),
   });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -106,18 +189,39 @@ function NewDealDialog({ onSuccess, companyId }: { onSuccess: () => void; compan
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle className="flex items-center gap-2"><TrendingUp size={16} className="text-[var(--smartpro-orange)]" /> New Deal</DialogTitle></DialogHeader>
         <div className="space-y-4 mt-2">
-          <div className="space-y-1.5"><Label>Deal Title *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. PRO Services for Muscat Trading LLC" /></div>
+          <div className="space-y-1.5">
+            <Label>Deal Title *</Label>
+            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Manpower Supply — Al Aqsa Trading" />
+          </div>
+          {/* Client Company */}
+          <div className="space-y-1.5">
+            <Label>Client Company</Label>
+            <Select value={form.clientCompanyId} onValueChange={(v) => setForm({ ...form, clientCompanyId: v })}>
+              <SelectTrigger><SelectValue placeholder="Select company…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">— None —</SelectItem>
+                {clientCompanies.map((cc) => (
+                  <SelectItem key={cc.id} value={String(cc.id)}>{cc.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Service Type */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5"><Label>Value</Label><Input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="0.000" /></div>
             <div className="space-y-1.5">
-              <Label>Currency</Label>
-              <Select value={form.currency} onValueChange={(v) => setForm({ ...form, currency: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="OMR">OMR</SelectItem><SelectItem value="USD">USD</SelectItem><SelectItem value="AED">AED</SelectItem></SelectContent>
+              <Label>Service Type</Label>
+              <Select value={form.serviceType} onValueChange={(v) => setForm({ ...form, serviceType: v })}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— None —</SelectItem>
+                  <SelectItem value="manpower">Manpower</SelectItem>
+                  <SelectItem value="promoter">Promoter</SelectItem>
+                  <SelectItem value="pro_service">PRO Service</SelectItem>
+                  <SelectItem value="project">Project</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
               </Select>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Stage</Label>
               <Select value={form.stage} onValueChange={(v) => setForm({ ...form, stage: v as any })}>
@@ -125,19 +229,43 @@ function NewDealDialog({ onSuccess, companyId }: { onSuccess: () => void; compan
                 <SelectContent>
                   <SelectItem value="lead">Lead</SelectItem>
                   <SelectItem value="qualified">Qualified</SelectItem>
-                  <SelectItem value="proposal">Proposal</SelectItem>
+                  <SelectItem value="quotation_sent">Quotation Sent</SelectItem>
                   <SelectItem value="negotiation">Negotiation</SelectItem>
-                  <SelectItem value="closed_won">Closed Won</SelectItem>
-                  <SelectItem value="closed_lost">Closed Lost</SelectItem>
+                  <SelectItem value="won">Won</SelectItem>
+                  <SelectItem value="lost">Lost</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5"><Label>Value (OMR)</Label><Input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="0.000" /></div>
             <div className="space-y-1.5"><Label>Win Probability (%)</Label><Input type="number" min="0" max="100" value={form.probability} onChange={(e) => setForm({ ...form, probability: e.target.value })} /></div>
           </div>
-          <div className="space-y-1.5"><Label>Expected Close Date</Label><DateInput value={form.expectedCloseDate} onChange={(e) => setForm({ ...form, expectedCloseDate: e.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5"><Label>Expected Start</Label><DateInput value={form.expectedStartDate} onChange={(e) => setForm({ ...form, expectedStartDate: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Expected Close</Label><DateInput value={form.expectedCloseDate} onChange={(e) => setForm({ ...form, expectedCloseDate: e.target.value })} /></div>
+          </div>
           <div className="space-y-1.5"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
-          <Button className="w-full" disabled={!form.title || createMutation.isPending || companyId == null}
-            onClick={() => companyId != null && createMutation.mutate({ companyId, ...form, value: form.value ? Number(form.value) : undefined, probability: form.probability ? Number(form.probability) : undefined })}>
+          <Button
+            className="w-full"
+            disabled={!form.title || createMutation.isPending || companyId == null}
+            onClick={() => {
+              if (companyId == null) return;
+              createMutation.mutate({
+                companyId,
+                title: form.title,
+                clientCompanyId: form.clientCompanyId ? Number(form.clientCompanyId) : undefined,
+                serviceType: form.serviceType as any || undefined,
+                value: form.value ? Number(form.value) : undefined,
+                currency: form.currency,
+                stage: form.stage as any,
+                probability: form.probability ? Number(form.probability) : undefined,
+                expectedCloseDate: form.expectedCloseDate || undefined,
+                expectedStartDate: form.expectedStartDate || undefined,
+                notes: form.notes || undefined,
+              });
+            }}
+          >
             {createMutation.isPending ? "Creating..." : "Create Deal"}
           </Button>
         </div>

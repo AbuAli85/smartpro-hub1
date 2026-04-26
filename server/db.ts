@@ -23,6 +23,7 @@ export * from "./repositories/marketplace.repository";
 export * from "./repositories/contracts.repository";
 export * from "./repositories/hr.repository";
 export * from "./repositories/crm.repository";
+export * from "./repositories/clientCompanies.repository";
 export * from "./repositories/notifications.repository";
 export * from "./repositories/audit.repository";
 export * from "./repositories/analytics.repository";

@@ -34,8 +34,13 @@ export const CAPABILITY_KEYS = [
   "view_contracts",          // /contracts, /quotations (read)
   "manage_contracts",        // contract mutations
   // CRM & marketplace
-  "view_crm",                // /crm (read)
-  "manage_crm",              // CRM mutations
+  "view_crm",                          // /crm (read)
+  "manage_crm",                        // CRM mutations — contacts, companies, deals
+  "approve_quotation",                  // approve/accept quotations
+  "convert_quotation_to_deployment",    // convert accepted quotation to deployment
+  "view_client_financials",            // view client invoices and billing data
+  "generate_client_invoice",           // generate invoice from deployment attendance
+  "invite_client_portal_user",         // invite contact to buyer/client portal
   "view_marketplace",        // /marketplace (read)
   // Government & compliance
   "view_compliance",         // /sanad, /workforce, /pro (read)
@@ -59,6 +64,11 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   manage_contracts: "Manage Contracts",
   view_crm: "View CRM",
   manage_crm: "Manage CRM",
+  approve_quotation: "Approve Quotation",
+  convert_quotation_to_deployment: "Convert Quotation to Deployment",
+  view_client_financials: "View Client Financials",
+  generate_client_invoice: "Generate Client Invoice",
+  invite_client_portal_user: "Invite Client Portal User",
   view_marketplace: "View Marketplace",
   view_compliance: "View Compliance",
 };
@@ -92,9 +102,9 @@ export const MODULE_LABELS: Record<CompanyModule, string> = {
 /** Capabilities that become inaccessible when their module is disabled. */
 export const MODULE_CAPABILITIES: Record<CompanyModule, ReadonlyArray<Capability>> = {
   payroll: ["view_payroll", "edit_payroll"],
-  finance: ["view_finance", "view_executive_summary"],
+  finance: ["view_finance", "view_executive_summary", "view_client_financials", "generate_client_invoice"],
   hr: ["view_hr", "manage_hr", "approve_tasks"],
-  crm: ["view_crm", "manage_crm"],
+  crm: ["view_crm", "manage_crm", "approve_quotation", "convert_quotation_to_deployment", "invite_client_portal_user"],
   compliance: ["view_compliance"],
   marketplace: ["view_marketplace"],
   documents: ["view_documents", "manage_documents"],
@@ -108,8 +118,8 @@ const ALL_CAPS: ReadonlyArray<Capability> = CAPABILITY_KEYS;
 export const ROLE_DEFAULT_CAPABILITIES: Record<string, ReadonlyArray<Capability>> = {
   company_admin: ALL_CAPS,
   hr_admin: ["view_hr", "manage_hr", "view_reports", "approve_tasks", "view_documents"],
-  finance_admin: ["view_payroll", "edit_payroll", "view_finance", "view_executive_summary", "view_reports"],
-  reviewer: ["view_contracts", "manage_contracts", "view_crm", "manage_crm", "view_marketplace"],
+  finance_admin: ["view_payroll", "edit_payroll", "view_finance", "view_executive_summary", "view_reports", "view_client_financials", "generate_client_invoice"],
+  reviewer: ["view_contracts", "manage_contracts", "view_crm", "manage_crm", "approve_quotation", "convert_quotation_to_deployment", "view_marketplace"],
   external_auditor: [
     "view_payroll",
     "view_reports",

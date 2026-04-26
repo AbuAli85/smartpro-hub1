@@ -642,7 +642,7 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -1813,7 +1813,7 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       let deptWrite = "";
@@ -1879,7 +1879,7 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [result] = await db.insert(departments).values({
@@ -1896,7 +1896,7 @@ export const hrRouter = router({
   seedSuggestedDepartments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       return seedSuggestedDepartmentRows(db, cid);
@@ -1914,7 +1914,7 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await db.select().from(departments).where(and(eq(departments.id, input.id), eq(departments.companyId, cid)));
@@ -1937,7 +1937,7 @@ export const hrRouter = router({
   deleteDepartment: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await db.select().from(departments).where(and(eq(departments.id, input.id), eq(departments.companyId, cid)));
@@ -1969,7 +1969,7 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [result] = await db.insert(positions).values({
@@ -1985,7 +1985,7 @@ export const hrRouter = router({
   deletePosition: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await db.select().from(positions).where(and(eq(positions.id, input.id), eq(positions.companyId, cid)));
@@ -2277,7 +2277,7 @@ export const hrRouter = router({
         ),
     )
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const normalizedPeriod = normalizeWpsValidationPeriod({
@@ -2367,7 +2367,7 @@ export const hrRouter = router({
         ),
     )
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const normalizedPeriod = normalizeWpsValidationPeriod({

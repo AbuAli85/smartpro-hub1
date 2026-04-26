@@ -19,6 +19,7 @@ import {
   requireWorkspaceMemberForRead,
   resolveVisibilityScope,
 } from "../_core/policy";
+import { requireWorkspaceMembership } from "../_core/membership";
 import { deriveCapabilities } from "../_core/capabilities";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
@@ -359,7 +360,10 @@ export const complianceRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
+      const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+      const scope = isGlobal
+        ? await resolveStatsCompanyFilter(ctx.user as User, input.companyId)
+        : { aggregateAllTenants: false as const, companyId: (await requireHrOrAdmin(ctx.user as User, input.companyId)).companyId };
       const db = await getDb();
       if (!db) return { month: "", flags: [], summary: { totalViolationDays: 0, affectedEmployees: 0 } };
 
@@ -481,7 +485,10 @@ export const complianceRouter = router({
   getComplianceScore: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
+      const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+      const scope = isGlobal
+        ? await resolveStatsCompanyFilter(ctx.user as User, input.companyId)
+        : { aggregateAllTenants: false as const, companyId: (await requireAnyOperatorRole(ctx.user as User, input.companyId)).companyId };
       const db = await getDb();
       if (!db) return { score: 0, grade: "N/A", checks: [] };
       const now = new Date();

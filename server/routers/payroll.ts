@@ -775,10 +775,9 @@ export const payrollRouter = router({
   generatePayslip: protectedProcedure
     .input(z.object({ lineId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [row] = await db
         .select({
           line: payrollLineItems,
@@ -980,10 +979,9 @@ export const payrollRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       // verify employee belongs to company
       const [emp] = await db.select({ id: employees.id }).from(employees)
         .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)));
@@ -1055,10 +1053,9 @@ export const payrollRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [emp] = await db.select({ id: employees.id }).from(employees)
         .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)));
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -1090,7 +1087,7 @@ export const payrollRouter = router({
       const [loan] = await db.select().from(salaryLoans).where(eq(salaryLoans.id, input.loanId)).limit(1);
       if (!loan) throw new TRPCError({ code: "NOT_FOUND", message: "Loan not found" });
       // AUTH: guard runs after DB load because companyId is derived from the loan row
-      await requireWorkspaceMembership(ctx.user as User, loan.companyId);
+      await requireFinanceOrAdmin(ctx.user as User, loan.companyId);
       const newBalance = Math.max(0, Number(loan.balanceRemaining) - input.deductedAmount);
       const newStatus = newBalance <= 0 ? "completed" : "active";
       await db.update(salaryLoans)
@@ -1111,10 +1108,10 @@ export const payrollRouter = router({
         .where(eq(salaryLoans.id, input.loanId))
         .limit(1);
       if (!loanRow) throw new TRPCError({ code: "NOT_FOUND", message: "Loan not found" });
-      const m = await requireWorkspaceMembership(ctx.user as User, loanRow.companyId);
+      const { companyId: loanCompanyId } = await requireFinanceOrAdmin(ctx.user as User, loanRow.companyId);
       await db.update(salaryLoans)
         .set({ status: "cancelled" })
-        .where(and(eq(salaryLoans.id, input.loanId), eq(salaryLoans.companyId, m.companyId)));
+        .where(and(eq(salaryLoans.id, input.loanId), eq(salaryLoans.companyId, loanCompanyId)));
       return { success: true };
     }),
 

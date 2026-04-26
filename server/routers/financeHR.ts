@@ -770,7 +770,7 @@ export const financeHRRouter = router({
       notes: z.string().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await db.insert(companyRevenueRecords).values({
@@ -801,7 +801,7 @@ export const financeHRRouter = router({
       notes: z.string().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId: cid } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const totalCost = input.basicSalary + input.housingAllowance + input.transportAllowance +

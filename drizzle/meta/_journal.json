@@ -297,6 +297,13 @@
       "breakpoints": true
     },
     {
+      "idx": 42,
+      "version": "7",
+      "when": 1776700000000,
+      "tag": "0079_capability_modules",
+      "breakpoints": true
+    },
+    {
       "idx": 46,
       "version": "7",
       "when": 1745489400000,

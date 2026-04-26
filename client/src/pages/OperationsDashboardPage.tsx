@@ -1,37 +1,25 @@
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
-import { seesPlatformOperatorNav } from "@shared/clientNav";
-import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import {
   AlertTriangle, CheckCircle2, Clock, FileText, Users, TrendingUp,
-  Briefcase, Calendar, ChevronRight, Activity, Target, Zap,
-  Shield, BarChart3, Bell, ArrowRight, RefreshCw, Timer, Banknote, UserCheck
+  Briefcase, Calendar, ChevronRight, Activity, Target, Shield,
+  Bell, RefreshCw, UserCheck,
 } from "lucide-react";
 import { Link } from "wouter";
 import { formatDistanceToNow, format } from "date-fns";
 
-function SeverityBadge({ severity }: { severity: string }) {
-  const map: Record<string, string> = {
-    critical: "bg-red-100 text-red-700 border-red-200",
-    high: "bg-orange-100 text-orange-700 border-orange-200",
-    medium: "bg-yellow-100 text-yellow-700 border-yellow-200",
-    low: "bg-green-100 text-green-700 border-green-200",
-    ok: "bg-green-100 text-green-700 border-green-200",
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${map[severity] ?? map.low}`}>
-      {severity.toUpperCase()}
-    </span>
-  );
-}
-
-function KpiCard({ label, value, sub, icon: Icon, color }: { label: string; value: string | number; sub?: string; icon: React.ElementType; color: string }) {
+function KpiCard({
+  label, value, sub, icon: Icon, color,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  icon: React.ElementType;
+  color: string;
+}) {
   return (
     <Card className="border-0 shadow-sm">
       <CardContent className="p-5">
@@ -51,129 +39,55 @@ function KpiCard({ label, value, sub, icon: Icon, color }: { label: string; valu
 }
 
 export default function OperationsDashboardPage() {
-  const { t } = useTranslation("operations");
-  const { user } = useAuth();
-  const isPlatform = seesPlatformOperatorNav(user);
   const { activeCompanyId } = useActiveCompany();
   const { data: snapshot, isLoading, refetch } = trpc.operations.getDailySnapshot.useQuery(
     { companyId: activeCompanyId ?? undefined },
-    { refetchInterval: 5 * 60 * 1000, enabled: activeCompanyId != null }
+    { refetchInterval: 5 * 60 * 1000, enabled: activeCompanyId != null },
   );
-  const { data: insights } = trpc.operations.getAiInsights.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: tasks } = trpc.operations.getTodaysTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: hrStats } = trpc.hr.getDashboardStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: hrStats } = trpc.hr.getDashboardStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const now = new Date();
-
-  const opsUrgent =
-    !isLoading &&
-    activeCompanyId != null &&
-    (
-      (snapshot?.slaBreaches ?? 0) > 0 ||
-      (tasks?.pendingLeaveApprovals?.length ?? 0) > 0 ||
-      (tasks?.pendingPayrollApprovals?.length ?? 0) > 0 ||
-      (snapshot?.expiringDocs7Days ?? 0) > 0 ||
-      (snapshot?.employeeDocsExpiring7Days ?? 0) > 0 ||
-      (snapshot?.pendingContracts ?? 0) > 0 ||
-      (snapshot?.casesActionRequired ?? 0) > 0 ||
-      (snapshot?.overdueInvoices?.count ?? 0) > 0 ||
-      (snapshot?.renewalWorkflowsFailed ?? 0) > 0 ||
-      (snapshot?.payrollDraftThisMonth ?? 0) > 0
-    );
 
   return (
     <div className="p-6 space-y-6 max-w-7xl">
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-sm">
-              <Activity className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black tracking-tight">{t("commandCentre.title")}</h1>
-              <p className="text-sm text-muted-foreground">
-                {format(now, "EEEE, d MMMM yyyy")} · {t("commandCentre.subtitle")}
-              </p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-sm">
+            <Activity className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight">Operations Overview</h1>
+            <p className="text-sm text-muted-foreground">
+              {format(now, "EEEE, d MMMM yyyy")} · Track delivery health, workload, and execution
+              performance. Critical actions are managed in Control Tower.
+            </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+        <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2 shrink-0">
           <RefreshCw className="w-3.5 h-3.5" />
-          {t("commandCentre.refresh")}
+          Refresh
         </Button>
       </div>
 
-      {opsUrgent && (
-        <div className="rounded-xl border border-orange-200 bg-orange-50/90 dark:bg-orange-950/30 dark:border-orange-900/50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-foreground">Action queue for this workspace</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {[
-                  (snapshot?.slaBreaches ?? 0) > 0 ? `${snapshot?.slaBreaches} SLA breach(es)` : null,
-                  (snapshot?.casesActionRequired ?? 0) > 0 ? `${snapshot?.casesActionRequired} case(s) need client action` : null,
-                  (tasks?.pendingLeaveApprovals?.length ?? 0) > 0 ? `${tasks?.pendingLeaveApprovals?.length} leave approval(s)` : null,
-                  (tasks?.pendingPayrollApprovals?.length ?? 0) > 0 ? `${tasks?.pendingPayrollApprovals?.length} payroll run(s) awaiting payment` : null,
-                  (snapshot?.payrollDraftThisMonth ?? 0) > 0 ? `${snapshot?.payrollDraftThisMonth} payroll draft(s) this month` : null,
-                  (snapshot?.expiringDocs7Days ?? 0) > 0 ? `${snapshot?.expiringDocs7Days} permit(s) expiring in 7d` : null,
-                  (snapshot?.employeeDocsExpiring7Days ?? 0) > 0 ? `${snapshot?.employeeDocsExpiring7Days} employee doc(s) expiring in 7d` : null,
-                  (snapshot?.pendingContracts ?? 0) > 0 ? `${snapshot?.pendingContracts} contract(s) pending signature` : null,
-                  (snapshot?.overdueInvoices?.count ?? 0) > 0
-                    ? `OMR ${(snapshot?.overdueInvoices?.totalOmr ?? 0).toFixed(3)} overdue AR (${snapshot?.overdueInvoices?.count})`
-                    : null,
-                  (snapshot?.renewalWorkflowsFailed ?? 0) > 0 ? `${snapshot?.renewalWorkflowsFailed} renewal workflow(s) failed` : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-            </div>
+      {/* Control Tower blockers card */}
+      <Card role="region" aria-label="Control Tower blockers" className="border-border/60 bg-muted/10">
+        <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium">Need to act on blockers?</p>
+            <p className="text-xs text-muted-foreground">
+              Live priority signals, pending approvals, and compliance alerts are managed in Control
+              Tower.
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {(snapshot?.slaBreaches ?? 0) > 0 && (
-              <Link href={isPlatform ? "/sla-management" : "/operations"}>
-                <Button size="sm" className="h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white">SLA</Button>
-              </Link>
-            )}
-            {((snapshot?.casesActionRequired ?? 0) > 0 || (tasks?.casesDue?.length ?? 0) > 0) && (
-              <Link href="/workforce/cases">
-                <Button size="sm" variant="secondary" className="h-8 text-xs">Cases</Button>
-              </Link>
-            )}
-            {(tasks?.pendingLeaveApprovals?.length ?? 0) > 0 && (
-              <Link href="/hr/leave">
-                <Button size="sm" variant="secondary" className="h-8 text-xs">Leave</Button>
-              </Link>
-            )}
-            {((tasks?.pendingPayrollApprovals?.length ?? 0) > 0 || (snapshot?.payrollDraftThisMonth ?? 0) > 0) && (
-              <Link href="/payroll">
-                <Button size="sm" variant="secondary" className="h-8 text-xs">Payroll</Button>
-              </Link>
-            )}
-            {((snapshot?.expiringDocs7Days ?? 0) > 0 || (snapshot?.employeeDocsExpiring7Days ?? 0) > 0) && (
-              <Link href="/hr/documents-dashboard">
-                <Button size="sm" variant="secondary" className="h-8 text-xs">Docs</Button>
-              </Link>
-            )}
-            {(snapshot?.pendingContracts ?? 0) > 0 && (
-              <Link href="/contracts">
-                <Button size="sm" variant="secondary" className="h-8 text-xs">Contracts</Button>
-              </Link>
-            )}
-            {(snapshot?.overdueInvoices?.count ?? 0) > 0 && (
-              <Link href={isPlatform ? "/billing" : "/client/invoices"}>
-                <Button size="sm" variant="secondary" className="h-8 text-xs">Overdue AR</Button>
-              </Link>
-            )}
-            {(snapshot?.renewalWorkflowsFailed ?? 0) > 0 && (
-              <Link href="/renewal-workflows">
-                <Button size="sm" variant="secondary" className="h-8 text-xs">Renewals</Button>
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
+          <Button variant="outline" size="sm" className="shrink-0 text-xs" asChild>
+            <Link href="/control-tower">Open Control Tower</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       {isLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -185,7 +99,7 @@ export default function OperationsDashboardPage() {
         </div>
       ) : (
         <>
-          {/* KPI Row */}
+          {/* KPI row 1 */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Open Cases"
@@ -217,6 +131,7 @@ export default function OperationsDashboardPage() {
             />
           </div>
 
+          {/* KPI row 2 */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Pending Contracts"
@@ -249,37 +164,8 @@ export default function OperationsDashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* AI Insights */}
+            {/* Left — execution visibility */}
             <div className="lg:col-span-2 space-y-4">
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-orange-500" />
-                <h2 className="font-bold text-base">AI Insights & Alerts</h2>
-              </div>
-              <div className="space-y-3">
-                {insights?.map((insight, i) => (
-                  <Card key={i} className={`border-l-4 ${insight.severity === "critical" ? "border-l-red-500" : insight.severity === "high" ? "border-l-orange-500" : insight.severity === "medium" ? "border-l-yellow-500" : "border-l-green-500"} shadow-sm`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <SeverityBadge severity={insight.severity} />
-                            <span className="font-semibold text-sm">{insight.title}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">{insight.description}</p>
-                        </div>
-                        <Link href={insight.actionUrl}>
-                          <Button size="sm" variant="outline" className="shrink-0 text-xs gap-1">
-                            {insight.actionLabel}
-                            <ArrowRight className="w-3 h-3" />
-                          </Button>
-                        </Link>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {/* HR Attendance Snapshot */}
               {hrStats && (
                 <Card className="shadow-sm">
                   <CardHeader className="pb-3">
@@ -313,11 +199,17 @@ export default function OperationsDashboardPage() {
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">Attendance Rate</span>
                       <span className="font-semibold">
-                        {hrStats.activeEmployees > 0 ? Math.round((hrStats.todayPresent / hrStats.activeEmployees) * 100) : 0}%
+                        {hrStats.activeEmployees > 0
+                          ? Math.round((hrStats.todayPresent / hrStats.activeEmployees) * 100)
+                          : 0}%
                       </span>
                     </div>
                     <Progress
-                      value={hrStats.activeEmployees > 0 ? Math.round((hrStats.todayPresent / hrStats.activeEmployees) * 100) : 0}
+                      value={
+                        hrStats.activeEmployees > 0
+                          ? Math.round((hrStats.todayPresent / hrStats.activeEmployees) * 100)
+                          : 0
+                      }
                       className="h-2"
                     />
                     {hrStats.kpiAvgPct > 0 && (
@@ -331,112 +223,11 @@ export default function OperationsDashboardPage() {
                   </CardContent>
                 </Card>
               )}
-
-              {/* Pending Leave Approvals */}
-              {(tasks?.pendingLeaveApprovals?.length ?? 0) > 0 && (
-                <Card className="shadow-sm border-purple-200">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-purple-700">
-                      <Calendar className="w-4 h-4" />
-                      Pending Leave Approvals ({tasks?.pendingLeaveApprovals.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="divide-y">
-                      {tasks?.pendingLeaveApprovals.slice(0, 4).map((req) => (
-                        <div key={req.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/30">
-                          <div>
-                            <p className="text-xs font-medium capitalize">{req.leaveType?.replace(/_/g, " ")} Leave</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {req.startDate ? format(new Date(req.startDate), "d MMM") : ""}
-                              {req.endDate ? ` – ${format(new Date(req.endDate), "d MMM yyyy")}` : ""}
-                            </p>
-                          </div>
-                          <Link href="/hr/leave">
-                            <Button size="sm" variant="outline" className="text-xs h-6 px-2">Review</Button>
-                          </Link>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="px-4 py-2">
-                      <Link href="/hr/leave">
-                        <Button variant="ghost" size="sm" className="w-full text-xs gap-1 text-purple-700">
-                          Manage All Leave <ChevronRight className="w-3 h-3" />
-                        </Button>
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Pending Payroll Approvals */}
-              {(tasks?.pendingPayrollApprovals?.length ?? 0) > 0 && (
-                <Card className="shadow-sm border-teal-200">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-teal-700">
-                      <Banknote className="w-4 h-4" />
-                      Payroll Awaiting Payment ({tasks?.pendingPayrollApprovals.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="divide-y">
-                      {tasks?.pendingPayrollApprovals.slice(0, 3).map((run) => (
-                        <div key={run.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/30">
-                          <div>
-                            <p className="text-xs font-medium">Payroll Run #{run.id}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {run.month && run.year ? `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][(run.month ?? 1) - 1]} ${run.year}` : ""}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs font-semibold text-teal-700">OMR {Number(run.totalNet ?? 0).toFixed(3)}</p>
-                            <Link href="/payroll">
-                              <Button size="sm" variant="outline" className="text-xs h-6 px-2 mt-1">Pay Now</Button>
-                            </Link>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Cases Due Today */}
-              {(tasks?.casesDue?.length ?? 0) > 0 && (
-                <Card className="shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <Timer className="w-4 h-4 text-red-500" />
-                      Cases Due Today ({tasks?.casesDue.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="divide-y">
-                      {tasks?.casesDue.slice(0, 6).map((c) => (
-                        <div key={c.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/30">
-                          <div>
-                            <p className="text-sm font-medium">{c.caseType?.replace(/_/g, " ").toUpperCase()}</p>
-                            <p className="text-xs text-muted-foreground">{c.governmentReference ?? `Case #${c.id}`}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={c.priority === "urgent" ? "destructive" : "secondary"} className="text-xs">
-                              {c.priority}
-                            </Badge>
-                            <Link href="/workforce/cases">
-                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                            </Link>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </div>
 
-            {/* Right Column */}
+            {/* Right column */}
             <div className="space-y-4">
-              {/* Officer Workload */}
+              {/* Officer workload */}
               <Card className="shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -450,12 +241,17 @@ export default function OperationsDashboardPage() {
                   ) : (
                     snapshot?.officerWorkload.slice(0, 5).map((officer) => {
                       const capacity = officer.capacity ?? 20;
-                      const pct = Math.min(100, Math.round((Number(officer.activeAssignments) / capacity) * 100));
+                      const pct = Math.min(
+                        100,
+                        Math.round((Number(officer.activeAssignments) / capacity) * 100),
+                      );
                       return (
                         <div key={officer.officerId}>
                           <div className="flex justify-between text-xs mb-1">
                             <span className="font-medium truncate">{officer.name}</span>
-                            <span className="text-muted-foreground">{officer.activeAssignments}/{capacity}</span>
+                            <span className="text-muted-foreground">
+                              {officer.activeAssignments}/{capacity}
+                            </span>
                           </div>
                           <Progress
                             value={pct}
@@ -473,50 +269,25 @@ export default function OperationsDashboardPage() {
                 </CardContent>
               </Card>
 
-              {/* Expiring Documents */}
-              {(snapshot?.expiringDocsList?.length ?? 0) > 0 && (
-                <Card className="shadow-sm border-orange-200">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-orange-700">
-                      <AlertTriangle className="w-4 h-4" />
-                      Expiring in 7 Days
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {snapshot?.expiringDocsList.slice(0, 4).map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between text-xs">
-                        <span className="font-medium truncate">{doc.permitNumber ?? `Permit #${doc.id}`}</span>
-                        <span className="text-orange-600 font-semibold">
-                          {doc.expiryDate ? formatDistanceToNow(new Date(doc.expiryDate), { addSuffix: true }) : "—"}
-                        </span>
-                      </div>
-                    ))}
-                    <Link href="/renewal-workflows">
-                      <Button variant="outline" size="sm" className="w-full text-xs mt-2 border-orange-300 text-orange-700 hover:bg-orange-50">
-                        Trigger Renewals
-                      </Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Quick Actions */}
+              {/* Source module navigation */}
               <Card className="shadow-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold">Quick Actions</CardTitle>
+                  <CardTitle className="text-sm font-bold">Go to source module</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  {[
-                    { label: "New Quotation", href: "/quotations", icon: FileText },
-                    { label: "New PRO request", href: "/pro", icon: Briefcase },
-                    { label: "Run Payroll", href: "/payroll", icon: BarChart3 },
-                    { label: isPlatform ? "SLA Breaches" : "Operations overview", href: isPlatform ? "/sla-management" : "/operations", icon: Shield },
-                    { label: "Compliance Check", href: "/compliance", icon: CheckCircle2 },
-                  ].map((action) => (
-                    <Link key={action.href} href={action.href}>
+                <CardContent className="space-y-1.5">
+                  {(
+                    [
+                      { label: "Engagements Ops", href: "/engagements/ops", icon: Briefcase },
+                      { label: "Tasks", href: "/operations/tasks", icon: CheckCircle2 },
+                      { label: "HR & Attendance", href: "/hr/attendance", icon: UserCheck },
+                      { label: "Payroll", href: "/payroll", icon: TrendingUp },
+                      { label: "Compliance Center", href: "/compliance", icon: Shield },
+                    ] as const
+                  ).map((link) => (
+                    <Link key={link.href} href={link.href}>
                       <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-xs">
-                        <action.icon className="w-3.5 h-3.5 text-orange-500" />
-                        {action.label}
+                        <link.icon className="w-3.5 h-3.5 text-orange-500" />
+                        {link.label}
                       </Button>
                     </Link>
                   ))}
@@ -525,7 +296,7 @@ export default function OperationsDashboardPage() {
             </div>
           </div>
 
-          {/* Recent Activity */}
+          {/* Recent activity */}
           {(snapshot?.recentActivity?.length ?? 0) > 0 && (
             <Card className="shadow-sm">
               <CardHeader className="pb-3">
@@ -546,7 +317,9 @@ export default function OperationsDashboardPage() {
                           {event.action?.replace(/_/g, " ")} · {event.entityType?.replace(/_/g, " ")} #{event.entityId}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {event.createdAt ? formatDistanceToNow(new Date(event.createdAt), { addSuffix: true }) : "—"}
+                          {event.createdAt
+                            ? formatDistanceToNow(new Date(event.createdAt), { addSuffix: true })
+                            : "—"}
                         </p>
                       </div>
                     </div>

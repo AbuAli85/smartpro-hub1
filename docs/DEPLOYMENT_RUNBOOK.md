@@ -1,8 +1,8 @@
 # SmartPRO Deployment Runbook
 
 **Target:** Docker Compose (MySQL 8.0 + Node 20 Alpine)  
-**Migration count:** 89 (0000–0088)  
-**Last migration:** `0088_control_tower_item_states_indexes` — adds production-safety indexes on `control_tower_item_states`
+**Migration count:** 90 (0000–0089); journal contains 49 entries  
+**Last migration:** `0089_fresh_deploy_indexes` — adds performance indexes for tables created via 0070 baseline recovery
 
 ---
 
@@ -104,19 +104,11 @@ pnpm db:migrate
 
 Script internals: `tsx scripts/migrate.ts` → `drizzle-orm/mysql2` `migrate()` → processes `drizzle/*.sql` files in sequence → records each tag in `__drizzle_migrations`.
 
-### 2c. REQUIRED on first deploy — apply bootstrap foreign keys and constraints
+### 2c. Fresh-database deployment (fully automated)
 
-The `drizzle/bootstrap/` directory contains two scripts that are **not** in the migration journal and are **not** applied by `pnpm db:migrate`. On a fresh database, these must be applied manually after `pnpm db:migrate` completes successfully:
+`pnpm db:migrate` handles fresh databases automatically. The migration runner detects an empty `__drizzle_migrations` table and applies the 0070 baseline recovery first, then applies all journal migrations in order. No manual bootstrap scripts are required.
 
-```sh
-# Foreign-key constraints (only apply once; will fail with duplicate-constraint error if re-run)
-mysql -h HOST -u USER -p DBNAME < drizzle/bootstrap/0070_constraints.sql
-
-# Secondary indexes (only apply once; will fail with duplicate-index error if re-run)
-mysql -h HOST -u USER -p DBNAME < drizzle/bootstrap/0070_indexes.sql
-```
-
-**Do not run bootstrap scripts on an existing database** that already has these constraints and indexes — they will fail. They are single-apply, fresh-database-only scripts. The journaled migration 0089 (`0089_fresh_deploy_indexes.sql`) provides an idempotent alternative for the key performance indexes using `CREATE INDEX IF NOT EXISTS`; run 0089 via `pnpm db:migrate` and skip the bootstrap index script if you want a fully automated path.
+The `drizzle/bootstrap/0070_constraints.sql` and `drizzle/bootstrap/0070_indexes.sql` scripts are legacy files for brownfield databases that pre-date the Drizzle journal. They are **not** needed when using the current `scripts/migrate.ts` runner.
 
 ### 2c. MySQL-specific considerations
 
@@ -225,7 +217,7 @@ mysql -h HOST -u USER -p DBNAME -e \
   "SELECT tag, applied_at FROM __drizzle_migrations ORDER BY id DESC LIMIT 5;"
 ```
 
-Expected: last row is `0088_control_tower_item_states_indexes`.
+Expected: last row is `0089_fresh_deploy_indexes`.
 
 ### 5c. Audit events table
 

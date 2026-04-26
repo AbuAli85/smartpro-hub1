@@ -7,9 +7,9 @@
 --   The audit_events indexes were never in the numbered migration chain at all
 --   (only in drizzle/bootstrap/0070_indexes.sql, which is manually applied).
 --
--- These CREATE INDEX IF NOT EXISTS statements are safe to run on both:
---   - Fresh databases: tables exist from 0070, no indexes yet → creates them.
---   - Existing databases: indexes already exist → no-op (MySQL 8.0.12+ required).
+-- Idempotency: the migration runner always treats ER_DUP_KEYNAME as a safe skip,
+-- so re-running on a database that already has these indexes is harmless.
+-- Note: CREATE INDEX IF NOT EXISTS is not supported in MySQL 8.4.
 --
 -- Covers:
 --   audit_events           (4 indexes — were in bootstrap only)
@@ -17,24 +17,24 @@
 --   attendance_invoices    (3 performance indexes — were inline in 0085 only)
 --   attendance_invoice_payment_records (2 performance indexes — were inline in 0087 Part B only)
 
-CREATE INDEX IF NOT EXISTS `idx_ae_company` ON `audit_events` (`companyId`);
+CREATE INDEX `idx_ae_company` ON `audit_events` (`companyId`);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_ae_entity` ON `audit_events` (`entityType`, `entityId`);
+CREATE INDEX `idx_ae_entity` ON `audit_events` (`entityType`, `entityId`);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_ae_actor` ON `audit_events` (`actorUserId`);
+CREATE INDEX `idx_ae_actor` ON `audit_events` (`actorUserId`);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_ae_action` ON `audit_events` (`action`);
+CREATE INDEX `idx_ae_action` ON `audit_events` (`action`);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_abc_company` ON `attendance_billing_candidates` (`company_id`);
+CREATE INDEX `idx_abc_company` ON `attendance_billing_candidates` (`company_id`);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_abc_status` ON `attendance_billing_candidates` (`company_id`, `status`);
+CREATE INDEX `idx_abc_status` ON `attendance_billing_candidates` (`company_id`, `status`);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_ai_company` ON `attendance_invoices` (`company_id`);
+CREATE INDEX `idx_ai_company` ON `attendance_invoices` (`company_id`);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_ai_status` ON `attendance_invoices` (`company_id`, `status`);
+CREATE INDEX `idx_ai_status` ON `attendance_invoices` (`company_id`, `status`);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_ai_client` ON `attendance_invoices` (`company_id`, `client_company_id`);
+CREATE INDEX `idx_ai_client` ON `attendance_invoices` (`company_id`, `client_company_id`);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_aipr_invoice` ON `attendance_invoice_payment_records` (`attendance_invoice_id`);
+CREATE INDEX `idx_aipr_invoice` ON `attendance_invoice_payment_records` (`attendance_invoice_id`);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_aipr_company` ON `attendance_invoice_payment_records` (`company_id`);
+CREATE INDEX `idx_aipr_company` ON `attendance_invoice_payment_records` (`company_id`);

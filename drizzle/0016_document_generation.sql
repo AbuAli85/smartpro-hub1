@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS `document_template_placeholders` (
   `created_at` timestamp DEFAULT (now()) NOT NULL,
   INDEX `idx_dtp_template` (`template_id`),
   UNIQUE `uq_dtp_template_placeholder` (`template_id`, `placeholder`),
-  CONSTRAINT `document_template_placeholders_template_id_document_templates_id_fk`
+  CONSTRAINT `fk_dtp_tmpl_document_templates`
     FOREIGN KEY (`template_id`) REFERENCES `document_templates`(`id`) ON DELETE CASCADE
 );
 

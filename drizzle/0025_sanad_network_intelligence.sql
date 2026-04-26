@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS `sanad_intel_governorate_year_metrics` (
   CONSTRAINT `uq_sanad_intel_gov_year` UNIQUE(`year`,`governorate_key`),
   KEY `idx_sanad_intel_gov_year_y` (`year`),
   KEY `idx_sanad_intel_gov_year_k` (`governorate_key`),
-  CONSTRAINT `sanad_intel_governorate_year_metrics_import_batch_id_sanad_intel_import_batches_id_fk` FOREIGN KEY (`import_batch_id`) REFERENCES `sanad_intel_import_batches`(`id`) ON DELETE no action ON UPDATE no action
+  CONSTRAINT `fk_si_gym_import_batch` FOREIGN KEY (`import_batch_id`) REFERENCES `sanad_intel_import_batches`(`id`) ON DELETE no action ON UPDATE no action
 );
 
 CREATE TABLE IF NOT EXISTS `sanad_intel_workforce_governorate` (
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS `sanad_intel_workforce_governorate` (
   CONSTRAINT `sanad_intel_workforce_governorate_id` PRIMARY KEY(`id`),
   CONSTRAINT `uq_sanad_intel_workforce_gov` UNIQUE(`governorate_key`),
   KEY `idx_sanad_intel_wf_k` (`governorate_key`),
-  CONSTRAINT `sanad_intel_workforce_governorate_import_batch_id_sanad_intel_import_batches_id_fk` FOREIGN KEY (`import_batch_id`) REFERENCES `sanad_intel_import_batches`(`id`) ON DELETE no action ON UPDATE no action
+  CONSTRAINT `fk_si_wg_import_batch` FOREIGN KEY (`import_batch_id`) REFERENCES `sanad_intel_import_batches`(`id`) ON DELETE no action ON UPDATE no action
 );
 
 CREATE TABLE IF NOT EXISTS `sanad_intel_geography_stats` (
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS `sanad_intel_geography_stats` (
   CONSTRAINT `sanad_intel_geography_stats_id` PRIMARY KEY(`id`),
   CONSTRAINT `uq_sanad_intel_geo` UNIQUE(`governorate_key`,`wilayat`,`village`),
   KEY `idx_sanad_intel_geo_gov` (`governorate_key`),
-  CONSTRAINT `sanad_intel_geography_stats_import_batch_id_sanad_intel_import_batches_id_fk` FOREIGN KEY (`import_batch_id`) REFERENCES `sanad_intel_import_batches`(`id`) ON DELETE no action ON UPDATE no action
+  CONSTRAINT `fk_si_geo_import_batch` FOREIGN KEY (`import_batch_id`) REFERENCES `sanad_intel_import_batches`(`id`) ON DELETE no action ON UPDATE no action
 );
 
 CREATE TABLE IF NOT EXISTS `sanad_intel_service_usage_year` (
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS `sanad_intel_service_usage_year` (
   CONSTRAINT `sanad_intel_service_usage_year_id` PRIMARY KEY(`id`),
   CONSTRAINT `uq_sanad_intel_svc_year_rank` UNIQUE(`year`,`rank_order`),
   KEY `idx_sanad_intel_svc_year` (`year`),
-  CONSTRAINT `sanad_intel_service_usage_year_import_batch_id_sanad_intel_import_batches_id_fk` FOREIGN KEY (`import_batch_id`) REFERENCES `sanad_intel_import_batches`(`id`) ON DELETE no action ON UPDATE no action
+  CONSTRAINT `fk_si_suy_import_batch` FOREIGN KEY (`import_batch_id`) REFERENCES `sanad_intel_import_batches`(`id`) ON DELETE no action ON UPDATE no action
 );
 
 CREATE TABLE IF NOT EXISTS `sanad_intel_centers` (
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS `sanad_intel_centers` (
   CONSTRAINT `sanad_intel_centers_source_fingerprint_unique` UNIQUE(`source_fingerprint`),
   KEY `idx_sanad_intel_centers_gov` (`governorate_key`),
   KEY `idx_sanad_intel_centers_name` (`center_name`),
-  CONSTRAINT `sanad_intel_centers_import_batch_id_sanad_intel_import_batches_id_fk` FOREIGN KEY (`import_batch_id`) REFERENCES `sanad_intel_import_batches`(`id`) ON DELETE no action ON UPDATE no action
+  CONSTRAINT `fk_si_centers_import_batch` FOREIGN KEY (`import_batch_id`) REFERENCES `sanad_intel_import_batches`(`id`) ON DELETE no action ON UPDATE no action
 );
 
 CREATE TABLE IF NOT EXISTS `sanad_intel_center_operations` (
@@ -116,8 +116,8 @@ CREATE TABLE IF NOT EXISTS `sanad_intel_center_operations` (
   CONSTRAINT `sanad_intel_center_operations_center_id` PRIMARY KEY(`center_id`),
   KEY `idx_sanad_intel_ops_partner` (`partner_status`),
   KEY `idx_sanad_intel_ops_onb` (`onboarding_status`),
-  CONSTRAINT `sanad_intel_center_operations_center_id_sanad_intel_centers_id_fk` FOREIGN KEY (`center_id`) REFERENCES `sanad_intel_centers`(`id`) ON DELETE cascade ON UPDATE no action,
-  CONSTRAINT `sanad_intel_center_operations_assigned_manager_user_id_users_id_fk` FOREIGN KEY (`assigned_manager_user_id`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action
+  CONSTRAINT `fk_si_co_center_id` FOREIGN KEY (`center_id`) REFERENCES `sanad_intel_centers`(`id`) ON DELETE cascade ON UPDATE no action,
+  CONSTRAINT `fk_si_co_mgr_user_id` FOREIGN KEY (`assigned_manager_user_id`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action
 );
 
 CREATE TABLE IF NOT EXISTS `sanad_intel_license_requirements` (
@@ -148,9 +148,9 @@ CREATE TABLE IF NOT EXISTS `sanad_intel_center_compliance_items` (
   CONSTRAINT `sanad_intel_center_compliance_items_id` PRIMARY KEY(`id`),
   CONSTRAINT `uq_sanad_intel_cc_center_req` UNIQUE(`center_id`,`requirement_id`),
   KEY `idx_sanad_intel_cc_center` (`center_id`),
-  CONSTRAINT `sanad_intel_center_compliance_items_center_id_sanad_intel_centers_id_fk` FOREIGN KEY (`center_id`) REFERENCES `sanad_intel_centers`(`id`) ON DELETE cascade ON UPDATE no action,
-  CONSTRAINT `sanad_intel_center_compliance_items_requirement_id_sanad_intel_license_requirements_id_fk` FOREIGN KEY (`requirement_id`) REFERENCES `sanad_intel_license_requirements`(`id`) ON DELETE cascade ON UPDATE no action,
-  CONSTRAINT `sanad_intel_center_compliance_items_reviewed_by_user_id_users_id_fk` FOREIGN KEY (`reviewed_by_user_id`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action
+  CONSTRAINT `fk_si_cci_center_id` FOREIGN KEY (`center_id`) REFERENCES `sanad_intel_centers`(`id`) ON DELETE cascade ON UPDATE no action,
+  CONSTRAINT `fk_si_cci_req_id` FOREIGN KEY (`requirement_id`) REFERENCES `sanad_intel_license_requirements`(`id`) ON DELETE cascade ON UPDATE no action,
+  CONSTRAINT `fk_si_cci_reviewer_id` FOREIGN KEY (`reviewed_by_user_id`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action
 );
 
 CREATE TABLE IF NOT EXISTS `sanad_intel_center_metrics_yearly` (
@@ -163,5 +163,5 @@ CREATE TABLE IF NOT EXISTS `sanad_intel_center_metrics_yearly` (
   `created_at` timestamp NOT NULL DEFAULT (now()),
   CONSTRAINT `sanad_intel_center_metrics_yearly_id` PRIMARY KEY(`id`),
   CONSTRAINT `uq_sanad_intel_cm_center_year` UNIQUE(`center_id`,`year`),
-  CONSTRAINT `sanad_intel_center_metrics_yearly_center_id_sanad_intel_centers_id_fk` FOREIGN KEY (`center_id`) REFERENCES `sanad_intel_centers`(`id`) ON DELETE cascade ON UPDATE no action
+  CONSTRAINT `fk_si_cmy_center_id` FOREIGN KEY (`center_id`) REFERENCES `sanad_intel_centers`(`id`) ON DELETE cascade ON UPDATE no action
 );

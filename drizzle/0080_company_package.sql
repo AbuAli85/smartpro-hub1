@@ -4,5 +4,4 @@
 -- null = legacy company — treat as enterprise semantics (no module gating).
 
 ALTER TABLE `companies`
-  ADD COLUMN `package` ENUM('starter','professional','business','enterprise') NULL
-  AFTER `enabledModules`;
+  ADD COLUMN `package` ENUM('starter','professional','business','enterprise') NULL;

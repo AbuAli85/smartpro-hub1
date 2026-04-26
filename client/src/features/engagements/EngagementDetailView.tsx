@@ -232,7 +232,7 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-semibold">{clientMode ? "Timeline" : t("activity")}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2 max-h-64 overflow-y-auto">
+      <CardContent className="space-y-2 max-h-64 overflow-y-auto scrollbar-hidden">
         {detail.data.activity.length === 0 ? (
           <p className="text-xs text-muted-foreground">{t("none")}</p>
         ) : (
@@ -358,7 +358,7 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
         <CardTitle className="text-sm font-semibold">{t("messages")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-hidden pr-1">
           {detail.data.messages.length === 0 ? (
             <p className="text-xs text-muted-foreground">{t("noMessages")}</p>
           ) : (
@@ -630,7 +630,7 @@ export function EngagementDetailView({ engagementId, listPath, clientMode }: Eng
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-semibold">{t("activity")}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2 max-h-64 overflow-y-auto">
+      <CardContent className="space-y-2 max-h-64 overflow-y-auto scrollbar-hidden">
         {detail.data.activity.length === 0 ? (
           <p className="text-xs text-muted-foreground">{t("none")}</p>
         ) : (

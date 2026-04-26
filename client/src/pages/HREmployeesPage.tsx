@@ -303,7 +303,7 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+        <div className="flex-1 overflow-y-auto scrollbar-hidden space-y-4 pr-1">
           {/* Step 1: Personal Info */}
           {step === 1 && (
             <>
@@ -717,7 +717,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <div className="flex-1 overflow-y-auto scrollbar-hidden p-4 space-y-5">
         {/* Quick Actions */}
         {emp.status === "active" && (
           <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl">
@@ -1071,7 +1071,7 @@ export default function HREmployeesPage() {
 
   return (
     <div className="flex h-full" dir="ltr">
-      <div className={`flex-1 p-6 space-y-6 overflow-y-auto transition-all ${selectedId ? "max-w-[calc(100%-400px)]" : ""}`} dir={i18n.dir()}>
+      <div className={`flex-1 p-6 space-y-6 overflow-y-auto scrollbar-hidden transition-all ${selectedId ? "max-w-[calc(100%-400px)]" : ""}`} dir={i18n.dir()}>
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
@@ -1297,7 +1297,7 @@ export default function HREmployeesPage() {
             )}
             {/* Table */}
             <Card>
-              <div className="overflow-x-auto" dir={i18n.dir()}>
+              <div className="overflow-x-auto scrollbar-hidden" dir={i18n.dir()}>
                 <table
                   className="hr-employees-table w-full text-sm border-collapse"
                   dir={i18n.dir()}

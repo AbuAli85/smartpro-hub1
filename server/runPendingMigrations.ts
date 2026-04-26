@@ -20,6 +20,11 @@ export function getMigrationError(): Error | null {
   return _lastMigrationError;
 }
 
+/** Resets migration error state. Only for use in tests. */
+export function _resetMigrationErrorForTesting(): void {
+  _lastMigrationError = null;
+}
+
 interface ColumnMigration {
   table: string;
   column: string;

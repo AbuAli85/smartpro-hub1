@@ -60,11 +60,23 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // ── Health check (plain HTTP — suitable for load balancers and k8s probes) ──
+  // ── Health checks ────────────────────────────────────────────────────────────
+  // Liveness: is the process alive? Always 200 — used by k8s to decide restarts.
   app.get("/health", (_req, res) => {
-    const migrationError = getMigrationError();
-    res.status(200).json({ ok: true, ts: Date.now(), migrationError: migrationError?.message ?? null });
+    res.status(200).json({ ok: true, ts: Date.now() });
   });
+  // Readiness: can the pod serve requests? 503 when startup migrations failed so
+  // the load balancer stops sending traffic and the deploy rollback triggers.
+  app.get("/health/ready", (_req, res) => {
+    const migrationError = getMigrationError();
+    if (migrationError) {
+      res.status(503).json({ ok: false, migrationError: migrationError.message });
+    } else {
+      res.status(200).json({ ok: true });
+    }
+  });
+  // Legacy alias — always 200 with diagnostic body for monitoring dashboards that
+  // parse the JSON rather than relying solely on the status code.
   app.get("/api/health", (_req, res) => {
     const migrationError = getMigrationError();
     res.status(200).json({ ok: true, ts: Date.now(), migrationError: migrationError?.message ?? null });

@@ -551,7 +551,12 @@ export const crmRouter = router({
   listDealsWithLifecycle: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      let companyId: number;
+      try {
+        companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      } catch {
+        return [];
+      }
       const db = await getDb();
       if (!db) return [];
       const deals = await db

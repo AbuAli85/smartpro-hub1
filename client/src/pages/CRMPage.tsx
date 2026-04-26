@@ -94,7 +94,7 @@ function NewContactDialog({ onSuccess, companyId }: { onSuccess: () => void; com
             <Select value={form.clientCompanyId} onValueChange={(v) => setForm({ ...form, clientCompanyId: v })}>
               <SelectTrigger><SelectValue placeholder="Select company…" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">— No company —</SelectItem>
+                <SelectItem value="__none__">— No company —</SelectItem>
                 {clientCompanies.map((cc) => (
                   <SelectItem key={cc.id} value={String(cc.id)}>{cc.name}</SelectItem>
                 ))}
@@ -108,7 +108,7 @@ function NewContactDialog({ onSuccess, companyId }: { onSuccess: () => void; com
               <Select value={form.roleType} onValueChange={(v) => setForm({ ...form, roleType: v })}>
                 <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— None —</SelectItem>
+                  <SelectItem value="__none__">— None —</SelectItem>
                   <SelectItem value="decision_maker">Decision Maker</SelectItem>
                   <SelectItem value="influencer">Influencer</SelectItem>
                   <SelectItem value="finance">Finance</SelectItem>
@@ -141,9 +141,9 @@ function NewContactDialog({ onSuccess, companyId }: { onSuccess: () => void; com
                 lastName: form.lastName || "",
                 email: form.email || undefined,
                 phone: form.phone || undefined,
-                clientCompanyId: form.clientCompanyId ? Number(form.clientCompanyId) : undefined,
+                clientCompanyId: (form.clientCompanyId && form.clientCompanyId !== "__none__") ? Number(form.clientCompanyId) : undefined,
                 position: form.position || undefined,
-                roleType: form.roleType as any || undefined,
+                roleType: (form.roleType && form.roleType !== "__none__") ? form.roleType as any : undefined,
                 status: form.status as any,
                 notes: form.notes || undefined,
               });
@@ -199,7 +199,7 @@ function NewDealDialog({ onSuccess, companyId }: { onSuccess: () => void; compan
             <Select value={form.clientCompanyId} onValueChange={(v) => setForm({ ...form, clientCompanyId: v })}>
               <SelectTrigger><SelectValue placeholder="Select company…" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">— None —</SelectItem>
+                <SelectItem value="__none__">— None —</SelectItem>
                 {clientCompanies.map((cc) => (
                   <SelectItem key={cc.id} value={String(cc.id)}>{cc.name}</SelectItem>
                 ))}
@@ -213,7 +213,7 @@ function NewDealDialog({ onSuccess, companyId }: { onSuccess: () => void; compan
               <Select value={form.serviceType} onValueChange={(v) => setForm({ ...form, serviceType: v })}>
                 <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— None —</SelectItem>
+                  <SelectItem value="__none__">— None —</SelectItem>
                   <SelectItem value="manpower">Manpower</SelectItem>
                   <SelectItem value="promoter">Promoter</SelectItem>
                   <SelectItem value="pro_service">PRO Service</SelectItem>
@@ -254,8 +254,8 @@ function NewDealDialog({ onSuccess, companyId }: { onSuccess: () => void; compan
               createMutation.mutate({
                 companyId,
                 title: form.title,
-                clientCompanyId: form.clientCompanyId ? Number(form.clientCompanyId) : undefined,
-                serviceType: form.serviceType as any || undefined,
+                clientCompanyId: (form.clientCompanyId && form.clientCompanyId !== "__none__") ? Number(form.clientCompanyId) : undefined,
+                serviceType: (form.serviceType && form.serviceType !== "__none__") ? form.serviceType as any : undefined,
                 value: form.value ? Number(form.value) : undefined,
                 currency: form.currency,
                 stage: form.stage as any,

@@ -6,6 +6,63 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.stubGlobal("React", React);
 
+/** English translations mirror for the "operations" namespace.  Keeps test
+ *  assertions on readable strings rather than raw translation keys. */
+const EN: Record<string, string> = {
+  "overview.title": "Operations Overview",
+  "overview.subtitle":
+    "Track delivery health, workload, and execution performance. Critical actions are managed in Control Tower.",
+  "overview.refresh": "Refresh",
+  "ctCard.heading": "Need to act on blockers?",
+  "ctCard.body":
+    "Live priority signals, pending approvals, and compliance alerts are managed in Control Tower.",
+  "ctCard.cta": "Open Control Tower",
+  "kpi.openCases": "Open Cases",
+  "kpi.openCasesSub": "{{count}} due today",
+  "kpi.slaBreaches": "SLA Breaches",
+  "kpi.slaBreachesSub": "Require immediate action",
+  "kpi.revenueMtd": "Revenue MTD",
+  "kpi.revenueMtdSub": "Month to date, paid",
+  "kpi.expiringDocs": "Expiring Docs",
+  "kpi.expiringDocsSub": "Within 7 days",
+  "kpi.pendingContracts": "Pending Contracts",
+  "kpi.pendingContractsSub": "Awaiting signature",
+  "kpi.leaveRequests": "Leave Requests",
+  "kpi.leaveRequestsSub": "Pending approval",
+  "kpi.activeWorkflows": "Active Workflows",
+  "kpi.activeWorkflowsSub": "Renewal workflows",
+  "kpi.draftQuotations": "Draft Quotations",
+  "kpi.draftQuotationsSub": "Not yet sent",
+  "workforce.title": "Today's Workforce Status",
+  "workforce.viewAll": "View All",
+  "workforce.present": "Present",
+  "workforce.absent": "Absent",
+  "workforce.onLeave": "On Leave",
+  "workforce.attendanceRate": "Attendance Rate",
+  "workforce.kpiAverage": "KPI Average",
+  "officers.title": "Officer Workload",
+  "officers.empty": "No officers assigned",
+  "officers.manage": "Manage Officers",
+  "modules.title": "Go to source module",
+  "modules.engagementsOps": "Engagements Ops",
+  "modules.tasks": "Tasks",
+  "modules.hrAttendance": "HR & Attendance",
+  "modules.payroll": "Payroll",
+  "modules.compliance": "Compliance Center",
+  "activity.title": "Recent Activity",
+};
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, opts?: Record<string, unknown>) => {
+      const raw = EN[key] ?? key;
+      if (!opts) return raw;
+      return raw.replace(/\{\{(\w+)\}\}/g, (_, v) => String(opts[v] ?? `{{${v}}}`));
+    },
+    i18n: { language: "en-OM" },
+  }),
+}));
+
 vi.mock("@/contexts/ActiveCompanyContext", () => ({
   useActiveCompany: () => ({
     activeCompanyId: 1,

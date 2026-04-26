@@ -1,27 +1,55 @@
 {
-  "commandCentre": {
-    "title": "Operations Command Centre",
-    "subtitle": "SmartPRO Business Services Hub",
+  "overview": {
+    "title": "Operations Overview",
+    "subtitle": "Track delivery health, workload, and execution performance. Critical actions are managed in Control Tower.",
     "refresh": "Refresh"
   },
-  "insights": {
-    "permitsExpiring": "{{count}} work permit(s) expiring in 14 days",
-    "permitsExpiringDesc": "Start renewal process now to avoid fines and employee disruption. MOL processing takes 3-5 business days.",
-    "renewalWorkflows": "Renewal workflows",
-    "viewPermits": "View permits",
-    "slaBreaches": "{{count}} case(s) breaching SLA",
-    "slaBreachesDesc": "These cases have exceeded their target resolution time. Immediate attention required to maintain client satisfaction.",
-    "viewBreaches": "View breaches",
-    "operationsCentre": "Operations overview",
-    "overdueInvoices": "OMR {{total}} overdue from {{count}} invoice(s)",
-    "overdueInvoicesDesc": "Follow up with clients on overdue payments to maintain healthy cash flow.",
-    "billingEngine": "Billing engine",
-    "viewInvoices": "View invoices",
-    "contractsAwaitingSignature": "{{count}} contract(s) awaiting signature",
-    "contractsAwaitingSignatureDesc": "Pending signatures delay service commencement. Send reminders to signers.",
-    "viewContracts": "View Contracts",
-    "allSystemsOperational": "All systems operational",
-    "allSystemsOperationalDesc": "No critical alerts at this time. Your operations are running smoothly.",
-    "viewAnalytics": "View Analytics"
+  "ctCard": {
+    "heading": "Need to act on blockers?",
+    "body": "Live priority signals, pending approvals, and compliance alerts are managed in Control Tower.",
+    "cta": "Open Control Tower"
+  },
+  "kpi": {
+    "openCases": "Open Cases",
+    "openCasesSub": "{{count}} due today",
+    "slaBreaches": "SLA Breaches",
+    "slaBreachesSub": "Require immediate action",
+    "revenueMtd": "Revenue MTD",
+    "revenueMtdSub": "Month to date, paid",
+    "expiringDocs": "Expiring Docs",
+    "expiringDocsSub": "Within 7 days",
+    "pendingContracts": "Pending Contracts",
+    "pendingContractsSub": "Awaiting signature",
+    "leaveRequests": "Leave Requests",
+    "leaveRequestsSub": "Pending approval",
+    "activeWorkflows": "Active Workflows",
+    "activeWorkflowsSub": "Renewal workflows",
+    "draftQuotations": "Draft Quotations",
+    "draftQuotationsSub": "Not yet sent"
+  },
+  "workforce": {
+    "title": "Today's Workforce Status",
+    "viewAll": "View All",
+    "present": "Present",
+    "absent": "Absent",
+    "onLeave": "On Leave",
+    "attendanceRate": "Attendance Rate",
+    "kpiAverage": "KPI Average"
+  },
+  "officers": {
+    "title": "Officer Workload",
+    "empty": "No officers assigned",
+    "manage": "Manage Officers"
+  },
+  "modules": {
+    "title": "Go to source module",
+    "engagementsOps": "Engagements Ops",
+    "tasks": "Tasks",
+    "hrAttendance": "HR & Attendance",
+    "payroll": "Payroll",
+    "compliance": "Compliance Center"
+  },
+  "activity": {
+    "title": "Recent Activity"
   }
 }

@@ -1,27 +1,55 @@
 {
-  "commandCentre": {
-    "title": "مركز العمليات",
-    "subtitle": "مركز خدمات الأعمال سمارت برو",
+  "overview": {
+    "title": "نظرة عامة على العمليات",
+    "subtitle": "تابع صحة التنفيذ، وتوزيع عبء العمل، وأداء العمليات. تتم إدارة الإجراءات الحرجة من خلال برج التحكم.",
     "refresh": "تحديث"
   },
-  "insights": {
-    "permitsExpiring": "{{count}} تصريح عمل تنتهي صلاحيته خلال 14 يوماً",
-    "permitsExpiringDesc": "ابدأ عملية التجديد الآن لتجنب الغرامات واضطراب الموظفين. تستغرق معالجة وزارة العمل 3-5 أيام عمل.",
-    "renewalWorkflows": "سير عمل التجديد",
-    "viewPermits": "عرض التصاريح",
-    "slaBreaches": "{{count}} حالة تتجاوز مستوى الخدمة",
-    "slaBreachesDesc": "تجاوزت هذه الحالات وقت الحل المستهدف. يلزم الاهتمام الفوري للحفاظ على رضا العملاء.",
-    "viewBreaches": "عرض التجاوزات",
-    "operationsCentre": "نظرة العمليات",
-    "overdueInvoices": "OMR {{total}} متأخر من {{count}} فاتورة",
-    "overdueInvoicesDesc": "تابع مع العملاء بشأن المدفوعات المتأخرة للحفاظ على تدفق نقدي صحي.",
-    "billingEngine": "محرك الفواتير",
-    "viewInvoices": "عرض الفواتير",
-    "contractsAwaitingSignature": "{{count}} عقد في انتظار التوقيع",
-    "contractsAwaitingSignatureDesc": "التوقيعات المعلقة تؤخر بدء الخدمة. أرسل تذكيرات للموقعين.",
-    "viewContracts": "عرض العقود",
-    "allSystemsOperational": "جميع الأنظمة تعمل بشكل طبيعي",
-    "allSystemsOperationalDesc": "لا توجد تنبيهات حرجة في الوقت الحالي. عملياتك تسير بسلاسة.",
-    "viewAnalytics": "عرض التحليلات"
+  "ctCard": {
+    "heading": "هل تحتاج إلى التعامل مع العوائق؟",
+    "body": "تتم إدارة إشارات الأولوية الحية والموافقات المعلقة وتنبيهات الامتثال من خلال برج التحكم.",
+    "cta": "فتح برج التحكم"
+  },
+  "kpi": {
+    "openCases": "الحالات المفتوحة",
+    "openCasesSub": "{{count}} مستحقة اليوم",
+    "slaBreaches": "تجاوزات مستوى الخدمة",
+    "slaBreachesSub": "تتطلب إجراءً فورياً",
+    "revenueMtd": "الإيرادات منذ بداية الشهر",
+    "revenueMtdSub": "منذ بداية الشهر، مدفوع",
+    "expiringDocs": "الوثائق المنتهية الصلاحية",
+    "expiringDocsSub": "خلال 7 أيام",
+    "pendingContracts": "العقود المعلقة",
+    "pendingContractsSub": "في انتظار التوقيع",
+    "leaveRequests": "طلبات الإجازة",
+    "leaveRequestsSub": "في انتظار الموافقة",
+    "activeWorkflows": "سير العمل النشطة",
+    "activeWorkflowsSub": "سير عمل التجديد",
+    "draftQuotations": "عروض الأسعار المسودة",
+    "draftQuotationsSub": "لم يتم الإرسال بعد"
+  },
+  "workforce": {
+    "title": "حالة القوى العاملة اليوم",
+    "viewAll": "عرض الكل",
+    "present": "حاضر",
+    "absent": "غائب",
+    "onLeave": "في إجازة",
+    "attendanceRate": "معدل الحضور",
+    "kpiAverage": "متوسط مؤشر الأداء"
+  },
+  "officers": {
+    "title": "عبء عمل الضباط",
+    "empty": "لا يوجد ضباط معيّنون",
+    "manage": "إدارة الضباط"
+  },
+  "modules": {
+    "title": "الانتقال إلى الوحدة المختصة",
+    "engagementsOps": "عمليات المشاركات",
+    "tasks": "المهام",
+    "hrAttendance": "الموارد البشرية والحضور",
+    "payroll": "الرواتب",
+    "compliance": "مركز الامتثال"
+  },
+  "activity": {
+    "title": "النشاط الأخير"
   }
 }

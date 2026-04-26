@@ -13,7 +13,7 @@ import { attachEscalationToQueueItems } from "@/features/controlTower/escalation
 import { buildActionQueueFromSources } from "@/features/controlTower/actionQueuePipeline";
 import type { RawDecisionRow, RawRoleQueueRow } from "@/features/controlTower/actionQueuePipeline";
 import { prioritizeActionQueueForRole } from "@/features/controlTower/actionQueueRolePrioritize";
-import { computeActionQueueStatus } from "@/features/controlTower/actionQueueComputeStatus";
+import { computeActionQueueStatus, computeQueueScopeEnabled } from "@/features/controlTower/actionQueueComputeStatus";
 
 type RoleQueueItem = RouterOutputs["operations"]["getRoleActionQueue"][number];
 type OwnerPulse = NonNullable<RouterOutputs["operations"]["getOwnerBusinessPulse"]>;
@@ -92,10 +92,10 @@ export function useActionQueue(options: UseActionQueueOptions = {}): ActionQueue
     return "admin";
   }, [activeCompany?.role, myCaps.canRunPayroll, myCaps.canApprovePayroll, myCaps.canApproveAttendance]);
 
-  const scopeEnabled = hookEnabled && activeCompanyId != null && !platformOp;
+  const scopeEnabled = computeQueueScopeEnabled(hookEnabled, activeCompanyId);
 
   const rq = trpc.operations.getRoleActionQueue.useQuery(
-    { companyId: activeCompanyId ?? 0, roleView },
+    { companyId: activeCompanyId ?? undefined, roleView },
     {
       enabled: scopeEnabled,
       staleTime: 60_000,

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { Router } from "wouter";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,7 +15,7 @@ import type { ActionQueueResult } from "@/hooks/useActionQueue";
 /** Fixed "now" so aging/stale signals stay stable for decision prompts. */
 const FIXED_NOW = new Date("2026-04-09T12:00:00.000Z");
 
-const { trpcQuery, engagementOpsSummaryInvalidate, mockCtSummary } = vi.hoisted(() => {
+const { trpcQuery, engagementOpsSummaryInvalidate, mockCtSummary, mockMyAccess } = vi.hoisted(() => {
   const engagementOpsSummaryInvalidate = vi.fn();
   const mockCtSummary = vi.fn().mockReturnValue({
     data: {
@@ -23,6 +23,20 @@ const { trpcQuery, engagementOpsSummaryInvalidate, mockCtSummary } = vi.hoisted(
       bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
       byDomain: {},
       visibleDomains: [],
+    },
+    isLoading: false,
+    isError: false,
+    dataUpdatedAt: Date.now(),
+  });
+  const mockMyAccess = vi.fn().mockReturnValue({
+    data: {
+      access: true,
+      isPlatformOp: false,
+      scopeType: "company" as const,
+      isReadOnly: false,
+      allowedActions: ["view_detail", "acknowledge", "open_related", "resolve", "dismiss"],
+      visibleDomains: ["hr", "finance", "compliance", "operations"],
+      companyId: 4242,
     },
     isLoading: false,
     isError: false,
@@ -37,6 +51,7 @@ const { trpcQuery, engagementOpsSummaryInvalidate, mockCtSummary } = vi.hoisted(
     }),
     engagementOpsSummaryInvalidate,
     mockCtSummary,
+    mockMyAccess,
   };
 });
 
@@ -114,6 +129,9 @@ vi.mock("@/lib/trpc", () => ({
       },
     }),
     controlTower: {
+      myAccess: {
+        useQuery: mockMyAccess,
+      },
       summary: {
         useQuery: mockCtSummary,
       },
@@ -256,6 +274,20 @@ beforeEach(() => {
     isError: false,
     dataUpdatedAt: Date.now(),
   });
+  mockMyAccess.mockReturnValue({
+    data: {
+      access: true,
+      isPlatformOp: false,
+      scopeType: "company" as const,
+      isReadOnly: false,
+      allowedActions: ["view_detail", "acknowledge", "open_related", "resolve", "dismiss"],
+      visibleDomains: ["hr", "finance", "compliance", "operations"],
+      companyId: 4242,
+    },
+    isLoading: false,
+    isError: false,
+    dataUpdatedAt: Date.now(),
+  });
 });
 
 afterEach(() => {
@@ -379,5 +411,103 @@ describe("ControlTowerPage integration (composition)", () => {
     assertFollowing(commitments, review);
     assertFollowing(review, priorities);
     assertFollowing(priorities, queue);
+  });
+});
+
+describe("ControlTowerPage — Risk Strip reflects open signals", () => {
+  it("1 medium open signal → Upcoming card shows 1 (not 0)", () => {
+    mockCtSummary.mockReturnValue({
+      data: {
+        totalOpen: 1,
+        bySeverity: { critical: 0, high: 0, medium: 1, low: 0 },
+        byDomain: { payroll: 1 },
+        visibleDomains: ["payroll"],
+      },
+      isLoading: false,
+      isError: false,
+      dataUpdatedAt: Date.now(),
+    });
+    renderControlTowerPage();
+
+    const strip = screen.getByRole("region", { name: "Risk indicators" });
+    // The Upcoming card renders the count "1"
+    const upcomingLabel = within(strip).getByText(/upcoming/i);
+    const upcomingCard = upcomingLabel.closest("[data-testid]") ?? upcomingLabel.closest(".shadow-sm");
+    // Count "1" should appear somewhere in the strip
+    expect(within(strip).getByText("1")).toBeInTheDocument();
+  });
+
+  it("zero open signals + zero compliance → all three cards show 0", () => {
+    mockCtSummary.mockReturnValue({
+      data: {
+        totalOpen: 0,
+        bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
+        byDomain: {},
+        visibleDomains: [],
+      },
+      isLoading: false,
+      isError: false,
+      dataUpdatedAt: Date.now(),
+    });
+    renderControlTowerPage();
+
+    const strip = screen.getByRole("region", { name: "Risk indicators" });
+    const zeros = within(strip).getAllByText("0");
+    expect(zeros.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("ControlTowerPage — subtitle from myAccess.scopeType", () => {
+  function setMyAccess(scopeType: "company" | "department" | "team" | "self", isReadOnly = false) {
+    mockMyAccess.mockReturnValue({
+      data: {
+        access: true,
+        isPlatformOp: false,
+        scopeType,
+        isReadOnly,
+        allowedActions: isReadOnly ? ["view_detail", "open_related"] : ["view_detail", "acknowledge", "open_related", "resolve", "dismiss"],
+        visibleDomains: ["hr", "finance", "compliance", "operations"],
+        companyId: 4242,
+      },
+      isLoading: false,
+      isError: false,
+      dataUpdatedAt: Date.now(),
+    });
+  }
+
+  it("company scope → generic subtitle", () => {
+    setMyAccess("company");
+    renderControlTowerPage();
+    expect(screen.getByText("Monitor blockers, priorities, and operational health in one place.")).toBeInTheDocument();
+  });
+
+  it("department scope → 'Department Control Tower' subtitle", () => {
+    setMyAccess("department");
+    renderControlTowerPage();
+    expect(screen.getByText("Department Control Tower")).toBeInTheDocument();
+  });
+
+  it("team scope → 'Team Control Tower' subtitle", () => {
+    setMyAccess("team");
+    renderControlTowerPage();
+    expect(screen.getByText("Team Control Tower")).toBeInTheDocument();
+  });
+
+  it("self scope → generic subtitle", () => {
+    setMyAccess("self");
+    renderControlTowerPage();
+    expect(screen.getByText("Monitor blockers, priorities, and operational health in one place.")).toBeInTheDocument();
+  });
+
+  it("read-only + department → 'Department Control Tower — Read-only view' subtitle", () => {
+    setMyAccess("department", true);
+    renderControlTowerPage();
+    expect(screen.getByText("Department Control Tower — Read-only view")).toBeInTheDocument();
+  });
+
+  it("read-only + company → 'Control Tower — Read-only view' subtitle", () => {
+    setMyAccess("company", true);
+    renderControlTowerPage();
+    expect(screen.getByText("Control Tower — Read-only view")).toBeInTheDocument();
   });
 });

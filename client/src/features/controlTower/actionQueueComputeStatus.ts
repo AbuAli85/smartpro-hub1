@@ -1,6 +1,17 @@
 import type { ActionQueueItem, ActionQueueStatus } from "./actionQueueTypes";
 
 /**
+ * Scope is active whenever the hook is enabled and a tenant is selected.
+ * Platform operators viewing a tenant workspace are scope-active by definition.
+ */
+export function computeQueueScopeEnabled(
+  hookEnabled: boolean,
+  activeCompanyId: number | null | undefined,
+): boolean {
+  return hookEnabled && activeCompanyId != null;
+}
+
+/**
  * Derives UI-safe queue semantics — never returns `all_clear` when sources failed.
  */
 /** Call when loading has finished for queue sources, or combine with `isLoading` in UI. */

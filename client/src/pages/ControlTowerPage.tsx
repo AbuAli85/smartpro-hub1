@@ -94,7 +94,7 @@ export default function ControlTowerPage() {
   useSmartRoleHomeRedirect();
 
   const platformOp = seesPlatformOperatorNav(user);
-  const scopeEnabled = activeCompanyId != null && !platformOp;
+  const scopeEnabled = activeCompanyId != null;
   const { caps: myCaps, loading: capsLoading } = useMyCapabilities();
 
   // ── Authority check ─────────────────────────────────────────────────────────
@@ -103,15 +103,33 @@ export default function ControlTowerPage() {
   const canViewCompanyTower = !capsLoading && myCaps.canViewCompanyControlTower;
   const hasControlTowerAccess = platformOp || canViewCompanyTower;
 
-  // Scope label for dept/team managers who see a narrowed dashboard
-  const scopeType = ((): "company" | "department" | "team" | "self" => {
+  // ── Gate for all CT server queries ──────────────────────────────────────────
+  const ctEnabled = (platformOp || canViewCompanyTower) && activeCompanyId != null;
+
+  // ── Server-authoritative access metadata ────────────────────────────────────
+  const { data: myAccess, isLoading: myAccessLoading } =
+    trpc.controlTower.myAccess.useQuery(
+      { companyId: activeCompanyId ?? undefined },
+      { enabled: ctEnabled, staleTime: 60_000 },
+    );
+
+  // Local fallback used while myAccess is loading to avoid a flash of wrong label.
+  const localScopeType = ((): "company" | "department" | "team" | "self" => {
     if (!capsLoading && myCaps.canManageControlTowerItems) return "company";
     if (!capsLoading && myCaps.canViewCompanyControlTower && !myCaps.canManageControlTowerItems) {
-      // Conservative label — exact scope comes from server myAccess query
       return "department";
     }
     return "self";
   })();
+  const localIsReadOnly =
+    !capsLoading &&
+    myCaps.canViewCompanyControlTower &&
+    !myCaps.canManageControlTowerItems &&
+    !myCaps.canResolveControlTowerItems &&
+    !myCaps.canAssignControlTowerItems;
+
+  const scopeType: "company" | "department" | "team" | "self" =
+    !myAccessLoading && myAccess != null ? myAccess.scopeType : localScopeType;
 
   const scopeLabel =
     scopeType === "department" ? "Department Control Tower"
@@ -120,16 +138,11 @@ export default function ControlTowerPage() {
 
   // Read-only: reviewer and external_auditor can see but not mutate.
   const isReadOnly =
-    !capsLoading &&
-    myCaps.canViewCompanyControlTower &&
-    !myCaps.canManageControlTowerItems &&
-    !myCaps.canResolveControlTowerItems &&
-    !myCaps.canAssignControlTowerItems;
+    !myAccessLoading && myAccess != null ? myAccess.isReadOnly : localIsReadOnly;
 
   const utils = trpc.useUtils();
 
   // ── Server-authoritative signal summary + ranked queue ──────────────────────
-  const ctEnabled = (platformOp || canViewCompanyTower) && activeCompanyId != null;
   const { data: ctSummary, isLoading: ctSummaryLoading } =
     trpc.controlTower.summary.useQuery(
       { companyId: activeCompanyId ?? undefined },
@@ -272,6 +285,7 @@ export default function ControlTowerPage() {
     permitsExpiring7d: expiring7,
     slaBreaches: typeof dailySnap?.slaBreaches === "number" ? dailySnap.slaBreaches : 0,
     complianceWarnCount: complianceWarnings,
+    openSignalsBySeverity: ctSummary?.bySeverity ?? null,
   });
 
   const employeesTrust = statsLoading

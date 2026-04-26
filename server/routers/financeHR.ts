@@ -291,7 +291,7 @@ export const financeHRRouter = router({
       adminNotes: z.string().optional(),
     }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.update(expenseClaims)

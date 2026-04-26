@@ -99,6 +99,11 @@
   "moreEmployees": "+{{count}} more employees",
   "missing": "Missing",
   "pctComplete": "{{pct}}% complete",
+  "ctCard": {
+    "heading": "Need to act on priorities?",
+    "body": "Live priority signals, pending approvals, and compliance alerts are managed in Control Tower.",
+    "cta": "Open Control Tower"
+  },
   "focusAndPriorities": "Focus & priorities",
   "focusPrioritiesHint": "Queue order only — permissions unchanged. Use the sidebar for every module.",
   "prioritizeFor": "Prioritize for",

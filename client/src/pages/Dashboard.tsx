@@ -3,15 +3,15 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
-import { clientNavItemVisible, normalizeClientPath, seesPlatformOperatorNav } from "@shared/clientNav";
+import { clientNavItemVisible, seesPlatformOperatorNav } from "@shared/clientNav";
 import { useSmartRoleHomeRedirect } from "@/hooks/useSmartRoleHomeRedirect";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, ArrowRight, ArrowUpRight, BarChart3,
   Briefcase, Building2, CheckCircle2, Clock, FileText, Layers,
   Shield, ShoppingBag, TrendingUp, Users, Banknote,
   Globe, Zap, RefreshCw, Award, MapPin, Calendar,
-  ChevronDown, ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck, ClipboardList, Download,
+  ChevronDown, ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck,
   User,
 } from "lucide-react";
 import { Link } from "wouter";
@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { fmtDateLong } from "@/lib/dateUtils";
 import { WorkforceHealthWidget } from "@/components/WorkforceHealthWidget";
 import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 import { OwnerSetupChecklist } from "@/components/OwnerSetupChecklist";
@@ -29,30 +29,7 @@ import PreCompanyDashboard from "@/components/dashboard/PreCompanyDashboard";
 import { ManagementCadencePanel } from "@/components/dashboard/ManagementCadencePanel";
 import { isPreCompanyWorkspaceUser } from "@/lib/workspaceMode";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-/** One-line roll-up for owner resolution (non-zero counts only). */
-function compactResolutionSummary(rs: {
-  stalledFollowUpCount: number;
-  inFollowUpCount: number;
-  needsAssignmentCount: number;
-  interventionDueWithin7DaysCount: number;
-  taskDueOverdueCount: number;
-  needsTaggedTaskCount: number;
-  missingOwnerCount: number;
-  monitorNoTagCount: number;
-}): string {
-  const parts: string[] = [];
-  if (rs.stalledFollowUpCount) parts.push(`${rs.stalledFollowUpCount} stalled`);
-  if (rs.inFollowUpCount) parts.push(`${rs.inFollowUpCount} in follow-up`);
-  if (rs.needsAssignmentCount) parts.push(`${rs.needsAssignmentCount} need owner`);
-  if (rs.interventionDueWithin7DaysCount) parts.push(`${rs.interventionDueWithin7DaysCount} due ≤7d`);
-  if (rs.taskDueOverdueCount) parts.push(`${rs.taskDueOverdueCount} task overdue`);
-  if (rs.needsTaggedTaskCount) parts.push(`${rs.needsTaggedTaskCount} need HR task`);
-  if (rs.missingOwnerCount) parts.push(`${rs.missingOwnerCount} no CRM owner`);
-  if (rs.monitorNoTagCount) parts.push(`${rs.monitorNoTagCount} monitor`);
-  return parts.slice(0, 6).join(" · ");
-}
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────────── */
 function StatCard({
@@ -212,7 +189,6 @@ export default function Dashboard() {
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
   );
-  const { data: aiInsights } = trpc.operations.getAiInsights.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: opsSnapshot } = trpc.operations.getDailySnapshot.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
@@ -221,7 +197,6 @@ export default function Dashboard() {
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user) },
   );
-  const { data: todaysTasks } = trpc.operations.getTodaysTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: auditFeed } = trpc.analytics.auditLogs.useQuery(
     { limit: 8, companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
@@ -230,50 +205,7 @@ export default function Dashboard() {
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
   );
-  const deriveRoleView = useCallback((): "ceo" | "admin" | "hr" | "finance" | "compliance" => {
-    const role = activeCompany?.role;
-    if (role === "finance_admin") return "finance";
-    if (role === "hr_admin") return "hr";
-    if (role === "reviewer" || role === "external_auditor") return "compliance";
-    return "admin";
-  }, [activeCompany?.role]);
-  const [roleView, setRoleView] = useState<"ceo" | "admin" | "hr" | "finance" | "compliance">("admin");
-  useEffect(() => {
-    setRoleView(deriveRoleView());
-  }, [deriveRoleView]);
-  const { data: roleQueue, isLoading: roleQueueLoading } = trpc.operations.getRoleActionQueue.useQuery(
-    { companyId: activeCompanyId ?? 0, roleView },
-    { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
-  );
-  const utils = trpc.useUtils();
-  const downloadOwnerResolutionPack = useCallback(
-    async (format: "csv" | "json") => {
-      if (activeCompanyId == null) return;
-      const pack = await utils.operations.exportOwnerResolutionPack.fetch({ format, companyId: activeCompanyId });
-      const blob = new Blob([pack.body], { type: pack.mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = pack.filename;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-    [activeCompanyId, utils],
-  );
-
-  /** Hide duplicate renewal list when Resolution queue already surfaces renewal follow-through. */
-  const accountControlCardVisible = useMemo(() => {
-    if (!businessPulse?.accountPortfolio) return false;
-    const ap = businessPulse.accountPortfolio;
-    const hideRenewalDup = (businessPulse.ownerResolution?.renewalReadiness.length ?? 0) > 0;
-    const showRenewal = ap.renewalRisk.length > 0 && !hideRenewalDup;
-    return (
-      showRenewal ||
-      ap.stalledDelivery.length > 0 ||
-      ap.combinedRisk.length > 0 ||
-      ap.executiveFollowUp.length > 0
-    );
-  }, [businessPulse]);
+  const { caps } = useMyCapabilities();
 
   const pipelineCashDeliveryGrid = useMemo(() => {
     if (!businessPulse) return null;
@@ -517,14 +449,6 @@ export default function Dashboard() {
   /** Lighter dashboard when owner workspace (control tower) is shown — same info lives there + sidebar nav. */
   const streamlinedExecDash =
     !showPlatformOverview && activeCompanyId != null && Boolean(businessPulse?.controlTower);
-  const queueTop10 = (roleQueue ?? []).slice(0, 10);
-  const riskCounts = useMemo(() => {
-    const list = roleQueue ?? [];
-    const payrollBlocked = list.filter((i) => i.type === "payroll_blocker" && (i.status === "blocked" || i.status === "overdue")).length;
-    const expiredPermits = list.filter((i) => i.type === "permit_expiry" && i.status === "overdue").length;
-    const overdueGovCases = list.filter((i) => i.type === "government_case_overdue" && i.status === "overdue").length;
-    return { payrollBlocked, expiredPermits, overdueGovCases };
-  }, [roleQueue]);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t("dashboard:goodMorning", "Good morning") : hour < 17 ? t("dashboard:goodAfternoon", "Good afternoon") : t("dashboard:goodEvening", "Good evening");
   const dateStr = new Date().toLocaleDateString(i18n.language === "ar-OM" ? "ar-OM" : "en-GB", {
@@ -605,168 +529,21 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {!showPlatformOverview && activeCompanyId && (
-        <>
-          <Card className="border-border/70">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-1 min-w-0">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Target size={14} className="text-[var(--smartpro-orange)] shrink-0" />
-                    {t("dashboard:focusAndPriorities")}
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">
-                    {t("dashboard:focusPrioritiesHint")}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{t("dashboard:prioritizeFor")}</span>
-                  <Select value={roleView} onValueChange={(v: "ceo" | "admin" | "hr" | "finance" | "compliance") => setRoleView(v)}>
-                    <SelectTrigger className="w-40 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ceo">CEO</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="hr">HR</SelectItem>
-                      <SelectItem value="finance">Finance</SelectItem>
-                      <SelectItem value="compliance">Compliance</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
-                <div className={`rounded-xl border p-3 ${riskCounts.payrollBlocked > 0 ? "border-red-200 bg-red-50/40" : "border-border/70 bg-card"}`}>
-                  <p className="text-[11px] text-muted-foreground">Payroll blocked</p>
-                  <p className="text-xl font-black tabular-nums mt-0.5">{riskCounts.payrollBlocked}</p>
-                  <Link href="/payroll" className="text-[11px] text-[var(--smartpro-orange)] hover:underline mt-1 inline-block">Payroll</Link>
-                </div>
-                <div className={`rounded-xl border p-3 ${riskCounts.expiredPermits > 0 ? "border-red-200 bg-red-50/40" : "border-border/70 bg-card"}`}>
-                  <p className="text-[11px] text-muted-foreground">Expired permits</p>
-                  <p className="text-xl font-black tabular-nums mt-0.5">{riskCounts.expiredPermits}</p>
-                  <Link href="/workforce/permits?status=expired" className="text-[11px] text-[var(--smartpro-orange)] hover:underline mt-1 inline-block">Permits</Link>
-                </div>
-                <div className={`rounded-xl border p-3 ${riskCounts.overdueGovCases > 0 ? "border-red-200 bg-red-50/40" : "border-border/70 bg-card"}`}>
-                  <p className="text-[11px] text-muted-foreground">Overdue gov.</p>
-                  <p className="text-xl font-black tabular-nums mt-0.5">{riskCounts.overdueGovCases}</p>
-                  <Link href="/workforce/cases" className="text-[11px] text-[var(--smartpro-orange)] hover:underline mt-1 inline-block">Cases</Link>
-                </div>
-              </div>
-              {streamlinedExecDash && showHref("/hr/today-board") && (
-                <div className="mt-3 pt-3 border-t border-border/60">
-                  <Link href="/hr/today-board">
-                    <Button variant="ghost" size="sm" className="text-xs gap-1 h-8 px-0 text-muted-foreground hover:text-foreground">
-                      {t("dashboard:hrTodayBoardShort")} <ArrowUpRight size={11} />
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/70">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <ClipboardList size={14} className="text-blue-600" />
-                Top Action Queue
-                {queueTop10.length > 0 && (
-                  <Badge variant="secondary" className="ml-auto text-xs">{queueTop10.length}</Badge>
-                )}
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Most urgent operational actions, normalized across payroll, workforce, HR, and compliance.
-              </p>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-2">
-              {roleQueueLoading ? (
-                <div className="space-y-2">
-                  {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
-                </div>
-              ) : queueTop10.length === 0 ? (
-                <div className="text-xs text-muted-foreground py-4">No urgent work detected.</div>
-              ) : queueTop10.map((item) => (
-                <Link href={item.href} key={item.id}>
-                  <div className="rounded-lg border border-border/70 px-3 py-2 hover:bg-muted/40 transition-colors">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-semibold truncate">{item.title}</p>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] ${
-                          item.severity === "critical"
-                            ? "border-red-200 text-red-700"
-                            : item.severity === "high"
-                              ? "border-amber-200 text-amber-700"
-                              : item.severity === "medium"
-                                ? "border-blue-200 text-blue-700"
-                                : "border-slate-200 text-slate-700"
-                        }`}
-                      >
-                        {item.severity}
-                      </Badge>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{item.reason}</p>
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
-                      <span>
-                        {item.ownerUserId
-                          ? (String(item.ownerUserId) === String(user?.id) ? "Owner: You" : "Owner: Assigned")
-                          : "Owner: Unassigned"}
-                      </span>
-                      <span>{item.dueAt ? `Due ${fmtDate(item.dueAt)}` : "No due date"}</span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-
-          <OwnerSetupChecklist />
-          {!streamlinedExecDash && opsSnapshot && (opsSnapshot.attentionQueue?.length ?? 0) > 0 && (
-            <Card className="border-border/60 bg-muted/30 dark:bg-muted/15">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                  Additional attention signals
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    {opsSnapshot.attentionQueue.length}
-                  </Badge>
-                </CardTitle>
-                <p className="text-xs text-muted-foreground font-normal">
-                  Secondary strategic signals. Use Top Action Queue for daily operational actions.
-                </p>
-              </CardHeader>
-              <CardContent className="pt-0 space-y-2">
-                {opsSnapshot.attentionQueue.slice(0, 8).map((item) => (
-                  <Link key={item.key} href={item.href}>
-                    <div className="flex items-start gap-2 rounded-lg border border-orange-100 bg-background/80 px-3 py-2 hover:bg-background transition-colors">
-                      <span
-                        className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${
-                          item.severity === "critical"
-                            ? "bg-red-500"
-                            : item.severity === "high"
-                              ? "bg-amber-500"
-                              : "bg-blue-400"
-                        }`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-foreground">{item.title}</p>
-                        <p className="text-[11px] text-muted-foreground leading-snug">{item.detail}</p>
-                      </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    </div>
-                  </Link>
-                ))}
-                {showHref("/operations") && (
-                  <Button asChild variant="outline" size="sm" className="w-full text-xs mt-1">
-                    <Link href="/operations">Open full operations detail</Link>
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </>
+      {!showPlatformOverview && activeCompanyId && caps.canViewCompanyControlTower && (
+        <Card role="region" aria-label="Control Tower priorities" className="border-border/60 bg-muted/10">
+          <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">{t("dashboard:ctCard.heading", "Need to act on priorities?")}</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard:ctCard.body", "Live priority signals, pending approvals, and compliance alerts are managed in Control Tower.")}</p>
+            </div>
+            <Button variant="outline" size="sm" className="shrink-0 text-xs" asChild>
+              <Link href="/control-tower">{t("dashboard:ctCard.cta", "Open Control Tower")}</Link>
+            </Button>
+          </CardContent>
+        </Card>
       )}
+
+      {!showPlatformOverview && activeCompanyId && <OwnerSetupChecklist />}
 
       {/* ── Admin Platform Stats ── */}
       {showPlatformOverview && platformStats && (
@@ -1041,287 +818,6 @@ export default function Dashboard() {
             </>
           )}
 
-          {businessPulse.ownerResolution &&
-            (businessPulse.ownerResolution.rankedAccountsForReview.length > 0 ||
-              businessPulse.ownerResolution.renewalReadiness.length > 0 ||
-              businessPulse.ownerResolution.collectionsFollowUp.length > 0) && (
-            <Card className="border-primary/25 bg-primary/[0.03]">
-              <CardHeader className="pb-2">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                  <div>
-                    <CardTitle
-                      className="text-sm flex items-center gap-2"
-                      title={businessPulse.ownerResolution.basis}
-                    >
-                      <ClipboardList size={14} className="text-primary" />
-                      Resolution queue
-                    </CardTitle>
-                    <p
-                      className="text-[10px] text-muted-foreground font-normal mt-1"
-                      title={`Export v${businessPulse.ownerResolution.exportMeta.schemaVersion} · ${businessPulse.ownerResolution.exportRows.length} row(s)`}
-                    >
-                      Updated {fmtDateTimeShort(new Date(businessPulse.ownerResolution.exportMeta.generatedAt))} · CSV/JSON
-                      packs available
-                    </p>
-                    {businessPulse.ownerResolution.reviewSummary && (
-                      <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-                        {compactResolutionSummary(businessPulse.ownerResolution.reviewSummary) || "No roll-up alerts."}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-7"
-                      onClick={() => downloadOwnerResolutionPack("csv")}
-                      title="Download CSV (exportRows + review fields)"
-                    >
-                      <Download size={12} className="mr-1" />
-                      CSV
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-7"
-                      onClick={() => downloadOwnerResolutionPack("json")}
-                      title="Download JSON pack for leadership / integrations"
-                    >
-                      <Download size={12} className="mr-1" />
-                      JSON
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                      <Link href="/crm">CRM</Link>
-                    </Button>
-                    {showHref("/workspace") && (
-                      <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                        <Link href="/workspace">Team workspace</Link>
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                      <Link href="/contracts">Contracts</Link>
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                      <Link href="/client/invoices">Collections</Link>
-                    </Button>
-                    <Button variant="default" size="sm" className="text-xs h-7" asChild>
-                      <Link href="/hr/tasks">Tasks</Link>
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4 text-xs">
-                {businessPulse.ownerResolution.rankedAccountsForReview.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Leadership review (priority)
-                    </p>
-                    <ul className="space-y-2">
-                      {businessPulse.ownerResolution.rankedAccountsForReview.slice(0, 6).map((row) => (
-                        <li
-                          key={`rank-${row.contactId}`}
-                          className="rounded-md border border-border/70 p-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
-                        >
-                          <div className="min-w-0">
-                            <Link href={row.primaryHref} className="font-medium hover:underline">
-                              {row.displayName}
-                            </Link>
-                            <span className="text-[10px] text-muted-foreground ml-1">
-                              · score {row.priorityScore} — {row.rankReason}
-                            </span>
-                            {row.workflow && (
-                              <p className="text-[9px] text-muted-foreground mt-0.5">
-                                {row.workflow.accountableOwnerLabel ? (
-                                  <span>Accountable: {row.workflow.accountableOwnerLabel}</span>
-                                ) : (
-                                  <span className="text-amber-800 dark:text-amber-200">No CRM owner</span>
-                                )}
-                                {row.workflow.hasOpenEmployeeTask ? (
-                                  <span className="ml-1">· Tagged task open</span>
-                                ) : (
-                                  <span className="ml-1">· No tagged HR task</span>
-                                )}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-2 items-center">
-                            <Badge variant="outline" className="text-[9px]">
-                              {row.tier.replace("_", " ")}
-                            </Badge>
-                            {row.workflow?.review && (
-                              <Badge
-                                variant="outline"
-                                className="text-[8px] max-w-[140px] truncate capitalize"
-                                title={row.workflow.review.reviewBasis}
-                              >
-                                {row.workflow.review.workflowScope === "crm_contact" ? "CRM" : "Billing"} ·{" "}
-                                {row.workflow.review.reviewBucket.replace(/_/g, " ")}
-                              </Badge>
-                            )}
-                            {row.workflow?.accountabilityGap !== "none" && (
-                              <Badge variant="outline" className="text-[8px] border-amber-300 text-amber-900">
-                                Gap: {row.workflow.accountabilityGap.replace("_", " ")}
-                              </Badge>
-                            )}
-                            {row.workflow?.isTaskDueOverdue && (
-                              <Badge variant="outline" className="text-[8px] border-red-200 text-red-800">
-                                Task overdue
-                              </Badge>
-                            )}
-                            <Button variant="default" size="sm" className="h-7 text-[10px]" asChild>
-                              <Link href={row.nextAction.href} title={row.nextAction.basis}>
-                                {row.nextAction.label}
-                              </Link>
-                            </Button>
-                            {row.contractHref && (
-                              <Link href={row.contractHref} className="text-[10px] text-[var(--smartpro-orange)] hover:underline">
-                                Contract
-                              </Link>
-                            )}
-                            {row.workflow && (
-                              <>
-                                <Link href={row.workflow.tasksHref} className="text-[10px] text-muted-foreground hover:underline">
-                                  Tasks
-                                </Link>
-                                <Button variant="secondary" size="sm" className="h-7 text-[10px] px-2" asChild>
-                                  <Link href={row.workflow.followUpCreateHref} title="Open Task Manager with prefilled tagged task">
-                                    Create task
-                                  </Link>
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div className="grid md:grid-cols-2 gap-4">
-                  {businessPulse.ownerResolution.renewalReadiness.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Renewal readiness</p>
-                      <ul className="space-y-1.5">
-                        {businessPulse.ownerResolution.renewalReadiness.slice(0, 4).map((r) => (
-                          <li key={`rr-${r.contactId}`} className="rounded-md border border-border/60 p-2 space-y-1">
-                            <div className="flex justify-between gap-2 flex-wrap">
-                              <Link href={r.primaryHref} className="font-medium hover:underline">
-                                {r.displayName}
-                              </Link>
-                              {r.daysUntilEnd != null && (
-                                <span className="text-[10px] text-muted-foreground">{r.daysUntilEnd}d to end</span>
-                              )}
-                            </div>
-                            {r.postureSummary && (
-                              <p className="text-[9px] text-muted-foreground">{r.postureSummary}</p>
-                            )}
-                            {r.workflow?.review && (
-                              <Badge variant="outline" className="text-[8px] w-fit font-normal" title={r.workflow.review.reviewBasis}>
-                                CRM · {r.workflow.review.reviewBucket.replace(/_/g, " ")}
-                              </Badge>
-                            )}
-                            {r.workflow && (
-                              <div className="flex flex-wrap gap-1 items-center text-[9px]">
-                                {r.workflow.renewalInterventionDueAt && (
-                                  <span className="text-muted-foreground">
-                                    Intervention by {r.workflow.renewalInterventionDueAt}
-                                  </span>
-                                )}
-                                {r.workflow.accountabilityGap !== "none" && (
-                                  <Badge variant="outline" className="text-[8px] h-5 border-amber-300 text-amber-900">
-                                    {r.workflow.accountabilityGap.replace("_", " ")}
-                                  </Badge>
-                                )}
-                                {r.workflow.hasOpenEmployeeTask ? (
-                                  <span className="text-emerald-800 dark:text-emerald-200">Tagged task</span>
-                                ) : (
-                                  <span className="text-muted-foreground">No tagged task</span>
-                                )}
-                              </div>
-                            )}
-                            <div className="flex flex-wrap gap-2">
-                              <Button variant="outline" size="sm" className="h-7 text-[10px] w-full sm:w-auto" asChild>
-                                <Link href={r.nextAction.href} title={r.nextAction.basis}>
-                                  {r.nextAction.label}
-                                </Link>
-                              </Button>
-                              {r.workflow && (
-                                <>
-                                  <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" asChild>
-                                    <Link href={r.workflow.tasksHref}>HR tasks</Link>
-                                  </Button>
-                                  <Button variant="secondary" size="sm" className="h-7 text-[10px] px-2" asChild>
-                                    <Link href={r.workflow.followUpCreateHref} title="Prefill tagged HR task">
-                                      Create task
-                                    </Link>
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {businessPulse.ownerResolution.collectionsFollowUp.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Overdue officer billing (workspace)
-                      </p>
-                      <p className="text-[9px] text-muted-foreground">{businessPulse.ownerResolution.collectionsWorkspaceNote}</p>
-                      <ul className="space-y-1.5">
-                        {businessPulse.ownerResolution.collectionsFollowUp.map((c) => (
-                          <li key={c.id} className="rounded-md border border-red-200/60 bg-red-50/30 dark:bg-red-950/20 p-2 flex flex-wrap justify-between gap-2">
-                            <div>
-                              <span className="font-mono text-[10px]">{c.invoiceNumber}</span>
-                              <span className="text-[10px] text-muted-foreground ml-2">
-                                {c.billingMonth}/{c.billingYear}
-                              </span>
-                              {c.workflow && (
-                                <span className="block text-[9px] text-muted-foreground mt-0.5 space-y-0.5">
-                                  <span className="text-[8px] block">
-                                    Workspace billing · {c.workflow.review.reviewBucket.replace(/_/g, " ")}
-                                  </span>
-                                  {c.workflow.hasOpenEmployeeTask ? "Tagged collections task" : "No tagged task — "}
-                                  {!c.workflow.hasOpenEmployeeTask && (
-                                    <span className="font-mono text-[8px] break-all">{c.workflow.taskTagConvention}</span>
-                                  )}
-                                </span>
-                              )}
-                            </div>
-                            <span className="font-semibold text-red-800 tabular-nums">
-                              OMR {c.amountOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
-                            </span>
-                            <div className="w-full flex flex-wrap gap-2">
-                              <Button variant="outline" size="sm" className="h-7 text-[10px]" asChild>
-                                <Link href={c.nextAction.href}>{c.nextAction.label}</Link>
-                              </Button>
-                              {c.workflow && (
-                                <>
-                                  <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" asChild>
-                                    <Link href={c.workflow.tasksHref}>HR tasks</Link>
-                                  </Button>
-                                  <Button variant="secondary" size="sm" className="h-7 text-[10px] px-2" asChild>
-                                    <Link href={c.workflow.followUpCreateHref} title="Prefill tagged collections task">
-                                      Create task
-                                    </Link>
-                                  </Button>
-                                </>
-                              )}
-                              {c.overlapNote && (
-                                <span className="text-[9px] text-amber-800 self-center">{c.overlapNote}</span>
-                              )}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {(businessPulse.postSale.serviceContractsStalledNoDeliveryCount > 0 ||
             businessPulse.finance.proBillingOverdueCount > 0 ||
@@ -1385,7 +881,12 @@ export default function Dashboard() {
             </Card>
           )}
 
-          {accountControlCardVisible && businessPulse.accountPortfolio && (
+          {businessPulse.accountPortfolio && (
+            businessPulse.accountPortfolio.renewalRisk.length > 0 ||
+            businessPulse.accountPortfolio.stalledDelivery.length > 0 ||
+            businessPulse.accountPortfolio.combinedRisk.length > 0 ||
+            businessPulse.accountPortfolio.executiveFollowUp.length > 0
+          ) && (
             <Card className="border-border/80">
               <CardHeader className="pb-2">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1413,16 +914,10 @@ export default function Dashboard() {
                 </div>
                 <p className="text-[10px] text-muted-foreground font-normal pt-1">
                   {businessPulse.accountPortfolio.tenantCollectionsScopeNote} Rule-based tiers; hover the section title for the full derivation basis.
-                  {businessPulse.ownerResolution && businessPulse.ownerResolution.renewalReadiness.length > 0 && (
-                    <span className="block mt-1">
-                      Renewal follow-through is summarized in <span className="font-medium">Resolution queue</span> above — this block focuses on delivery and combined risk signals.
-                    </span>
-                  )}
                 </p>
               </CardHeader>
               <CardContent className="grid md:grid-cols-2 gap-4 text-xs">
-                {businessPulse.accountPortfolio.renewalRisk.length > 0 &&
-                  !(businessPulse.ownerResolution && businessPulse.ownerResolution.renewalReadiness.length > 0) && (
+                {businessPulse.accountPortfolio.renewalRisk.length > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Renewal risk</p>
                     <ul className="space-y-2">
@@ -1867,130 +1362,49 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Rule-based alerts (hidden when Executive control tower narrative is present) + Today’s Tasks + Recent Activity ── */}
-      <div
-        className={`grid grid-cols-1 gap-5 ${
-          !businessPulse?.controlTower ? "lg:grid-cols-3" : "lg:grid-cols-2"
-        }`}
-      >
-
-        {!businessPulse?.controlTower && (
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Zap size={14} className="text-amber-500" /> {t("dashboard:operationalAlerts", "Operational alerts")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {aiInsights && aiInsights.length > 0 ? aiInsights.map((ins, i) => (
-                <div key={i} className={`p-3 rounded-lg border-l-4 ${
-                  ins.severity === "critical" ? "border-red-500 bg-red-50" :
-                  ins.severity === "warning" ? "border-amber-500 bg-amber-50" :
-                  "border-blue-500 bg-blue-50"
-                }`}>
-                  <p className="text-xs font-semibold text-foreground">{ins.titleKey ? t(`operations:${ins.titleKey}`, { ...ins.titleParams, defaultValue: ins.title }) : ins.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{ins.descriptionKey ? t(`operations:${ins.descriptionKey}`, { defaultValue: ins.description }) : ins.description}</p>
-                  {ins.actionUrl &&
-                    (!ins.actionUrl.startsWith("/") ||
-                      showHref(normalizeClientPath(ins.actionUrl))) && (
-                    <Link href={ins.actionUrl}>
-                      <Button variant="link" size="sm" className="h-5 p-0 text-xs mt-1 gap-1">
-                        {ins.actionLabelKey ? t(`operations:${ins.actionLabelKey}`, { defaultValue: ins.actionLabel }) : ins.actionLabel} <ArrowRight size={10} />
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              )) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Zap size={28} className="mx-auto mb-2 opacity-20" />
-                  <p className="text-xs">{t("dashboard:noCriticalAlerts", "No critical alerts today")}</p>
-                  <p className="text-[10px] mt-0.5 opacity-60">{t("dashboard:allSystemsNormal", "All systems operating normally")}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Today’s Tasks */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
+      {/* ── Recent Activity ── */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <CheckCircle2 size={14} className="text-emerald-500" /> {t("dashboard:todaysTasks", "Today's Tasks")}
-              {todaysTasks && todaysTasks.totalTasks > 0 && (
-                <Badge variant="secondary" className="ml-auto text-xs">{todaysTasks.totalTasks}</Badge>
-              )}
+              <Activity size={14} className="text-blue-500" /> {t("dashboard:recentActivity", "Recent Activity")}
             </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {todaysTasks && todaysTasks.totalTasks > 0 ? todaysTasks.casesDue.slice(0, 6).map((task, i) => (
-              <div key={i} className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${
-                  task.priority === "urgent" ? "bg-red-500" :
-                  task.priority === "high" ? "bg-amber-500" : "bg-blue-400"
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate capitalize">{task.caseType.replace(/_/g, " ")}</p>
-                  <p className="text-[10px] text-muted-foreground">Gov. Case #{task.id}</p>
-                </div>
-                <Link href="/workforce/cases">
-                  <ChevronRight size={12} className="text-muted-foreground hover:text-foreground" />
-                </Link>
-              </div>
-            )) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle2 size={28} className="mx-auto mb-2 opacity-20" />
-                <p className="text-xs">{t("dashboard:allClear", "All clear for today")}</p>
-                <p className="text-[10px] mt-0.5 opacity-60">{t("dashboard:noPendingTasks", "No pending tasks")}</p>
-              </div>
+            {showHref("/audit-log") && (
+              <Link href="/audit-log">
+                <Button variant="ghost" size="sm" className="text-xs gap-1 h-6">
+                  {t("common:all", "All")} <ArrowUpRight size={10} />
+                </Button>
+              </Link>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity — real audit events from DB */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Activity size={14} className="text-blue-500" /> {t("dashboard:recentActivity", "Recent Activity")}
-              </CardTitle>
-              {showHref("/audit-log") && (
-                <Link href="/audit-log">
-                  <Button variant="ghost" size="sm" className="text-xs gap-1 h-6">
-                    {t("common:all", "All")} <ArrowUpRight size={10} />
-                  </Button>
-                </Link>
-              )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {auditFeed && auditFeed.length > 0 ? auditFeed.slice(0, 6).map((ev, i) => (
+            <div key={i} className="flex items-start gap-2 py-1.5 border-b border-border/50 last:border-0">
+              <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                <Activity size={11} className="text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate capitalize">{String(ev.action).replace(/_/g, " ")} {String(ev.entityType).replace(/_/g, " ")}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {new Date(ev.createdAt).toLocaleTimeString("en-OM", { hour: "2-digit", minute: "2-digit" })}
+                </p>
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {auditFeed && auditFeed.length > 0 ? auditFeed.slice(0, 6).map((ev, i) => (
-              <div key={i} className="flex items-start gap-2 py-1.5 border-b border-border/50 last:border-0">
-                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                  <Activity size={11} className="text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate capitalize">{String(ev.action).replace(/_/g, " ")} {String(ev.entityType).replace(/_/g, " ")}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {new Date(ev.createdAt).toLocaleTimeString("en-OM", { hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                </div>
-              </div>
-            )) : (
-              <div className="space-y-2">
-                {[t("dashboard:platformInitialized", "Platform initialized"), t("dashboard:pasiModuleReady", "PASI module ready"), t("dashboard:sanadServicesActive", "Sanad services active")].map((msg, i) => (
-                  <div key={i} className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
-                    <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                      <CheckCircle2 size={11} className="text-emerald-600" />
-                    </div>
-                    <p className="text-xs text-muted-foreground">{msg}</p>
+          )) : (
+            <div className="space-y-2">
+              {[t("dashboard:platformInitialized", "Platform initialized"), t("dashboard:pasiModuleReady", "PASI module ready"), t("dashboard:sanadServicesActive", "Sanad services active")].map((msg, i) => (
+                <div key={i} className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
+                  <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={11} className="text-emerald-600" />
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-      </div>
+                  <p className="text-xs text-muted-foreground">{msg}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

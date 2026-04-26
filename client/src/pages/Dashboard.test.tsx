@@ -2,11 +2,16 @@
 import "@testing-library/jest-dom/vitest";
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup } from "@testing-library/react";
 import Dashboard from "./Dashboard";
 
-const { mockRoleQueue } = vi.hoisted(() => ({
-  mockRoleQueue: vi.fn(),
+const { mockCapabilities } = vi.hoisted(() => ({
+  mockCapabilities: vi.fn(),
+}));
+
+vi.mock("@/hooks/useMyCapabilities", () => ({
+  useMyCapabilities: () => mockCapabilities(),
 }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
@@ -39,23 +44,11 @@ vi.mock("@/lib/trpc", () => ({
           get: (_target, prop) => {
             if (prop === "useQuery" || prop === "useInfiniteQuery") return () => queryResult;
             if (prop === "useMutation") return () => ({ mutate: vi.fn(), isPending: false });
-            if (prop === "useUtils") return () => ({ operations: { getRoleActionQueue: { prefetch: vi.fn() } } });
-            if (prop === "operations") {
-              return new Proxy(
-                {
-                  getRoleActionQueue: { useQuery: () => mockRoleQueue() },
-                },
-                {
-                  get: (target, key) => (key in target ? (target as Record<string, unknown>)[String(key)] : makeNode()),
-                },
-              );
-            }
             return makeNode();
           },
         },
       ) as Record<string, unknown>;
-    const node = makeNode();
-    return node;
+    return makeNode();
   })(),
 }));
 
@@ -88,18 +81,27 @@ vi.mock("@/components/contracts/ContractKpiWidget", () => ({
 vi.mock("@/components/dashboard/ManagementCadencePanel", () => ({
   ManagementCadencePanel: () => null,
 }));
+vi.mock("@/components/dashboard/FinancialSummaryCard", () => ({
+  FinancialSummaryCard: () => null,
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (k: string, fallbackOrOptions?: unknown) => {
       if (typeof fallbackOrOptions === "string") return fallbackOrOptions;
-      if (fallbackOrOptions && typeof fallbackOrOptions === "object" && fallbackOrOptions !== null && "defaultValue" in fallbackOrOptions) {
+      if (
+        fallbackOrOptions &&
+        typeof fallbackOrOptions === "object" &&
+        fallbackOrOptions !== null &&
+        "defaultValue" in fallbackOrOptions
+      ) {
         return String((fallbackOrOptions as { defaultValue: string }).defaultValue);
       }
       const map: Record<string, string> = {
-        "dashboard:focusAndPriorities": "Focus & priorities",
-        "dashboard:focusPrioritiesHint": "Queue order only — permissions unchanged. Use the sidebar for every module.",
-        "dashboard:prioritizeFor": "Prioritize for",
+        "dashboard:ctCard.heading": "Need to act on priorities?",
+        "dashboard:ctCard.body":
+          "Live priority signals, pending approvals, and compliance alerts are managed in Control Tower.",
+        "dashboard:ctCard.cta": "Open Control Tower",
       };
       return map[k] ?? k;
     },
@@ -107,61 +109,76 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-describe("Dashboard role queue widget", () => {
+const NO_CT_CAPS = { canViewCompanyControlTower: false };
+const WITH_CT_CAPS = { canViewCompanyControlTower: true };
+
+describe("Dashboard Phase C", () => {
   beforeEach(() => {
-    mockRoleQueue.mockReset();
+    mockCapabilities.mockReturnValue({ caps: NO_CT_CAPS, loading: false });
   });
+  afterEach(cleanup);
 
-  it("renders empty queue state", () => {
-    mockRoleQueue.mockReturnValue({
-      data: [],
-      isLoading: false,
-      isFetching: false,
-      error: null,
-    });
-
+  it("does not render Focus & priorities card", () => {
     render(<Dashboard />);
-    expect(screen.getByText("Focus & priorities")).toBeInTheDocument();
-    expect(screen.getByText("Expired permits")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Permits" })).toHaveAttribute("href", "/workforce/permits?status=expired");
-    expect(screen.getByText("No urgent work detected.")).toBeInTheDocument();
+    expect(screen.queryByText("Focus & priorities")).toBeNull();
   });
 
-  it("does not render WPS cell in risk grid", () => {
-    mockRoleQueue.mockReturnValue({ data: [], isLoading: false, isFetching: false, error: null });
+  it("does not render Top Action Queue card", () => {
+    render(<Dashboard />);
+    expect(screen.queryByText("Top Action Queue")).toBeNull();
+  });
+
+  it("does not render Additional attention signals card", () => {
+    render(<Dashboard />);
+    expect(screen.queryByText("Additional attention signals")).toBeNull();
+  });
+
+  it("does not render Resolution queue card", () => {
+    render(<Dashboard />);
+    expect(screen.queryByText("Resolution queue")).toBeNull();
+  });
+
+  it("does not render Today's Tasks card", () => {
+    render(<Dashboard />);
+    expect(screen.queryByText("Today's Tasks")).toBeNull();
+  });
+
+  it("does not render Operational alerts card", () => {
+    render(<Dashboard />);
+    expect(screen.queryByText("Operational alerts")).toBeNull();
+  });
+
+  it("does not render WPS cell", () => {
     render(<Dashboard />);
     expect(screen.queryByText("WPS")).toBeNull();
   });
 
   it("does not render ExecutiveControlTower widget", () => {
-    mockRoleQueue.mockReturnValue({ data: [], isLoading: false, isFetching: false, error: null });
     render(<Dashboard />);
     expect(screen.queryByText("Control Tower Overview")).toBeNull();
     expect(screen.queryByText("Executive Control Tower")).toBeNull();
   });
 
-  it("renders non-empty queue state", () => {
-    mockRoleQueue.mockReturnValue({
-      data: [
-        {
-          id: "payroll-1",
-          type: "payroll_blocker",
-          title: "Payroll waiting for approval",
-          severity: "critical",
-          ownerUserId: "1",
-          dueAt: null,
-          status: "blocked",
-          href: "/payroll",
-          reason: "Current month run is not approved.",
-        },
-      ],
-      isLoading: false,
-      isFetching: false,
-      error: null,
-    });
-
+  it("does not render CT card when canViewCompanyControlTower is false", () => {
     render(<Dashboard />);
-    expect(screen.getByText("Payroll waiting for approval")).toBeInTheDocument();
-    expect(screen.getByText("Owner: You")).toBeInTheDocument();
+    expect(screen.queryByText("Need to act on priorities?")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Open Control Tower" })).toBeNull();
+  });
+
+  it("renders CT card with correct link when canViewCompanyControlTower is true", () => {
+    mockCapabilities.mockReturnValue({ caps: WITH_CT_CAPS, loading: false });
+    render(<Dashboard />);
+    const region = screen.getByRole("region", { name: "Control Tower priorities" });
+    expect(region).toBeInTheDocument();
+    expect(screen.getByText("Need to act on priorities?")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Control Tower" })).toHaveAttribute(
+      "href",
+      "/control-tower",
+    );
+  });
+
+  it("renders Recent Activity section", () => {
+    render(<Dashboard />);
+    expect(screen.getByText("Recent Activity")).toBeInTheDocument();
   });
 });

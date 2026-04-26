@@ -494,7 +494,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
       </aside>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-3 shrink-0" role="banner">
           <button

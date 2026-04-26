@@ -94,8 +94,9 @@ export function useActionQueue(options: UseActionQueueOptions = {}): ActionQueue
 
   const scopeEnabled = computeQueueScopeEnabled(hookEnabled, activeCompanyId);
 
+  // activeCompanyId is guaranteed non-null when scopeEnabled is true
   const rq = trpc.operations.getRoleActionQueue.useQuery(
-    { companyId: activeCompanyId ?? undefined, roleView },
+    { companyId: activeCompanyId!, roleView },
     {
       enabled: scopeEnabled,
       staleTime: 60_000,

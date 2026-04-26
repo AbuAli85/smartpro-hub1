@@ -91,6 +91,7 @@ describe("RiskStrip", () => {
       permitsExpiring7d: 0,
       slaBreaches: 0,
       complianceWarnCount: 0,
+      openSignalsBySeverity: null,
     });
     wrap(<RiskStrip cards={cards} />);
     expect(screen.getByText("Blocked")).toBeInTheDocument();

@@ -317,7 +317,7 @@ export function PlatformSidebarNav({
   }, [location, groups]);
 
   return (
-    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-7" aria-label="Primary">
+    <nav className="flex-1 overflow-y-auto scrollbar-hidden px-3 py-4 space-y-7" aria-label="Primary">
       {groups.map((group, index) => {
         const tier = group.tier ?? "primary";
         const title =

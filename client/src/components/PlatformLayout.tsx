@@ -398,15 +398,16 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     setSidebarOpen(false);
   }, [location]);
 
-  // Prevent body scroll when sidebar is open on mobile
+  // Lock html/body scroll for the app shell — all scrolling is handled by <main>.
+  // Also prevents mobile overlay from scrolling the body when the sidebar drawer opens.
   useEffect(() => {
-    if (sidebarOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [sidebarOpen]);
+    };
+  }, []);
   const { data: layoutCompany, isLoading: layoutCompanyLoading } = trpc.companies.myCompany.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: isAuthenticated && activeCompanyId != null },

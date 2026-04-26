@@ -1,6 +1,11 @@
 /**
  * Generates a SQL backfill script for existing staging/prod DBs after a journal rebuild.
  *
+ * ⚠ ONE-TIME OPERATION — tied to the 2026-04-26 journal rebuild in which 40 migrations
+ * were added to the journal that were previously missing. This script exists as an
+ * emergency fallback. For normal brownfield deploys, use `pnpm db:migrate` instead.
+ * Do NOT run the generated SQL unless you know exactly why you need it.
+ *
  * PREFERRED PATH: For brownfield DBs using scripts/migrate.ts (pnpm db:migrate),
  * simply run `pnpm db:migrate` — it handles idempotent application of the 40 new
  * journal entries automatically (ER_DUP_FIELDNAME and CREATE TABLE IF NOT EXISTS

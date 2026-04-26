@@ -6,7 +6,7 @@
 
 ## How migrations work
 
-Schema changes are tracked in `drizzle/meta/_journal.json`. Each entry in the journal references a SQL file in `drizzle/`. When you run `pnpm drizzle-kit migrate`, Drizzle compares the journal against `__drizzle_migrations` in the target database and applies any pending files in order.
+Schema changes are tracked in `drizzle/meta/_journal.json`. Each entry in the journal references a SQL file in `drizzle/`. When you run `pnpm db:migrate`, the custom runner (`scripts/migrate.ts`) compares journal hashes against `__drizzle_migrations` in the target database and applies any pending files in order.
 
 ```
 drizzle/
@@ -20,6 +20,17 @@ drizzle/
     schema.ts                   ← schema file produced by drizzle-kit introspect
 ```
 
+**Why `pnpm db:migrate` and not `drizzle-kit migrate`?**  
+Drizzle's built-in CLI migrator routes SQL through the binary prepared-statement protocol, which rejects multi-statement files. The custom runner uses `connection.query()` (text protocol) which handles them correctly. Additionally, the journal's `when` timestamps are non-monotonic (a known historical quirk), which breaks Drizzle's timestamp-based "already applied" check. The custom runner is hash-based and unaffected.
+
+**`__drizzle_migrations` table schema** (created by `scripts/migrate.ts`):
+```sql
+id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+hash TEXT NOT NULL,  -- SHA-256 of content with breakpoints stripped
+created_at BIGINT   -- milliseconds epoch from the journal's `when` field
+```
+There is **no `tag` column**. Migrations are tracked by content hash, not by name.
+
 On existing databases, `server/runPendingMigrations.ts` also runs at startup. It checks `information_schema` for missing columns/tables/indexes and applies them idempotently. This is a safety net — not the primary migration path.
 
 ---
@@ -29,10 +40,10 @@ On existing databases, `server/runPendingMigrations.ts` also runs at startup. It
 ### Fresh database (new environment)
 
 ```bash
-DATABASE_URL=mysql://user:pass@host/dbname pnpm drizzle-kit migrate
+DATABASE_URL=mysql://user:pass@host/dbname pnpm db:migrate
 ```
 
-All 90 migrations apply in sequence. Takes ~5 seconds on a local MySQL instance.
+The runner detects an empty `__drizzle_migrations` table, applies `0070_drizzle_baseline_schema_recovery` first (which creates all base tables), then applies all other migrations in journal order. Idempotent `ER_TABLE_EXISTS_ERROR` and `ER_DUP_FIELDNAME` errors from early migrations that overlap with 0070 are silently skipped. Expected duration: ~5 seconds on a local MySQL instance.
 
 ### Adding a new migration
 
@@ -54,6 +65,31 @@ All 90 migrations apply in sequence. Takes ~5 seconds on a local MySQL instance.
 - **Never hand-edit a SQL file after it has been applied to any database.** The `__drizzle_migrations` table stores hashes; edited files will be re-applied.
 - **Never run `pnpm db:push`.** It is disabled — see the error message for why.
 - **Never run `drizzle-kit push` directly.** It bypasses the migration chain and can silently diverge from the journal.
+
+---
+
+## Applying migrations to an existing (brownfield) database
+
+After the journal rebuild, 40 migrations appear as "pending" on existing staging/prod DBs. The preferred path is simply:
+
+```bash
+DATABASE_URL=<staging-url> pnpm db:migrate
+```
+
+The custom runner applies all 40 in journal order. Each one:
+- `ALTER TABLE ADD COLUMN` (column already exists) → `ER_DUP_FIELDNAME` → skipped, hash recorded
+- `CREATE TABLE IF NOT EXISTS` (table already exists) → MySQL no-op → hash recorded
+- `CREATE INDEX` (index already exists) → `ER_DUP_KEYNAME` → skipped, hash recorded
+
+If `pnpm db:migrate` fails unexpectedly, use the fallback backfill script:
+
+```bash
+node scripts/generate-backfill.mjs > scripts/backfill-migrations.sql
+# Review the SQL, then run it inside a transaction against the DB.
+# The script uses INSERT IGNORE so it is safe to re-run.
+```
+
+**Note:** `scripts/backfill-migrations.sql` uses `(hash, created_at)` — no `tag` column — matching `scripts/migrate.ts`'s table schema.
 
 ---
 
@@ -114,7 +150,7 @@ To diagnose: run `node scripts/verify-journal.mjs --post` locally.
 
 | Command | Purpose |
 |---------|---------|
-| `pnpm drizzle-kit migrate` | Apply pending migrations (requires `DATABASE_URL`) |
+| `pnpm db:migrate` | Apply pending migrations via custom runner (requires `DATABASE_URL`) |
 | `pnpm drizzle-kit generate --name=<name>` | Generate a new migration from schema diff |
 | `node scripts/verify-journal.mjs` | Pre-rebuild check: shows missing files and problems |
 | `node scripts/verify-journal.mjs --post` | Post-rebuild check: confirms journal is complete |

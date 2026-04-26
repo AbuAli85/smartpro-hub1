@@ -1,4 +1,4 @@
-CREATE TABLE `shift_change_requests` (
+CREATE TABLE IF NOT EXISTS `shift_change_requests` (
   `id` int AUTO_INCREMENT PRIMARY KEY NOT NULL,
   `company_id` int NOT NULL,
   `employee_user_id` int NOT NULL,

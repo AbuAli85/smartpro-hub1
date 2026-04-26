@@ -1,4 +1,4 @@
-CREATE TABLE `attendance_corrections` (
+CREATE TABLE IF NOT EXISTS `attendance_corrections` (
   `id` int AUTO_INCREMENT PRIMARY KEY NOT NULL,
   `company_id` int NOT NULL,
   `employee_id` int NOT NULL,

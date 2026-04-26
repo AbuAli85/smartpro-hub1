@@ -1,4 +1,4 @@
-CREATE TABLE `attendance_audit` (
+CREATE TABLE IF NOT EXISTS `attendance_audit` (
   `id` int AUTO_INCREMENT NOT NULL,
   `company_id` int NOT NULL,
   `employee_id` int,

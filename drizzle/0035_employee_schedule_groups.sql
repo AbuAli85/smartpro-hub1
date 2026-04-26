@@ -4,7 +4,7 @@
 -- Each child employee_schedules row gets an optional group_id FK.
 -- Legacy rows (group_id IS NULL) remain fully functional.
 
-CREATE TABLE `employee_schedule_groups` (
+CREATE TABLE IF NOT EXISTS `employee_schedule_groups` (
   `id`                 INT          NOT NULL AUTO_INCREMENT,
   `company_id`         INT          NOT NULL,
   `employee_user_id`   INT          NOT NULL,

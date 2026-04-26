@@ -92,6 +92,10 @@ jobs:
   # ── Migration canary: verify the journal is complete on a fresh DB ───────────
   # Catches journal drift before it reaches prod. A fresh MySQL container is
   # cheaper than discovering the journal is broken during an emergency deploy.
+  #
+  # Uses MySQL 8.4 to match prod (8.0 differs on CREATE INDEX IF NOT EXISTS support).
+  # Uses pnpm db:migrate (scripts/migrate.ts) — not drizzle-kit migrate — because
+  # drizzle-kit migrate uses the binary protocol which rejects multi-statement files.
   migrate-canary:
     name: Migration Canary (fresh DB)
     runs-on: ubuntu-latest
@@ -99,7 +103,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4
         env:
           MYSQL_ROOT_PASSWORD: rootpass
           MYSQL_DATABASE: smartpro_canary
@@ -129,7 +133,7 @@ jobs:
       - name: Run all migrations on empty DB
         env:
           DATABASE_URL: mysql://canary:canarypass@127.0.0.1:3306/smartpro_canary
-        run: pnpm drizzle-kit migrate
+        run: pnpm db:migrate
 
       - name: Verify migration count
         env:

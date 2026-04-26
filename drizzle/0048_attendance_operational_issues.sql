@@ -20,7 +20,7 @@ ALTER TABLE `attendance_audit` MODIFY COLUMN `aa_action_type` enum(
   'operational_issue_assign'
 ) NOT NULL;
 
-CREATE TABLE `attendance_operational_issues` (
+CREATE TABLE IF NOT EXISTS `attendance_operational_issues` (
   `id` int AUTO_INCREMENT NOT NULL,
   `company_id` int NOT NULL,
   `business_date_ymd` varchar(10) NOT NULL,

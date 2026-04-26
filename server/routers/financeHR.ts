@@ -13,6 +13,7 @@ import type { User } from "../../drizzle/schema";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { requireFinanceOrAdmin } from "../_core/policy";
+import { recordExpenseReviewedAudit } from "../financeOpsAudit";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { HR_PERF, memberHasHrPerformancePermission } from "@shared/hrPerformancePermissions";
 import {
@@ -294,6 +295,11 @@ export const financeHRRouter = router({
       const { companyId } = await requireFinanceOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [claim] = await db
+        .select({ expenseStatus: expenseClaims.expenseStatus })
+        .from(expenseClaims)
+        .where(and(eq(expenseClaims.id, input.id), eq(expenseClaims.companyId, companyId)))
+        .limit(1);
       await db.update(expenseClaims)
         .set({
           expenseStatus: input.action,
@@ -302,6 +308,14 @@ export const financeHRRouter = router({
           reviewedAt: new Date(),
         })
         .where(and(eq(expenseClaims.id, input.id), eq(expenseClaims.companyId, companyId)));
+      await recordExpenseReviewedAudit(db, {
+        companyId,
+        actorUserId: ctx.user.id,
+        expenseClaimId: input.id,
+        previousStatus: claim?.expenseStatus ?? null,
+        nextStatus: input.action,
+        adminNotes: input.adminNotes ?? null,
+      });
       return { success: true };
     }),
 

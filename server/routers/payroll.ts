@@ -31,6 +31,10 @@ import {
   recordPayrollRunMarkedPaidAudit,
   recordPayslipExportedAudit,
 } from "../tenantGovernanceAudit";
+import {
+  recordLoanBalanceUpdatedAudit,
+  recordSalaryConfigUpsertedAudit,
+} from "../financeOpsAudit";
 import { storagePut } from "../storage";
 import { requireWorkspaceMembership, requireCapableMembership } from "../_core/membership";
 import { requireCapabilityAndModule } from "../_core/capabilityGate";
@@ -1008,6 +1012,20 @@ export const payrollRouter = router({
         notes: input.notes ?? null,
       };
       const [newConfig] = await db.insert(employeeSalaryConfigs).values(insertData).$returningId();
+      const changedFields = [
+        "basicSalary", "housingAllowance", "transportAllowance",
+        "otherAllowances", "pasiRate", "incomeTaxRate", "effectiveFrom",
+        ...(input.effectiveTo ? ["effectiveTo"] : []),
+        ...(input.notes ? ["notes"] : []),
+      ];
+      await recordSalaryConfigUpsertedAudit(db, {
+        companyId: m.companyId,
+        actorUserId: ctx.user.id,
+        configId: newConfig.id,
+        employeeId: input.employeeId,
+        effectiveFrom: input.effectiveFrom,
+        changedFields,
+      });
       return { id: newConfig.id };
     }),
 
@@ -1093,6 +1111,15 @@ export const payrollRouter = router({
       await db.update(salaryLoans)
         .set({ balanceRemaining: String(newBalance), status: newStatus })
         .where(eq(salaryLoans.id, input.loanId));
+      await recordLoanBalanceUpdatedAudit(db, {
+        companyId: loan.companyId,
+        actorUserId: ctx.user.id,
+        loanId: input.loanId,
+        previousBalance: loan.balanceRemaining,
+        nextBalance: newBalance,
+        deductedAmount: input.deductedAmount,
+        newStatus,
+      });
       return { newBalance, status: newStatus };
     }),
 

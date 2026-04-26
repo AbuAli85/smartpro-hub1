@@ -91,6 +91,15 @@ import {
 } from "@shared/attendanceTrpcReasons";
 import { requireCanRecordManualAttendance, requireCanEditAttendanceRecords } from "./attendance/helpers";
 import { findAttendanceForDate } from "../repositories/attendance.repository";
+import {
+  recordDepartmentCreatedAudit,
+  recordDepartmentUpdatedAudit,
+  recordDepartmentDeletedAudit,
+  recordEmployeeDepartmentAssignedAudit,
+  recordPositionCreatedAudit,
+  recordPositionDeletedAudit,
+  recordLeaveCreatedAudit,
+} from "../hrOrgAudit";
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -643,6 +652,8 @@ export const hrRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { companyId } = await requireHrOrAdmin(ctx.user as User, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -652,6 +663,15 @@ export const hrRouter = router({
         days: String(input.days),
         startDate: new Date(input.startDate),
         endDate: new Date(input.endDate),
+      });
+      await recordLeaveCreatedAudit(db, {
+        companyId,
+        actorUserId: ctx.user.id,
+        employeeId: input.employeeId,
+        leaveType: input.leaveType,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        days: input.days,
       });
       return { success: true };
     }),
@@ -1825,6 +1845,12 @@ export const hrRouter = router({
           .from(employees).where(eq(employees.id, empId));
         if (!emp || emp.companyId !== cid) continue;
         await db.update(employees).set({ department: deptWrite }).where(eq(employees.id, empId));
+        await recordEmployeeDepartmentAssignedAudit(db, {
+          companyId: cid,
+          actorUserId: ctx.user.id,
+          employeeId: empId,
+          departmentName: deptWrite || null,
+        });
       }
       return { success: true, updated: input.employeeIds.length };
     }),
@@ -1889,7 +1915,16 @@ export const hrRouter = router({
         description: input.description,
         headEmployeeId: input.headEmployeeId,
       });
-      return { id: (result as any).insertId };
+      const deptId = (result as any).insertId as number;
+      await recordDepartmentCreatedAudit(db, {
+        companyId: cid,
+        actorUserId: ctx.user.id,
+        departmentId: deptId,
+        name: input.name,
+        nameAr: input.nameAr ?? null,
+        headEmployeeId: input.headEmployeeId ?? null,
+      });
+      return { id: deptId };
     }),
 
   /** Inserts all suggested departments that do not already exist (by English name, case-insensitive). */
@@ -1931,6 +1966,17 @@ export const hrRouter = router({
           and(eq(employees.companyId, cid), eq(employees.department, existing.name)),
         );
       }
+      await recordDepartmentUpdatedAudit(db, {
+        companyId: cid,
+        actorUserId: ctx.user.id,
+        departmentId: input.id,
+        previousName: existing.name,
+        previousNameAr: (existing as any).nameAr ?? null,
+        previousHeadEmployeeId: existing.headEmployeeId ?? null,
+        nextName: updateData.name ?? existing.name,
+        nextNameAr: updateData.nameAr ?? (existing as any).nameAr ?? null,
+        nextHeadEmployeeId: updateData.headEmployeeId ?? existing.headEmployeeId ?? null,
+      });
       return { success: true };
     }),
 
@@ -1946,6 +1992,12 @@ export const hrRouter = router({
       await db.update(employees).set({ department: null }).where(
         and(eq(employees.companyId, cid), eq(employees.department, existing.name)),
       );
+      await recordDepartmentDeletedAudit(db, {
+        companyId: cid,
+        actorUserId: ctx.user.id,
+        departmentId: input.id,
+        name: existing.name,
+      });
       return { success: true };
     }),
 
@@ -1979,7 +2031,15 @@ export const hrRouter = router({
         departmentId: input.departmentId,
         description: input.description,
       });
-      return { id: (result as any).insertId };
+      const posId = (result as any).insertId as number;
+      await recordPositionCreatedAudit(db, {
+        companyId: cid,
+        actorUserId: ctx.user.id,
+        positionId: posId,
+        title: input.title,
+        departmentId: input.departmentId ?? null,
+      });
+      return { id: posId };
     }),
 
   deletePosition: protectedProcedure
@@ -1991,6 +2051,12 @@ export const hrRouter = router({
       const [existing] = await db.select().from(positions).where(and(eq(positions.id, input.id), eq(positions.companyId, cid)));
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Position not found" });
       await db.update(positions).set({ isActive: false }).where(eq(positions.id, input.id));
+      await recordPositionDeletedAudit(db, {
+        companyId: cid,
+        actorUserId: ctx.user.id,
+        positionId: input.id,
+        title: existing.title,
+      });
       return { success: true };
     }),
 

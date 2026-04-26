@@ -432,7 +432,7 @@ export default function PromoterFinanceHubPage() {
                               )}
                             </ul>
                           </div>
-                          <div className="max-h-56 overflow-auto border rounded-md">
+                          <div className="max-h-56 overflow-auto scrollbar-hidden border rounded-md">
                             <Table>
                               <TableHeader>
                                 <TableRow>
@@ -601,7 +601,7 @@ export default function PromoterFinanceHubPage() {
                               {formatWarningAckForDisplay(invoiceDetailQuery.data.warningAck)}
                             </p>
                           </div>
-                          <div className="max-h-48 overflow-auto border rounded-md">
+                          <div className="max-h-48 overflow-auto scrollbar-hidden border rounded-md">
                             <Table>
                               <TableHeader>
                                 <TableRow>

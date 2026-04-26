@@ -409,7 +409,7 @@ function RunPayrollTab() {
                             Attendance preflight snapshot (stored at execution)
                           </CollapsibleTrigger>
                           <CollapsibleContent className="px-3 pb-3">
-                            <pre className="text-[10px] whitespace-pre-wrap break-words max-h-52 overflow-y-auto rounded border border-border bg-background/80 p-2">
+                            <pre className="text-[10px] whitespace-pre-wrap break-words max-h-52 overflow-y-auto scrollbar-hidden rounded border border-border bg-background/80 p-2">
                               {formatPreflightSnapshot(snap)}
                             </pre>
                           </CollapsibleContent>
@@ -422,7 +422,7 @@ function RunPayrollTab() {
                           <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1">
                             <AlertCircle size={14} /> Reconciliation warnings ({reconciliation.warnings.length})
                           </p>
-                          <ul className="text-[11px] text-amber-900/90 dark:text-amber-100/90 space-y-1 max-h-32 overflow-y-auto">
+                          <ul className="text-[11px] text-amber-900/90 dark:text-amber-100/90 space-y-1 max-h-32 overflow-y-auto scrollbar-hidden">
                             {reconciliation.warnings.map((w, i) => (
                               <li key={i}>Employee #{w.employeeId}: {w.message}</li>
                             ))}

@@ -89,6 +89,64 @@ jobs:
         with:
           category: "/language:javascript-typescript"
 
+  # ── Migration canary: verify the journal is complete on a fresh DB ───────────
+  # Catches journal drift before it reaches prod. A fresh MySQL container is
+  # cheaper than discovering the journal is broken during an emergency deploy.
+  migrate-canary:
+    name: Migration Canary (fresh DB)
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+          MYSQL_DATABASE: smartpro_canary
+          MYSQL_USER: canary
+          MYSQL_PASSWORD: canarypass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root --password=rootpass"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run all migrations on empty DB
+        env:
+          DATABASE_URL: mysql://canary:canarypass@127.0.0.1:3306/smartpro_canary
+        run: pnpm drizzle-kit migrate
+
+      - name: Verify migration count
+        env:
+          MYSQL_PWD: canarypass
+        run: |
+          COUNT=$(mysql -h 127.0.0.1 -u canary smartpro_canary \
+            -se "SELECT COUNT(*) FROM __drizzle_migrations;")
+          EXPECTED=90
+          echo "Migrations applied: $COUNT (expected $EXPECTED)"
+          if [ "$COUNT" -ne "$EXPECTED" ]; then
+            echo "FAIL: expected $EXPECTED migrations, got $COUNT"
+            exit 1
+          fi
+
+      - name: Verify journal integrity
+        run: node scripts/verify-journal.mjs --post
+
   # ── Docker image build (smoke test) ─────────────────────────────────────────
   docker:
     name: Docker Build

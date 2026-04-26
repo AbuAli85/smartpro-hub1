@@ -1,7 +1,7 @@
 # SmartPRO Deployment Runbook
 
 **Target:** Docker Compose (MySQL 8.0 + Node 20 Alpine)  
-**Migration count:** 90 (0000–0089); journal contains 49 entries  
+**Migration count:** 90 (0000–0089); journal contains 90 entries (rebuilt 2026-04-26 — see `docs/MIGRATIONS.md`)  
 **Last migration:** `0089_fresh_deploy_indexes` — adds performance indexes for tables created via 0070 baseline recovery
 
 ---

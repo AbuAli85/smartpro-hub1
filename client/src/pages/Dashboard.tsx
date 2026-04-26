@@ -572,7 +572,7 @@ export default function Dashboard() {
         <div>
           <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <BarChart3 size={13} /> {t("dashboard:commandCenter", "Command center — your business at a glance")}
+              <BarChart3 size={13} /> {t("dashboard:commandCenter", "Business Dashboard — your business at a glance")}
             </h2>
             <div className="flex items-center gap-1 flex-wrap justify-end">
               {showHref("/operations") && (

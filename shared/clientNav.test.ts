@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   clientNavItemVisible,
   clientRouteAccessible,
+  getRoleDefaultRoute,
   OPTIONAL_NAV_HREFS,
   PLATFORM_ONLY_HREFS,
   shouldUsePortalOnlyShell,
@@ -350,5 +351,121 @@ describe("clientRouteAccessible", () => {
     expect(
       clientRouteAccessible("/marketplace", member, new Set(), { hasCompanyMembership: false }),
     ).toBe(true);
+  });
+});
+
+// ── IA Freeze: Control Tower and Operations nav policy ────────────────────────
+
+const activeCompanyOpts = (memberRole: string) => ({
+  hasCompanyWorkspace: true,
+  hasCompanyMembership: true,
+  memberRole: memberRole as Parameters<typeof clientNavItemVisible>[3] extends { memberRole?: infer R } ? R : never,
+});
+
+describe("IA freeze — Control Tower nav visibility", () => {
+  it("company_admin sees /control-tower", () => {
+    expect(clientNavItemVisible("/control-tower", owner, new Set(), activeCompanyOpts("company_admin"))).toBe(true);
+    expect(clientRouteAccessible("/control-tower", owner, new Set(), activeCompanyOpts("company_admin"))).toBe(true);
+  });
+
+  it("hr_admin sees /control-tower", () => {
+    const hrUser = { role: "user" as const, platformRole: "company_admin" as const };
+    expect(clientNavItemVisible("/control-tower", hrUser, new Set(), activeCompanyOpts("hr_admin"))).toBe(true);
+    expect(clientRouteAccessible("/control-tower", hrUser, new Set(), activeCompanyOpts("hr_admin"))).toBe(true);
+  });
+
+  it("finance_admin sees /control-tower", () => {
+    expect(clientNavItemVisible("/control-tower", finance, new Set(), activeCompanyOpts("finance_admin"))).toBe(true);
+    expect(clientRouteAccessible("/control-tower", finance, new Set(), activeCompanyOpts("finance_admin"))).toBe(true);
+  });
+
+  it("reviewer sees /control-tower", () => {
+    const rev = { role: "user" as const, platformRole: "company_member" as const };
+    expect(clientNavItemVisible("/control-tower", rev, new Set(), activeCompanyOpts("reviewer"))).toBe(true);
+    expect(clientRouteAccessible("/control-tower", rev, new Set(), activeCompanyOpts("reviewer"))).toBe(true);
+  });
+
+  it("external_auditor sees /control-tower", () => {
+    const aud = { role: "user" as const, platformRole: "company_member" as const };
+    expect(clientNavItemVisible("/control-tower", aud, new Set(), activeCompanyOpts("external_auditor"))).toBe(true);
+    expect(clientRouteAccessible("/control-tower", aud, new Set(), activeCompanyOpts("external_auditor"))).toBe(true);
+  });
+
+  it("company_member does NOT see /control-tower", () => {
+    expect(clientNavItemVisible("/control-tower", member, new Set(), activeCompanyOpts("company_member"))).toBe(false);
+    expect(clientRouteAccessible("/control-tower", member, new Set(), activeCompanyOpts("company_member"))).toBe(false);
+  });
+
+  it("client does NOT see /control-tower", () => {
+    expect(clientNavItemVisible("/control-tower", portalClient, new Set(), activeCompanyOpts("client"))).toBe(false);
+    expect(clientRouteAccessible("/control-tower", portalClient, new Set(), activeCompanyOpts("client"))).toBe(false);
+  });
+
+  it("company_admin sees /dashboard", () => {
+    expect(clientNavItemVisible("/dashboard", owner, new Set(), activeCompanyOpts("company_admin"))).toBe(true);
+    expect(clientRouteAccessible("/dashboard", owner, new Set(), activeCompanyOpts("company_admin"))).toBe(true);
+  });
+
+  it("company_member sees /dashboard (field employee surface includes dashboard)", () => {
+    expect(clientNavItemVisible("/dashboard", member, new Set(), activeCompanyOpts("company_member"))).toBe(true);
+  });
+});
+
+describe("IA freeze — Operations nav visibility", () => {
+  it("company_admin sees /operations", () => {
+    expect(clientNavItemVisible("/operations", owner, new Set(), activeCompanyOpts("company_admin"))).toBe(true);
+    expect(clientRouteAccessible("/operations", owner, new Set(), activeCompanyOpts("company_admin"))).toBe(true);
+  });
+
+  it("hr_admin does NOT see /operations", () => {
+    const hrUser = { role: "user" as const, platformRole: "company_admin" as const };
+    expect(clientNavItemVisible("/operations", hrUser, new Set(), activeCompanyOpts("hr_admin"))).toBe(false);
+    expect(clientRouteAccessible("/operations", hrUser, new Set(), activeCompanyOpts("hr_admin"))).toBe(false);
+  });
+
+  it("finance_admin does NOT see /operations", () => {
+    expect(clientNavItemVisible("/operations", finance, new Set(), activeCompanyOpts("finance_admin"))).toBe(false);
+    expect(clientRouteAccessible("/operations", finance, new Set(), activeCompanyOpts("finance_admin"))).toBe(false);
+  });
+
+  it("company_member does NOT see /operations", () => {
+    expect(clientNavItemVisible("/operations", member, new Set(), activeCompanyOpts("company_member"))).toBe(false);
+    expect(clientRouteAccessible("/operations", member, new Set(), activeCompanyOpts("company_member"))).toBe(false);
+  });
+
+  it("platform_admin sees /operations", () => {
+    expect(clientNavItemVisible("/operations", platform, new Set(), activeCompanyOpts("company_admin"))).toBe(true);
+  });
+});
+
+describe("IA freeze — default route policy matrix", () => {
+  it("company_admin lands at /control-tower", () => {
+    expect(getRoleDefaultRoute("company_admin")).toBe("/control-tower");
+  });
+
+  it("reviewer lands at /control-tower", () => {
+    expect(getRoleDefaultRoute("reviewer")).toBe("/control-tower");
+  });
+
+  it("external_auditor lands at /control-tower", () => {
+    expect(getRoleDefaultRoute("external_auditor")).toBe("/control-tower");
+  });
+
+  it("hr_admin lands at /hr/employees", () => {
+    expect(getRoleDefaultRoute("hr_admin")).toBe("/hr/employees");
+  });
+
+  it("finance_admin lands at /payroll", () => {
+    expect(getRoleDefaultRoute("finance_admin")).toBe("/payroll");
+  });
+
+  it("company_member lands at /my-portal", () => {
+    expect(getRoleDefaultRoute("company_member")).toBe("/my-portal");
+  });
+
+  it("unknown / null role falls back to /control-tower", () => {
+    expect(getRoleDefaultRoute(null)).toBe("/control-tower");
+    expect(getRoleDefaultRoute(undefined)).toBe("/control-tower");
+    expect(getRoleDefaultRoute("__unknown__")).toBe("/control-tower");
   });
 });

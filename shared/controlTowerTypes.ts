@@ -42,7 +42,8 @@ export type ControlTowerAction =
   | "assign"
   | "resolve"
   | "dismiss"
-  | "view_detail";
+  | "view_detail"
+  | "open_related";
 
 /** Canonical shape for a single Control Tower decision/signal item. */
 export interface ControlTowerItem {

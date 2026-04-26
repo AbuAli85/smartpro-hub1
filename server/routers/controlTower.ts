@@ -72,6 +72,7 @@ import { logCtMutation } from "../controlTower/controlTowerAudit";
 import {
   overlayStateOnItems,
   filterActiveItems,
+  stripResolveFromScopedItems,
   assertDomainActionAllowed,
   assertNotReadOnly,
 } from "../controlTower/stateOverlay";
@@ -98,8 +99,8 @@ function computeAllowedActions(
   caps: Awaited<ReturnType<typeof deriveCapabilities>>,
   isReadOnly: boolean,
 ): ControlTowerAction[] {
-  if (isReadOnly) return ["view_detail"];
-  const actions: ControlTowerAction[] = ["view_detail", "acknowledge"];
+  if (isReadOnly) return ["view_detail", "open_related"];
+  const actions: ControlTowerAction[] = ["view_detail", "acknowledge", "open_related"];
   if (caps.canAssignControlTowerItems) actions.push("assign");
   if (caps.canResolveControlTowerItems) actions.push("resolve", "dismiss");
   return actions;
@@ -215,7 +216,9 @@ export const controlTowerRouter = router({
 
       const stateMap = buildStateMap(states);
       void touchLastSeenBatch(db, m.companyId, rawItems.map((i) => i.id), now);
-      const allItems = filterActiveItems(overlayStateOnItems(rawItems, stateMap, allowed, now));
+      const allItems = filterActiveItems(
+        stripResolveFromScopedItems(overlayStateOnItems(rawItems, stateMap, allowed, now)),
+      );
 
       const bySeverity: Record<ControlTowerSeverity, number> = {
         critical: 0,
@@ -285,8 +288,8 @@ export const controlTowerRouter = router({
       // Touch last_seen_at for dismissed/resolved items still in the batch (fire-and-forget).
       void touchLastSeenBatch(db, m.companyId, rawItems.map((i) => i.id), now);
 
-      // Overlay → re-emergence → filter resolved/dismissed → rank → paginate
-      const withState = overlayStateOnItems(rawItems, stateMap, allowed, now);
+      // Overlay → re-emergence → scoped-resolve strip → filter resolved/dismissed → rank → paginate
+      const withState = stripResolveFromScopedItems(overlayStateOnItems(rawItems, stateMap, allowed, now));
       const active = filterActiveItems(withState);
       const ranked = rankItems(active, now);
       const total = ranked.length;

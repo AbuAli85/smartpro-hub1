@@ -14,6 +14,7 @@
  *  8. Scope-specific keys — scoped vs unscoped keys are distinct
  *  9. Pagination after overlay — deterministic after rank + filter
  * 10. Dismiss policy      — reason required; domain-gating enforced
+ * 15. stripResolveFromScopedItems — scoped signals never expose resolve
  */
 
 import { describe, it, expect } from "vitest";
@@ -696,5 +697,110 @@ describe("requiresSourceResolution policy gate", () => {
 
   it("unknown domain returns false (safe default)", () => {
     expect(requiresSourceResolution("manual:1:anything")).toBe(false);
+  });
+});
+
+// ─── 15. stripResolveFromScopedItems ─────────────────────────────────────────
+
+import { stripResolveFromScopedItems } from "../controlTower/stateOverlay";
+
+describe("stripResolveFromScopedItems", () => {
+  it("removes resolve from scoped aggregate items", () => {
+    const items = [
+      makeItem({
+        id: "hr:1:leave:pending:scoped:4",
+        domain: "hr",
+        allowedActions: [...BASE_ACTIONS],
+      }),
+    ];
+    const result = stripResolveFromScopedItems(items);
+    expect(result[0].allowedActions).not.toContain("resolve");
+    expect(result[0].allowedActions).toContain("dismiss");
+    expect(result[0].allowedActions).toContain("acknowledge");
+  });
+
+  it("does not affect non-scoped items", () => {
+    const items = [
+      makeItem({
+        id: "payroll:1:2026:4:draft",
+        domain: "payroll",
+        allowedActions: [...BASE_ACTIONS],
+      }),
+    ];
+    const result = stripResolveFromScopedItems(items);
+    expect(result[0].allowedActions).toContain("resolve");
+    expect(result[0].allowedActions).toContain("dismiss");
+  });
+
+  it("preserves view_detail and open_related on scoped items", () => {
+    const actionsWithOpenRelated: ControlTowerAction[] = [...BASE_ACTIONS, "open_related"];
+    const items = [
+      makeItem({
+        id: "operations:1:tasks:overdue:scoped",
+        domain: "operations",
+        allowedActions: actionsWithOpenRelated,
+      }),
+    ];
+    const result = stripResolveFromScopedItems(items);
+    expect(result[0].allowedActions).toContain("view_detail");
+    expect(result[0].allowedActions).toContain("open_related");
+    expect(result[0].allowedActions).not.toContain("resolve");
+  });
+
+  it("handles mixed scoped and non-scoped items in one batch", () => {
+    const items = [
+      makeItem({
+        id: "hr:1:leave:pending",
+        domain: "hr",
+        allowedActions: [...BASE_ACTIONS],
+      }),
+      makeItem({
+        id: "hr:1:leave:pending:scoped:7",
+        domain: "hr",
+        allowedActions: [...BASE_ACTIONS],
+      }),
+    ];
+    const result = stripResolveFromScopedItems(items);
+    expect(result[0].allowedActions).toContain("resolve"); // non-scoped: unchanged
+    expect(result[1].allowedActions).not.toContain("resolve"); // scoped: stripped
+  });
+
+  it("strips resolve from scoped item even if already resolved (allowedActions=view_detail)", () => {
+    const items = [
+      makeItem({
+        id: "documents:1:employee:expiring_7d:scoped",
+        domain: "documents",
+        allowedActions: ["view_detail"],
+      }),
+    ];
+    const result = stripResolveFromScopedItems(items);
+    expect(result[0].allowedActions).toEqual(["view_detail"]); // no-op; resolve was already absent
+  });
+
+  it("is applied after overlayStateOnItems and strips resolve from re-emerged scoped items", () => {
+    const now = new Date("2026-05-01T10:00:00Z");
+    const dismissedAt = new Date("2026-04-01T10:00:00Z"); // 30 days ago, beyond grace window
+    const items = [
+      makeItem({
+        id: "hr:1:leave:pending:scoped:4",
+        domain: "hr",
+        allowedActions: [...BASE_ACTIONS],
+      }),
+    ];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "hr:1:leave:pending:scoped:4", "dismissed", {
+        dismissedAt,
+        dismissalReason: "Handled",
+      }),
+    ]);
+    // After overlayStateOnItems, re-emerged item has base actions (including resolve)
+    const overlaid = overlayStateOnItems(items, stateMap, BASE_ACTIONS, now);
+    expect(overlaid[0].status).toBe("open");
+    expect(overlaid[0].allowedActions).toContain("resolve");
+
+    // After stripResolveFromScopedItems, resolve is stripped
+    const stripped = stripResolveFromScopedItems(overlaid);
+    expect(stripped[0].allowedActions).not.toContain("resolve");
+    expect(stripped[0].allowedActions).toContain("dismiss");
   });
 });

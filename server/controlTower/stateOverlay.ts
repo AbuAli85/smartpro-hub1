@@ -108,6 +108,24 @@ export function overlayStateOnItems(
 }
 
 /**
+ * Strips `resolve` from the allowedActions of scoped aggregate signals.
+ *
+ * Scoped signals (id contains ":scoped") represent aggregate conditions over a
+ * set of employees (e.g. "3 work permits expiring — department: Engineering").
+ * The source-confirmed resolution check cannot reliably identify which specific
+ * records to clear, so resolve is not a safe action.  Dismiss remains allowed.
+ */
+export function stripResolveFromScopedItems(items: ControlTowerItem[]): ControlTowerItem[] {
+  return items.map((item) => {
+    if (!item.id.includes(":scoped")) return item;
+    return {
+      ...item,
+      allowedActions: item.allowedActions.filter((a) => a !== "resolve"),
+    };
+  });
+}
+
+/**
  * Removes resolved and dismissed items from the active queue.
  *
  * Resolved/dismissed items remain in the state table for history but must not

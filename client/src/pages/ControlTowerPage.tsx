@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,10 @@ import { fmtDateTimeShort } from "@/lib/dateUtils";
 import { useActionQueue } from "@/hooks/useActionQueue";
 import { useSmartRoleHomeRedirect } from "@/hooks/useSmartRoleHomeRedirect";
 import { buildRiskStripCards } from "@/features/controlTower/riskStripModel";
+import { relatedEntityTypeToRoute } from "@/features/controlTower/ctRelatedRoutes";
+import { ControlTowerDismissDialog } from "@/features/controlTower/components/ControlTowerDismissDialog";
+import { ControlTowerHelpPanel } from "@/features/controlTower/components/ControlTowerHelpPanel";
+import type { ControlTowerSeverity } from "@shared/controlTowerTypes";
 import { buildPriorityItems } from "@/features/controlTower/priorityEngine";
 import { priorityActionIdsFromItems, queueItemsAfterPriorities } from "@/features/controlTower/controlTowerLayout";
 import {
@@ -71,6 +75,12 @@ export default function ControlTowerPage() {
   const [viewMode, setViewMode] = useState<ControlTowerViewMode>("operate");
   const [briefVariant, setBriefVariant] = useState<OperatingBriefVariant>(DEFAULT_BRIEF_VARIANT);
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+  const [helpPanelOpen, setHelpPanelOpen] = useState(false);
+  const [dismissTarget, setDismissTarget] = useState<{
+    itemKey: string;
+    domain: string;
+    severity: ControlTowerSeverity;
+  } | null>(null);
   const { user } = useAuth();
   const { activeCompanyId, activeCompany } = useActiveCompany();
   useSmartRoleHomeRedirect();
@@ -153,7 +163,7 @@ export default function ControlTowerPage() {
       const reason = (e.data as { reason?: string } | undefined)?.reason;
       if (reason === CONTROL_TOWER_SOURCE_STILL_ACTIVE) {
         toast.error(
-          "Source still active — open the related module to resolve, or dismiss with a reason.",
+          "Source still active. Open the related module to fix the underlying issue, or dismiss this signal with a reason.",
           { duration: 8000 },
         );
       } else {
@@ -170,6 +180,20 @@ export default function ControlTowerPage() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const handleDismissConfirm = useCallback(
+    (reason: string) => {
+      if (!dismissTarget) return;
+      dismissItem.mutate({
+        companyId: activeCompanyId ?? undefined,
+        itemKey: dismissTarget.itemKey,
+        domain: dismissTarget.domain,
+        reason,
+      });
+      setDismissTarget(null);
+    },
+    [dismissTarget, dismissItem, activeCompanyId],
+  );
 
   const engagementRollupsRefresh = trpc.engagements.refreshRollups.useMutation({
     onSuccess: (r) => {
@@ -595,7 +619,18 @@ export default function ControlTowerPage() {
           <Card className="border-border/80">
             <CardHeader className="py-3 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-sm">Open signals</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm">Open signals</CardTitle>
+                  <button
+                    type="button"
+                    onClick={() => setHelpPanelOpen((v) => !v)}
+                    aria-label="Control Tower help"
+                    className="text-muted-foreground hover:text-foreground focus:outline-none"
+                    title="How signals work"
+                  >
+                    &#x003F;
+                  </button>
+                </div>
                 {ctSummary != null && (
                   <div className="flex flex-wrap gap-2 text-xs tabular-nums">
                     {ctSummary.bySeverity.critical > 0 && (
@@ -653,6 +688,11 @@ export default function ControlTowerPage() {
                 </div>
               )}
             </CardHeader>
+            {helpPanelOpen && (
+              <div className="px-6 pb-2">
+                <ControlTowerHelpPanel open={helpPanelOpen} onClose={() => setHelpPanelOpen(false)} />
+              </div>
+            )}
             <CardContent className="pt-0 space-y-2">
               {(ctSummaryLoading || ctItemsLoading) && (
                 <p className="text-xs text-muted-foreground py-2">Loading signals…</p>
@@ -696,18 +736,23 @@ export default function ControlTowerPage() {
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-snug">{item.description}</p>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {item.relatedEntityType != null && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs h-7 px-2"
-                        asChild
-                      >
-                        <a href={`/${item.relatedEntityType.replace(/_/g, "-")}`}>Open</a>
-                      </Button>
-                    )}
+                  <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                    {item.allowedActions.includes("open_related") &&
+                      item.relatedEntityType != null &&
+                      relatedEntityTypeToRoute(item.relatedEntityType) != null && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7 px-2"
+                          asChild
+                          title="Go to the source module to fix the underlying issue"
+                        >
+                          <a href={relatedEntityTypeToRoute(item.relatedEntityType)!}>
+                            Open related
+                          </a>
+                        </Button>
+                      )}
                     {!isReadOnly && item.allowedActions.includes("acknowledge") && (
                       <Button
                         type="button"
@@ -715,6 +760,7 @@ export default function ControlTowerPage() {
                         size="sm"
                         className="text-xs h-7 px-2"
                         disabled={acknowledgeItem.isPending}
+                        title="I have seen this — mark it as acknowledged"
                         onClick={() =>
                           acknowledgeItem.mutate({
                             companyId: activeCompanyId ?? undefined,
@@ -724,6 +770,45 @@ export default function ControlTowerPage() {
                         }
                       >
                         Ack
+                      </Button>
+                    )}
+                    {!isReadOnly && item.allowedActions.includes("resolve") && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 px-2 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+                        disabled={resolveItem.isPending}
+                        title="The underlying issue is fixed — mark it as resolved"
+                        onClick={() =>
+                          resolveItem.mutate({
+                            companyId: activeCompanyId ?? undefined,
+                            itemKey: item.id,
+                            domain: item.domain,
+                            resolution: "Manually resolved via Control Tower",
+                          })
+                        }
+                      >
+                        Resolve
+                      </Button>
+                    )}
+                    {!isReadOnly && item.allowedActions.includes("dismiss") && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 px-2 text-muted-foreground hover:text-foreground"
+                        disabled={dismissItem.isPending}
+                        title="Hide with a reason. May reappear in 7 days if the source issue persists."
+                        onClick={() =>
+                          setDismissTarget({
+                            itemKey: item.id,
+                            domain: item.domain,
+                            severity: item.severity,
+                          })
+                        }
+                      >
+                        Dismiss
                       </Button>
                     )}
                   </div>
@@ -963,6 +1048,14 @@ export default function ControlTowerPage() {
           ) : null}
         </div>
       </div>
+
+      <ControlTowerDismissDialog
+        open={dismissTarget != null}
+        severity={dismissTarget?.severity ?? "low"}
+        onClose={() => setDismissTarget(null)}
+        onConfirm={handleDismissConfirm}
+        isPending={dismissItem.isPending}
+      />
     </div>
   );
 }

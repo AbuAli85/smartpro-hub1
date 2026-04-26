@@ -716,14 +716,17 @@ export const payrollRouter = router({
         .limit(1);
       if (!runBefore) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
       assertAuthoritativePayrollForApprove(runBefore);
-      await db.update(payrollRuns).set({ status: "approved", approvedByUserId: ctx.user.id, approvedAt: new Date() })
-        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)));
-      await recordPayrollRunApprovedAudit(db as never, {
-        companyId: m.companyId,
-        actorUserId: ctx.user.id,
-        payrollRunId: runBefore.id,
-        periodMonth: runBefore.periodMonth,
-        periodYear: runBefore.periodYear,
+      await db.transaction(async (tx) => {
+        await tx.update(payrollRuns)
+          .set({ status: "approved", approvedByUserId: ctx.user.id, approvedAt: new Date() })
+          .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)));
+        await recordPayrollRunApprovedAudit(tx, {
+          companyId: m.companyId,
+          actorUserId: ctx.user.id,
+          payrollRunId: runBefore.id,
+          periodMonth: runBefore.periodMonth,
+          periodYear: runBefore.periodYear,
+        });
       });
       return { success: true };
     }),
@@ -760,17 +763,20 @@ export const payrollRouter = router({
           message: "Payroll run must be approved (or WPS-ready) before it can be marked paid.",
         });
       }
-      await db.update(payrollRuns).set({ status: "paid", paidAt: new Date() })
-        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)));
-      await db.update(payrollLineItems).set({ status: "paid" }).where(
-        and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)),
-      );
-      await recordPayrollRunMarkedPaidAudit(db as never, {
-        companyId: m.companyId,
-        actorUserId: ctx.user.id,
-        payrollRunId: runBefore.id,
-        periodMonth: runBefore.periodMonth,
-        periodYear: runBefore.periodYear,
+      await db.transaction(async (tx) => {
+        await tx.update(payrollRuns)
+          .set({ status: "paid", paidAt: new Date() })
+          .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)));
+        await tx.update(payrollLineItems)
+          .set({ status: "paid" })
+          .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
+        await recordPayrollRunMarkedPaidAudit(tx, {
+          companyId: m.companyId,
+          actorUserId: ctx.user.id,
+          payrollRunId: runBefore.id,
+          periodMonth: runBefore.periodMonth,
+          periodYear: runBefore.periodYear,
+        });
       });
       return { success: true };
     }),

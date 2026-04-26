@@ -872,3 +872,262 @@ describe("transaction atomicity — audit failure rolls back business write", ()
     expect(fakeDb.update).toHaveBeenCalled();
   });
 });
+
+// ── 11. payroll.approveRun ────────────────────────────────────────────────────
+
+describe("payroll.approveRun — audit logging", () => {
+  const runId = 17;
+  const approveRunBefore = {
+    id: runId,
+    periodMonth: 3,
+    periodYear: 2026,
+    status: "pending_execution",
+    previewOnly: false,
+    attendancePreflightSnapshot: "snap",
+  };
+
+  beforeEach(() => {
+    vi.mocked(dbMod.getUserCompanyById).mockReset();
+    vi.mocked(dbMod.getDb).mockReset();
+  });
+
+  function makeApproveDb(memberRole = "company_admin", runRow = approveRunBefore) {
+    const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
+    const fakeDb: any = {
+      select: vi.fn()
+        // 1st call: resolveVisibilityScope → companyMembers
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([{ role: memberRole }]),
+            }),
+          }),
+        })
+        // 2nd call: router → payrollRuns pre-fetch
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([runRow]),
+            }),
+          }),
+        }),
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
+      insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    return { fakeDb, auditValuesSpy };
+  }
+
+  it("writes payroll_run_approved audit event with correct fields", async () => {
+    mockMembership("company_admin");
+    const { fakeDb, auditValuesSpy } = makeApproveDb();
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    const result = await payrollRouter.createCaller(makeCtx()).approveRun({ runId, companyId: 9 });
+
+    expect(result).toMatchObject({ success: true });
+    expect(auditValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: 9,
+        actorUserId: 42,
+        entityType: "payroll_run",
+        entityId: runId,
+        action: "payroll_run_approved",
+        beforeState: null,
+        afterState: expect.objectContaining({ status: "approved", periodMonth: 3, periodYear: 2026 }),
+        metadata: null,
+      }),
+    );
+  });
+
+  it("does NOT reach audit when finance_admin is denied (no canApprovePayroll)", async () => {
+    mockMembership("finance_admin");
+    const { fakeDb, auditValuesSpy } = makeApproveDb("finance_admin");
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(payrollRouter.createCaller(makeCtx()).approveRun({ runId, companyId: 9 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(auditValuesSpy).not.toHaveBeenCalled();
+  });
+
+  it("approveRun: mutation throws when audit insert fails, transaction wrapper invoked", async () => {
+    mockMembership("company_admin");
+    const txCallSpy = vi.fn();
+    const failingValuesSpy = vi.fn().mockRejectedValue(new Error("audit write failed"));
+    const fakeDb: any = {
+      select: vi.fn()
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([{ role: "company_admin" }]),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([approveRunBefore]),
+            }),
+          }),
+        }),
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
+      insert: vi.fn().mockReturnValue({ values: failingValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => { txCallSpy(); return cb(fakeDb); };
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(payrollRouter.createCaller(makeCtx()).approveRun({ runId, companyId: 9 }))
+      .rejects.toThrow("audit write failed");
+
+    expect(txCallSpy).toHaveBeenCalledTimes(1);
+    expect(fakeDb.update).toHaveBeenCalled();
+  });
+});
+
+// ── 12. payroll.markPaid ──────────────────────────────────────────────────────
+
+describe("payroll.markPaid — audit logging", () => {
+  const runId = 22;
+  const markPaidRunBefore = {
+    id: runId,
+    periodMonth: 4,
+    periodYear: 2026,
+    status: "approved",
+    previewOnly: false,
+    attendancePreflightSnapshot: "snap",
+  };
+
+  beforeEach(() => {
+    vi.mocked(dbMod.getUserCompanyById).mockReset();
+    vi.mocked(dbMod.getDb).mockReset();
+  });
+
+  function makeMarkPaidDb(memberRole = "company_admin", runRow = markPaidRunBefore) {
+    const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
+    const fakeDb: any = {
+      select: vi.fn()
+        // 1st call: resolveVisibilityScope → companyMembers
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([{ role: memberRole }]),
+            }),
+          }),
+        })
+        // 2nd call: router → payrollRuns pre-fetch
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([runRow]),
+            }),
+          }),
+        }),
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
+      insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    return { fakeDb, auditValuesSpy };
+  }
+
+  it("writes payroll_run_marked_paid audit event with correct fields", async () => {
+    mockMembership("company_admin");
+    const { fakeDb, auditValuesSpy } = makeMarkPaidDb();
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    const result = await payrollRouter.createCaller(makeCtx()).markPaid({ runId, companyId: 9 });
+
+    expect(result).toMatchObject({ success: true });
+    expect(auditValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: 9,
+        actorUserId: 42,
+        entityType: "payroll_run",
+        entityId: runId,
+        action: "payroll_run_marked_paid",
+        beforeState: null,
+        afterState: expect.objectContaining({ status: "paid", periodMonth: 4, periodYear: 2026 }),
+        metadata: null,
+      }),
+    );
+  });
+
+  it("marks both payrollRuns and payrollLineItems inside the same transaction", async () => {
+    mockMembership("company_admin");
+    const txCallSpy = vi.fn();
+    const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
+    const updateSpy = vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) });
+    const fakeDb: any = {
+      select: vi.fn()
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([{ role: "company_admin" }]),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([markPaidRunBefore]),
+            }),
+          }),
+        }),
+      update: updateSpy,
+      insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => { txCallSpy(); return cb(fakeDb); };
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await payrollRouter.createCaller(makeCtx()).markPaid({ runId, companyId: 9 });
+
+    expect(txCallSpy).toHaveBeenCalledTimes(1);
+    expect(updateSpy).toHaveBeenCalledTimes(2); // tx.update(payrollRuns) + tx.update(payrollLineItems)
+    expect(auditValuesSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT reach audit when finance_admin is denied (no canMarkPayrollPaid)", async () => {
+    mockMembership("finance_admin");
+    const { fakeDb, auditValuesSpy } = makeMarkPaidDb("finance_admin");
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(payrollRouter.createCaller(makeCtx()).markPaid({ runId, companyId: 9 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(auditValuesSpy).not.toHaveBeenCalled();
+  });
+
+  it("markPaid: mutation throws when audit insert fails, all 3 writes attempted in one transaction", async () => {
+    mockMembership("company_admin");
+    const txCallSpy = vi.fn();
+    const failingValuesSpy = vi.fn().mockRejectedValue(new Error("audit write failed"));
+    const updateSpy = vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) });
+    const fakeDb: any = {
+      select: vi.fn()
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([{ role: "company_admin" }]),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([markPaidRunBefore]),
+            }),
+          }),
+        }),
+      update: updateSpy,
+      insert: vi.fn().mockReturnValue({ values: failingValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => { txCallSpy(); return cb(fakeDb); };
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(payrollRouter.createCaller(makeCtx()).markPaid({ runId, companyId: 9 }))
+      .rejects.toThrow("audit write failed");
+
+    expect(txCallSpy).toHaveBeenCalledTimes(1);
+    expect(updateSpy).toHaveBeenCalledTimes(2); // both business writes ran before audit failed
+  });
+});

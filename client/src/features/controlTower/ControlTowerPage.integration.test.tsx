@@ -15,8 +15,19 @@ import type { ActionQueueResult } from "@/hooks/useActionQueue";
 /** Fixed "now" so aging/stale signals stay stable for decision prompts. */
 const FIXED_NOW = new Date("2026-04-09T12:00:00.000Z");
 
-const { trpcQuery, engagementOpsSummaryInvalidate } = vi.hoisted(() => {
+const { trpcQuery, engagementOpsSummaryInvalidate, mockCtSummary } = vi.hoisted(() => {
   const engagementOpsSummaryInvalidate = vi.fn();
+  const mockCtSummary = vi.fn().mockReturnValue({
+    data: {
+      totalOpen: 0,
+      bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
+      byDomain: {},
+      visibleDomains: [],
+    },
+    isLoading: false,
+    isError: false,
+    dataUpdatedAt: Date.now(),
+  });
   return {
     trpcQuery: (data: unknown, isLoading = false) => () => ({
       data,
@@ -25,6 +36,7 @@ const { trpcQuery, engagementOpsSummaryInvalidate } = vi.hoisted(() => {
       dataUpdatedAt: Date.now(),
     }),
     engagementOpsSummaryInvalidate,
+    mockCtSummary,
   };
 });
 
@@ -103,12 +115,7 @@ vi.mock("@/lib/trpc", () => ({
     }),
     controlTower: {
       summary: {
-        useQuery: trpcQuery({
-          totalOpen: 0,
-          bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
-          byDomain: {},
-          visibleDomains: [],
-        }),
+        useQuery: mockCtSummary,
       },
       items: {
         useQuery: trpcQuery({ items: [], total: 0 }),
@@ -238,6 +245,17 @@ afterAll(() => {
 
 beforeEach(() => {
   vi.mocked(useActionQueue).mockImplementation(() => buildQueueFixture());
+  mockCtSummary.mockReturnValue({
+    data: {
+      totalOpen: 0,
+      bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
+      byDomain: {},
+      visibleDomains: [],
+    },
+    isLoading: false,
+    isError: false,
+    dataUpdatedAt: Date.now(),
+  });
 });
 
 afterEach(() => {
@@ -311,6 +329,36 @@ describe("ControlTowerPage integration (composition)", () => {
     expect(screen.getByRole("region", { name: "Action queue" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Key metrics" })).toBeInTheDocument();
     expect(screen.getByText("Operational snapshot")).toBeInTheDocument();
+  });
+
+  it("renders compact engagement health card instead of KPI tiles", () => {
+    renderControlTowerPage();
+
+    expect(screen.getByRole("region", { name: "Engagement health" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Engagements Ops" })).toHaveAttribute("href", "/engagements/ops");
+    expect(screen.getByText("Managed in Engagements Ops — overdue, at risk, awaiting client, and unassigned engagements.")).toBeInTheDocument();
+  });
+
+  it("initialises selectedDomain from URL ?domain= param", () => {
+    mockCtSummary.mockReturnValue({
+      data: {
+        totalOpen: 5,
+        bySeverity: { critical: 0, high: 1, medium: 2, low: 2 },
+        byDomain: { compliance: 3, hr: 2 },
+        visibleDomains: ["compliance", "hr"],
+      },
+      isLoading: false,
+      isError: false,
+      dataUpdatedAt: Date.now(),
+    });
+
+    window.history.pushState({}, "", "/control-tower?domain=compliance");
+    renderControlTowerPage();
+
+    const complianceBtn = screen.getByRole("button", { name: /compliance/i });
+    expect(complianceBtn.className).toMatch(/border-primary/);
+
+    window.history.pushState({}, "", "/control-tower");
   });
 
   it("main sections appear in the intended order in operate mode", () => {

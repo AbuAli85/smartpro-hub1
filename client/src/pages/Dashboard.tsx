@@ -24,7 +24,6 @@ import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/
 import { WorkforceHealthWidget } from "@/components/WorkforceHealthWidget";
 import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 import { OwnerSetupChecklist } from "@/components/OwnerSetupChecklist";
-import { ExecutiveControlTower } from "@/components/dashboard/ExecutiveControlTower";
 import { FinancialSummaryCard } from "@/components/dashboard/FinancialSummaryCard";
 import PreCompanyDashboard from "@/components/dashboard/PreCompanyDashboard";
 import { ManagementCadencePanel } from "@/components/dashboard/ManagementCadencePanel";
@@ -244,11 +243,6 @@ export default function Dashboard() {
   }, [deriveRoleView]);
   const { data: roleQueue, isLoading: roleQueueLoading } = trpc.operations.getRoleActionQueue.useQuery(
     { companyId: activeCompanyId ?? 0, roleView },
-    { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
-  );
-  const now = new Date();
-  const { data: wpsStatus } = trpc.compliance.getWpsStatus.useQuery(
-    { companyId: activeCompanyId ?? undefined, month: now.getMonth() + 1, year: now.getFullYear() },
     { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
   );
   const utils = trpc.useUtils();
@@ -643,7 +637,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
                 <div className={`rounded-xl border p-3 ${riskCounts.payrollBlocked > 0 ? "border-red-200 bg-red-50/40" : "border-border/70 bg-card"}`}>
                   <p className="text-[11px] text-muted-foreground">Payroll blocked</p>
                   <p className="text-xl font-black tabular-nums mt-0.5">{riskCounts.payrollBlocked}</p>
@@ -658,11 +652,6 @@ export default function Dashboard() {
                   <p className="text-[11px] text-muted-foreground">Overdue gov.</p>
                   <p className="text-xl font-black tabular-nums mt-0.5">{riskCounts.overdueGovCases}</p>
                   <Link href="/workforce/cases" className="text-[11px] text-[var(--smartpro-orange)] hover:underline mt-1 inline-block">Cases</Link>
-                </div>
-                <div className={`rounded-xl border p-3 ${(wpsStatus?.status && wpsStatus.status !== "paid" && wpsStatus.status !== "not_generated") ? "border-amber-200 bg-amber-50/40" : "border-border/70 bg-card"}`}>
-                  <p className="text-[11px] text-muted-foreground">WPS</p>
-                  <p className="text-base font-black mt-0.5 capitalize tabular-nums">{String(wpsStatus?.status ?? "not_generated").replace(/_/g, " ")}</p>
-                  <Link href="/payroll" className="text-[11px] text-[var(--smartpro-orange)] hover:underline mt-1 inline-block">WPS run</Link>
                 </div>
               </div>
               {streamlinedExecDash && showHref("/hr/today-board") && (
@@ -964,17 +953,6 @@ export default function Dashboard() {
           bundle={businessPulse.managementCadence}
           revenue={businessPulse.revenue}
           showFinanceOverviewLink={showHref("/finance/overview")}
-        />
-      )}
-
-      {!showPlatformOverview && activeCompanyId && businessPulse?.controlTower && (
-        <ExecutiveControlTower
-          tower={businessPulse.controlTower}
-          showHref={showHref}
-          execution={businessPulse.execution}
-          companyId={activeCompanyId!}
-          memberRole={activeCompany?.role ?? null}
-          roleExecution={businessPulse.roleExecution}
         />
       )}
 

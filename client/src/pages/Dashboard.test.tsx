@@ -85,9 +85,6 @@ vi.mock("@/components/WorkforceHealthWidget", () => ({
 vi.mock("@/components/contracts/ContractKpiWidget", () => ({
   ContractKpiWidget: () => null,
 }));
-vi.mock("@/components/dashboard/ExecutiveControlTower", () => ({
-  ExecutiveControlTower: () => null,
-}));
 vi.mock("@/components/dashboard/ManagementCadencePanel", () => ({
   ManagementCadencePanel: () => null,
 }));
@@ -128,6 +125,19 @@ describe("Dashboard role queue widget", () => {
     expect(screen.getByText("Expired permits")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Permits" })).toHaveAttribute("href", "/workforce/permits?status=expired");
     expect(screen.getByText("No urgent work detected.")).toBeInTheDocument();
+  });
+
+  it("does not render WPS cell in risk grid", () => {
+    mockRoleQueue.mockReturnValue({ data: [], isLoading: false, isFetching: false, error: null });
+    render(<Dashboard />);
+    expect(screen.queryByText("WPS")).toBeNull();
+  });
+
+  it("does not render ExecutiveControlTower widget", () => {
+    mockRoleQueue.mockReturnValue({ data: [], isLoading: false, isFetching: false, error: null });
+    render(<Dashboard />);
+    expect(screen.queryByText("Control Tower Overview")).toBeNull();
+    expect(screen.queryByText("Executive Control Tower")).toBeNull();
   });
 
   it("renders non-empty queue state", () => {

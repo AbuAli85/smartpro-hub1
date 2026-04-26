@@ -8,7 +8,6 @@ import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { CONTROL_TOWER_SOURCE_STILL_ACTIVE } from "@shared/controlTowerTrpcReasons";
-import { fmtDateTimeShort } from "@/lib/dateUtils";
 import { useActionQueue } from "@/hooks/useActionQueue";
 import { useSmartRoleHomeRedirect } from "@/hooks/useSmartRoleHomeRedirect";
 import { buildRiskStripCards } from "@/features/controlTower/riskStripModel";
@@ -74,7 +73,16 @@ export default function ControlTowerPage() {
   const [reviewMode, setReviewMode] = useState(false);
   const [viewMode, setViewMode] = useState<ControlTowerViewMode>("operate");
   const [briefVariant, setBriefVariant] = useState<OperatingBriefVariant>(DEFAULT_BRIEF_VARIANT);
-  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const p = new URLSearchParams(window.location.search);
+    const d = p.get("domain");
+    const validDomains: string[] = [
+      "hr", "payroll", "finance", "compliance", "operations",
+      "contracts", "documents", "crm", "client", "audit",
+    ];
+    return validDomains.includes(d ?? "") ? d : null;
+  });
   const [helpPanelOpen, setHelpPanelOpen] = useState(false);
   const [dismissTarget, setDismissTarget] = useState<{
     itemKey: string;
@@ -118,16 +126,7 @@ export default function ControlTowerPage() {
     !myCaps.canResolveControlTowerItems &&
     !myCaps.canAssignControlTowerItems;
 
-  // canViewEmployeeList is true for company_admin, hr_admin, and finance_admin — the same
-  // roles that previously had engagementOpsRole access.
-  // capsLoading guard prevents the engagement KPI section from flashing before capabilities resolve.
-  const engagementOpsRole = !capsLoading && myCaps.canViewEmployeeList;
-
   const utils = trpc.useUtils();
-  const { data: engagementQueueKpi } = trpc.engagements.getOpsSummary.useQuery(
-    { companyId: activeCompanyId ?? undefined },
-    { enabled: scopeEnabled && engagementOpsRole, staleTime: 60_000 },
-  );
 
   // ── Server-authoritative signal summary + ranked queue ──────────────────────
   const ctEnabled = (platformOp || canViewCompanyTower) && activeCompanyId != null;
@@ -194,14 +193,6 @@ export default function ControlTowerPage() {
     },
     [dismissTarget, dismissItem, activeCompanyId],
   );
-
-  const engagementRollupsRefresh = trpc.engagements.refreshRollups.useMutation({
-    onSuccess: (r) => {
-      toast.success(`Refreshed ${r.synced} engagement roll-up(s).`);
-      void utils.engagements.getOpsSummary.invalidate({ companyId: activeCompanyId ?? undefined });
-    },
-    onError: (e) => toast.error(e.message),
-  });
 
   const {
     items: actionItems,
@@ -823,68 +814,22 @@ export default function ControlTowerPage() {
           </Card>
         )}
 
-        {scopeEnabled && engagementOpsRole && engagementQueueKpi?.counts && (
-          <Card className="border-border/80">
-            <CardHeader className="py-3 space-y-2">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <CardTitle className="text-sm">Engagement operations</CardTitle>
-                  <CardDescription className="text-xs">
-                    KPIs use persisted engagement health and top-action roll-ups (same filters as{" "}
-                    <Link href="/engagements/ops" className="text-primary underline font-medium">
-                      Engagement ops
-                    </Link>
-                    ). Click a tile to open the matching ops bucket.
-                  </CardDescription>
-                </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="shrink-0"
-                  disabled={engagementRollupsRefresh.isPending}
-                  onClick={() =>
-                    engagementRollupsRefresh.mutate({ companyId: activeCompanyId ?? undefined })
-                  }
-                >
-                  {engagementRollupsRefresh.isPending ? "Refreshing…" : "Refresh rollups"}
-                </Button>
+        {scopeEnabled && (
+          <Card
+            role="region"
+            aria-label="Engagement health"
+            className="border-border/60 bg-muted/10"
+          >
+            <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Engagement health</p>
+                <p className="text-xs text-muted-foreground">
+                  Managed in Engagements Ops — overdue, at risk, awaiting client, and unassigned engagements.
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Last roll-up write:{" "}
-                {engagementQueueKpi.latestDerivedStateSyncedAt
-                  ? fmtDateTimeShort(engagementQueueKpi.latestDerivedStateSyncedAt)
-                  : "—"}
-              </p>
-            </CardHeader>
-            <CardContent className="pt-0 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-              {(
-                [
-                  { label: "Overdue", n: engagementQueueKpi.counts.overdue ?? 0, bucket: "overdue" },
-                  { label: "At risk", n: engagementQueueKpi.counts.at_risk ?? 0, bucket: "at_risk" },
-                  {
-                    label: "Awaiting client",
-                    n: engagementQueueKpi.counts.awaiting_client ?? 0,
-                    bucket: "awaiting_client",
-                  },
-                  {
-                    label: "Awaiting team",
-                    n: engagementQueueKpi.counts.awaiting_team ?? 0,
-                    bucket: "awaiting_team",
-                  },
-                  { label: "Unassigned", n: engagementQueueKpi.counts.no_owner ?? 0, bucket: "no_owner" },
-                  { label: "Open", n: engagementQueueKpi.counts.open ?? 0, bucket: "open" },
-                ] as const
-              ).map((c) => (
-                <Link
-                  key={c.label}
-                  href={`/engagements/ops?bucket=${c.bucket}`}
-                  className="rounded-lg border bg-muted/30 px-3 py-2 text-center hover:bg-muted/55 hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{c.label}</p>
-                  <p className="text-lg font-bold tabular-nums">{c.n}</p>
-                </Link>
-              ))}
+              <Button variant="outline" size="sm" className="shrink-0 text-xs" asChild>
+                <Link href="/engagements/ops">Open Engagements Ops</Link>
+              </Button>
             </CardContent>
           </Card>
         )}

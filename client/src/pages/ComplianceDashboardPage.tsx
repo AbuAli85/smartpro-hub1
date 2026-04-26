@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   Shield, CheckCircle2, AlertTriangle, XCircle, Users, FileText,
-  DollarSign, Globe, ChevronRight, RefreshCw, ArrowRight, Clock,
+  DollarSign, Globe, ChevronRight, RefreshCw, ArrowRight, Clock, Bell,
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
@@ -62,6 +63,7 @@ export default function ComplianceDashboardPage() {
   const { user } = useAuth();
   const isPlatform = seesPlatformOperatorNav(user);
   const { activeCompanyId } = useActiveCompany();
+  const { caps: ctCaps } = useMyCapabilities();
   const scopeEnabled = isPlatform || activeCompanyId != null;
   const companyScope = { companyId: activeCompanyId ?? undefined };
   const now = new Date();
@@ -93,6 +95,14 @@ export default function ComplianceDashboardPage() {
     { enabled: scopeEnabled },
   );
   const { data: opsSnapshot } = trpc.operations.getDailySnapshot.useQuery(companyScope, { enabled: scopeEnabled && !isPlatform });
+  const { data: ctSummary } = trpc.controlTower.summary.useQuery(
+    { companyId: activeCompanyId ?? 0 },
+    {
+      enabled: scopeEnabled && !isPlatform && ctCaps.canViewCompanyControlTower,
+      retry: false,
+    },
+  );
+  const openComplianceSignals = ctSummary?.byDomain?.compliance ?? 0;
 
   const failedChecks = score?.checks?.filter((c) => c.status === "fail").length ?? 0;
   const wpsBlocked = wps && wps.status !== "paid" && wps.status !== "not_generated";
@@ -191,6 +201,29 @@ export default function ComplianceDashboardPage() {
           {t("refresh")}
         </Button>
       </div>
+
+      {/* Control Tower compliance signal banner */}
+      {openComplianceSignals > 0 && (
+        <div
+          role="region"
+          aria-label="Control Tower compliance signals"
+          className="rounded-xl border border-orange-200 bg-orange-50/80 dark:bg-orange-950/20 dark:border-orange-900/50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <Bell className="w-4 h-4 text-orange-600 shrink-0" />
+            <p className="text-sm font-medium text-foreground">
+              {openComplianceSignals === 1
+                ? "1 open compliance signal in Control Tower"
+                : `${openComplianceSignals} open compliance signals in Control Tower`}
+            </p>
+          </div>
+          <Link href="/control-tower?domain=compliance">
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1 shrink-0 border-orange-300 text-orange-700 hover:bg-orange-100">
+              View in Control Tower <ArrowRight className="w-3 h-3" />
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* Attention strip */}
       {complianceAttention && (

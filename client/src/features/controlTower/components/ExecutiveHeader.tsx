@@ -49,7 +49,7 @@ export function ExecutiveHeader({
     queueScopeActive && !actionsLoading && (queueStatus === "partial" || queueStatus === "error");
 
   return (
-    <header className="border-b bg-card/80 backdrop-blur-sm">
+    <header className="sticky top-0 z-10 border-b bg-card/80 backdrop-blur-sm">
       <div className="max-w-6xl mx-auto px-6 py-5 flex flex-wrap items-start justify-between gap-6">
         <div className="flex items-start gap-3 min-w-0">
           <div className="w-11 h-11 shrink-0 rounded-xl bg-[var(--smartpro-orange)]/15 flex items-center justify-center">

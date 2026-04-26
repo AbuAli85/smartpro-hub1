@@ -812,7 +812,7 @@ function CreateQuotationFromDealDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Valid Until</Label>
-            <DateInput value={validUntil} onChange={setValidUntil} />
+            <DateInput value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Notes</Label>

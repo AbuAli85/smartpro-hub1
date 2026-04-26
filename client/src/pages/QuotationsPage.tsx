@@ -217,11 +217,11 @@ function ConvertToDeploymentDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Effective From *</Label>
-                <DateInput value={effectiveFrom} onChange={setEffectiveFrom} />
+                <DateInput value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label>Effective To *</Label>
-                <DateInput value={effectiveTo} onChange={setEffectiveTo} />
+                <DateInput value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} />
               </div>
             </div>
             <div className="space-y-1.5">

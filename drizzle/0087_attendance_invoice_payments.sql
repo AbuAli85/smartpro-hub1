@@ -7,8 +7,11 @@ ALTER TABLE attendance_invoices
   ADD COLUMN sent_by_user_id   INT NULL                                  AFTER sent_at,
   ADD COLUMN amount_paid_omr   DECIMAL(14,3) NOT NULL DEFAULT '0.000'   AFTER sent_by_user_id;
 
+--> statement-breakpoint
+
 -- Part B: payment records table (RESTRICT delete to protect financial audit trail)
-CREATE TABLE attendance_invoice_payment_records (
+-- IF NOT EXISTS: 0070 baseline recovery pre-creates this table on fresh databases.
+CREATE TABLE IF NOT EXISTS attendance_invoice_payment_records (
   id                      INT          AUTO_INCREMENT PRIMARY KEY,
   attendance_invoice_id   INT          NOT NULL,
   company_id              INT          NOT NULL,

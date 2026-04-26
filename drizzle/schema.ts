@@ -5395,6 +5395,7 @@ export const controlTowerItemStates = mysqlTable(
     unique("uq_ct_state_company_item").on(t.companyId, t.itemKey),
     index("idx_ct_state_company_status").on(t.companyId, t.status),
     index("idx_ct_state_domain").on(t.companyId, t.domain),
+    index("idx_ct_state_last_seen").on(t.companyId, t.lastSeenAt),
   ],
 );
 export type ControlTowerItemState = typeof controlTowerItemStates.$inferSelect;

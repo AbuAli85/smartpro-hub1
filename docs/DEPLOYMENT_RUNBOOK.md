@@ -104,6 +104,20 @@ pnpm db:migrate
 
 Script internals: `tsx scripts/migrate.ts` → `drizzle-orm/mysql2` `migrate()` → processes `drizzle/*.sql` files in sequence → records each tag in `__drizzle_migrations`.
 
+### 2c. REQUIRED on first deploy — apply bootstrap foreign keys and constraints
+
+The `drizzle/bootstrap/` directory contains two scripts that are **not** in the migration journal and are **not** applied by `pnpm db:migrate`. On a fresh database, these must be applied manually after `pnpm db:migrate` completes successfully:
+
+```sh
+# Foreign-key constraints (only apply once; will fail with duplicate-constraint error if re-run)
+mysql -h HOST -u USER -p DBNAME < drizzle/bootstrap/0070_constraints.sql
+
+# Secondary indexes (only apply once; will fail with duplicate-index error if re-run)
+mysql -h HOST -u USER -p DBNAME < drizzle/bootstrap/0070_indexes.sql
+```
+
+**Do not run bootstrap scripts on an existing database** that already has these constraints and indexes — they will fail. They are single-apply, fresh-database-only scripts. The journaled migration 0089 (`0089_fresh_deploy_indexes.sql`) provides an idempotent alternative for the key performance indexes using `CREATE INDEX IF NOT EXISTS`; run 0089 via `pnpm db:migrate` and skip the bootstrap index script if you want a fully automated path.
+
 ### 2c. MySQL-specific considerations
 
 - **`IF NOT EXISTS` guards** — migrations 0088 and the bootstrap `0070_indexes.sql` use `CREATE INDEX IF NOT EXISTS` (MySQL 8.0.12+). Do not run these against MySQL < 8.0.12.

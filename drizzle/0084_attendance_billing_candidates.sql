@@ -8,7 +8,7 @@
 -- Replaces nothing: promoter_invoices / promoter_invoice_lines are retained for
 -- their own monthly promoter billing flow; this table is attendance-specific.
 
-CREATE TABLE `attendance_billing_candidates` (
+CREATE TABLE IF NOT EXISTS `attendance_billing_candidates` (
   `id`                     int          NOT NULL AUTO_INCREMENT,
   `batch_id`               int          NOT NULL,
   `company_id`             int          NOT NULL,

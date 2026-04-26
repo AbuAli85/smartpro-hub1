@@ -4,7 +4,7 @@
 -- Invoice number format: ABIN-{companyId}-{clientCompanyId}-{YYYYMMDD}-{candidateId}
 -- YYYYMMDD is derived from period_start for human readability; candidateId prevents collisions on cancel/re-convert.
 
-CREATE TABLE `attendance_invoices` (
+CREATE TABLE IF NOT EXISTS `attendance_invoices` (
   `id`                                 int NOT NULL AUTO_INCREMENT,
   `candidate_id`                       int NOT NULL,
   `company_id`                         int NOT NULL,

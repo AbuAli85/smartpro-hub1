@@ -11,6 +11,14 @@
  * For new tables, use `PENDING_TABLES`. For indexes, use `PENDING_INDEXES`.
  */
 import mysql2 from "mysql2/promise";
+import * as Sentry from "@sentry/node";
+
+let _lastMigrationError: Error | null = null;
+
+/** Returns the last error captured during startup migrations, or null if none. */
+export function getMigrationError(): Error | null {
+  return _lastMigrationError;
+}
 
 interface ColumnMigration {
   table: string;
@@ -589,6 +597,10 @@ export async function runPendingMigrations(): Promise<void> {
     // Non-fatal: log but don't crash the server. The affected queries will
     // still fail, but other functionality remains available.
     console.error("[migrations] Auto-migration error (non-fatal):", err);
+    _lastMigrationError = err instanceof Error ? err : new Error(String(err));
+    if (Sentry.isInitialized()) {
+      Sentry.captureException(_lastMigrationError, { tags: { subsystem: "migrations" } });
+    }
   } finally {
     await conn?.end();
   }

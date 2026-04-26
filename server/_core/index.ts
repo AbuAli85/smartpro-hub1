@@ -15,7 +15,7 @@ import { createContext } from "./context";
 import { serveStatic } from "./vite-static";
 import { applySecurityMiddleware } from "./security";
 import { validateProductionEnvironment } from "./env";
-import { runPendingMigrations } from "../runPendingMigrations";
+import { runPendingMigrations, getMigrationError } from "../runPendingMigrations";
 import { runSchemaDriftGuard } from "../schemaDriftGuard";
 import { runEmployeeTaskOverdueNotifications } from "../jobs/employeeTaskOverdue";
 import { runSyncExpiredContracts } from "../jobs/syncExpiredContracts";
@@ -62,10 +62,12 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // ── Health check (plain HTTP — suitable for load balancers and k8s probes) ──
   app.get("/health", (_req, res) => {
-    res.status(200).json({ ok: true, ts: Date.now() });
+    const migrationError = getMigrationError();
+    res.status(200).json({ ok: true, ts: Date.now(), migrationError: migrationError?.message ?? null });
   });
   app.get("/api/health", (_req, res) => {
-    res.status(200).json({ ok: true, ts: Date.now() });
+    const migrationError = getMigrationError();
+    res.status(200).json({ ok: true, ts: Date.now(), migrationError: migrationError?.message ?? null });
   });
 
   // Storage proxy for CDN-hosted assets

@@ -59,6 +59,12 @@ cp .env.example .env
 | `GOOGLE_DOCS_SERVICE_ACCOUNT_JSON` | Full JSON of a Google service account with Drive + Docs API; share templates with its `client_email` |
 | `GOOGLE_DOCS_SHARED_DRIVE_ID` | Team Drive ID where temporary doc copies are written |
 
+### Required if email delivery is used
+
+| Variable | Description |
+|----------|-------------|
+| `RESEND_API_KEY` | Resend.com API key for transactional email (invites, alerts, survey notifications); server-side only |
+
 ### Optional but strongly recommended in production
 
 | Variable | Description |

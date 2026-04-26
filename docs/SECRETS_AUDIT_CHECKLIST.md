@@ -52,6 +52,10 @@ Check each item before every production deployment:
 - [ ] `WHATSAPP_WEBHOOK_VERIFY_TOKEN` — arbitrary string; must match value entered in Meta webhook configuration
 - [ ] `WHATSAPP_CLOUD_APP_SECRET` — (if signature validation enabled) app secret from Meta; enables `X-Hub-Signature-256` verification on incoming webhooks
 
+### Email delivery (Resend)
+
+- [ ] `RESEND_API_KEY` — server-side; required for transactional emails (invites, survey notifications, alerts); never exposed to the client
+
 ### Storage proxy (Forge / Manus)
 
 - [ ] `BUILT_IN_FORGE_API_URL` — required if any feature uses `storagePut`
@@ -78,6 +82,7 @@ Verify with `git log --all -S "<value>"` for any suspected leaks.
 | `STRIPE_WEBHOOK_SECRET` | Forge Stripe webhook events |
 | `GOOGLE_DOCS_SERVICE_ACCOUNT_JSON` | Access all documents and drives shared with service account |
 | `WHATSAPP_CLOUD_ACCESS_TOKEN` | Send messages from the registered phone number |
+| `RESEND_API_KEY` | Send transactional emails from the registered domain |
 
 ---
 
@@ -105,6 +110,7 @@ Verify with `git log --all -S "<value>"` for any suspected leaks.
 | `THAWANI_SECRET_KEY` | On any suspected compromise | Coordinate with Thawani support |
 | `GOOGLE_DOCS_SERVICE_ACCOUNT_JSON` | When service account is removed from team; yearly otherwise | Revoke old key in GCP Console before deleting |
 | `WHATSAPP_CLOUD_ACCESS_TOKEN` | When Meta system user is removed; on expiry | Token expiry date visible in Meta Business Suite |
+| `RESEND_API_KEY` | When key is suspected compromised; yearly otherwise | Revoke old key in Resend dashboard before removing from env |
 | `TWO_FACTOR_ENCRYPTION_KEY` | Never routine-rotate | Rotation requires a coordinated DB migration to re-encrypt all TOTP secrets |
 
 ---

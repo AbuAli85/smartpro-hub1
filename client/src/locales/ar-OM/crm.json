@@ -126,6 +126,69 @@
     "inviteToPortal": "دعوة إلى البوابة"
   },
 
+  "dealDetail": {
+    "title": "تفاصيل الصفقة",
+    "value": "القيمة",
+    "probability": "احتمالية الفوز",
+    "expectedStart": "تاريخ البدء المتوقع",
+    "expectedClose": "تاريخ الإغلاق المتوقع",
+    "moveStage": "تغيير المرحلة",
+    "quotations": "عروض الأسعار",
+    "deployments": "التوزيعات",
+    "noQuotations": "لا توجد عروض أسعار بعد.",
+    "createQuotationFromDeal": "عرض سعر جديد من الصفقة",
+    "clientNameRequired": "اسم العميل مطلوب",
+    "workers": "العمال",
+    "months": "أشهر",
+    "ratePerMonth": "السعر الشهري (ريال عماني)"
+  },
+
+  "convertToDeployment": {
+    "title": "تحويل عرض السعر إلى توزيع",
+    "billingCustomer": "عميل الفوترة",
+    "billingCustomerPlaceholder": "اختر عميل الفوترة...",
+    "noBillingCustomers": "لا يوجد عملاء فوترة",
+    "effectiveFrom": "تاريخ البدء",
+    "effectiveTo": "تاريخ الانتهاء",
+    "notes": "ملاحظات",
+    "createDeployment": "إنشاء توزيع",
+    "converting": "جارٍ التحويل...",
+    "success": "تم إنشاء التوزيع من عرض السعر",
+    "errorSelectBilling": "يرجى اختيار عميل فوترة",
+    "errorDates": "يرجى إدخال تواريخ البداية والنهاية"
+  },
+
+  "invitePortal": {
+    "buttonLabel": "دعوة إلى البوابة",
+    "sending": "جارٍ الإرسال...",
+    "successMessage": "تم تسجيل دعوة البوابة (في انتظار إرسال البريد الإلكتروني)."
+  },
+
+  "tabs": {
+    "overview": "نظرة عامة",
+    "contacts": "جهات الاتصال",
+    "deals": "الصفقات",
+    "quotations": "عروض الأسعار",
+    "deployments": "التوزيعات",
+    "invoices": "الفواتير",
+    "tasks": "المهام"
+  },
+
+  "deploymentFields": {
+    "deploymentNumber": "توزيع",
+    "status": "الحالة",
+    "effectiveFrom": "تاريخ البدء",
+    "effectiveTo": "تاريخ الانتهاء"
+  },
+
+  "invoiceFields": {
+    "invoiceNumber": "فاتورة",
+    "period": "الفترة",
+    "total": "الإجمالي",
+    "balance": "الرصيد المستحق",
+    "status": "الحالة"
+  },
+
   "messages": {
     "companyCreated": "تم إنشاء شركة العميل",
     "companyUpdated": "تم تحديث شركة العميل",
@@ -136,6 +199,10 @@
     "deploymentCreated": "تم إنشاء مسودة التوزيع",
     "noCompanies": "لا توجد شركات عملاء بعد",
     "noCompaniesHint": "أضف أول شركة عميل لبدء مسار الخدمة",
+    "noDeployments": "لا توجد توزيعات مرتبطة بعد.",
+    "noDeploymentsHint": "حوّل عرض سعر مقبولاً لإنشاء توزيع.",
+    "noInvoices": "لا توجد فواتير مرتبطة بعد.",
+    "noTasks": "إدارة مهام شركة العميل.",
     "selectCompany": "اختر شركة...",
     "noCompanyOption": "— بدون شركة —",
     "newCompanyLink": "+ شركة جديدة"

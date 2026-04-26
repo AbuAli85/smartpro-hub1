@@ -63,6 +63,14 @@ export type Capabilities = {
   canApproveAttendanceClientApproval: boolean;
   canViewAttendanceClientApproval: boolean;
   canRepairAttendanceData: boolean;
+  // CRM & WaaS pipeline
+  canViewCrm: boolean;
+  canManageCrm: boolean;
+  canApproveQuotation: boolean;
+  canConvertQuotationToDeployment: boolean;
+  canViewClientFinancials: boolean;
+  canGenerateClientInvoice: boolean;
+  canInviteClientPortalUser: boolean;
   // Control Tower
   canViewPlatformControlTower: boolean;
   canViewCompanyControlTower: boolean;
@@ -118,6 +126,13 @@ const EMPTY_CAPS: Capabilities = {
   canApproveAttendanceClientApproval: false,
   canViewAttendanceClientApproval: false,
   canRepairAttendanceData: false,
+  canViewCrm: false,
+  canManageCrm: false,
+  canApproveQuotation: false,
+  canConvertQuotationToDeployment: false,
+  canViewClientFinancials: false,
+  canGenerateClientInvoice: false,
+  canInviteClientPortalUser: false,
   canViewPlatformControlTower: false,
   canViewCompanyControlTower: false,
   canManageControlTowerItems: false,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import { parseQuotationUrlParams } from "@/lib/quotationsDeepLink";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,8 +17,10 @@ import { toast } from "sonner";
 import {
   FileText, Plus, Send, Check, X, Trash2, Eye, Download,
   TrendingUp, Clock, CheckCircle2, AlertCircle, DollarSign, Users, Pencil,
+  Truck,
 } from "lucide-react";
 import { format } from "date-fns";
+import { DateInput } from "@/components/ui/date-input";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-100 text-slate-700",
@@ -138,9 +141,110 @@ function LineItemRow({
   );
 }
 
+// ── Convert Accepted Quotation → Deployment Dialog ───────────────────────────
+function ConvertToDeploymentDialog({
+  quotationId, companyId, onSuccess,
+}: { quotationId: number; companyId: number | null; onSuccess: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [effectiveFrom, setEffectiveFrom] = useState("");
+  const [effectiveTo, setEffectiveTo] = useState("");
+  const [notes, setNotes] = useState("");
+
+  // Fetch billing customers for the dropdown
+  const { data: billingCustomers = [] } = trpc.deploymentEconomics.billingCustomers.list.useQuery(
+    { companyId: companyId ?? undefined },
+    { enabled: open && companyId != null },
+  );
+  const [billingCustomerId, setBillingCustomerId] = useState("");
+
+  const convertMutation = trpc.quotations.convertToDeployment.useMutation({
+    onSuccess: (res) => {
+      toast.success(`Deployment #${res.deploymentId} created from quotation`);
+      setOpen(false);
+      onSuccess();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function submit() {
+    if (!billingCustomerId) { toast.error("Select a billing customer"); return; }
+    if (!effectiveFrom || !effectiveTo) { toast.error("Enter start and end dates"); return; }
+    if (!companyId) return;
+    convertMutation.mutate({
+      companyId,
+      quotationId,
+      billingCustomerId: Number(billingCustomerId),
+      effectiveFrom,
+      effectiveTo,
+      notes: notes || undefined,
+    });
+  }
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        className="text-xs gap-1 h-7 border-teal-300 text-teal-700 hover:bg-teal-50"
+        onClick={() => setOpen(true)}
+      >
+        <Truck className="w-3 h-3" />
+        Convert to Deployment
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck className="w-4 h-4 text-teal-600" />
+              Convert Quotation to Deployment
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div className="space-y-1.5">
+              <Label>Billing Customer *</Label>
+              <Select value={billingCustomerId} onValueChange={setBillingCustomerId}>
+                <SelectTrigger><SelectValue placeholder="Select billing customer…" /></SelectTrigger>
+                <SelectContent>
+                  {billingCustomers.length === 0 && (
+                    <SelectItem value="" disabled>No billing customers found</SelectItem>
+                  )}
+                  {billingCustomers.map((bc: any) => (
+                    <SelectItem key={bc.id} value={String(bc.id)}>{bc.displayName ?? bc.clientKey}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Effective From *</Label>
+                <DateInput value={effectiveFrom} onChange={setEffectiveFrom} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Effective To *</Label>
+                <DateInput value={effectiveTo} onChange={setEffectiveTo} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter className="mt-4 gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button disabled={convertMutation.isPending} onClick={submit} className="bg-teal-600 hover:bg-teal-700">
+              {convertMutation.isPending ? "Converting…" : "Create Deployment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export default function QuotationsPage() {
   const search = useSearch();
   const { activeCompanyId } = useActiveCompany();
+  const { caps } = useMyCapabilities();
   const utils = trpc.useUtils();
 
   const { data: quotations, isLoading } = trpc.quotations.list.useQuery({
@@ -550,6 +654,16 @@ export default function QuotationsPage() {
                             Decline
                           </Button>
                         </>
+                      )}
+                      {q.status === "accepted" && caps.canConvertQuotationToDeployment && (
+                        <ConvertToDeploymentDialog
+                          quotationId={q.id}
+                          companyId={activeCompanyId}
+                          onSuccess={() => {
+                            utils.quotations.list.invalidate();
+                            utils.quotations.getSummary.invalidate();
+                          }}
+                        />
                       )}
                       {q.pdfUrl && (
                         <a href={q.pdfUrl} target="_blank" rel="noopener noreferrer">

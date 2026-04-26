@@ -6,8 +6,9 @@ import {
   Users, Plus, Search, Phone, Mail, Building2, TrendingUp, DollarSign,
   ChevronRight, X, MessageSquare, Calendar, Target, Star,
   CheckCircle2, Handshake, Send, FileText, AlertTriangle, Truck, ListChecks,
+  ArrowRight,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useMyCapabilities } from "@/hooks/useMyCapabilities";
 import { DateInput } from "@/components/ui/date-input";
 
 const DEAL_STAGE_META: Record<string, { label: string; color: string; icon: any }> = {
@@ -728,12 +730,303 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
   );
 }
 
+// ── Create Quotation from Deal dialog ────────────────────────────────────────
+function CreateQuotationFromDealDialog({
+  dealId, companyId, onSuccess,
+}: { dealId: number; companyId: number | null; onSuccess: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [workersCount, setWorkersCount] = useState("");
+  const [durationMonths, setDurationMonths] = useState("");
+  const [ratePerMonthOmr, setRatePerMonthOmr] = useState("");
+  const [validUntil, setValidUntil] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const createMutation = trpc.quotations.createFromDeal.useMutation({
+    onSuccess: (res) => {
+      toast.success(`Quotation ${res.referenceNumber} created`);
+      setOpen(false);
+      onSuccess();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function submit() {
+    if (!clientName.trim()) { toast.error("Client name required"); return; }
+    const total = Number(workersCount || 1) * Number(ratePerMonthOmr || 0) * Number(durationMonths || 1);
+    createMutation.mutate({
+      companyId: companyId ?? undefined,
+      dealId,
+      clientName: clientName.trim(),
+      clientEmail: clientEmail.trim() || undefined,
+      workersCount: workersCount ? Number(workersCount) : undefined,
+      durationMonths: durationMonths ? Number(durationMonths) : undefined,
+      ratePerMonthOmr: ratePerMonthOmr ? Number(ratePerMonthOmr) : undefined,
+      validUntil: validUntil || undefined,
+      notes: notes || undefined,
+      lineItems: [{
+        serviceName: "Manpower Supply",
+        qty: Number(workersCount) || 1,
+        unitPriceOmr: Number(ratePerMonthOmr) * Number(durationMonths || 1) || 0,
+        discountPct: 0,
+      }],
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" className="gap-1.5 bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white h-7 text-xs">
+          <FileText size={12} /> Create Quotation
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText size={16} className="text-[var(--smartpro-orange)]" /> New Quotation from Deal
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 mt-2">
+          <div className="space-y-1.5">
+            <Label>Client Name *</Label>
+            <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="e.g. Acme LLC" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Client Email</Label>
+            <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label>Workers</Label>
+              <Input type="number" min="1" value={workersCount} onChange={(e) => setWorkersCount(e.target.value)} placeholder="1" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Months</Label>
+              <Input type="number" min="1" value={durationMonths} onChange={(e) => setDurationMonths(e.target.value)} placeholder="3" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Rate/Month (OMR)</Label>
+              <Input type="number" min="0" step="0.001" value={ratePerMonthOmr} onChange={(e) => setRatePerMonthOmr(e.target.value)} placeholder="0.000" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Valid Until</Label>
+            <DateInput value={validUntil} onChange={setValidUntil} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button className="flex-1" disabled={createMutation.isPending} onClick={submit}>
+              {createMutation.isPending ? "Creating…" : "Create Quotation"}
+            </Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Deal Detail Side Panel ────────────────────────────────────────────────────
+function DealDetailPanel({
+  dealId, onClose, companyId,
+}: { dealId: number; onClose: () => void; companyId: number | null }) {
+  const { caps } = useMyCapabilities();
+
+  const { data, isLoading, refetch } = trpc.crm.getDealDetail.useQuery(
+    { dealId, companyId: companyId ?? undefined },
+    { enabled: companyId != null },
+  );
+
+  const updateStageMutation = trpc.crm.updateDeal.useMutation({
+    onSuccess: () => { toast.success("Stage updated"); void refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (isLoading) return (
+    <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm p-8">Loading…</div>
+  );
+  if (!data) return (
+    <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm p-8">Deal not found</div>
+  );
+
+  const { deal, contact, quotations, deployments, clientCompany } = data;
+  const stageMeta = DEAL_STAGE_META[deal.stage ?? "lead"];
+  const StageIcon = stageMeta?.icon ?? Target;
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex items-start justify-between p-4 border-b gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-sm truncate">{deal.title}</p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <Badge className={`text-[10px] ${stageMeta?.color ?? ""} border`}>
+              <StageIcon size={9} className="mr-0.5" />{stageMeta?.label ?? deal.stage}
+            </Badge>
+            {(deal as any).serviceType && (
+              <span className="text-[10px] text-muted-foreground capitalize">{(deal as any).serviceType.replace("_", " ")}</span>
+            )}
+          </div>
+        </div>
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}><X size={14} /></Button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Deal stats */}
+        <div className="grid grid-cols-2 gap-2">
+          {deal.value && (
+            <div className="rounded-lg bg-muted/40 p-2.5">
+              <p className="text-[10px] text-muted-foreground">Value</p>
+              <p className="text-sm font-semibold">OMR {Number(deal.value).toLocaleString("en-OM", { minimumFractionDigits: 3 })}</p>
+            </div>
+          )}
+          {(deal as any).probability != null && (
+            <div className="rounded-lg bg-muted/40 p-2.5">
+              <p className="text-[10px] text-muted-foreground">Win Probability</p>
+              <p className="text-sm font-semibold">{(deal as any).probability}%</p>
+            </div>
+          )}
+          {(deal as any).expectedStartDate && (
+            <div className="rounded-lg bg-muted/40 p-2.5">
+              <p className="text-[10px] text-muted-foreground">Expected Start</p>
+              <p className="text-sm font-semibold">{(deal as any).expectedStartDate}</p>
+            </div>
+          )}
+          {deal.expectedCloseDate && (
+            <div className="rounded-lg bg-muted/40 p-2.5">
+              <p className="text-[10px] text-muted-foreground">Expected Close</p>
+              <p className="text-sm font-semibold">{fmtDate(deal.expectedCloseDate)}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Client company */}
+        {clientCompany && (
+          <div className="rounded-lg border bg-muted/20 p-2.5 flex items-center gap-2">
+            <Building2 size={14} className="text-slate-500 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium truncate">{clientCompany.name}</p>
+              {clientCompany.industry && <p className="text-[10px] text-muted-foreground">{clientCompany.industry}</p>}
+            </div>
+            <Link href={`/crm/companies/${clientCompany.id}`}>
+              <Button variant="ghost" size="icon" className="h-6 w-6"><ArrowRight size={11} /></Button>
+            </Link>
+          </div>
+        )}
+
+        {/* Contact */}
+        {contact && (
+          <div className="rounded-lg border bg-muted/20 p-2.5 flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center text-xs font-bold text-orange-600 shrink-0">
+              {(contact.firstName?.[0] ?? "") + (contact.lastName?.[0] ?? "")}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium truncate">{contact.firstName} {contact.lastName}</p>
+              {contact.position && <p className="text-[10px] text-muted-foreground">{contact.position}</p>}
+            </div>
+          </div>
+        )}
+
+        {/* Move stage */}
+        {caps.canManageCrm && (
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Move Stage</p>
+            <Select
+              value={deal.stage ?? "lead"}
+              onValueChange={(stage) => updateStageMutation.mutate({
+                id: deal.id,
+                companyId: companyId ?? undefined,
+                stage: stage as any,
+              })}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(DEAL_STAGE_META).map(([s, m]) => (
+                  <SelectItem key={s} value={s} className="text-xs">{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Quotations */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Quotations ({quotations.length})
+            </p>
+            {caps.canManageCrm && (
+              <CreateQuotationFromDealDialog dealId={deal.id} companyId={companyId} onSuccess={() => void refetch()} />
+            )}
+          </div>
+          {quotations.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-2">No quotations yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {quotations.map((q) => (
+                <div key={q.id} className="rounded-md border bg-muted/20 px-2.5 py-2 flex items-center gap-2">
+                  <FileText size={12} className="text-indigo-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-mono truncate">{q.referenceNumber}</p>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-[10px] capitalize">{q.status}</Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        OMR {Number(q.totalOmr).toLocaleString("en-OM", { minimumFractionDigits: 3 })}
+                      </span>
+                    </div>
+                  </div>
+                  <Link href={`/quotations?id=${q.id}`}>
+                    <Button variant="ghost" size="icon" className="h-6 w-6"><ArrowRight size={11} /></Button>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Deployments */}
+        {deployments.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Deployments ({deployments.length})
+            </p>
+            {deployments.map((dep) => (
+              <div key={dep.id} className="rounded-md border bg-muted/20 px-2.5 py-2 flex items-center gap-2">
+                <Truck size={12} className="text-teal-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium">Deployment #{dep.id}</p>
+                  <p className="text-[10px] text-muted-foreground capitalize">{dep.status}</p>
+                </div>
+                <Link href={`/workforce/deployments?id=${dep.id}`}>
+                  <Button variant="ghost" size="icon" className="h-6 w-6"><ArrowRight size={11} /></Button>
+                </Link>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {deal.notes && (
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Notes</p>
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap">{deal.notes}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function CRMPage() {
   const { t } = useTranslation("common");
   const { activeCompanyId } = useActiveCompany();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
+  const [selectedDealId, setSelectedDealId] = useState<number | null>(null);
 
   const { data: contacts, refetch: refetchContacts } = trpc.crm.listContacts.useQuery(
     {
@@ -1014,7 +1307,14 @@ export default function CRMPage() {
                     {stageValue > 0 && <p className="text-[10px] text-muted-foreground font-medium">OMR {stageValue.toLocaleString()}</p>}
                     <div className="space-y-2">
                       {stageDeals.map((deal) => (
-                        <Card key={deal.id} className="hover:shadow-sm transition-shadow">
+                        <Card
+                          key={deal.id}
+                          className={`hover:shadow-sm transition-shadow cursor-pointer ${selectedDealId === deal.id ? "ring-2 ring-[var(--smartpro-orange)]" : ""}`}
+                          onClick={() => {
+                            setSelectedDealId(deal.id);
+                            setSelectedContactId(null);
+                          }}
+                        >
                           <CardContent className="p-2.5">
                             <p className="text-xs font-medium truncate">{deal.title}</p>
                             {deal.lifecycle?.label && (
@@ -1052,6 +1352,17 @@ export default function CRMPage() {
           <ContactDetailPanel
             contactId={selectedContactId}
             onClose={() => setSelectedContactId(null)}
+            companyId={activeCompanyId}
+          />
+        </div>
+      )}
+
+      {/* Deal Detail Side Panel */}
+      {selectedDealId && !selectedContactId && (
+        <div className="w-[380px] border-l bg-background flex flex-col shrink-0 overflow-hidden">
+          <DealDetailPanel
+            dealId={selectedDealId}
+            onClose={() => setSelectedDealId(null)}
             companyId={activeCompanyId}
           />
         </div>

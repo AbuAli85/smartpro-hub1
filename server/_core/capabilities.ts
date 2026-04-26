@@ -143,6 +143,22 @@ export interface Capabilities {
   /** Run destructive attendance repair mutations: repairSessionFromAttendanceRecord, deduplicateAttendanceRecords. */
   canRepairAttendanceData: boolean;
 
+  // ─── CRM & WaaS pipeline ─────────────────────────────────────────────────
+  /** Read CRM contacts, deals, client companies, quotations. */
+  canViewCrm: boolean;
+  /** Create/edit CRM contacts, deals, client companies. */
+  canManageCrm: boolean;
+  /** Accept or approve a service quotation. */
+  canApproveQuotation: boolean;
+  /** Convert an accepted quotation into a deployment draft. */
+  canConvertQuotationToDeployment: boolean;
+  /** View client invoices and billing data. */
+  canViewClientFinancials: boolean;
+  /** Generate an invoice from a deployment's attendance period. */
+  canGenerateClientInvoice: boolean;
+  /** Send a portal invitation to a client company contact. */
+  canInviteClientPortalUser: boolean;
+
   // ─── Control Tower access ─────────────────────────────────────────────────
   /**
    * Access the Platform Control Tower (cross-tenant operations view).
@@ -214,6 +230,14 @@ const ALL_CAPS: Capabilities = {
   canApproveAttendanceClientApproval: true,
   canViewAttendanceClientApproval: true,
   canRepairAttendanceData: true,
+  // CRM capabilities
+  canViewCrm: true,
+  canManageCrm: true,
+  canApproveQuotation: true,
+  canConvertQuotationToDeployment: true,
+  canViewClientFinancials: true,
+  canGenerateClientInvoice: true,
+  canInviteClientPortalUser: true,
   // Control Tower — company_admin gets full company tower; platform tower is gated
   // separately via canAccessGlobalAdminProcedures() and is always false here.
   canViewPlatformControlTower: false,
@@ -269,6 +293,13 @@ const NO_CAPS: Capabilities = {
   canApproveAttendanceClientApproval: false,
   canViewAttendanceClientApproval: false,
   canRepairAttendanceData: false,
+  canViewCrm: false,
+  canManageCrm: false,
+  canApproveQuotation: false,
+  canConvertQuotationToDeployment: false,
+  canViewClientFinancials: false,
+  canGenerateClientInvoice: false,
+  canInviteClientPortalUser: false,
   canViewPlatformControlTower: false,
   canViewCompanyControlTower: false,
   canManageControlTowerItems: false,
@@ -339,6 +370,14 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canMarkPayrollPaid: false,
         canEditPayrollLineItem: false,
         canGenerateWpsFile: false,
+        // CRM — HR can view but not manage pipeline or financials
+        canViewCrm: true,
+        canManageCrm: false,
+        canApproveQuotation: false,
+        canConvertQuotationToDeployment: false,
+        canViewClientFinancials: false,
+        canGenerateClientInvoice: false,
+        canInviteClientPortalUser: false,
         // Control Tower — HR gets company tower, HR + compliance + audit + ops signals
         canViewPlatformControlTower: false,
         canViewCompanyControlTower: true,
@@ -393,6 +432,14 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canManageShiftTemplates: false,
         canManageAttendanceSites: false,
         canManageEmployeeSchedules: false,
+        // CRM — finance reads pipeline and handles invoicing
+        canViewCrm: true,
+        canManageCrm: false,
+        canApproveQuotation: false,
+        canConvertQuotationToDeployment: false,
+        canViewClientFinancials: true,
+        canGenerateClientInvoice: true,
+        canInviteClientPortalUser: false,
         // Control Tower — Finance gets company tower, finance signals + ops signals
         canViewPlatformControlTower: false,
         canViewCompanyControlTower: true,
@@ -415,7 +462,14 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewComplianceCase: true,
         canViewComplianceMatrix: true,
         canViewEmployeeDocuments: true,   // reviewers may inspect documents
-        // read-only structural view — no payroll, no mutations, no personal fields
+        // CRM — reviewers manage the full pipeline and quotation lifecycle
+        canViewCrm: true,
+        canManageCrm: true,
+        canApproveQuotation: true,
+        canConvertQuotationToDeployment: true,
+        canViewClientFinancials: false,
+        canGenerateClientInvoice: false,
+        canInviteClientPortalUser: true,
         // Control Tower — read-only: audit and compliance signals only
         canViewCompanyControlTower: true,
         canViewControlTowerComplianceSignals: true,
@@ -434,6 +488,14 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canViewAttendanceAudit: true,  // auditors may read the attendance audit log
         // no salary, banking, identity, payroll inputs, HR notes, or payroll actions
         canUploadDocument: false,
+        // CRM — auditors get read-only CRM access, no mutations
+        canViewCrm: true,
+        canManageCrm: false,
+        canApproveQuotation: false,
+        canConvertQuotationToDeployment: false,
+        canViewClientFinancials: false,
+        canGenerateClientInvoice: false,
+        canInviteClientPortalUser: false,
         // Control Tower — read-only: audit and compliance signals only
         canViewCompanyControlTower: true,
         canViewControlTowerComplianceSignals: true,
@@ -456,6 +518,14 @@ export function deriveCapabilities(role: MemberRole, scope: VisibilityScope): Ca
         canApproveTask: hasAuthority,
         canViewComplianceMatrix: hasAuthority,
         // members never access salary, banking, identity, payroll, compliance reports, or HR notes
+        // CRM — managers can view CRM; self-scope members cannot
+        canViewCrm: hasAuthority,
+        canManageCrm: false,
+        canApproveQuotation: false,
+        canConvertQuotationToDeployment: false,
+        canViewClientFinancials: false,
+        canGenerateClientInvoice: false,
+        canInviteClientPortalUser: false,
         // Control Tower: only dept/team managers get a scoped dashboard (operations signals only).
         // Self-scope employees have no Control Tower access whatsoever.
         canViewCompanyControlTower: hasAuthority,

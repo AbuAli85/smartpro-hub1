@@ -126,6 +126,69 @@
     "inviteToPortal": "Invite to Portal"
   },
 
+  "dealDetail": {
+    "title": "Deal Detail",
+    "value": "Value",
+    "probability": "Win Probability",
+    "expectedStart": "Expected Start",
+    "expectedClose": "Expected Close",
+    "moveStage": "Move Stage",
+    "quotations": "Quotations",
+    "deployments": "Deployments",
+    "noQuotations": "No quotations yet.",
+    "createQuotationFromDeal": "New Quotation from Deal",
+    "clientNameRequired": "Client name required",
+    "workers": "Workers",
+    "months": "Months",
+    "ratePerMonth": "Rate/Month (OMR)"
+  },
+
+  "convertToDeployment": {
+    "title": "Convert Quotation to Deployment",
+    "billingCustomer": "Billing Customer",
+    "billingCustomerPlaceholder": "Select billing customer…",
+    "noBillingCustomers": "No billing customers found",
+    "effectiveFrom": "Effective From",
+    "effectiveTo": "Effective To",
+    "notes": "Notes",
+    "createDeployment": "Create Deployment",
+    "converting": "Converting…",
+    "success": "Deployment created from quotation",
+    "errorSelectBilling": "Select a billing customer",
+    "errorDates": "Enter start and end dates"
+  },
+
+  "invitePortal": {
+    "buttonLabel": "Invite to Portal",
+    "sending": "Sending…",
+    "successMessage": "Portal invitation recorded (email delivery pending)."
+  },
+
+  "tabs": {
+    "overview": "Overview",
+    "contacts": "Contacts",
+    "deals": "Deals",
+    "quotations": "Quotations",
+    "deployments": "Deployments",
+    "invoices": "Invoices",
+    "tasks": "Tasks"
+  },
+
+  "deploymentFields": {
+    "deploymentNumber": "Deployment",
+    "status": "Status",
+    "effectiveFrom": "Effective From",
+    "effectiveTo": "Effective To"
+  },
+
+  "invoiceFields": {
+    "invoiceNumber": "Invoice",
+    "period": "Period",
+    "total": "Total",
+    "balance": "Balance Due",
+    "status": "Status"
+  },
+
   "messages": {
     "companyCreated": "Client company created",
     "companyUpdated": "Client company updated",
@@ -136,6 +199,10 @@
     "deploymentCreated": "Deployment draft created",
     "noCompanies": "No client companies yet",
     "noCompaniesHint": "Add your first client company to start the WaaS pipeline",
+    "noDeployments": "No deployments linked yet.",
+    "noDeploymentsHint": "Convert an accepted quotation to create a deployment.",
+    "noInvoices": "No invoices linked yet.",
+    "noTasks": "Manage tasks for this client company.",
     "selectCompany": "Select company…",
     "noCompanyOption": "— No company —",
     "newCompanyLink": "+ New company"

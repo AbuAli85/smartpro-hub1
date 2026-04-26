@@ -14,6 +14,7 @@ import {
 import { and, count, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import {
   clientCompanies,
+  clientServiceInvoices,
   contracts,
   crmContacts,
   crmDeals,
@@ -713,7 +714,7 @@ export const crmRouter = router({
         if (!db) return { ...cc, contacts: [], deals: [], recentQuotations: [] };
 
         // Load related records for the detail view
-        const [contacts, deals, recentQuotations] = await Promise.all([
+        const [contacts, deals, recentQuotations, deployments, invoices] = await Promise.all([
           db.select().from(crmContacts)
             .where(and(eq(crmContacts.companyId, companyId), eq(crmContacts.clientCompanyId, cc.id)))
             .orderBy(desc(crmContacts.createdAt)),
@@ -724,9 +725,16 @@ export const crmRouter = router({
             .where(and(eq(serviceQuotations.companyId, companyId), eq(serviceQuotations.clientCompanyId, cc.id)))
             .orderBy(desc(serviceQuotations.createdAt))
             .limit(10),
+          db.select().from(customerDeployments)
+            .where(and(eq(customerDeployments.companyId, companyId), eq(customerDeployments.clientCompanyId, cc.id)))
+            .orderBy(desc(customerDeployments.createdAt)),
+          db.select().from(clientServiceInvoices)
+            .where(and(eq(clientServiceInvoices.companyId, companyId), eq(clientServiceInvoices.clientCompanyId, cc.id)))
+            .orderBy(desc(clientServiceInvoices.createdAt))
+            .limit(10),
         ]);
 
-        return { ...cc, contacts, deals, recentQuotations };
+        return { ...cc, contacts, deals, recentQuotations, deployments, invoices };
       }),
 
     create: protectedProcedure
@@ -770,6 +778,34 @@ export const crmRouter = router({
         const { id, companyId: _c, ...data } = input;
         await updateClientCompany(id, data);
         return { success: true };
+      }),
+
+    /**
+     * Invite a contact to the client portal.
+     * Validates tenant ownership and operator-level access.
+     * TODO: implement actual portal invite flow (create customer_account, send invite email).
+     */
+    inviteToPortal: protectedProcedure
+      .input(z.object({
+        companyId: z.number().optional(),
+        clientCompanyId: z.number().int().positive(),
+        contactId: z.number().int().positive().optional(),
+        message: z.string().max(500).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await requireCrmMutationAccess(ctx as { user: User }, input.companyId);
+        const cc = await getClientCompanyById(input.clientCompanyId);
+        if (!cc || cc.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Client company not found" });
+        }
+        if (input.contactId != null) {
+          const contact = await getCrmContactById(input.contactId);
+          if (!contact || contact.companyId !== companyId) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+          }
+        }
+        // TODO: implement full invite flow — create customer_account, send invite email
+        return { success: true, stub: true as const };
       }),
   }),
 });

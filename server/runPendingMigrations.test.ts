@@ -31,6 +31,7 @@ describe("getMigrationError() — no-op paths", () => {
   });
 
   it("returns null when DATABASE_URL is absent", async () => {
+    vi.stubEnv("DATABASE_URL", "");
     await runPendingMigrations();
     expect(getMigrationError()).toBeNull();
     expect(mockCreateConnection).not.toHaveBeenCalled();

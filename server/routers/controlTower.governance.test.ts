@@ -24,9 +24,11 @@ import {
   recalculateAllowedActions,
   assertDomainActionAllowed,
   assertNotReadOnly,
+  REEMERGENCE_WINDOW_MS,
 } from "../controlTower/stateOverlay";
 import { buildStateMap } from "../controlTower/itemStateRepository";
 import { rankItems } from "../controlTower/rankItems";
+import { requiresSourceResolution } from "../controlTower/sourceResolutionPolicy";
 import type { ControlTowerItem, ControlTowerAction, ControlTowerStatus } from "@shared/controlTowerTypes";
 import type { ControlTowerItemState } from "../controlTower/itemStateRepository";
 
@@ -495,5 +497,204 @@ describe("dismiss policy (domain-scoped + read-only enforcement)", () => {
 
   it("external_auditor is blocked from dismiss", () => {
     expect(() => assertNotReadOnly("external_auditor")).toThrow(TRPCError);
+  });
+});
+
+// ─── 11. Re-emergence — resolved items ───────────────────────────────────────
+
+describe("re-emergence: resolved items reappear when source becomes active", () => {
+  it("resolved item in current builder batch re-opens immediately", () => {
+    const now = new Date("2026-05-01T10:00:00Z");
+    const resolvedAt = new Date("2026-04-20T10:00:00Z"); // 11 days ago
+    const items = [makeItem({ id: "payroll:1:approved_unpaid", domain: "payroll" })];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "payroll:1:approved_unpaid", "resolved", { resolvedAt }),
+    ]);
+    const result = overlayStateOnItems(items, stateMap, BASE_ACTIONS, now);
+    expect(result[0].status).toBe("open");
+    expect(result[0].allowedActions).toContain("resolve");
+  });
+
+  it("resolved item re-emerges even the day after resolution if source is active", () => {
+    const now = new Date("2026-05-02T10:00:00Z");
+    const resolvedAt = new Date("2026-05-01T10:00:00Z"); // 1 day ago
+    const items = [makeItem({ id: "finance:1:invoices:overdue", domain: "finance" })];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "finance:1:invoices:overdue", "resolved", { resolvedAt }),
+    ]);
+    const result = overlayStateOnItems(items, stateMap, BASE_ACTIONS, now);
+    expect(result[0].status).toBe("open");
+  });
+
+  it("resolved item NOT in current batch stays resolved (source went inactive)", () => {
+    // Simulate: resolved item whose source went inactive — builder does NOT generate it.
+    // overlayStateOnItems only receives builder-generated items, so if the item is
+    // absent from `items`, overlayStateOnItems never sees its stateMap entry.
+    // This test confirms: an item that is NOT in the builder batch is simply absent
+    // from the result, i.e., it won't falsely appear as open.
+    const now = new Date("2026-05-01T10:00:00Z");
+    const resolvedAt = new Date("2026-04-20T10:00:00Z");
+    const items: ControlTowerItem[] = []; // builder did NOT generate this item
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "payroll:1:approved_unpaid", "resolved", { resolvedAt }),
+    ]);
+    const result = overlayStateOnItems(items, stateMap, BASE_ACTIONS, now);
+    expect(result).toHaveLength(0);
+  });
+
+  it("re-emerged item passes filterActiveItems and appears in active queue", () => {
+    const now = new Date("2026-05-01T10:00:00Z");
+    const resolvedAt = new Date("2026-04-20T10:00:00Z");
+    const items = [makeItem({ id: "contracts:1:pending_signature", domain: "contracts" })];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "contracts:1:pending_signature", "resolved", { resolvedAt }),
+    ]);
+    const overlaid = overlayStateOnItems(items, stateMap, BASE_ACTIONS, now);
+    const active = filterActiveItems(overlaid);
+    expect(active).toHaveLength(1);
+    expect(active[0].status).toBe("open");
+  });
+});
+
+// ─── 12. Re-emergence — dismissed items (7-day window) ───────────────────────
+
+describe("re-emergence: dismissed items reappear after grace window", () => {
+  it("dismissed item within 7-day window stays dismissed", () => {
+    const dismissedAt = new Date("2026-04-28T10:00:00Z");
+    const now = new Date("2026-04-30T10:00:00Z"); // 2 days later — still within window
+    const items = [makeItem({ id: "finance:1:invoices:overdue", domain: "finance" })];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "finance:1:invoices:overdue", "dismissed", {
+        dismissedAt,
+        dismissalReason: "Handled offline",
+      }),
+    ]);
+    const result = overlayStateOnItems(items, stateMap, BASE_ACTIONS, now);
+    expect(result[0].status).toBe("dismissed");
+  });
+
+  it("dismissed item beyond 7-day window re-opens if source is still active", () => {
+    const dismissedAt = new Date("2026-04-20T10:00:00Z");
+    const now = new Date("2026-04-28T10:00:00Z"); // 8 days later — past window
+    const items = [makeItem({ id: "finance:1:invoices:overdue", domain: "finance" })];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "finance:1:invoices:overdue", "dismissed", {
+        dismissedAt,
+        dismissalReason: "Handled offline",
+      }),
+    ]);
+    const result = overlayStateOnItems(items, stateMap, BASE_ACTIONS, now);
+    expect(result[0].status).toBe("open");
+    expect(result[0].ownerUserId).toBeNull();
+  });
+
+  it("re-emerged dismissed item passes filterActiveItems", () => {
+    const dismissedAt = new Date("2026-04-20T10:00:00Z");
+    const now = new Date("2026-04-28T10:00:00Z"); // 8 days
+    const items = [makeItem({ id: "compliance:1:renewals:failed", domain: "compliance" })];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "compliance:1:renewals:failed", "dismissed", {
+        dismissedAt,
+        dismissalReason: "Will escalate",
+      }),
+    ]);
+    const overlaid = overlayStateOnItems(items, stateMap, BASE_ACTIONS, now);
+    const active = filterActiveItems(overlaid);
+    expect(active).toHaveLength(1);
+    expect(active[0].status).toBe("open");
+  });
+
+  it("boundary: item dismissed exactly at REEMERGENCE_WINDOW_MS does not yet re-emerge", () => {
+    const dismissedAt = new Date("2026-04-20T10:00:00Z");
+    const now = new Date(dismissedAt.getTime() + REEMERGENCE_WINDOW_MS); // exactly at boundary
+    const items = [makeItem({ id: "finance:1:invoices:overdue", domain: "finance" })];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "finance:1:invoices:overdue", "dismissed", {
+        dismissedAt,
+        dismissalReason: "Monitoring",
+      }),
+    ]);
+    const result = overlayStateOnItems(items, stateMap, BASE_ACTIONS, now);
+    // Exactly at window boundary: not strictly greater than → still dismissed
+    expect(result[0].status).toBe("dismissed");
+  });
+
+  it("dismissed item without a dismissedAt timestamp stays dismissed (defensive)", () => {
+    const now = new Date("2026-05-01T10:00:00Z");
+    const items = [makeItem({ id: "operations:1:sla:breach", domain: "operations" })];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "operations:1:sla:breach", "dismissed", {
+        dismissedAt: null,
+        dismissalReason: "Closed",
+      }),
+    ]);
+    const result = overlayStateOnItems(items, stateMap, BASE_ACTIONS, now);
+    expect(result[0].status).toBe("dismissed");
+  });
+});
+
+// ─── 13. Re-emergence — no-now backward compatibility ────────────────────────
+
+describe("overlayStateOnItems backward compatibility (no now argument)", () => {
+  it("resolved item stays resolved when now is not provided", () => {
+    const items = [makeItem({ id: "payroll:1:approved_unpaid", domain: "payroll" })];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "payroll:1:approved_unpaid", "resolved"),
+    ]);
+    const result = overlayStateOnItems(items, stateMap, BASE_ACTIONS); // no now
+    expect(result[0].status).toBe("resolved");
+  });
+
+  it("dismissed item stays dismissed when now is not provided", () => {
+    const items = [makeItem({ id: "finance:1:invoices:overdue", domain: "finance" })];
+    const stateMap = buildStateMap([
+      makeState(COMPANY_A, "finance:1:invoices:overdue", "dismissed", {
+        dismissedAt: new Date("2026-01-01"),
+        dismissalReason: "Old",
+      }),
+    ]);
+    const result = overlayStateOnItems(items, stateMap, BASE_ACTIONS); // no now
+    expect(result[0].status).toBe("dismissed");
+  });
+});
+
+// ─── 14. Source-confirmed resolution policy ───────────────────────────────────
+
+describe("requiresSourceResolution policy gate", () => {
+  it("payroll signals (non-scoped) require source resolution", () => {
+    expect(requiresSourceResolution("payroll:1:2026:4:draft")).toBe(true);
+    expect(requiresSourceResolution("payroll:1:approved_unpaid")).toBe(true);
+  });
+
+  it("finance signals require source resolution", () => {
+    expect(requiresSourceResolution("finance:1:invoices:overdue")).toBe(true);
+    expect(requiresSourceResolution("finance:1:payroll:approved_unpaid")).toBe(true);
+  });
+
+  it("compliance signals require source resolution", () => {
+    expect(requiresSourceResolution("compliance:1:renewals:failed")).toBe(true);
+    expect(requiresSourceResolution("compliance:1:work_permits:expiring_7d")).toBe(true);
+    expect(requiresSourceResolution("compliance:1:omanization:2026:4:non_compliant")).toBe(true);
+  });
+
+  it("operations signals require source resolution", () => {
+    expect(requiresSourceResolution("operations:1:sla:breach")).toBe(true);
+    expect(requiresSourceResolution("operations:1:engagements:blocked")).toBe(true);
+    expect(requiresSourceResolution("operations:1:tasks:overdue")).toBe(true);
+  });
+
+  it("documents and contracts require source resolution", () => {
+    expect(requiresSourceResolution("documents:1:company:expiring_30d")).toBe(true);
+    expect(requiresSourceResolution("contracts:1:pending_signature")).toBe(true);
+  });
+
+  it("scoped signals are exempt (handled via re-emergence)", () => {
+    expect(requiresSourceResolution("hr:1:leave:pending:scoped:4")).toBe(false);
+    expect(requiresSourceResolution("operations:1:tasks:overdue:scoped")).toBe(false);
+    expect(requiresSourceResolution("documents:1:employee:expiring_7d:scoped")).toBe(false);
+  });
+
+  it("unknown domain returns false (safe default)", () => {
+    expect(requiresSourceResolution("manual:1:anything")).toBe(false);
   });
 });

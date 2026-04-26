@@ -9,6 +9,7 @@ import {
   WEAK_AUDIT_REASON,
 } from "@shared/attendanceTrpcReasons";
 import { PLATFORM_ADMIN_MFA_REQUIRED_REASON } from "@shared/authTrpcReasons";
+import { CONTROL_TOWER_SOURCE_STILL_ACTIVE } from "@shared/controlTowerTrpcReasons";
 import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
@@ -37,6 +38,7 @@ const TRPC_CLIENT_REASON_ALLOWLIST = new Set<string>([
   ATTENDANCE_PERIOD_ALREADY_LOCKED,
   ATTENDANCE_PERIOD_NOT_LOCKED,
   ATTENDANCE_PERIOD_REOPEN_REASON_REQUIRED,
+  CONTROL_TOWER_SOURCE_STILL_ACTIVE,
 ]);
 
 function reasonFromTrpcErrorCause(cause: unknown): string | undefined {

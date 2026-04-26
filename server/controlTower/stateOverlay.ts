@@ -5,14 +5,28 @@
  *   1. Overlaying persisted item states on top of freshly-built signals.
  *   2. Filtering the active queue (remove resolved / dismissed).
  *   3. Domain-scoped action policy enforcement.
+ *   4. Re-emergence: auto-reopening suppressed items when the source stays active.
  *
  * No database I/O — all functions are synchronous and testable in isolation.
+ *
+ * Re-emergence rules (applied in overlayStateOnItems):
+ *   resolved  → re-opens immediately if the item appears in the current signal
+ *               batch (meaning the source that was "fixed" is active again).
+ *   dismissed → re-opens after REEMERGENCE_WINDOW_MS if the source is still
+ *               active, giving operators a deliberate grace period.
  */
 
 import { TRPCError } from "@trpc/server";
 import type { ControlTowerItem, ControlTowerAction, ControlTowerStatus } from "@shared/controlTowerTypes";
 import type { ControlTowerItemState } from "./itemStateRepository";
 import type { MemberRole } from "../_core/capabilities";
+
+/**
+ * How long after dismissal (with source still active on each refresh) before
+ * the item automatically re-emerges as "open".
+ * 7 days — enough for operators to take action before the signal resurfaces.
+ */
+export const REEMERGENCE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ─── Allowed-action recalculation ─────────────────────────────────────────────
 
@@ -46,17 +60,44 @@ export function recalculateAllowedActions(
  *   - allowedActions are recalculated from `baseAllowedActions` + new status.
  *
  * Items not in stateMap are returned unchanged (status stays "open").
+ *
+ * Re-emergence (when `now` is supplied):
+ *   An item appearing in the current builder batch means its source is active.
+ *   - resolved items  → re-opened immediately (source fixed → came back → new issue)
+ *   - dismissed items → re-opened after REEMERGENCE_WINDOW_MS (grace period for
+ *     deliberate dismissals; source must remain active throughout the window)
  */
 export function overlayStateOnItems(
   items: ControlTowerItem[],
   stateMap: Map<string, ControlTowerItemState>,
   baseAllowedActions: ControlTowerAction[],
+  now?: Date,
 ): ControlTowerItem[] {
   return items.map((item) => {
     const state = stateMap.get(item.id);
     if (!state) return item;
 
     const status = state.status as ControlTowerStatus;
+
+    // Re-emergence check: item is in the current signal batch → source is active.
+    if (now && (status === "resolved" || status === "dismissed")) {
+      const suppressedAt = status === "resolved" ? state.resolvedAt : state.dismissedAt;
+      const shouldReopen =
+        status === "resolved" ||
+        (status === "dismissed" &&
+          suppressedAt != null &&
+          now.getTime() - suppressedAt.getTime() > REEMERGENCE_WINDOW_MS);
+
+      if (shouldReopen) {
+        return {
+          ...item,
+          status: "open" as ControlTowerStatus,
+          ownerUserId: null,
+          allowedActions: recalculateAllowedActions(baseAllowedActions, "open"),
+        };
+      }
+    }
+
     return {
       ...item,
       status,

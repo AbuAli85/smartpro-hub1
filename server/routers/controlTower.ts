@@ -60,8 +60,14 @@ import {
   getItemStatesByCompany,
   getItemStateByKey,
   upsertItemState,
+  touchLastSeenBatch,
   buildStateMap,
 } from "../controlTower/itemStateRepository";
+import {
+  requiresSourceResolution,
+  checkSourceStillActive,
+} from "../controlTower/sourceResolutionPolicy";
+import { CONTROL_TOWER_SOURCE_STILL_ACTIVE } from "@shared/controlTowerTrpcReasons";
 import { logCtMutation } from "../controlTower/controlTowerAudit";
 import {
   overlayStateOnItems,
@@ -208,7 +214,8 @@ export const controlTowerRouter = router({
       ]);
 
       const stateMap = buildStateMap(states);
-      const allItems = filterActiveItems(overlayStateOnItems(rawItems, stateMap, allowed));
+      void touchLastSeenBatch(db, m.companyId, rawItems.map((i) => i.id), now);
+      const allItems = filterActiveItems(overlayStateOnItems(rawItems, stateMap, allowed, now));
 
       const bySeverity: Record<ControlTowerSeverity, number> = {
         critical: 0,
@@ -275,8 +282,11 @@ export const controlTowerRouter = router({
 
       const stateMap = buildStateMap(states);
 
-      // Overlay → filter resolved/dismissed → rank → domain filter → paginate
-      const withState = overlayStateOnItems(rawItems, stateMap, allowed);
+      // Touch last_seen_at for dismissed/resolved items still in the batch (fire-and-forget).
+      void touchLastSeenBatch(db, m.companyId, rawItems.map((i) => i.id), now);
+
+      // Overlay → re-emergence → filter resolved/dismissed → rank → paginate
+      const withState = overlayStateOnItems(rawItems, stateMap, allowed, now);
       const active = filterActiveItems(withState);
       const ranked = rankItems(active, now);
       const total = ranked.length;
@@ -584,10 +594,25 @@ export const controlTowerRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      const now = new Date();
+
+      // Source-confirmed resolution: block manual resolve while source is still active.
+      if (requiresSourceResolution(input.itemKey)) {
+        const sourceActive = await checkSourceStillActive(db, m.companyId, input.itemKey, now);
+        if (sourceActive) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "This signal is still active in the source module. " +
+              "Resolve it from the related module or dismiss it with a reason.",
+            cause: { reason: CONTROL_TOWER_SOURCE_STILL_ACTIVE },
+          });
+        }
+      }
+
       const existing = await getItemStateByKey(db, m.companyId, input.itemKey);
       const previousStatus = (existing?.status ?? "open") as ControlTowerStatus;
 
-      const now = new Date();
       await upsertItemState(db, {
         companyId: m.companyId,
         itemKey: input.itemKey,

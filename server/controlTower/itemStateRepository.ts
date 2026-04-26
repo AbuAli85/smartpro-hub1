@@ -8,6 +8,7 @@
  */
 
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import {
   controlTowerItemStates,
   type ControlTowerItemState,
@@ -99,6 +100,70 @@ export async function upsertItemState(
         updatedAt: sql`NOW()`,
       },
     });
+}
+
+/**
+ * Update `last_seen_at` for every dismissed/resolved item whose key appears in
+ * `activeItemKeys`.  Called on every items/summary refresh so that the column
+ * accurately tracks "when was this source condition last seen active".
+ *
+ * Only dismissed/resolved states are touched — open/acknowledged/in_progress
+ * states are kept current via the mutation upsert path.
+ *
+ * Silently skips if `activeItemKeys` is empty.  Does not throw on missing
+ * table — callers handle that via `assertCtStateTableAccessible`.
+ */
+export async function touchLastSeenBatch(
+  db: DbClient,
+  companyId: number,
+  activeItemKeys: string[],
+  now: Date = new Date(),
+): Promise<void> {
+  if (activeItemKeys.length === 0) return;
+  await db
+    .update(controlTowerItemStates)
+    .set({ lastSeenAt: now })
+    .where(
+      and(
+        eq(controlTowerItemStates.companyId, companyId),
+        inArray(controlTowerItemStates.itemKey, activeItemKeys),
+        inArray(controlTowerItemStates.status, ["dismissed", "resolved"]),
+      ),
+    );
+}
+
+// ─── Schema guard ─────────────────────────────────────────────────────────────
+
+/**
+ * Wraps a repository call and re-throws "table doesn't exist" MySQL errors as
+ * a machine-readable TRPCError so callers see a clear message instead of a
+ * raw DB exception.
+ *
+ * Usage:
+ *   const states = await assertCtStateTableAccessible(() =>
+ *     getItemStatesByCompany(db, companyId)
+ *   );
+ */
+export async function assertCtStateTableAccessible<T>(
+  fn: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (
+      msg.includes("control_tower_item_states") &&
+      (msg.includes("doesn't exist") || msg.includes("Table") || msg.toLowerCase().includes("unknown table"))
+    ) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message:
+          "Control Tower state table is not available. Run migration 0088 before using this feature.",
+        cause: { reason: "CONTROL_TOWER_TABLE_MISSING" },
+      });
+    }
+    throw err;
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

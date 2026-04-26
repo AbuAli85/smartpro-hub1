@@ -7,6 +7,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { CONTROL_TOWER_SOURCE_STILL_ACTIVE } from "@shared/controlTowerTrpcReasons";
 import { fmtDateTimeShort } from "@/lib/dateUtils";
 import { useActionQueue } from "@/hooks/useActionQueue";
 import { useSmartRoleHomeRedirect } from "@/hooks/useSmartRoleHomeRedirect";
@@ -138,6 +139,34 @@ export default function ControlTowerPage() {
     onSuccess: () => {
       void utils.controlTower.items.invalidate();
       void utils.controlTower.summary.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const resolveItem = trpc.controlTower.resolveItem.useMutation({
+    onSuccess: () => {
+      void utils.controlTower.items.invalidate();
+      void utils.controlTower.summary.invalidate();
+      toast.success("Item resolved.");
+    },
+    onError: (e) => {
+      const reason = (e.data as { reason?: string } | undefined)?.reason;
+      if (reason === CONTROL_TOWER_SOURCE_STILL_ACTIVE) {
+        toast.error(
+          "Source still active — open the related module to resolve, or dismiss with a reason.",
+          { duration: 8000 },
+        );
+      } else {
+        toast.error(e.message);
+      }
+    },
+  });
+
+  const dismissItem = trpc.controlTower.dismissItem.useMutation({
+    onSuccess: () => {
+      void utils.controlTower.items.invalidate();
+      void utils.controlTower.summary.invalidate();
+      toast.success("Item dismissed.");
     },
     onError: (e) => toast.error(e.message),
   });

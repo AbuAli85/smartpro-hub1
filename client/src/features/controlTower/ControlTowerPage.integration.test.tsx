@@ -116,6 +116,12 @@ vi.mock("@/lib/trpc", () => ({
       acknowledgeItem: {
         useMutation: () => ({ mutate: vi.fn(), isPending: false }),
       },
+      resolveItem: {
+        useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+      },
+      dismissItem: {
+        useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+      },
     },
     engagements: {
       getOpsSummary: { useQuery: trpcQuery({}) },

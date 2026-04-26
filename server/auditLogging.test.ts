@@ -1131,3 +1131,283 @@ describe("payroll.markPaid — audit logging", () => {
     expect(updateSpy).toHaveBeenCalledTimes(2); // both business writes ran before audit failed
   });
 });
+
+// ── 13. hr.createEmployee ─────────────────────────────────────────────────────
+
+describe("hr.createEmployee — audit logging", () => {
+  const createInput = {
+    firstName: "Ali",
+    lastName: "Al-Rashid",
+    email: "ali@test.om",
+    employmentType: "full_time" as const,
+    companyId: 9,
+  };
+
+  beforeEach(() => {
+    vi.mocked(dbMod.getUserCompanyById).mockReset();
+    vi.mocked(dbMod.getDb).mockReset();
+  });
+
+  it("writes employee_created audit event with structural fields (no sensitive values)", async () => {
+    mockMembership("hr_admin");
+    const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
+    const fakeDb: any = {
+      insert: vi.fn()
+        .mockReturnValueOnce({ values: vi.fn().mockResolvedValue([{ insertId: 77 }]) })
+        .mockReturnValueOnce({ values: auditValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    const result = await hrRouter.createCaller(makeCtx()).createEmployee(createInput);
+
+    expect(result).toMatchObject({ success: true });
+    expect(auditValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: 9,
+        actorUserId: 42,
+        entityType: "employee",
+        entityId: 77,
+        action: "employee_created",
+        beforeState: null,
+        afterState: expect.objectContaining({ employmentType: "full_time" }),
+      }),
+    );
+  });
+
+  it("audit payload does NOT include salary, banking, or identity document values", async () => {
+    mockMembership("hr_admin");
+    const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
+    const fakeDb: any = {
+      insert: vi.fn()
+        .mockReturnValueOnce({ values: vi.fn().mockResolvedValue([{ insertId: 88 }]) })
+        .mockReturnValueOnce({ values: auditValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await hrRouter.createCaller(makeCtx()).createEmployee({
+      ...createInput,
+      salary: 3000,
+      ibanNumber: "GB29NWBK60161331926819",
+      passportNumber: "P12345678",
+      nationalId: "12345678",
+    });
+
+    const payload = auditValuesSpy.mock.calls[0][0];
+    expect(payload.afterState).not.toHaveProperty("salary");
+    expect(payload.afterState).not.toHaveProperty("ibanNumber");
+    expect(payload.afterState).not.toHaveProperty("passportNumber");
+    expect(payload.afterState).not.toHaveProperty("nationalId");
+    // providedFields in metadata lists field names only — not values
+    expect(Array.isArray(payload.metadata.providedFields)).toBe(true);
+    expect(payload.metadata.providedFields).toContain("salary");
+    expect(payload.metadata.providedFields).toContain("ibanNumber");
+  });
+
+  it("does NOT reach audit when company_member is denied", async () => {
+    mockMembership("company_member");
+    const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
+    const fakeDb: any = {
+      insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(hrRouter.createCaller(makeCtx()).createEmployee(createInput))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(auditValuesSpy).not.toHaveBeenCalled();
+  });
+
+  it("createEmployee: mutation throws when audit insert fails, transaction wrapper invoked", async () => {
+    mockMembership("hr_admin");
+    const txCallSpy = vi.fn();
+    const failingValuesSpy = vi.fn().mockRejectedValue(new Error("audit write failed"));
+    const fakeDb: any = {
+      insert: vi.fn()
+        .mockReturnValueOnce({ values: vi.fn().mockResolvedValue([{ insertId: 99 }]) })
+        .mockReturnValueOnce({ values: failingValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => { txCallSpy(); return cb(fakeDb); };
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(hrRouter.createCaller(makeCtx()).createEmployee(createInput))
+      .rejects.toThrow("audit write failed");
+
+    expect(txCallSpy).toHaveBeenCalledTimes(1);
+    expect(fakeDb.insert).toHaveBeenCalledTimes(2); // employees insert + audit insert
+  });
+});
+
+// ── 14. hr.updateEmployee ─────────────────────────────────────────────────────
+
+describe("hr.updateEmployee — audit logging", () => {
+  const existingEmployee = {
+    id: 5,
+    companyId: 9,
+    firstName: "Ali",
+    lastName: "Al-Rashid",
+    firstNameAr: null,
+    lastNameAr: null,
+    employmentType: "full_time",
+    department: "Engineering",
+    position: "Dev",
+    status: "active",
+    hireDate: null,
+    terminationDate: null,
+    employeeNumber: "EMP001",
+    gender: null,
+  };
+
+  beforeEach(() => {
+    vi.mocked(dbMod.getUserCompanyById).mockReset();
+    vi.mocked(dbMod.getDb).mockReset();
+    vi.mocked(dbMod.getEmployeeById).mockReset();
+  });
+
+  function makeUpdateDb() {
+    const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
+    const fakeDb: any = {
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
+      insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    return { fakeDb, auditValuesSpy };
+  }
+
+  it("writes employee_updated audit event with safe before/after state and changedFields", async () => {
+    mockMembership("hr_admin");
+    vi.mocked(dbMod.getEmployeeById).mockResolvedValue(existingEmployee as any);
+    const { fakeDb, auditValuesSpy } = makeUpdateDb();
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    const result = await hrRouter.createCaller(makeCtx()).updateEmployee({
+      id: 5,
+      companyId: 9,
+      firstName: "Ahmed",
+      employmentType: "part_time",
+    });
+
+    expect(result).toMatchObject({ success: true });
+    expect(auditValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: 9,
+        actorUserId: 42,
+        entityType: "employee",
+        entityId: 5,
+        action: "employee_updated",
+        beforeState: expect.objectContaining({ firstName: "Ali", employmentType: "full_time" }),
+        afterState: expect.objectContaining({ firstName: "Ahmed", employmentType: "part_time" }),
+        metadata: expect.objectContaining({
+          changedFields: expect.arrayContaining(["firstName", "employmentType"]),
+        }),
+      }),
+    );
+  });
+
+  it("audit payload does NOT include salary or banking values in before/after state", async () => {
+    mockMembership("hr_admin");
+    vi.mocked(dbMod.getEmployeeById).mockResolvedValue({ ...existingEmployee, salary: "5000" } as any);
+    const { fakeDb, auditValuesSpy } = makeUpdateDb();
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await hrRouter.createCaller(makeCtx()).updateEmployee({
+      id: 5,
+      companyId: 9,
+      salary: 6000,
+      ibanNumber: "GB29NWBK60161331926819",
+    });
+
+    const payload = auditValuesSpy.mock.calls[0][0];
+    expect(payload.beforeState).not.toHaveProperty("salary");
+    expect(payload.afterState).not.toHaveProperty("salary");
+    expect(payload.afterState).not.toHaveProperty("ibanNumber");
+    // changedFields lists the field names so reviewers know what changed
+    expect(payload.metadata.changedFields).toContain("salary");
+    expect(payload.metadata.changedFields).toContain("ibanNumber");
+  });
+
+  it("emits both employee_updated and employee_status_changed when status changes", async () => {
+    mockMembership("company_admin");
+    vi.mocked(dbMod.getEmployeeById).mockResolvedValue(existingEmployee as any);
+    const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
+    const fakeDb: any = {
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
+      insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await hrRouter.createCaller(makeCtx()).updateEmployee({
+      id: 5,
+      companyId: 9,
+      status: "terminated",
+      terminationDate: "2026-04-30",
+    });
+
+    // Two audit inserts: employee_updated + employee_status_changed
+    expect(auditValuesSpy).toHaveBeenCalledTimes(2);
+    expect(auditValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "employee_updated" }),
+    );
+    expect(auditValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "employee_status_changed",
+        beforeState: { status: "active" },
+        afterState: expect.objectContaining({ status: "terminated" }),
+      }),
+    );
+  });
+
+  it("does NOT emit employee_status_changed when status is unchanged", async () => {
+    mockMembership("hr_admin");
+    vi.mocked(dbMod.getEmployeeById).mockResolvedValue(existingEmployee as any);
+    const { fakeDb, auditValuesSpy } = makeUpdateDb();
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await hrRouter.createCaller(makeCtx()).updateEmployee({
+      id: 5,
+      companyId: 9,
+      status: "active", // same as existing
+      firstName: "Ahmed",
+    });
+
+    // Only employee_updated emitted — no status_changed
+    expect(auditValuesSpy).toHaveBeenCalledTimes(1);
+    expect(auditValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "employee_updated" }),
+    );
+  });
+
+  it("does NOT reach audit when company_member is denied", async () => {
+    mockMembership("company_member");
+    vi.mocked(dbMod.getEmployeeById).mockResolvedValue(existingEmployee as any);
+    const { fakeDb, auditValuesSpy } = makeUpdateDb();
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(hrRouter.createCaller(makeCtx()).updateEmployee({ id: 5, companyId: 9, firstName: "X" }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(auditValuesSpy).not.toHaveBeenCalled();
+  });
+
+  it("updateEmployee: mutation throws when audit insert fails, transaction wrapper invoked", async () => {
+    mockMembership("hr_admin");
+    vi.mocked(dbMod.getEmployeeById).mockResolvedValue(existingEmployee as any);
+    const txCallSpy = vi.fn();
+    const failingValuesSpy = vi.fn().mockRejectedValue(new Error("audit write failed"));
+    const fakeDb: any = {
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
+      insert: vi.fn().mockReturnValue({ values: failingValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => { txCallSpy(); return cb(fakeDb); };
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(hrRouter.createCaller(makeCtx()).updateEmployee({ id: 5, companyId: 9, firstName: "X" }))
+      .rejects.toThrow("audit write failed");
+
+    expect(txCallSpy).toHaveBeenCalledTimes(1);
+    expect(fakeDb.update).toHaveBeenCalled();
+  });
+});

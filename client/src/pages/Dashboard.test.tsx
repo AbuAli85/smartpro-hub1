@@ -8,7 +8,7 @@ import Dashboard from "./Dashboard";
 
 const { mockCapabilities, mockNavVisible } = vi.hoisted(() => ({
   mockCapabilities: vi.fn(),
-  mockNavVisible: vi.fn(() => true),
+  mockNavVisible: vi.fn((_href: string): boolean => true),
 }));
 
 vi.mock("@/hooks/useMyCapabilities", () => ({
@@ -60,7 +60,7 @@ vi.mock("@shared/clientNav", async (importOriginal) => {
     getHiddenNavHrefs: () => new Set<string>(),
     shouldHideBottomNav: () => false,
     seesPlatformOperatorNav: () => false,
-    clientNavItemVisible: (...args: Parameters<typeof actual.clientNavItemVisible>) => mockNavVisible(...args),
+    clientNavItemVisible: (href: string, ..._rest: unknown[]) => mockNavVisible(href),
   };
 });
 

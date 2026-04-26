@@ -32,7 +32,30 @@ export const HR_ORG_ACTION = {
   POSITION_CREATED: "position_created",
   POSITION_DELETED: "position_deleted",
   LEAVE_CREATED: "leave_created",
+  EMPLOYEE_CREATED: "employee_created",
+  EMPLOYEE_UPDATED: "employee_updated",
+  EMPLOYEE_STATUS_CHANGED: "employee_status_changed",
 } as const;
+
+/**
+ * Fields safe to include in employee audit payloads.
+ * Excludes: salary, banking, passport/civil-ID numbers, contact PII,
+ * PASI number, date of birth, marital status.
+ */
+const EMPLOYEE_SAFE_FIELDS = new Set([
+  "firstName", "lastName", "firstNameAr", "lastNameAr",
+  "employmentType", "department", "position", "status",
+  "hireDate", "terminationDate", "employeeNumber", "gender",
+]);
+
+/** Extract only audit-safe fields from an employee record or update payload. */
+export function pickSafeEmployeeFields(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of EMPLOYEE_SAFE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) out[key] = obj[key];
+  }
+  return out;
+}
 
 export async function recordDepartmentCreatedAudit(
   db: DbInsert,
@@ -180,6 +203,87 @@ export async function recordPositionDeletedAudit(
     action: HR_ORG_ACTION.POSITION_DELETED,
     beforeState: { title: params.title, isActive: true },
     afterState: { isActive: false },
+    metadata: null,
+  });
+}
+
+export async function recordEmployeeCreatedAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    employeeId: number;
+    employmentType: string;
+    department: string | null;
+    position: string | null;
+    hireDate: string | null;
+    employeeNumber: string | null;
+    providedFields: string[];
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: HR_ORG_ENTITY.EMPLOYEE,
+    entityId: params.employeeId,
+    action: HR_ORG_ACTION.EMPLOYEE_CREATED,
+    beforeState: null,
+    afterState: {
+      employmentType: params.employmentType,
+      department: params.department,
+      position: params.position,
+      hireDate: params.hireDate,
+      employeeNumber: params.employeeNumber,
+    },
+    metadata: { providedFields: params.providedFields },
+  });
+}
+
+export async function recordEmployeeUpdatedAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    employeeId: number;
+    changedFields: string[];
+    before: Record<string, unknown>;
+    after: Record<string, unknown>;
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: HR_ORG_ENTITY.EMPLOYEE,
+    entityId: params.employeeId,
+    action: HR_ORG_ACTION.EMPLOYEE_UPDATED,
+    beforeState: params.before,
+    afterState: params.after,
+    metadata: { changedFields: params.changedFields },
+  });
+}
+
+export async function recordEmployeeStatusChangedAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    employeeId: number;
+    previousStatus: string | null;
+    nextStatus: string;
+    terminationDate?: string | null;
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: HR_ORG_ENTITY.EMPLOYEE,
+    entityId: params.employeeId,
+    action: HR_ORG_ACTION.EMPLOYEE_STATUS_CHANGED,
+    beforeState: { status: params.previousStatus },
+    afterState: {
+      status: params.nextStatus,
+      ...(params.terminationDate !== undefined ? { terminationDate: params.terminationDate } : {}),
+    },
     metadata: null,
   });
 }

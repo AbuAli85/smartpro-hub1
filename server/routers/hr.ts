@@ -34,7 +34,6 @@ import {
   getAttendanceRecordById,
   getAttendanceStats,
   getUserCompanyById,
-  createEmployee,
   createJobApplication,
   createJobPosting,
   createPerformanceReview,
@@ -49,7 +48,6 @@ import {
   getLeaveRequestById,
   getLeaveRequests,
   getPerformanceReviews,
-  updateEmployee,
   updateJobApplication,
   updateJobPosting,
   updateLeaveRequest,
@@ -98,6 +96,10 @@ import {
   recordPositionCreatedAudit,
   recordPositionDeletedAudit,
   recordLeaveCreatedAudit,
+  recordEmployeeCreatedAudit,
+  recordEmployeeUpdatedAudit,
+  recordEmployeeStatusChangedAudit,
+  pickSafeEmployeeFields,
 } from "../hrOrgAudit";
 
 function timeToMinutes(t: string): number {
@@ -386,34 +388,50 @@ export const hrRouter = router({
       const { workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry,
         dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...empData } = input;
       const db = await getDb();
-      if (db && empData.department !== undefined) {
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      if (empData.department !== undefined) {
         empData.department = await resolveCanonicalDepartmentWrite(db, companyId, empData.department);
       }
-      const emp = await createEmployee({
-        ...empData,
-        companyId,
-        salary: empData.salary ? String(empData.salary) : undefined,
-        hireDate: empData.hireDate ? new Date(empData.hireDate) : undefined,
-        dateOfBirth: dateOfBirth || undefined,
-        visaExpiryDate: visaExpiryDate || undefined,
-        workPermitExpiryDate: workPermitExpiryDate || undefined,
-      } as any);
-      // If work permit number provided, create a work permit record
-      if (workPermitNumber && emp) {
-        const dbPermit = await getDb();
-        if (dbPermit) {
-          await dbPermit.insert(workPermits).values({
-            companyId,
-            employeeId: (emp as any).insertId ?? (emp as any).id ?? 0,
-            workPermitNumber,
-            labourAuthorisationNumber: visaNumber ?? null,
-            occupationCode: occupationCode ?? null,
-            occupationTitleEn: occupationName ?? null,
-            issueDate: null,
-            expiryDate: workPermitExpiry ? new Date(workPermitExpiry) : null,
-            permitStatus: "active",
-          }).catch(() => { /* ignore duplicate */ });
-        }
+      // Field names provided by the caller (values excluded to avoid logging sensitive data)
+      const providedFields = Object.keys(input).filter(k => (input as Record<string, unknown>)[k] !== undefined);
+      let employeeId!: number;
+      await db.transaction(async (tx) => {
+        const [result] = await tx.insert(employees).values({
+          ...empData,
+          companyId,
+          salary: empData.salary ? String(empData.salary) : undefined,
+          hireDate: empData.hireDate ? new Date(empData.hireDate) : undefined,
+          dateOfBirth: dateOfBirth || undefined,
+          visaExpiryDate: visaExpiryDate || undefined,
+          workPermitExpiryDate: workPermitExpiryDate || undefined,
+        } as any);
+        employeeId = (result as any).insertId;
+        await recordEmployeeCreatedAudit(tx, {
+          companyId,
+          actorUserId: ctx.user.id,
+          employeeId,
+          employmentType: empData.employmentType ?? "full_time",
+          department: empData.department ?? null,
+          position: empData.position ?? null,
+          hireDate: empData.hireDate ?? null,
+          employeeNumber: empData.employeeNumber ?? null,
+          providedFields,
+        });
+      });
+      // Work permit insert is ancillary — kept outside transaction so a duplicate
+      // permit number does not roll back the employee record already committed.
+      if (workPermitNumber && employeeId) {
+        await db.insert(workPermits).values({
+          companyId,
+          employeeId,
+          workPermitNumber,
+          labourAuthorisationNumber: visaNumber ?? null,
+          occupationCode: occupationCode ?? null,
+          occupationTitleEn: occupationName ?? null,
+          issueDate: null,
+          expiryDate: workPermitExpiry ? new Date(workPermitExpiry) : null,
+          permitStatus: "active",
+        }).catch(() => { /* ignore duplicate permit number */ });
       }
       return { success: true };
     }),
@@ -481,20 +499,24 @@ export const hrRouter = router({
       if (data.salary !== undefined) updateData.salary = String(data.salary);
       if (data.hireDate !== undefined) updateData.hireDate = data.hireDate ? new Date(data.hireDate) : null;
       if (data.terminationDate !== undefined) updateData.terminationDate = data.terminationDate ? new Date(data.terminationDate) : null;
-      // Extended date fields (stored as DATE strings in MySQL)
       if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth || null;
       if (visaExpiryDate !== undefined) updateData.visaExpiryDate = visaExpiryDate || null;
       if (workPermitExpiryDate !== undefined) updateData.workPermitExpiryDate = workPermitExpiryDate || null;
       const db = await getDb();
-      if (db && data.department !== undefined) {
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      if (data.department !== undefined) {
         updateData.department = await resolveCanonicalDepartmentWrite(db, existing.companyId, data.department);
       }
-      await updateEmployee(id, updateData);
-      // Update or create work permit record if permit fields provided
-      if (workPermitNumber !== undefined || visaNumber !== undefined || workPermitExpiry !== undefined) {
-        const db = await getDb();
-        if (db) {
-          const existing_permits = await db.select({ id: workPermits.id })
+      // Compute audit metadata before the write
+      const changedFields = Object.keys(updateData);
+      const statusChanged = data.status !== undefined && String(data.status) !== String(existing.status ?? "");
+      const safeExisting = pickSafeEmployeeFields(existing as Record<string, unknown>);
+      const safeAfter = pickSafeEmployeeFields(updateData as Record<string, unknown>);
+      await db.transaction(async (tx) => {
+        await tx.update(employees).set(updateData).where(eq(employees.id, id));
+        // Work permit update/insert inside the same transaction
+        if (workPermitNumber !== undefined || visaNumber !== undefined || workPermitExpiry !== undefined) {
+          const existingPermits = await tx.select({ id: workPermits.id })
             .from(workPermits)
             .where(eq(workPermits.employeeId, id))
             .limit(1);
@@ -504,10 +526,10 @@ export const hrRouter = router({
           if (occupationCode !== undefined) permitUpdate.occupationCode = occupationCode;
           if (occupationName !== undefined) permitUpdate.occupationTitleEn = occupationName;
           if (workPermitExpiry !== undefined) permitUpdate.expiryDate = workPermitExpiry ? new Date(workPermitExpiry) : null;
-          if (existing_permits.length > 0) {
-            await db.update(workPermits).set(permitUpdate).where(eq(workPermits.id, existing_permits[0].id));
+          if (existingPermits.length > 0) {
+            await tx.update(workPermits).set(permitUpdate).where(eq(workPermits.id, existingPermits[0].id));
           } else if (workPermitNumber) {
-            await db.insert(workPermits).values({
+            await tx.insert(workPermits).values({
               companyId: existing.companyId,
               employeeId: id,
               workPermitNumber,
@@ -516,10 +538,28 @@ export const hrRouter = router({
               occupationTitleEn: occupationName ?? null,
               expiryDate: workPermitExpiry ? new Date(workPermitExpiry) : null,
               permitStatus: "active",
-            }).catch(() => { /* ignore */ });
+            });
           }
         }
-      }
+        await recordEmployeeUpdatedAudit(tx, {
+          companyId,
+          actorUserId: ctx.user.id,
+          employeeId: id,
+          changedFields,
+          before: safeExisting,
+          after: safeAfter,
+        });
+        if (statusChanged) {
+          await recordEmployeeStatusChangedAudit(tx, {
+            companyId,
+            actorUserId: ctx.user.id,
+            employeeId: id,
+            previousStatus: existing.status ?? null,
+            nextStatus: data.status!,
+            terminationDate: data.terminationDate ?? null,
+          });
+        }
+      });
       return { success: true };
     }),
 

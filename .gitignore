@@ -44,6 +44,9 @@ pids
 *.pid.lock
 *.bak
 
+# Generated migration artifacts — regenerate with: node scripts/generate-backfill.mjs
+scripts/backfill-migrations.sql
+
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov

@@ -300,21 +300,23 @@ export const financeHRRouter = router({
         .from(expenseClaims)
         .where(and(eq(expenseClaims.id, input.id), eq(expenseClaims.companyId, companyId)))
         .limit(1);
-      await db.update(expenseClaims)
-        .set({
-          expenseStatus: input.action,
-          adminNotes: input.adminNotes,
-          reviewedByUserId: ctx.user.id,
-          reviewedAt: new Date(),
-        })
-        .where(and(eq(expenseClaims.id, input.id), eq(expenseClaims.companyId, companyId)));
-      await recordExpenseReviewedAudit(db, {
-        companyId,
-        actorUserId: ctx.user.id,
-        expenseClaimId: input.id,
-        previousStatus: claim?.expenseStatus ?? null,
-        nextStatus: input.action,
-        adminNotes: input.adminNotes ?? null,
+      await db.transaction(async (tx) => {
+        await tx.update(expenseClaims)
+          .set({
+            expenseStatus: input.action,
+            adminNotes: input.adminNotes,
+            reviewedByUserId: ctx.user.id,
+            reviewedAt: new Date(),
+          })
+          .where(and(eq(expenseClaims.id, input.id), eq(expenseClaims.companyId, companyId)));
+        await recordExpenseReviewedAudit(tx, {
+          companyId,
+          actorUserId: ctx.user.id,
+          expenseClaimId: input.id,
+          previousStatus: claim?.expenseStatus ?? null,
+          nextStatus: input.action,
+          adminNotes: input.adminNotes ?? null,
+        });
       });
       return { success: true };
     }),

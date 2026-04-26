@@ -75,7 +75,7 @@ function makeFakeDb(overrides: Record<string, unknown> = {}) {
   const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
   const insertSpy = vi.fn().mockReturnValue({ values: auditValuesSpy });
 
-  const fakeDb = {
+  const fakeDb: any = {
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
@@ -87,6 +87,9 @@ function makeFakeDb(overrides: Record<string, unknown> = {}) {
     insert: insertSpy,
     ...overrides,
   };
+  if (!fakeDb.transaction) {
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+  }
 
   return { fakeDb, insertSpy, auditValuesSpy };
 }
@@ -104,7 +107,7 @@ describe("financeHR.reviewExpense — audit logging", () => {
   it("writes expense_reviewed audit event with correct fields on approval", async () => {
     mockMembership("finance_admin");
     const { fakeDb, auditValuesSpy } = makeFakeDb();
-    // Pre-query returns pending status
+    // Pre-query (outside transaction) returns pending status
     fakeDb.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
@@ -112,7 +115,7 @@ describe("financeHR.reviewExpense — audit logging", () => {
         }),
       }),
     });
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     await financeHRRouter.createCaller(makeCtx()).reviewExpense(input);
 
@@ -140,7 +143,7 @@ describe("financeHR.reviewExpense — audit logging", () => {
         }),
       }),
     });
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     await financeHRRouter.createCaller(makeCtx()).reviewExpense({ ...input, action: "rejected", adminNotes: undefined });
 
@@ -174,7 +177,7 @@ describe("financeHR.reviewExpense — audit logging", () => {
         }),
       }),
     });
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     await financeHRRouter.createCaller(makeCtx()).reviewExpense(input);
 
@@ -197,7 +200,7 @@ describe("payroll.updateLoanBalance — audit logging", () => {
     const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
     const insertSpy = vi.fn().mockReturnValue({ values: auditValuesSpy });
 
-    const fakeDb = {
+    const fakeDb: any = {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -208,6 +211,7 @@ describe("payroll.updateLoanBalance — audit logging", () => {
       update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
       insert: insertSpy,
     };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
 
     return { fakeDb, insertSpy, auditValuesSpy };
   }
@@ -282,12 +286,12 @@ describe("payroll.upsertSalaryConfig — audit logging", () => {
     mockMembership("finance_admin");
     const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
 
-    const fakeDb = {
-      // employee existence check
+    const fakeDb: any = {
+      // employee existence check (outside transaction)
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([{ id: 5 }]) }),
       }),
-      // close existing config UPDATE
+      // close existing config UPDATE (inside transaction via tx = fakeDb)
       update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
       // insert: first call = employeeSalaryConfigs (returns new id), second = audit
       insert: vi.fn()
@@ -298,8 +302,9 @@ describe("payroll.upsertSalaryConfig — audit logging", () => {
         })
         .mockReturnValueOnce({ values: auditValuesSpy }),
     };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
 
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     const result = await payrollRouter.createCaller(makeCtx()).upsertSalaryConfig(input);
 
@@ -324,7 +329,7 @@ describe("payroll.upsertSalaryConfig — audit logging", () => {
     mockMembership("finance_admin");
     const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
 
-    const fakeDb = {
+    const fakeDb: any = {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([{ id: 5 }]) }),
       }),
@@ -335,8 +340,9 @@ describe("payroll.upsertSalaryConfig — audit logging", () => {
         })
         .mockReturnValueOnce({ values: auditValuesSpy }),
     };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
 
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
     await payrollRouter.createCaller(makeCtx()).upsertSalaryConfig(input);
 
     const payload = auditValuesSpy.mock.calls[0][0];
@@ -368,12 +374,13 @@ describe("hr.createDepartment — audit logging", () => {
   it("writes department_created audit event", async () => {
     mockMembership("hr_admin");
     const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
-    const fakeDb = {
+    const fakeDb: any = {
       insert: vi.fn()
         .mockReturnValueOnce({ values: vi.fn().mockResolvedValue([{ insertId: 55 }]) })
         .mockReturnValueOnce({ values: auditValuesSpy }),
     };
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     const result = await hrRouter.createCaller(makeCtx()).createDepartment({ name: "Engineering", companyId: 9 });
 
@@ -412,7 +419,7 @@ describe("hr.updateDepartment — audit logging", () => {
     const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
 
     const existingRow = { id: 10, name: "OldName", nameAr: null, headEmployeeId: null, companyId: 9 };
-    const fakeDb = {
+    const fakeDb: any = {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([existingRow]),
@@ -421,7 +428,8 @@ describe("hr.updateDepartment — audit logging", () => {
       update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
       insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
     };
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     await hrRouter.createCaller(makeCtx()).updateDepartment({ id: 10, name: "NewName", companyId: 9 });
 
@@ -452,7 +460,7 @@ describe("hr.deleteDepartment — audit logging", () => {
     const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
 
     const existingRow = { id: 10, name: "Engineering", companyId: 9 };
-    const fakeDb = {
+    const fakeDb: any = {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([existingRow]),
@@ -461,7 +469,8 @@ describe("hr.deleteDepartment — audit logging", () => {
       update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
       insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
     };
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     await hrRouter.createCaller(makeCtx()).deleteDepartment({ id: 10, companyId: 9 });
 
@@ -512,13 +521,14 @@ describe("hr.assignDepartment — audit logging", () => {
         from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([{ id: 2, companyId: 9 }]) }),
       });
 
-    const fakeDb = {
+    const fakeDb: any = {
       select: selectFn,
       update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
       insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
     };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
 
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     await hrRouter.createCaller(makeCtx()).assignDepartment({
       employeeIds: [1, 2],
@@ -549,12 +559,13 @@ describe("hr.createPosition — audit logging", () => {
   it("writes position_created audit event", async () => {
     mockMembership("hr_admin");
     const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
-    const fakeDb = {
+    const fakeDb: any = {
       insert: vi.fn()
         .mockReturnValueOnce({ values: vi.fn().mockResolvedValue([{ insertId: 77 }]) })
         .mockReturnValueOnce({ values: auditValuesSpy }),
     };
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     const result = await hrRouter.createCaller(makeCtx()).createPosition({
       title: "Senior Engineer",
@@ -588,14 +599,15 @@ describe("hr.deletePosition — audit logging", () => {
     const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
 
     const existingPos = { id: 20, title: "Analyst", companyId: 9, isActive: true };
-    const fakeDb = {
+    const fakeDb: any = {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([existingPos]) }),
       }),
       update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
       insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
     };
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     await hrRouter.createCaller(makeCtx()).deletePosition({ id: 20, companyId: 9 });
 
@@ -626,11 +638,17 @@ describe("hr.createLeave — audit logging (replaces note-prefix pattern)", () =
   it("writes leave_created audit event with leave details", async () => {
     mockMembership("hr_admin");
     vi.mocked(dbMod.getEmployeeById).mockResolvedValue({ id: 3, companyId: 9 } as any);
-    vi.mocked(dbMod.createLeaveRequest).mockResolvedValue(undefined as any);
+    // createLeaveRequest is no longer called — leave insert is inlined in the transaction
 
+    const leaveValuesSpy = vi.fn().mockResolvedValue([]);
     const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
-    const fakeDb = { insert: vi.fn().mockReturnValue({ values: auditValuesSpy }) };
-    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb as any);
+    const fakeDb: any = {
+      insert: vi.fn()
+        .mockReturnValueOnce({ values: leaveValuesSpy })    // leaveRequests insert
+        .mockReturnValueOnce({ values: auditValuesSpy }),   // auditEvents insert
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     await hrRouter.createCaller(makeCtx()).createLeave({
       employeeId: 3,
@@ -660,7 +678,7 @@ describe("hr.createLeave — audit logging (replaces note-prefix pattern)", () =
 
   it("does NOT reach audit when finance_admin is denied (HR gate)", async () => {
     mockMembership("finance_admin");
-    vi.mocked(dbMod.getDb).mockResolvedValue(makeFakeDb().fakeDb as any);
+    vi.mocked(dbMod.getDb).mockResolvedValue(makeFakeDb().fakeDb);
 
     await expect(
       hrRouter.createCaller(makeCtx()).createLeave({
@@ -677,12 +695,16 @@ describe("hr.createLeave — audit logging (replaces note-prefix pattern)", () =
   it("audit payload does NOT include PII fields", async () => {
     mockMembership("hr_admin");
     vi.mocked(dbMod.getEmployeeById).mockResolvedValue({ id: 3, companyId: 9 } as any);
-    vi.mocked(dbMod.createLeaveRequest).mockResolvedValue(undefined as any);
 
+    const leaveValuesSpy = vi.fn().mockResolvedValue([]);
     const auditValuesSpy = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(dbMod.getDb).mockResolvedValue({
-      insert: vi.fn().mockReturnValue({ values: auditValuesSpy }),
-    } as any);
+    const fakeDb: any = {
+      insert: vi.fn()
+        .mockReturnValueOnce({ values: leaveValuesSpy })
+        .mockReturnValueOnce({ values: auditValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => cb(fakeDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
 
     await hrRouter.createCaller(makeCtx()).createLeave({
       employeeId: 3,
@@ -697,5 +719,156 @@ describe("hr.createLeave — audit logging (replaces note-prefix pattern)", () =
     expect(payload.afterState).not.toHaveProperty("salary");
     expect(payload.afterState).not.toHaveProperty("ibanNumber");
     expect(payload.afterState).not.toHaveProperty("passportNumber");
+  });
+});
+
+// ── Rollback / transaction atomicity tests ────────────────────────────────────
+//
+// These tests prove that db.transaction() is used for each mutation, and that
+// an audit write failure propagates to the caller (mutation throws). In production
+// MySQL, both writes share the same connection inside the transaction callback,
+// so the engine rolls back the business write when the audit insert throws.
+
+describe("transaction atomicity — audit failure rolls back business write", () => {
+  const reviewInput = { id: 7, action: "approved" as const, adminNotes: "ok", companyId: 9 };
+
+  beforeEach(() => {
+    vi.mocked(dbMod.getUserCompanyById).mockReset();
+    vi.mocked(dbMod.getDb).mockReset();
+  });
+
+  it("reviewExpense: mutation throws when audit insert fails, transaction wrapper invoked", async () => {
+    mockMembership("finance_admin");
+    const txCallSpy = vi.fn();
+    const failingValuesSpy = vi.fn().mockRejectedValue(new Error("audit write failed"));
+
+    const fakeDb: any = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([{ expenseStatus: "pending" }]),
+          }),
+        }),
+      }),
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
+      insert: vi.fn().mockReturnValue({ values: failingValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => { txCallSpy(); return cb(fakeDb); };
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(financeHRRouter.createCaller(makeCtx()).reviewExpense(reviewInput))
+      .rejects.toThrow("audit write failed");
+
+    expect(txCallSpy).toHaveBeenCalledTimes(1);
+    expect(fakeDb.update).toHaveBeenCalled();
+  });
+
+  it("updateLoanBalance: mutation throws when audit insert fails, transaction wrapper invoked", async () => {
+    mockMembership("finance_admin");
+    const txCallSpy = vi.fn();
+    const failingValuesSpy = vi.fn().mockRejectedValue(new Error("audit write failed"));
+
+    const fakeDb: any = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([{ companyId: 9, balanceRemaining: "1000", status: "active" }]),
+          }),
+        }),
+      }),
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
+      insert: vi.fn().mockReturnValue({ values: failingValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => { txCallSpy(); return cb(fakeDb); };
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(payrollRouter.createCaller(makeCtx()).updateLoanBalance({ loanId: 3, deductedAmount: 200 }))
+      .rejects.toThrow("audit write failed");
+
+    expect(txCallSpy).toHaveBeenCalledTimes(1);
+    expect(fakeDb.update).toHaveBeenCalled();
+  });
+
+  it("upsertSalaryConfig: mutation throws when audit insert fails, transaction wrapper invoked", async () => {
+    mockMembership("finance_admin");
+    const txCallSpy = vi.fn();
+    const failingValuesSpy = vi.fn().mockRejectedValue(new Error("audit write failed"));
+
+    const fakeDb: any = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([{ id: 5 }]) }),
+      }),
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
+      insert: vi.fn()
+        .mockReturnValueOnce({
+          values: vi.fn().mockReturnValue({ $returningId: vi.fn().mockResolvedValue([{ id: 99 }]) }),
+        })
+        .mockReturnValueOnce({ values: failingValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => { txCallSpy(); return cb(fakeDb); };
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(payrollRouter.createCaller(makeCtx()).upsertSalaryConfig({
+      employeeId: 5, companyId: 9, basicSalary: 2000, housingAllowance: 300,
+      transportAllowance: 100, otherAllowances: 0, pasiRate: 11.5, incomeTaxRate: 0,
+      effectiveFrom: "2026-01-01",
+    })).rejects.toThrow("audit write failed");
+
+    expect(txCallSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("createDepartment: mutation throws when audit insert fails, transaction wrapper invoked", async () => {
+    mockMembership("hr_admin");
+    const txCallSpy = vi.fn();
+    const failingValuesSpy = vi.fn().mockRejectedValue(new Error("audit write failed"));
+
+    const fakeDb: any = {
+      insert: vi.fn()
+        .mockReturnValueOnce({ values: vi.fn().mockResolvedValue([{ insertId: 55 }]) })
+        .mockReturnValueOnce({ values: failingValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => { txCallSpy(); return cb(fakeDb); };
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(hrRouter.createCaller(makeCtx()).createDepartment({ name: "Fail", companyId: 9 }))
+      .rejects.toThrow("audit write failed");
+
+    expect(txCallSpy).toHaveBeenCalledTimes(1);
+    expect(fakeDb.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("assignDepartment: mutation throws when audit insert fails for any employee, transaction wrapper invoked", async () => {
+    mockMembership("hr_admin");
+    const txCallSpy = vi.fn();
+    const failingValuesSpy = vi.fn().mockRejectedValue(new Error("audit write failed"));
+
+    const selectFn = vi.fn()
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([{ name: "Engineering" }]),
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([{ id: 1, companyId: 9 }]) }),
+      });
+
+    const fakeDb: any = {
+      select: selectFn,
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
+      insert: vi.fn().mockReturnValue({ values: failingValuesSpy }),
+    };
+    fakeDb.transaction = (cb: (tx: any) => Promise<any>) => { txCallSpy(); return cb(fakeDb); };
+    vi.mocked(dbMod.getDb).mockResolvedValue(fakeDb);
+
+    await expect(hrRouter.createCaller(makeCtx()).assignDepartment({
+      employeeIds: [1],
+      departmentName: "Engineering",
+      companyId: 9,
+    })).rejects.toThrow("audit write failed");
+
+    expect(txCallSpy).toHaveBeenCalledTimes(1);
+    expect(fakeDb.update).toHaveBeenCalled();
   });
 });

@@ -990,14 +990,6 @@ export const payrollRouter = router({
       const [emp] = await db.select({ id: employees.id }).from(employees)
         .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)));
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      // close any existing active config
-      await db.update(employeeSalaryConfigs)
-        .set({ effectiveTo: new Date(input.effectiveFrom) })
-        .where(and(
-          eq(employeeSalaryConfigs.employeeId, input.employeeId),
-          eq(employeeSalaryConfigs.companyId, m.companyId),
-          sql`effective_to IS NULL`,
-        ));
       const insertData: any = {
         employeeId: input.employeeId,
         companyId: m.companyId,
@@ -1011,22 +1003,34 @@ export const payrollRouter = router({
         effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
         notes: input.notes ?? null,
       };
-      const [newConfig] = await db.insert(employeeSalaryConfigs).values(insertData).$returningId();
       const changedFields = [
         "basicSalary", "housingAllowance", "transportAllowance",
         "otherAllowances", "pasiRate", "incomeTaxRate", "effectiveFrom",
         ...(input.effectiveTo ? ["effectiveTo"] : []),
         ...(input.notes ? ["notes"] : []),
       ];
-      await recordSalaryConfigUpsertedAudit(db, {
-        companyId: m.companyId,
-        actorUserId: ctx.user.id,
-        configId: newConfig.id,
-        employeeId: input.employeeId,
-        effectiveFrom: input.effectiveFrom,
-        changedFields,
+      let configId!: number;
+      await db.transaction(async (tx) => {
+        // close any existing active config
+        await tx.update(employeeSalaryConfigs)
+          .set({ effectiveTo: new Date(input.effectiveFrom) })
+          .where(and(
+            eq(employeeSalaryConfigs.employeeId, input.employeeId),
+            eq(employeeSalaryConfigs.companyId, m.companyId),
+            sql`effective_to IS NULL`,
+          ));
+        const [newConfig] = await tx.insert(employeeSalaryConfigs).values(insertData).$returningId();
+        configId = newConfig.id;
+        await recordSalaryConfigUpsertedAudit(tx, {
+          companyId: m.companyId,
+          actorUserId: ctx.user.id,
+          configId: newConfig.id,
+          employeeId: input.employeeId,
+          effectiveFrom: input.effectiveFrom,
+          changedFields,
+        });
       });
-      return { id: newConfig.id };
+      return { id: configId };
     }),
 
   // ─── SALARY LOANS ───────────────────────────────────────────────────────────
@@ -1108,17 +1112,19 @@ export const payrollRouter = router({
       await requireFinanceOrAdmin(ctx.user as User, loan.companyId);
       const newBalance = Math.max(0, Number(loan.balanceRemaining) - input.deductedAmount);
       const newStatus = newBalance <= 0 ? "completed" : "active";
-      await db.update(salaryLoans)
-        .set({ balanceRemaining: String(newBalance), status: newStatus })
-        .where(eq(salaryLoans.id, input.loanId));
-      await recordLoanBalanceUpdatedAudit(db, {
-        companyId: loan.companyId,
-        actorUserId: ctx.user.id,
-        loanId: input.loanId,
-        previousBalance: loan.balanceRemaining,
-        nextBalance: newBalance,
-        deductedAmount: input.deductedAmount,
-        newStatus,
+      await db.transaction(async (tx) => {
+        await tx.update(salaryLoans)
+          .set({ balanceRemaining: String(newBalance), status: newStatus })
+          .where(eq(salaryLoans.id, input.loanId));
+        await recordLoanBalanceUpdatedAudit(tx, {
+          companyId: loan.companyId,
+          actorUserId: ctx.user.id,
+          loanId: input.loanId,
+          previousBalance: loan.balanceRemaining,
+          nextBalance: newBalance,
+          deductedAmount: input.deductedAmount,
+          newStatus,
+        });
       });
       return { newBalance, status: newStatus };
     }),

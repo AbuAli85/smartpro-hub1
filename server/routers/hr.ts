@@ -37,7 +37,6 @@ import {
   createEmployee,
   createJobApplication,
   createJobPosting,
-  createLeaveRequest,
   createPerformanceReview,
   getAttendance,
   getDb,
@@ -657,21 +656,23 @@ export const hrRouter = router({
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      await createLeaveRequest({
-        ...input,
-        companyId,
-        days: String(input.days),
-        startDate: new Date(input.startDate),
-        endDate: new Date(input.endDate),
-      });
-      await recordLeaveCreatedAudit(db, {
-        companyId,
-        actorUserId: ctx.user.id,
-        employeeId: input.employeeId,
-        leaveType: input.leaveType,
-        startDate: input.startDate,
-        endDate: input.endDate,
-        days: input.days,
+      await db.transaction(async (tx) => {
+        await tx.insert(leaveRequests).values({
+          ...input,
+          companyId,
+          days: String(input.days),
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+        });
+        await recordLeaveCreatedAudit(tx, {
+          companyId,
+          actorUserId: ctx.user.id,
+          employeeId: input.employeeId,
+          leaveType: input.leaveType,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          days: input.days,
+        });
       });
       return { success: true };
     }),
@@ -1840,18 +1841,20 @@ export const hrRouter = router({
       if (input.departmentName != null && input.departmentName.trim() !== "") {
         deptWrite = await resolveCanonicalDepartmentWrite(db, cid, input.departmentName);
       }
-      for (const empId of input.employeeIds) {
-        const [emp] = await db.select({ id: employees.id, companyId: employees.companyId })
-          .from(employees).where(eq(employees.id, empId));
-        if (!emp || emp.companyId !== cid) continue;
-        await db.update(employees).set({ department: deptWrite }).where(eq(employees.id, empId));
-        await recordEmployeeDepartmentAssignedAudit(db, {
-          companyId: cid,
-          actorUserId: ctx.user.id,
-          employeeId: empId,
-          departmentName: deptWrite || null,
-        });
-      }
+      await db.transaction(async (tx) => {
+        for (const empId of input.employeeIds) {
+          const [emp] = await tx.select({ id: employees.id, companyId: employees.companyId })
+            .from(employees).where(eq(employees.id, empId));
+          if (!emp || emp.companyId !== cid) continue;
+          await tx.update(employees).set({ department: deptWrite }).where(eq(employees.id, empId));
+          await recordEmployeeDepartmentAssignedAudit(tx, {
+            companyId: cid,
+            actorUserId: ctx.user.id,
+            employeeId: empId,
+            departmentName: deptWrite || null,
+          });
+        }
+      });
       return { success: true, updated: input.employeeIds.length };
     }),
 
@@ -1908,21 +1911,24 @@ export const hrRouter = router({
       const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const [result] = await db.insert(departments).values({
-        companyId: cid,
-        name: input.name,
-        nameAr: input.nameAr,
-        description: input.description,
-        headEmployeeId: input.headEmployeeId,
-      });
-      const deptId = (result as any).insertId as number;
-      await recordDepartmentCreatedAudit(db, {
-        companyId: cid,
-        actorUserId: ctx.user.id,
-        departmentId: deptId,
-        name: input.name,
-        nameAr: input.nameAr ?? null,
-        headEmployeeId: input.headEmployeeId ?? null,
+      let deptId!: number;
+      await db.transaction(async (tx) => {
+        const [result] = await tx.insert(departments).values({
+          companyId: cid,
+          name: input.name,
+          nameAr: input.nameAr,
+          description: input.description,
+          headEmployeeId: input.headEmployeeId,
+        });
+        deptId = (result as any).insertId as number;
+        await recordDepartmentCreatedAudit(tx, {
+          companyId: cid,
+          actorUserId: ctx.user.id,
+          departmentId: deptId,
+          name: input.name,
+          nameAr: input.nameAr ?? null,
+          headEmployeeId: input.headEmployeeId ?? null,
+        });
       });
       return { id: deptId };
     }),
@@ -1959,23 +1965,25 @@ export const hrRouter = router({
       if (input.nameAr !== undefined) updateData.nameAr = input.nameAr;
       if (input.description !== undefined) updateData.description = input.description;
       if (input.headEmployeeId !== undefined) updateData.headEmployeeId = input.headEmployeeId;
-      await db.update(departments).set(updateData).where(eq(departments.id, input.id));
-      // Keep employee.department string in sync when the canonical department name changes
-      if (input.name !== undefined && input.name !== existing.name) {
-        await db.update(employees).set({ department: input.name }).where(
-          and(eq(employees.companyId, cid), eq(employees.department, existing.name)),
-        );
-      }
-      await recordDepartmentUpdatedAudit(db, {
-        companyId: cid,
-        actorUserId: ctx.user.id,
-        departmentId: input.id,
-        previousName: existing.name,
-        previousNameAr: (existing as any).nameAr ?? null,
-        previousHeadEmployeeId: existing.headEmployeeId ?? null,
-        nextName: updateData.name ?? existing.name,
-        nextNameAr: updateData.nameAr ?? (existing as any).nameAr ?? null,
-        nextHeadEmployeeId: updateData.headEmployeeId ?? existing.headEmployeeId ?? null,
+      await db.transaction(async (tx) => {
+        await tx.update(departments).set(updateData).where(eq(departments.id, input.id));
+        // Keep employee.department string in sync when the canonical department name changes
+        if (input.name !== undefined && input.name !== existing.name) {
+          await tx.update(employees).set({ department: input.name }).where(
+            and(eq(employees.companyId, cid), eq(employees.department, existing.name)),
+          );
+        }
+        await recordDepartmentUpdatedAudit(tx, {
+          companyId: cid,
+          actorUserId: ctx.user.id,
+          departmentId: input.id,
+          previousName: existing.name,
+          previousNameAr: (existing as any).nameAr ?? null,
+          previousHeadEmployeeId: existing.headEmployeeId ?? null,
+          nextName: updateData.name ?? existing.name,
+          nextNameAr: updateData.nameAr ?? (existing as any).nameAr ?? null,
+          nextHeadEmployeeId: updateData.headEmployeeId ?? existing.headEmployeeId ?? null,
+        });
       });
       return { success: true };
     }),
@@ -1988,15 +1996,17 @@ export const hrRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await db.select().from(departments).where(and(eq(departments.id, input.id), eq(departments.companyId, cid)));
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Department not found" });
-      await db.update(departments).set({ isActive: false }).where(eq(departments.id, input.id));
-      await db.update(employees).set({ department: null }).where(
-        and(eq(employees.companyId, cid), eq(employees.department, existing.name)),
-      );
-      await recordDepartmentDeletedAudit(db, {
-        companyId: cid,
-        actorUserId: ctx.user.id,
-        departmentId: input.id,
-        name: existing.name,
+      await db.transaction(async (tx) => {
+        await tx.update(departments).set({ isActive: false }).where(eq(departments.id, input.id));
+        await tx.update(employees).set({ department: null }).where(
+          and(eq(employees.companyId, cid), eq(employees.department, existing.name)),
+        );
+        await recordDepartmentDeletedAudit(tx, {
+          companyId: cid,
+          actorUserId: ctx.user.id,
+          departmentId: input.id,
+          name: existing.name,
+        });
       });
       return { success: true };
     }),
@@ -2024,20 +2034,23 @@ export const hrRouter = router({
       const { companyId: cid } = await requireHrOrAdmin(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const [result] = await db.insert(positions).values({
-        companyId: cid,
-        title: input.title,
-        titleAr: input.titleAr,
-        departmentId: input.departmentId,
-        description: input.description,
-      });
-      const posId = (result as any).insertId as number;
-      await recordPositionCreatedAudit(db, {
-        companyId: cid,
-        actorUserId: ctx.user.id,
-        positionId: posId,
-        title: input.title,
-        departmentId: input.departmentId ?? null,
+      let posId!: number;
+      await db.transaction(async (tx) => {
+        const [result] = await tx.insert(positions).values({
+          companyId: cid,
+          title: input.title,
+          titleAr: input.titleAr,
+          departmentId: input.departmentId,
+          description: input.description,
+        });
+        posId = (result as any).insertId as number;
+        await recordPositionCreatedAudit(tx, {
+          companyId: cid,
+          actorUserId: ctx.user.id,
+          positionId: posId,
+          title: input.title,
+          departmentId: input.departmentId ?? null,
+        });
       });
       return { id: posId };
     }),
@@ -2050,12 +2063,14 @@ export const hrRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await db.select().from(positions).where(and(eq(positions.id, input.id), eq(positions.companyId, cid)));
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Position not found" });
-      await db.update(positions).set({ isActive: false }).where(eq(positions.id, input.id));
-      await recordPositionDeletedAudit(db, {
-        companyId: cid,
-        actorUserId: ctx.user.id,
-        positionId: input.id,
-        title: existing.title,
+      await db.transaction(async (tx) => {
+        await tx.update(positions).set({ isActive: false }).where(eq(positions.id, input.id));
+        await recordPositionDeletedAudit(tx, {
+          companyId: cid,
+          actorUserId: ctx.user.id,
+          positionId: input.id,
+          title: existing.title,
+        });
       });
       return { success: true };
     }),

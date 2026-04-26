@@ -63,7 +63,7 @@ function mockMembership(role: string) {
 }
 
 function makeLoanDb() {
-  return {
+  const db: any = {
     select: () => ({
       from: () => ({
         where: () => ({
@@ -73,7 +73,9 @@ function makeLoanDb() {
     }),
     update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
     insert: () => ({ values: () => Promise.resolve() }),
-  } as any;
+  };
+  db.transaction = (cb: (tx: any) => Promise<any>) => cb(db);
+  return db;
 }
 
 // ── 1. financeHR.reviewExpense ────────────────────────────────────────────────
@@ -117,22 +119,26 @@ describe("financeHR.reviewExpense — access control (hardened from requireActiv
 
   it("allows finance_admin — passes finance gate, updates expense status", async () => {
     mockMembership("finance_admin");
-    vi.mocked(dbMod.getDb).mockResolvedValue({
+    const reviewDb: any = {
       select: () => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve([{ expenseStatus: "pending" }]) }) }) }),
       update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
       insert: () => ({ values: () => Promise.resolve() }),
-    } as any);
+    };
+    reviewDb.transaction = (cb: (tx: any) => Promise<any>) => cb(reviewDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(reviewDb);
     const caller = financeHRRouter.createCaller(makeCtx());
     await expect(caller.reviewExpense(input)).resolves.toMatchObject({ success: true });
   });
 
   it("allows company_admin — passes finance gate, updates expense status", async () => {
     mockMembership("company_admin");
-    vi.mocked(dbMod.getDb).mockResolvedValue({
+    const reviewDb: any = {
       select: () => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve([{ expenseStatus: "pending" }]) }) }) }),
       update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
       insert: () => ({ values: () => Promise.resolve() }),
-    } as any);
+    };
+    reviewDb.transaction = (cb: (tx: any) => Promise<any>) => cb(reviewDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(reviewDb);
     const caller = financeHRRouter.createCaller(makeCtx());
     await expect(caller.reviewExpense(input)).resolves.toMatchObject({ success: true });
   });
@@ -186,7 +192,7 @@ describe("payroll.updateLoanBalance — access control (requireFinanceOrAdmin, p
 
   it("marks loan completed when balance reaches zero", async () => {
     mockMembership("finance_admin");
-    vi.mocked(dbMod.getDb).mockResolvedValue({
+    const loanCompleteDb: any = {
       select: () => ({
         from: () => ({
           where: () => ({
@@ -196,7 +202,9 @@ describe("payroll.updateLoanBalance — access control (requireFinanceOrAdmin, p
       }),
       update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
       insert: () => ({ values: () => Promise.resolve() }),
-    } as any);
+    };
+    loanCompleteDb.transaction = (cb: (tx: any) => Promise<any>) => cb(loanCompleteDb);
+    vi.mocked(dbMod.getDb).mockResolvedValue(loanCompleteDb);
     const caller = payrollRouter.createCaller(makeCtx());
     const result = await caller.updateLoanBalance({ loanId: 1, deductedAmount: 100 });
     expect(result).toMatchObject({ newBalance: 0, status: "completed" });

@@ -66,7 +66,6 @@
     "tailwind-merge": "^3.3.1",
     "vaul": "^1.1.2",
     "wouter": "3.7.1",
-    "mysql2": "^3.15.1",
     "zod": "^4.1.12"
   },
   "devDependencies": {
@@ -120,6 +119,7 @@
     "embla-carousel-react": "^8.6.0",
     "esbuild": "^0.25.0",
     "jsdom": "^29.0.1",
+    "mysql2": "^3.15.1",
     "pnpm": "^10.33.0",
     "postcss": "^8.4.47",
     "prettier": "^3.6.2",

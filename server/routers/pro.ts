@@ -131,18 +131,18 @@ export const proRouter = router({
       })
     )
     .query(async ({ input, ctx }) => {
-      const rows = await getExpiringDocuments(input.daysAhead);
       if (canAccessGlobalAdminProcedures(ctx.user)) {
+        const rows = await getExpiringDocuments(input.daysAhead);
         if (input.companyId != null)
           return rows.filter(r => r.companyId === input.companyId);
         return rows;
       }
-      const companyId = await requireActiveCompanyId(
-        ctx.user.id,
-        input.companyId,
-        ctx.user
-      );
-      return rows.filter(r => r.companyId === companyId);
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      if (m.role === "company_member" || m.role === "client") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "PRO expiry data is restricted to HR and admin roles." });
+      }
+      const rows = await getExpiringDocuments(input.daysAhead);
+      return rows.filter(r => r.companyId === m.companyId);
     }),
 
   create: protectedProcedure

@@ -113,7 +113,11 @@ export const engagementsRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      if (m.role === "company_member" || m.role === "client") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Engagements are restricted to operator and reviewer roles." });
+      }
+      const { companyId } = m;
       if (!db) return { items: [] as (typeof engagements.$inferSelect)[], total: 0 };
       const offset = (input.page - 1) * input.pageSize;
       const rows = await db
